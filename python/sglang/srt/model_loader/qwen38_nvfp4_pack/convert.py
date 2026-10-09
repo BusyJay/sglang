@@ -84,6 +84,7 @@ def load_layer_checkpoint(layer, checkpoint, index, layer_id):
     # through relative symlinks, which is_file() follows without moving the
     # lexical path outside the directory.
     root = Path(checkpoint).expanduser()
+    by_file: dict[Path, list] = {}
     for name, (filename, target, shard, expert) in entries.items():
         if filename.startswith("/") or ".." in Path(filename).parts:
             raise ValueError(f"invalid or missing checkpoint shard {filename}")
