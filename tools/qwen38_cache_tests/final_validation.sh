@@ -30,6 +30,10 @@ stage() {
   echo "[stage] $name rc=$rc seconds=$dur (overall=$overall)"
 }
 
+# Clear prior exports of exactly the layers this run produces; --resume stays
+# valid for untouched layers elsewhere in the same pack dir.
+rm -rf "$root/results/packs/layer0-sync/layer-000" "$root/results/packs/layer0-threaded/layer-000"
+
 stage layer0_sync_parity bash "$model" \
   --image "$image" --device "$device" --checkpoint "$checkpoint" \
   --pack "$root/results/packs/layer0-sync" --results "$stages_dir/layer0-sync" -- convert \
