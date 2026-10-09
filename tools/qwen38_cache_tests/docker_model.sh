@@ -36,18 +36,33 @@ checkpoint="$(cd "$checkpoint" && pwd)"
 mkdir -p "$pack" "$results"
 pack="$(cd "$pack" && pwd)"
 results="$(cd "$results" && pwd)"
+# HF offline caches resolve snapshot entries through relative symlinks into the
+# repo-level blobs directory; binding only a snapshots directory leaves them
+# dangling inside the container. Bind the models--<name> tree instead and map
+# the checkpoint path below it.
+bind_source="$checkpoint"
+container_checkpoint="/workspace/checkpoint"
+snapshot_parent="$(dirname "$checkpoint")"
+if [[ "$(basename "$snapshot_parent")" == "snapshots" && -d "$(dirname "$snapshot_parent")/blobs" ]]; then
+  bind_source="$(dirname "$snapshot_parent")"
+  container_checkpoint="/workspace/checkpoint-root/snapshots/$(basename "$checkpoint")"
+fi
 case "$mode" in
-  convert) command=(-m sglang.srt.model_loader.qwen38_nvfp4_pack.convert --checkpoint /workspace/checkpoint --output /workspace/pack) ;;
-  canary) command=(tools/qwen38_cache_tests/full_model_canary.py --checkpoint /workspace/checkpoint --manifest /workspace/pack/manifest.json --output /workspace/results) ;;
+  convert) command=(-m sglang.srt.model_loader.qwen38_nvfp4_pack.convert --checkpoint "$container_checkpoint" --output /workspace/pack) ;;
+  canary) command=(tools/qwen38_cache_tests/full_model_canary.py --checkpoint "$container_checkpoint" --manifest /workspace/pack/manifest.json --output /workspace/results) ;;
   *) echo "Unknown mode: $mode" >&2; exit 2 ;;
 esac
+HF_BINDS=(-v "$bind_source:/workspace/checkpoint:ro")
+if [[ "$container_checkpoint" != "/workspace/checkpoint" ]]; then
+  HF_BINDS=(-v "$bind_source:/workspace/checkpoint-root:ro")
+fi
 docker image inspect "$image" --format 'Using local image {{.Id}}'
 exec python3 "$repo_root/tools/qwen38_cache_tests/docker_supervisor.py" \
   --timeout "$timeout_seconds" --idle-seconds "$idle_seconds" --stall-action "$stall_action" --confirm-seconds "$confirm_seconds" --gpu-device "$device" --results "$results" -- \
   docker run --rm --pull never --network none \
   --gpus "device=$device" --ipc=host --ulimit memlock=-1 \
   -v "$repo_root:/workspace/sglang:ro" \
-  -v "$checkpoint:/workspace/checkpoint:ro" \
+  ${HF_BINDS[@]} \
   -v "$pack:/workspace/pack" -v "$results:/workspace/results" \
   -w /workspace/sglang -e PYTHONPATH=/workspace/sglang/python \
   -e PYTHONUNBUFFERED=1 -e PYTHONDONTWRITEBYTECODE=1 -e HF_HUB_OFFLINE=1 -e TRANSFORMERS_OFFLINE=1 \
