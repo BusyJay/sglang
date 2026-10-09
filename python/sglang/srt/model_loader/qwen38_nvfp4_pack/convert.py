@@ -79,11 +79,16 @@ def load_layer_checkpoint(layer, checkpoint, index, layer_id):
     from safetensors import safe_open
 
     entries = layer_checkpoint_entries(index, layer_id, layer.num_experts)
-    by_file = {}
-    root = Path(checkpoint).resolve()
+    # Lexical containment plus ".." rejection keeps names inside the requested
+    # checkpoint; HuggingFace caches legitimately reach sibling blob storage
+    # through relative symlinks, which is_file() follows without moving the
+    # lexical path outside the directory.
+    root = Path(checkpoint).expanduser()
     for name, (filename, target, shard, expert) in entries.items():
-        path = (root / filename).resolve()
-        if not path.is_relative_to(root) or not path.is_file():
+        if filename.startswith("/") or ".." in Path(filename).parts:
+            raise ValueError(f"invalid or missing checkpoint shard {filename}")
+        path = root / filename
+        if not path.is_file():
             raise ValueError(f"invalid or missing checkpoint shard {filename}")
         by_file.setdefault(path, []).append((name, target, shard, expert))
     for path, tensors in sorted(by_file.items()):
