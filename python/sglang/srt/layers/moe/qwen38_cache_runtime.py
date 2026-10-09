@@ -122,7 +122,11 @@ class Qwen38SynchronousExpertRuntime:
                     raise ValueError(
                         f"layer {layer_id} {name} must be finite and positive"
                     )
-                scales[name] = tensor
+                # FlashInfer's NVFP4 CUTLASS binding requires the activation
+                # global scales to be true scalars (or per-expert vectors); a
+                # [1]-tensor fails its dimension checks, so keep them 0-d like
+                # the resident ModelOpt layer attributes.
+                scales[name] = tensor.reshape(())
             self.layer_scales[layer_id] = scales
         return self.layer_scales[layer_id]
 
