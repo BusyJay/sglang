@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import gc
 import json
+import shutil
 from pathlib import Path
 
 PROJECTIONS = {
@@ -196,6 +197,12 @@ def main():
                     if errors:
                         raise ValueError(f"invalid resumed export: {errors}")
                 continue
+            # Unmarked leftovers from interrupted reruns may occupy this dir;
+            # resume only skips provenance-marked exports, so anything else here
+            # is stale and must be cleared by the converting process itself
+            # (prior artifacts can be owned by other users on the pack volume).
+            if destination.exists():
+                shutil.rmtree(destination)
             layer = create_resident_layer(config, layer_id)
             load_layer_checkpoint(layer, checkpoint, index, layer_id)
             export_runtime_layer(layer, destination)
