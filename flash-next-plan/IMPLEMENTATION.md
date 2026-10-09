@@ -182,14 +182,20 @@ miss transport remain future work, as described in RUN_ON_GPU.md.
 ### Background transport continuation
 
 Added opt-in `runtime_mode=threaded`: main thread enqueues CUDA policy/remap,
-D2H transfer plans, CUDA driver stream-memory waits and compute; a background
-worker dispatches mmap/staging/H2D transfers and ready signals, with a separate
-compute-retirement thread. No per-layer plan readback or event synchronization
-runs on the main inference thread. Queue backpressure and startup/cleanup still
-wait. Conservative token-count bounds choose cache vs arena without GPU readback.
-Transfer failure gates are checked by a CUDA guard before consuming weights.
-Added two CPU worker protocol tests and target-GPU threaded storage/parity tests.
-The driver MemOps transport itself is GPU-unvalidated; Graph replay is unsupported.
+D2H transfer plans, a compute-side ready-event wait, and compute; a background
+worker dispatches mmap/staging/H2D transfers and reports readiness through a
+per-job CUDA event plus a host flag; a separate compute-retirement thread waits
+for completion before releasing job capacity. No per-layer plan readback runs on
+the main inference thread. Queue backpressure and startup/cleanup still wait.
+Conservative token-count bounds choose cache vs arena without GPU readback.
+Transport failures raise into the caller and poison the runtime so partially
+copied entries cannot become hits on retry. Added two CPU worker protocol tests
+and target-GPU threaded storage/parity tests. The initial design gated compute
+with driver MemOps (cuStreamWaitValue32/cuStreamWriteValue32): on real GPUs
+those cross-thread driver calls wedged the transfer stream until timeout, while
+every configuration without them passed, so the gate was replaced by
+semantically equivalent pure PyTorch events (`QWEN38_READY_TIMEOUT_SECONDS`,
+default 120 s, bounds the readiness wait). Graph replay is unsupported.
 
 ### Archive preflight
 
