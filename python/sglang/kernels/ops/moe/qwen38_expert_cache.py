@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: Apache-2.0
+"""JIT routing summaries and slot remapping for Qwen3.8 expert caches."""
+
+import torch
+
+from sglang.kernels.jit.utils import cache_once, load_jit
+
+
+@cache_once
+def _module():
+    return load_jit(
+        "qwen38_expert_cache",
+        cuda_files=["moe/qwen38_expert_cache.cu"],
+        cuda_wrappers=[
+            ("route", "Qwen38CacheRoute::run"),
+            ("plan", "Qwen38CachePlan::run"),
+            ("guard", "Qwen38ReadyGuard::run"),
+        ],
+    )
+
+
+def cache_route(topk_ids, lookup, remapped, counts):
+    if topk_ids.dtype != torch.int32:
+        raise ValueError("Qwen3.8 JIT routing requires int32 IDs")
+    _module().route(topk_ids, lookup, remapped, counts)
+
+
+def cache_plan(
+    counts, lookup, keys, frequency, ages, generation, clock, plan, decay=0.95
+):
+    _module().plan(
+        counts, lookup, keys, frequency, ages, generation, clock, plan, decay
+    )
+
+
+def cache_ready_guard(gate):
+    _module().guard(gate)

@@ -4330,6 +4330,16 @@ def get_model_loader(
     if isinstance(load_config.load_format, type):
         return load_config.load_format(load_config)
 
+    # This format must own model construction before the generic ModelOpt
+    # selection below. Otherwise a serialized modelopt_mixed checkpoint would
+    # instantiate all routed-expert parameters and defeat bounded offload.
+    if load_config.load_format == LoadFormat.QWEN38_NVFP4_CACHE:
+        from sglang.srt.model_loader.qwen38_nvfp4_cache_loader import (
+            Qwen38NvFp4CacheModelLoader,
+        )
+
+        return Qwen38NvFp4CacheModelLoader(load_config)
+
     if model_config and model_config.quantization in ["auto-round-int8"]:
         logger.info("Using IncModelLoader due to AutoRound quantization config.")
         return IncModelLoader(load_config)

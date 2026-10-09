@@ -1,0 +1,221 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Synchronous reference runtime for the SM120 expert pack.
+
+Only small staging buffers are pinned. Cache/arena addresses stay fixed; every
+CUDA invocation finishes before buffers can be overwritten. This deliberately
+synchronizes routing and compute, and is a correctness baseline for a future
+stream/event implementation, not the asynchronous production fast path.
+"""
+
+from __future__ import annotations
+
+import threading
+from dataclasses import dataclass
+
+import torch
+
+from sglang.srt.layers.moe.qwen38_expert_cache import LayerExpertCachePolicy
+from sglang.srt.model_loader.qwen38_nvfp4_pack.format import (
+    LAYER_TENSORS,
+    REQUIRED_TENSORS,
+)
+
+
+@dataclass
+class PreparedExperts:
+    tensors: dict[str, torch.Tensor]
+    topk_ids: torch.Tensor
+    num_experts: int
+    arena: bool
+
+
+class Qwen38SynchronousExpertRuntime:
+    def __init__(self, pack, device, *, slots_per_layer=56, prefill_arena=True):
+        self.pack = pack
+        self.manifest = pack.manifest
+        self.device = torch.device(device)
+        if self.device.type == "cuda" and self.device.index is None:
+            self.device = torch.device("cuda", torch.cuda.current_device())
+        if not 0 < slots_per_layer <= self.manifest.num_experts:
+            raise ValueError("invalid expert-cache capacity")
+        self.slots_per_layer = slots_per_layer
+        self.prefill_arena = prefill_arena
+        self.policies = {}
+        self.caches = {}
+        self.arena = None
+        self.arena_layer = None
+        self.layer_scales = {}
+        self.lock = threading.Lock()
+        self.hits = self.misses = self.arena_loads = self.transferred_bytes = 0
+        largest = max(
+            record.nbytes // self.manifest.num_experts
+            for records in self.manifest.tensors.values()
+            for name, record in records.items()
+            if name in REQUIRED_TENSORS
+        )
+        self.staging = torch.empty(
+            largest, dtype=torch.uint8, pin_memory=self.device.type == "cuda"
+        )
+        # A shared arena requires the same transformed shape/dtype in all layers.
+        first = self.manifest.tensors[0]
+        for records in self.manifest.tensors.values():
+            for name in REQUIRED_TENSORS:
+                if (records[name].shape, records[name].dtype) != (
+                    first[name].shape,
+                    first[name].dtype,
+                ):
+                    raise ValueError(
+                        "expert pack layers have different runtime layouts"
+                    )
+
+    def reserve(self):
+        """Allocate before SGLang measures free memory for the KV pool."""
+        with self.lock:
+            for layer_id in self.manifest.tensors:
+                if layer_id not in self.caches:
+                    self.caches[layer_id] = self._allocate(self.slots_per_layer)
+                    self.policies[layer_id] = LayerExpertCachePolicy(
+                        self.manifest.num_experts, self.slots_per_layer
+                    )
+                self._scales(layer_id)
+            if self.prefill_arena and self.arena is None:
+                self.arena = self._allocate(self.manifest.num_experts)
+
+    def _allocate(self, capacity):
+        return {
+            name: torch.zeros(
+                (capacity, *self.manifest.tensors[0][name].shape[1:]),
+                dtype=getattr(torch, self.manifest.tensors[0][name].dtype),
+                device=self.device,
+            )
+            for name in REQUIRED_TENSORS
+        }
+
+    def _copy(self, view, destination):
+        # Copy read-only mmap bytes into bounded writable staging storage.
+        # The temporary bytearray is at most one expert tensor, never a layer.
+        try:
+            source = torch.frombuffer(bytearray(view), dtype=torch.uint8)
+            staging = self.staging[: source.numel()]
+            staging.copy_(source)
+            destination.reshape(-1).view(torch.uint8).copy_(staging, non_blocking=False)
+            self.transferred_bytes += source.numel()
+        finally:
+            view.release()
+
+    def _fill(self, layer_id, expert_id, tensors, slot_id):
+        for name in REQUIRED_TENSORS:
+            self._copy(
+                self.pack.expert_tensor_bytes(layer_id, expert_id, name),
+                tensors[name][slot_id],
+            )
+
+    def _scales(self, layer_id):
+        if layer_id not in self.layer_scales:
+            scales = {}
+            for name in LAYER_TENSORS:
+                tensor = torch.empty(1, dtype=torch.float32, device=self.device)
+                self._copy(self.pack.tensor_bytes(layer_id, name), tensor)
+                if not bool(torch.isfinite(tensor).all()) or not bool(
+                    (tensor > 0).all()
+                ):
+                    raise ValueError(
+                        f"layer {layer_id} {name} must be finite and positive"
+                    )
+                scales[name] = tensor
+            self.layer_scales[layer_id] = scales
+        return self.layer_scales[layer_id]
+
+    def prepare(self, layer_id, topk_ids):
+        """Called inside run's serialized scope; IDs -1 represent padded routes."""
+        if topk_ids.device != self.device:
+            raise ValueError("route IDs and expert cache must be on the same device")
+        if topk_ids.dtype not in (torch.int32, torch.int64) or topk_ids.ndim != 2:
+            raise ValueError("route IDs must be a two-dimensional integer tensor")
+        if topk_ids.shape[1] != self.manifest.top_k:
+            raise ValueError("routing top-k differs from the expert pack")
+        if layer_id not in self.manifest.tensors:
+            raise ValueError("invalid expert-pack layer")
+        ids = self._route_ids(layer_id, topk_ids)
+        if any(value < -1 or value >= self.manifest.num_experts for value in ids):
+            raise ValueError("route ID is outside the expert pack")
+        active = list(dict.fromkeys(value for value in ids if value >= 0))
+        use_arena = len(active) > self.slots_per_layer
+        if use_arena:
+            if not self.prefill_arena:
+                raise ValueError("routing exceeds cache capacity; enable prefill_arena")
+            if self.arena is None:
+                self.arena = self._allocate(self.manifest.num_experts)
+            if self.arena_layer != layer_id:
+                self.arena_layer = None
+                for expert in range(self.manifest.num_experts):
+                    self._fill(layer_id, expert, self.arena, expert)
+                self.arena_layer = layer_id
+                self.arena_loads += 1
+            tensors = self.arena
+            remapped = topk_ids
+            capacity = self.manifest.num_experts
+        else:
+            if layer_id not in self.policies:
+                self.policies[layer_id] = LayerExpertCachePolicy(
+                    self.manifest.num_experts, self.slots_per_layer
+                )
+                self.caches[layer_id] = self._allocate(self.slots_per_layer)
+            policy = self.policies[layer_id]
+            mapping, misses = policy.ensure(active)
+            tensors = self.caches[layer_id]
+            try:
+                for expert in misses:
+                    self._fill(layer_id, expert, tensors, mapping[expert])
+            except Exception:
+                # A partially copied expert must not become a hit on retry.
+                for expert in misses:
+                    slot = policy.expert_to_slot.pop(expert)
+                    policy.slots[slot].expert_id = None
+                raise
+            self.hits += len(active) - len(misses)
+            self.misses += len(misses)
+            remapped = self._remap(layer_id, topk_ids, mapping)
+            capacity = self.slots_per_layer
+        return PreparedExperts(
+            {**tensors, **self._scales(layer_id)}, remapped, capacity, use_arena
+        )
+
+    def _route_ids(self, layer_id, topk_ids):
+        return topk_ids.detach().to("cpu").reshape(-1).tolist()
+
+    def _remap(self, layer_id, topk_ids, mapping):
+        lookup = torch.full(
+            (self.manifest.num_experts + 1,),
+            -1,
+            dtype=topk_ids.dtype,
+            device=self.device,
+        )
+        for expert, slot in mapping.items():
+            lookup[expert] = slot
+        return lookup[topk_ids.to(torch.int64)]
+
+    def run(self, layer_id, topk_ids, execute):
+        with self.lock, torch.no_grad():
+            try:
+                return execute(self.prepare(layer_id, topk_ids))
+            finally:
+                # Even if a kernel raises, no slot or shared arena is reused
+                # while a previous launch still reads it.
+                if self.device.type == "cuda":
+                    torch.cuda.synchronize(self.device)
+
+    def memory_budget(self):
+        per_layer = [
+            sum(r.nbytes for n, r in records.items() if n in REQUIRED_TENSORS)
+            for records in self.manifest.tensors.values()
+        ]
+        return {
+            "decode_cache_bytes": sum(per_layer)
+            // self.manifest.num_experts
+            * self.slots_per_layer,
+            "prefill_arena_bytes": max(per_layer) if self.prefill_arena else 0,
+            "pinned_staging_bytes": (
+                self.staging.numel() if self.device.type == "cuda" else 0
+            ),
+        }

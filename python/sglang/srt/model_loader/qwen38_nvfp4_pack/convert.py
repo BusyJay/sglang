@@ -1,0 +1,248 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+"""Convert local checkpoint experts one layer at a time on SM120.
+
+Never calls HF download APIs. Names and complete projection/scale coverage are
+validated against the local safetensors index before any tensors are read.
+"""
+
+from __future__ import annotations
+
+import argparse
+import gc
+import json
+from pathlib import Path
+
+PROJECTIONS = {
+    "gate_proj": ("w13", "w1"),
+    "up_proj": ("w13", "w3"),
+    "down_proj": ("w2", "w2"),
+}
+SUFFIXES = ("weight", "weight_scale", "weight_scale_2", "input_scale")
+
+
+def layer_checkpoint_entries(index, layer_id, num_experts):
+    prefix = f"model.language_model.layers.{layer_id}.mlp.experts."
+    entries = {}
+    for expert in range(num_experts):
+        for projection, (target, shard) in PROJECTIONS.items():
+            for suffix in SUFFIXES:
+                name = f"{prefix}{expert}.{projection}.{suffix}"
+                if name not in index:
+                    raise ValueError(f"checkpoint index is missing {name}")
+                entries[name] = (index[name], f"{target}_{suffix}", shard, expert)
+    return entries
+
+
+def initialize_fixture():
+
+    from sglang.test.layer_ut_utils import init_single_process_dist
+
+    # Gloo is used only for the required world=1 topology setup.
+    init_single_process_dist()
+    from sglang.srt.layers.moe.utils import MoeA2ABackend, MoeRunnerBackend
+    from sglang.srt.runtime_context import get_context, get_flags, get_parallel
+
+    return get_context(), get_flags(), get_parallel(), MoeRunnerBackend, MoeA2ABackend
+
+
+def create_resident_layer(config, layer_id):
+    import torch
+
+    from sglang.srt.layers.moe.fused_moe_triton.layer import FusedMoE
+    from sglang.srt.layers.quantization.modelopt_quant import (
+        ModelOptMixedPrecisionConfig,
+    )
+
+    delegate = ModelOptMixedPrecisionConfig.from_config(config["quantization_config"])
+    text = config.get("text_config", config)
+    prefix = f"model.layers.{layer_id}.mlp.experts"
+    if delegate.resolve_quant_algo(prefix) != "NVFP4":
+        raise ValueError(f"{prefix} is not an NVFP4 layer")
+    with torch.device("cuda"):
+        return FusedMoE(
+            num_experts=text["num_experts"],
+            hidden_size=text["hidden_size"],
+            intermediate_size=text["moe_intermediate_size"],
+            layer_id=layer_id,
+            top_k=text["num_experts_per_tok"],
+            params_dtype=torch.bfloat16,
+            quant_config=delegate,
+            prefix=prefix,
+            activation=text.get("hidden_act", "silu"),
+            gate_up_interleaved=False,
+            inplace=False,
+        )
+
+
+def load_layer_checkpoint(layer, checkpoint, index, layer_id):
+    from safetensors import safe_open
+
+    entries = layer_checkpoint_entries(index, layer_id, layer.num_experts)
+    by_file = {}
+    root = Path(checkpoint).resolve()
+    for name, (filename, target, shard, expert) in entries.items():
+        path = (root / filename).resolve()
+        if not path.is_relative_to(root) or not path.is_file():
+            raise ValueError(f"invalid or missing checkpoint shard {filename}")
+        by_file.setdefault(path, []).append((name, target, shard, expert))
+    for path, tensors in sorted(by_file.items()):
+        with safe_open(str(path), framework="pt", device="cpu") as handle:
+            for name, target, shard, expert in tensors:
+                # Read only this layer's expert tensor; no dense/PLE/vision weights.
+                tensor = handle.get_tensor(name)
+                layer.weight_loader(
+                    getattr(layer, target),
+                    tensor,
+                    target,
+                    shard_id=shard,
+                    expert_id=expert,
+                )
+    layer.quant_method.process_weights_after_loading(layer)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--checkpoint", required=True)
+    parser.add_argument("--output", required=True)
+    parser.add_argument("--checkpoint-revision", required=True)
+    parser.add_argument("--sglang-commit", required=True)
+    parser.add_argument("--layers", type=int, nargs="+")
+    parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--assemble", action="store_true")
+    parser.add_argument(
+        "--runtime-mode",
+        choices=["sync", "async", "device", "threaded"],
+        default="sync",
+    )
+    parser.add_argument(
+        "--parity",
+        action="store_true",
+        help="compare resident vs cached CUTLASS before releasing each layer",
+    )
+    args = parser.parse_args()
+    import torch
+
+    if not torch.cuda.is_available() or torch.cuda.get_device_capability() != (12, 0):
+        parser.error("conversion requires SM120 CUDA")
+    checkpoint = Path(args.checkpoint)
+    config = json.loads((checkpoint / "config.json").read_text())
+    index = json.loads((checkpoint / "model.safetensors.index.json").read_text())[
+        "weight_map"
+    ]
+    text = config.get("text_config", config)
+    layers = (
+        args.layers
+        if args.layers is not None
+        else list(range(text["num_hidden_layers"]))
+    )
+    if len(set(layers)) != len(layers) or any(
+        x < 0 or x >= text["num_hidden_layers"] for x in layers
+    ):
+        parser.error("invalid or duplicate layer IDs")
+    # Validate all requested coverage first, before CUDA model construction.
+    for layer_id in layers:
+        layer_checkpoint_entries(index, layer_id, text["num_experts"])
+    output = Path(args.output)
+    output.mkdir(parents=True, exist_ok=True)
+    from .build import build_pack
+    from .export import export_runtime_layer
+
+    ctx, flags, parallel, backend, a2a = initialize_fixture()
+    with (
+        ctx.override_server_args(model_path="dummy"),
+        flags.moe.override(
+            runner_backend=backend.FLASHINFER_CUTLASS, a2a_backend=a2a.NONE
+        ),
+        parallel.override(
+            moe_ep_size=1,
+            moe_ep_rank=0,
+            moe_tp_size=1,
+            moe_tp_rank=0,
+            tp_size=1,
+            tp_rank=0,
+        ),
+    ):
+        for layer_id in layers:
+            destination = output / f"layer-{layer_id:03d}"
+            marker = destination / "conversion.json"
+            if args.resume and marker.is_file():
+                saved = json.loads(marker.read_text())
+                if saved != {
+                    "checkpoint_revision": args.checkpoint_revision,
+                    "sglang_commit": args.sglang_commit,
+                    "layer_id": layer_id,
+                }:
+                    raise ValueError(f"resume provenance mismatch: {destination}")
+                if args.parity:
+                    raise ValueError(
+                        "--resume cannot skip parity; rerun on a fresh output"
+                    )
+                from .format import PACK_TENSORS, TensorRecord
+
+                metadata = json.loads((destination / "metadata.json").read_text())
+                for name in PACK_TENSORS:
+                    info = metadata[name]
+                    tensor_path = destination / info["file"]
+                    size = tensor_path.stat().st_size
+                    record = TensorRecord(0, size, tuple(info["shape"]), info["dtype"])
+                    errors = record.validate(payload_nbytes=size, label=name)
+                    if errors:
+                        raise ValueError(f"invalid resumed export: {errors}")
+                continue
+            layer = create_resident_layer(config, layer_id)
+            load_layer_checkpoint(layer, checkpoint, index, layer_id)
+            export_runtime_layer(layer, destination)
+            if args.parity:
+                from sglang.srt.model_loader.qwen38_nvfp4_pack.parity import (
+                    check_exported_layer,
+                )
+
+                report = check_exported_layer(layer, destination, args.runtime_mode)
+                (destination / "parity.json").write_text(
+                    json.dumps(report, indent=2) + "\n"
+                )
+            marker.write_text(
+                json.dumps(
+                    {
+                        "checkpoint_revision": args.checkpoint_revision,
+                        "sglang_commit": args.sglang_commit,
+                        "layer_id": layer_id,
+                    },
+                    indent=2,
+                )
+                + "\n"
+            )
+            del layer
+            gc.collect()
+            torch.cuda.empty_cache()
+            print(f"Converted layer {layer_id}", flush=True)
+    if args.assemble:
+        # Every layer needs matching provenance before assembling a production pack.
+        for layer_id in range(text["num_hidden_layers"]):
+            saved = json.loads(
+                (output / f"layer-{layer_id:03d}" / "conversion.json").read_text()
+            )
+            if saved != {
+                "checkpoint_revision": args.checkpoint_revision,
+                "sglang_commit": args.sglang_commit,
+                "layer_id": layer_id,
+            }:
+                raise ValueError("cannot assemble exports from different revisions")
+        build_pack(
+            output,
+            output / "experts.bin",
+            output / "manifest.json",
+            checkpoint_revision=args.checkpoint_revision,
+            sglang_commit=args.sglang_commit,
+            num_layers=text["num_hidden_layers"],
+            num_experts=text["num_experts"],
+            top_k=text["num_experts_per_tok"],
+            hidden_size=text["hidden_size"],
+            intermediate_size=text["moe_intermediate_size"],
+        )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

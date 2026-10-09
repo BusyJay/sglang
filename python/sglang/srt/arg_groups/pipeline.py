@@ -120,6 +120,11 @@ def run_resolution_pipeline(server_args: Any) -> None:
     from sglang.srt.arg_groups.expert_pack_hook import handle_expert_pack
 
     run_hook(handle_expert_pack, server_args)
+    from sglang.srt.arg_groups.qwen38_cache_hook import (
+        handle_qwen38_nvfp4_cache,
+    )
+
+    run_hook(handle_qwen38_nvfp4_cache, server_args)
 
     # Validate PD disaggregation flags before CUDA graph config.
     from sglang.srt.arg_groups.pd_disaggregation_hook import (
