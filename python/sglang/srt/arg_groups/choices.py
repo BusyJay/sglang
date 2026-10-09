@@ -15,6 +15,9 @@ LOAD_FORMAT_CHOICES = [
     # https://huggingface.co/unsloth/DeepSeek-V4-Flash-0731-GGUF
     # https://huggingface.co/Blackfrost-AI/KIMI-K3-Q2_K-GGUF-ABLITERATED
     "expert_pack",
+    # Qwen3.8-Flash-Next NVFP4 routed experts are stored in a host runtime
+    # pack and staged into a bounded per-layer GPU cache.
+    "qwen38_nvfp4_cache",
     "bitsandbytes",
     "mistral",
     "layered",

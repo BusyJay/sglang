@@ -1,0 +1,97 @@
+from __future__ import annotations
+
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+from ._load_source import load_source
+
+format_module = load_source(
+    "qwen38_pack_format_under_test",
+    "python/sglang/srt/model_loader/qwen38_nvfp4_pack/format.py",
+)
+FORMAT_NAME = format_module.FORMAT_NAME
+REQUIRED_TENSORS = format_module.PACK_TENSORS
+Qwen38ExpertPack = format_module.Qwen38ExpertPack
+load_manifest = format_module.load_manifest
+
+
+def make_pack(root: Path, *, overlap: bool = False) -> Path:
+    payload = root / "experts.bin"
+    payload.write_bytes(bytes(range(96)))
+    offset = 0
+    layers = {}
+    records = {}
+    for index, name in enumerate(REQUIRED_TENSORS):
+        if overlap and index == 1:
+            current = 0
+        else:
+            current = offset
+        records[name] = {
+            "offset": current,
+            "nbytes": 4 if name in format_module.LAYER_TENSORS else 8,
+            "shape": [1] if name in format_module.LAYER_TENSORS else [2, 4],
+            "dtype": "float32" if name in format_module.LAYER_TENSORS else "uint8",
+        }
+        offset += 8
+    layers["0"] = records
+    manifest = root / "manifest.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "format": FORMAT_NAME,
+                "version": format_module.FORMAT_VERSION,
+                "payload": payload.name,
+                "checkpoint_revision": "fixture-revision",
+                "sglang_commit": "e00930c5489053f26d86b179cee0d087f846acbb",
+                "flashinfer_backend": "flashinfer_cutlass",
+                "compute_capability": "sm120",
+                "model": {
+                    "num_layers": 1,
+                    "num_experts": 2,
+                    "top_k": 2,
+                    "hidden_size": 2560,
+                    "intermediate_size": 640,
+                },
+                "layers": layers,
+            }
+        ),
+        encoding="utf-8",
+    )
+    return manifest
+
+
+class TestPackFormat(unittest.TestCase):
+    def test_manifest_and_read_only_mmap(self):
+        with tempfile.TemporaryDirectory() as value:
+            manifest = load_manifest(make_pack(Path(value)))
+            manifest.assert_runtime_compatible(
+                checkpoint_revision="fixture-revision",
+                sglang_commit="e00930c5489053f26d86b179cee0d087f846acbb",
+            )
+            with Qwen38ExpertPack(manifest) as pack:
+                self.assertEqual(
+                    bytes(pack.tensor_bytes(0, "w13_weight")), bytes(range(8))
+                )
+                self.assertEqual(
+                    bytes(pack.expert_tensor_bytes(0, 1, "w13_weight")),
+                    bytes(range(4, 8)),
+                )
+                with self.assertRaises(TypeError):
+                    pack.tensor_bytes(0, "w13_weight")[0] = 9
+
+    def test_overlap_is_rejected(self):
+        with tempfile.TemporaryDirectory() as value:
+            with self.assertRaisesRegex(ValueError, "overlap"):
+                load_manifest(make_pack(Path(value), overlap=True))
+
+    def test_abi_mismatch_is_rejected(self):
+        with tempfile.TemporaryDirectory() as value:
+            manifest = load_manifest(make_pack(Path(value)))
+            with self.assertRaisesRegex(ValueError, "ABI mismatch"):
+                manifest.assert_runtime_compatible(sglang_commit="different")
+
+
+if __name__ == "__main__":
+    unittest.main()

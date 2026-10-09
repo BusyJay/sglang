@@ -95,7 +95,9 @@ def _ple_table_is_fp8(
         return False
     if quant_config.get_name() == "fp8":
         return True
-    if isinstance(quant_config, ModelOptMixedPrecisionConfig):
+    if isinstance(quant_config, ModelOptMixedPrecisionConfig) or getattr(
+        quant_config, "supports_qwen38_mixed_precision", False
+    ):
         return quant_config.resolve_quant_algo(prefix) == "FP8"
     return False
 

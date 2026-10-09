@@ -1,0 +1,36 @@
+{
+  "job_version": 1,
+  "repository": "/absolute/path/to/sglang",
+  "image": "",
+  "gpu": "",
+  "container_name": "qwen38-flash-next-test",
+  "start_server": true,
+  "base_url": "http://127.0.0.1:31000",
+  "health_url": "http://127.0.0.1:31000/health_generate",
+  "health_timeout_seconds": 1800,
+  "server_environment": {},
+  "server_command": [
+    "python3",
+    "-m",
+    "sglang.launch_server",
+    "--model-path",
+    "nvidia/Qwen3.8-Flash-Next-NVFP4",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "31000"
+  ],
+  "tests": [
+    {
+      "name": "canary",
+      "command": [
+        "python3",
+        "tools/qwen38_cache_tests/full_model_canary.py"
+      ],
+      "gpu": false,
+      "environment": {},
+      "timeout_seconds": 900
+    }
+  ],
+  "stop_after_first_failure": true
+}

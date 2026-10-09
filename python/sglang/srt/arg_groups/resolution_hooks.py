@@ -32,6 +32,7 @@ _OVERRIDABLE_HOOKS: FrozenSet[str] = frozenset(
         "handle_prefill_delayer_env_compat",
         "handle_missing_default_values",
         "handle_expert_pack",
+        "handle_qwen38_nvfp4_cache",
         "handle_pd_disaggregation",
         "validate_prefill_only_disable_kv_cache_args",
         "handle_decode_context_parallelism",

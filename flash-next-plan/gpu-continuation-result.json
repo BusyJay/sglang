@@ -1,0 +1,43 @@
+{
+  "date": "2026-10-09",
+  "status": "cpu_passed_gpu_unvalidated",
+  "container_image": "lmsysorg/sglang:v0.5.21",
+  "container_image_id": "sha256:b1259f3ea3275f66237c498ea388919729018bc9f01c3d638391e06e2cf3f469",
+  "cpu_tests": 57,
+  "cpu_skipped": 0,
+  "real_modelopt_config_and_prefix_check": "passed",
+  "module_imports": "passed",
+  "sm120_jit_cross_compile_and_load": "passed",
+  "cuda_kernel_execution": "not run",
+  "checkpoint_conversion": "not run",
+  "gpu_parity": "not run",
+  "full_model_canary": "not run",
+  "static_checks": {
+    "ruff": "passed",
+    "python_compile": "passed",
+    "shell_syntax": "passed",
+    "diff_check": "passed"
+  },
+  "weights_downloaded": false,
+  "public_index_coverage": {
+    "layers": 48,
+    "expert_tensors_per_layer": 6144
+  },
+  "limitations": [
+    "threaded mode uses background CPU transport and bounded queue backpressure",
+    "conservative token bound chooses arena; no dynamic GPU runner branching",
+    "CUDA MemOps and all GPU runtime behavior unvalidated",
+    "MTP and CUDA graph disabled"
+  ],
+  "device_cache_policy": "implemented; cross-compiled, GPU execution not run",
+  "per_slot_event_pipeline": "implemented; GPU execution not run",
+  "threaded_transport": "implemented; CPU worker tests passed; GPU MemOps not executed",
+  "archive_preflight": {
+    "docker_supervisor_success_timeout_tests": "passed",
+    "real_docker_supervisor_smoke": "passed",
+    "gpu_failure_cleanup": "audited; GPU not executed"
+  },
+  "activity_watchdog": "default kill; raw cumulative CPU/IO; 60s observation + 30s confirmation; CPU lifecycle/adversarial tests passed; local Docker cumulative IO unavailable, GPU not run",
+  "gpu_switch_ordering": "12 CPU tests: restore/ready/publish/wake, frozen dispatch, recovery locking/identity, failure paths",
+  "script_review": "CPU checks for missing IO metrics, cleanup failure and SIGTERM cleanup passed; current manuals consolidated"
+}

@@ -1,0 +1,82 @@
+{
+  "worktree": "/absolute/path/to/sglang",
+  "workset": "/absolute/path/to/sglang/.agent-workset",
+  "dispatch": {
+    "delay_seconds": 8,
+    "poll_interval_seconds": 1
+  },
+  "preflight_commands": [
+    [
+      "docker",
+      "image",
+      "inspect",
+      "LOCAL_TEST_IMAGE"
+    ],
+    [
+      "docker",
+      "inspect",
+      "NORMAL_SGLANG_CONTAINER"
+    ]
+  ],
+  "gpu": {
+    "id": "0",
+    "minimum_free_mib": 30000,
+    "release_timeout_seconds": 120,
+    "poll_interval_seconds": 2
+  },
+  "development": {
+    "stop_command": [
+      "docker",
+      "stop",
+      "--time",
+      "20",
+      "NORMAL_SGLANG_CONTAINER"
+    ],
+    "stop_timeout_seconds": 30,
+    "start_command": [
+      "docker",
+      "start",
+      "NORMAL_SGLANG_CONTAINER"
+    ],
+    "start_timeout_seconds": 30,
+    "health_url": "http://127.0.0.1:30000/health_generate",
+    "health_timeout_seconds": 300
+  },
+  "test": {
+    "mode": "batch",
+    "name": "qwen38-cache-gpu",
+    "cwd": "{worktree}",
+    "batch_command": [
+      "bash",
+      "tools/qwen38_cache_tests/docker_gpu.sh",
+      "--image",
+      "LOCAL_TEST_IMAGE",
+      "--device",
+      "0",
+      "--results",
+      "{result_dir}/docker",
+      "--timeout",
+      "300",
+      "--idle-seconds",
+      "60",
+      "--stall-action",
+      "kill",
+      "--confirm-seconds",
+      "30",
+      "--",
+      "--require-sm120"
+    ],
+    "batch_timeout_seconds": 0,
+    "result_json": "{result_dir}/docker/docker-job.json",
+    "cleanup_command": []
+  },
+  "completion": {
+    "required": true,
+    "command": [
+      "/absolute/path/to/wake-same-codex-session",
+      "{workset}/artifacts/latest-test.json"
+    ],
+    "delay_seconds": 0,
+    "timeout_seconds": 30
+  }
+}
