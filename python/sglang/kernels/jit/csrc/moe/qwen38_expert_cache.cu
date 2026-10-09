@@ -147,16 +147,4 @@ struct Qwen38CachePlan {
   }
 };
 
-#include <assert.h>
-namespace {
-__global__ void ready_guard_kernel(const int32_t* gate) { assert(gate[0] == 1); }
-}
-struct Qwen38ReadyGuard {
-  static void run(TensorView gate) {
-    CHECK_INPUT_AND_TYPE(gate, dl_int32);
-    CHECK_DIM(1, gate); TVM_FFI_ICHECK_EQ(gate.size(0), 1);
-    ready_guard_kernel<<<1, 1, 0, get_stream(gate.device())>>>(static_cast<const int32_t*>(gate.data_ptr()));
-    auto status = cudaGetLastError();
-    TVM_FFI_ICHECK_EQ(status, cudaSuccess) << cudaGetErrorString(status);
-  }
-};
+

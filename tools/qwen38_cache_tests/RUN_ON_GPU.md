@@ -181,38 +181,44 @@ all-hit graph integration nor graph miss fallback is implemented yet.
 ## Background transport without per-layer main-thread CUDA synchronization
 
 Use `--runtime-mode threaded` for conversion parity and the canary. This mode
-requires CUDA driver stream memory operations (cuStreamWaitValue32/v2 and
-cuStreamWriteValue32/v2). Startup probes them and fails if unavailable; there is
-no silent synchronous fallback. GPU tests now include threaded transport and
-CUTLASS parity. Start with one-layer `--parity --runtime-mode threaded`.
+uses PyTorch CUDA streams/events exclusively; raw driver stream-memory
+operations were avoided after they wedged real GPUs when issued from one
+Python thread while another thread enqueued through Torch. GPU tests now
+include threaded transport and CUTLASS parity. Start with one-layer
+`--parity --runtime-mode threaded`.
 
-The caller queues device policy/D2H plan work, a stream memory wait, a failure
-guard, and CUTLASS compute. A background thread waits for plans, stages mmap
-bytes into the bounded pinned ring, dispatches H2D and writes the ready signal.
-A separate retirement thread waits for compute completion and retains gate/
-plan storage until all consumers finish. The caller does not read the GPU plan
-or wait on per-layer CUDA events. Queue capacity is bounded (64 jobs), so a
-producer that outruns transfer experiences backpressure; startup and explicit
-close/synchronize also wait. Host allocation, Python launch and backend internals
-may still add latency. This is not a guarantee of zero host stalls.
+The caller queues device policy/remap work, a bounded D2H plan transfer, a
+compute-side ready-event wait, and CUTLASS compute. A background thread waits
+for plan completion, stages mmap bytes into the bounded pinned ring, dispatches
+H2D copies, records a per-job ready event on the transfer stream, and notifies
+through a lightweight host flag. A separate retirement thread waits for compute
+completion and retains gate-free plan storage until all consumers finish. The
+caller does not read the GPU plan; it does wait briefly for the worker
+readiness notice (bounded by worker pickup latency, not copy duration); the
+copies themselves remain asynchronous behind events. Queue capacity is bounded
+(64 jobs), so a producer that outruns transfer experiences backpressure;
+startup and explicit close/synchronize also wait. Host allocation, Python
+launch and backend internals may still add latency. This is not a guarantee of
+zero host stalls. `QWEN38_READY_TIMEOUT_SECONDS` caps the readiness wait
+(default 120 s; zero disables) and poisons the runtime when exceeded, so a
+stuck worker surfaces as an error instead of a permanent hang.
 
 Since runner capacity is a host choice, routing with `tokens * top_k > slots`
 uses the full arena conservatively, even if its actual unique set might fit.
 Other routing uses CUDA policy. One layer's metadata follows its previous compute
 completion to keep policy/workspace lifetimes valid. Decode slot reuse and the
-shared arena follow last-use events. Stream memory waits consume no SM spin
-kernel; the worker transfers weights then releases compute with a barrier.
-Transfer failures release gates with an error value; a CUDA guard asserts before
-MoE reads invalid bytes. A fatal driver/context error can prevent a wait from
-being released, so failed target-machine tests need process-level timeout and
-termination (as provided by the canary supervisor).
+shared arena follow last-use events. A failed transport raises into the caller
+and poisons the runtime so partially copied entries cannot become hits on
+retry. A fatal driver/context error can still leave streams wedged, so failed
+target-machine tests need process-level timeout and termination (as provided
+by the canary supervisor).
 
 Ordinary mmap still requires CPU transport. “Asynchronous” here means no
 per-layer CUDA synchronization on the main inference thread, not no CPU worker.
-Neither CUDA stream memory operations nor this transport have executed on the
-development host. CPU worker/retirement protocol tests and SM120 guard/planner
-cross-compilation passed. CUDA Graph integration remains unsupported: replay
-would not enqueue background jobs or create fresh transfer gates.
+This transport has not executed on the development host. CPU worker/retirement
+protocol tests and SM120 routing/planner cross-compilation passed. CUDA Graph
+integration remains unsupported: replay would not enqueue background jobs or
+refresh per-invocation remap state.
 
 ## Timeouts, logs and failure cleanup
 

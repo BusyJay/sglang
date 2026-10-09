@@ -14,7 +14,6 @@ def _module():
         cuda_wrappers=[
             ("route", "Qwen38CacheRoute::run"),
             ("plan", "Qwen38CachePlan::run"),
-            ("guard", "Qwen38ReadyGuard::run"),
         ],
     )
 
@@ -31,7 +30,3 @@ def cache_plan(
     _module().plan(
         counts, lookup, keys, frequency, ages, generation, clock, plan, decay
     )
-
-
-def cache_ready_guard(gate):
-    _module().guard(gate)
