@@ -47,6 +47,11 @@ def main():
     parser.add_argument("--contexts", nargs="+", type=int, default=[8192, 32768])
     parser.add_argument("--context-length", type=int, default=225280)
     parser.add_argument("--chunk", type=int, default=8192)
+    # Memory knobs mirroring a known-good deployment profile; omitted by
+    # default so auto-sizing still applies when callers want it.
+    parser.add_argument("--mem-fraction-static", type=float)
+    parser.add_argument("--max-mamba-cache-size", type=int)
+    parser.add_argument("--mamba-full-memory-ratio", type=float)
     parser.add_argument("--startup-timeout", type=int, default=3600)
     parser.add_argument("--request-timeout", type=int, default=7200)
     args = parser.parse_args()
@@ -109,6 +114,12 @@ def main():
     ]
     if args.ple_backend == "file" and not args.ple_dir:
         parser.error("file PLE backend requires --ple-dir")
+    if args.mem_fraction_static is not None:
+        command += ["--mem-fraction-static", str(args.mem_fraction_static)]
+    if args.max_mamba_cache_size is not None:
+        command += ["--max-mamba-cache-size", str(args.max_mamba_cache_size)]
+    if args.mamba_full_memory_ratio is not None:
+        command += ["--mamba-full-memory-ratio", str(args.mamba_full_memory_ratio)]
     command += ["--ple-offload-backend", args.ple_backend]
     if args.ple_dir:
         command += ["--ple-offload-dir", args.ple_dir]
