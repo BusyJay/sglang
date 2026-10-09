@@ -11,7 +11,7 @@ image="swallow-sglang:v0.5.21"
 device=0
 revision="fc694b54fb0174e0913e6adf86691ef85a4ead47"
 commit="e00930c5489053f26d86b179cee0d087f846acbb"
-checkpoint="/home/jay/workspace/prod/huggingface/hub/models--nvidia--Qwen38-Flash-Next-NVFP4/snapshots/$revision"
+checkpoint="/home/jay/workspace/prod/huggingface/hub/models--nvidia--Qwen3.8-Flash-Next-NVFP4/snapshots/$revision"
 model="tools/qwen38_cache_tests/docker_model.sh"
 summary="$stages_dir/final-validation-summary.json"
 
