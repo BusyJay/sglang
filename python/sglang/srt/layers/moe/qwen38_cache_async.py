@@ -85,7 +85,9 @@ class Qwen38AsyncExpertRuntime(Qwen38SynchronousExpertRuntime):
                     (tensor > 0).all()
                 ):
                     raise ValueError(f"invalid layer input scale: {layer_id} {name}")
-                scales[name] = tensor
+                # Keep activation global scales 0-d; the FlashInfer NVFP4 CUTLASS
+                # binding rejects [1]-shaped tensors in getQuantParams.
+                scales[name] = tensor.reshape(())
             self.layer_scales[layer_id] = scales
         return self.layer_scales[layer_id]
 
