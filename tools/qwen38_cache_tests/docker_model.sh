@@ -43,18 +43,36 @@ results="$(cd "$results" && pwd)"
 bind_source="$checkpoint"
 container_checkpoint="/workspace/checkpoint"
 snapshot_parent="$(dirname "$checkpoint")"
-if [[ "$(basename "$snapshot_parent")" == "snapshots" && -d "$(dirname "$snapshot_parent")/blobs" ]]; then
-  bind_source="$(dirname "$snapshot_parent")"
-  container_checkpoint="/workspace/checkpoint-root/snapshots/$(basename "$checkpoint")"
+repo_dir="$(dirname "$snapshot_parent")"
+if [[ "$(basename "$snapshot_parent")" == "snapshots" && -d "$repo_dir/blobs" ]]; then
+  container_checkpoint="/workspace/checkpoint-root/$(basename "$repo_dir")/snapshots/$(basename "$checkpoint")"
+  # Distinguish a self-contained repo cache from a deduplicated layout where
+  # repo blobs entries are symlinks into an outer shared pool: only then must
+  # the outer pool directory be part of the mounted tree.
+  case "$(find -H "$repo_dir/blobs" -maxdepth 1 -type l -print -quit 2>/dev/null)" in
+    "") ;;
+    *) if [[ -d "$(dirname "$repo_dir")/blobs" ]]; then
+         # Keep the computed relative path; only widen the mounted tree so the
+         # outer pool stays reachable through the repo-level symlinks.
+         bind_source="$(dirname "$repo_dir")"
+       fi;;
+  esac
 fi
 case "$mode" in
   convert) command=(-m sglang.srt.model_loader.qwen38_nvfp4_pack.convert --checkpoint "$container_checkpoint" --output /workspace/pack) ;;
   canary) command=(tools/qwen38_cache_tests/full_model_canary.py --checkpoint "$container_checkpoint" --manifest /workspace/pack/manifest.json --output /workspace/results) ;;
   *) echo "Unknown mode: $mode" >&2; exit 2 ;;
 esac
-HF_BINDS=(-v "$bind_source:/workspace/checkpoint:ro")
-if [[ "$container_checkpoint" != "/workspace/checkpoint" ]]; then
+if [[ "$container_checkpoint" == "/workspace/checkpoint" ]]; then
+  HF_BINDS=(-v "$checkpoint:/workspace/checkpoint:ro")
+else
   HF_BINDS=(-v "$bind_source:/workspace/checkpoint-root:ro")
+fi
+# Model containers also expose the conventional production cache root so
+# HF-style environment lookups work alongside the explicit checkpoint binds.
+PROD_MOUNTS=()
+if [[ -n "${QWEN38_PROD_MOUNT:-}" && -d "${QWEN38_PROD_MOUNT:-}" || -d "/home/user/workspace/prod" ]]; then
+  PROD_MOUNTS=(-v "${QWEN38_PROD_MOUNT:-/home/user/workspace/prod}:/prod:ro")
 fi
 docker image inspect "$image" --format 'Using local image {{.Id}}'
 exec python3 "$repo_root/tools/qwen38_cache_tests/docker_supervisor.py" \
@@ -62,7 +80,7 @@ exec python3 "$repo_root/tools/qwen38_cache_tests/docker_supervisor.py" \
   docker run --rm --pull never --network none \
   --gpus "device=$device" --ipc=host --ulimit memlock=-1 \
   -v "$repo_root:/workspace/sglang:ro" \
-  ${HF_BINDS[@]} \
+  ${HF_BINDS[@]} ${PROD_MOUNTS[@]} \
   -v "$pack:/workspace/pack" -v "$results:/workspace/results" \
   -w /workspace/sglang -e PYTHONPATH=/workspace/sglang/python \
   -e PYTHONUNBUFFERED=1 -e PYTHONDONTWRITEBYTECODE=1 -e HF_HUB_OFFLINE=1 -e TRANSFORMERS_OFFLINE=1 \
