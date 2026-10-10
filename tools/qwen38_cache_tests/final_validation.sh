@@ -11,7 +11,8 @@ image="swallow-sglang:v0.5.21"
 device=0
 revision="fc694b54fb0174e0913e6adf86691ef85a4ead47"
 commit="e00930c5489053f26d86b179cee0d087f846acbb"
-checkpoint="/home/user/workspace/prod/huggingface/hub/models--nvidia--Qwen3.8-Flash-Next-NVFP4/snapshots/$revision"
+checkpoint="${QWEN38_CHECKPOINT:-nvidia/Qwen3.8-Flash-Next-NVFP4}"
+export HF_HUB_CACHE="${HF_HUB_CACHE:-/home/user/workspace/prod/huggingface/hub}"
 model="tools/qwen38_cache_tests/docker_model.sh"
 summary="$stages_dir/final-validation-summary.json"
 
@@ -58,6 +59,7 @@ stage canary_threaded_8k_32k bash "$model" \
   --image "$image" --device "$device" --checkpoint "$checkpoint" \
   --pack "$root/results/packs/assembled" --results "$stages_dir/canary-threaded" -- canary \
   --runtime-mode threaded --contexts 8192 32768 \
+  --revision "$revision" --served-model-name nvidia/Qwen3.8-Flash-Next-NVFP4 \
   --probe 'What is 17 multiplied by 19? Answer with only the number.|(?<![0-9])323(?![0-9])' \
   --probe 'What is 144 divided by 12? Answer with only the number.|(?<![0-9])12(?![0-9])' \
   --probe 'What is the smallest prime greater than 50? Answer with only the number.|(?<![0-9])53(?![0-9])' \

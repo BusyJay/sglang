@@ -18,6 +18,7 @@ from dataclasses import dataclass
 import torch
 
 from sglang.srt.layers.moe.qwen38_expert_cache import LayerExpertCachePolicy
+from sglang.srt.layers.moe.qwen38_cache_capacity import normalize_layer_slots
 from sglang.srt.model_loader.qwen38_nvfp4_pack.format import (
     LAYER_TENSORS,
     REQUIRED_TENSORS,
@@ -44,15 +45,29 @@ class Qwen38SynchronousExpertRuntime:
         slots_per_layer=56,
         prefill_arena=True,
         stats_log_interval=0,
+        staging_buffer_bytes=0,
+        layer_cache_slots=None,
+        route_trace_path=None,
+        route_trace_limit=10000,
     ):
         self.pack = pack
         self.manifest = pack.manifest
         self.device = torch.device(device)
         if self.device.type == "cuda" and self.device.index is None:
             self.device = torch.device("cuda", torch.cuda.current_device())
-        if not 0 < slots_per_layer <= self.manifest.num_experts:
-            raise ValueError("invalid expert-cache capacity")
+        self.layer_cache_slots = normalize_layer_slots(
+            slots_per_layer, layer_cache_slots,
+            self.manifest.num_layers, self.manifest.num_experts,
+        )
         self.slots_per_layer = slots_per_layer
+        self.max_layer_slots = max(self.layer_cache_slots)
+        if type(route_trace_limit) is not int or route_trace_limit < 1:
+            raise ValueError("route_trace_limit must be a positive integer")
+        self.route_trace_path = route_trace_path
+        if route_trace_path is not None and not isinstance(route_trace_path, str):
+            raise ValueError("route_trace_path must be a string")
+        self.route_trace_limit = route_trace_limit
+        self.route_trace_events = 0
         self.prefill_arena = prefill_arena
         self.stats_log_interval = int(stats_log_interval)
         if self.stats_log_interval < 0:
@@ -64,6 +79,7 @@ class Qwen38SynchronousExpertRuntime:
         self.layer_scales = {}
         self.lock = threading.Lock()
         self.hits = self.misses = self.arena_loads = self.transferred_bytes = 0
+        self.h2d_copy_calls = self.staging_batches = 0
         self.run_invocations = 0
         self.cache_invocations = 0
         self.arena_invocations = 0
@@ -76,8 +92,14 @@ class Qwen38SynchronousExpertRuntime:
             for name, record in records.items()
             if name in REQUIRED_TENSORS
         )
+        if staging_buffer_bytes < 0:
+            raise ValueError("staging_buffer_bytes must be non-negative")
+        staging_bytes = max(largest, staging_buffer_bytes) if staging_buffer_bytes else largest
         self.staging = torch.empty(
-            largest, dtype=torch.uint8, pin_memory=self.device.type == "cuda"
+            staging_bytes,
+            dtype=torch.uint8,
+            device="cpu",
+            pin_memory=self.device.type == "cuda",
         )
         # A shared arena requires the same transformed shape/dtype in all layers.
         first = self.manifest.tensors[0]
@@ -102,19 +124,33 @@ class Qwen38SynchronousExpertRuntime:
         atexit.register(_log_final_stats)
         self._atexit_registered = True
 
-    def _record_invocation(self, arena: bool, topk_ids: torch.Tensor):
+    def slots_for_layer(self, layer_id):
+        return self.layer_cache_slots[layer_id]
+
+    def _record_invocation(self, arena: bool, topk_ids: torch.Tensor, layer_id=None):
         self.run_invocations += 1
         self.route_token_count += int(topk_ids.numel())
         if arena:
             self.arena_invocations += 1
         else:
             self.cache_invocations += 1
+        if self.route_trace_path and self.route_trace_events < self.route_trace_limit:
+            # Explicit profiling mode: synchronizes route IDs to CPU and writes
+            # ordered JSONL. Disabled by default; never use for latency results.
+            with open(self.route_trace_path, "a", encoding="utf-8") as trace:
+                trace.write(json.dumps({
+                    "layer": layer_id,
+                    "routes": topk_ids.detach().cpu().tolist(),
+                }) + "\n")
+            self.route_trace_events += 1
         self._maybe_log_stats()
 
     def stats_snapshot(self):
         cache_events = self.hits + self.misses
         return {
             "slots_per_layer": self.slots_per_layer,
+            "layer_cache_slots": self.layer_cache_slots,
+            "route_trace_events": self.route_trace_events,
             "prefill_arena": self.prefill_arena,
             "run_invocations": self.run_invocations,
             "cache_invocations": self.cache_invocations,
@@ -124,6 +160,8 @@ class Qwen38SynchronousExpertRuntime:
             "misses": self.misses,
             "arena_loads": self.arena_loads,
             "transferred_bytes": self.transferred_bytes,
+            "h2d_copy_calls": self.h2d_copy_calls,
+            "staging_batches": self.staging_batches,
             "cache_event_count": cache_events,
             "cache_hit_rate": (
                 float(self.hits) / float(cache_events) if cache_events else None
@@ -155,10 +193,11 @@ class Qwen38SynchronousExpertRuntime:
         """Allocate before SGLang measures free memory for the KV pool."""
         with self.lock:
             for layer_id in self.manifest.tensors:
+                slots = self.slots_for_layer(layer_id)
                 if layer_id not in self.caches:
-                    self.caches[layer_id] = self._allocate(self.slots_per_layer)
+                    self.caches[layer_id] = self._allocate(slots)
                     self.policies[layer_id] = LayerExpertCachePolicy(
-                        self.manifest.num_experts, self.slots_per_layer
+                        self.manifest.num_experts, slots
                     )
                 self._scales(layer_id)
             if self.prefill_arena and self.arena is None:
@@ -183,6 +222,8 @@ class Qwen38SynchronousExpertRuntime:
             staging.copy_(source)
             destination.reshape(-1).view(torch.uint8).copy_(staging, non_blocking=False)
             self.transferred_bytes += source.numel()
+            self.h2d_copy_calls += 1
+            self.staging_batches += 1
         finally:
             view.release()
 
@@ -192,6 +233,11 @@ class Qwen38SynchronousExpertRuntime:
                 self.pack.expert_tensor_bytes(layer_id, expert_id, name),
                 tensors[name][slot_id],
             )
+
+    def _fill_arena(self, layer_id):
+        # Reference path; asynchronous runtimes override with contiguous copies.
+        for expert in range(self.manifest.num_experts):
+            self._fill(layer_id, expert, self.arena, expert)
 
     def _scales(self, layer_id):
         if layer_id not in self.layer_scales:
@@ -227,8 +273,9 @@ class Qwen38SynchronousExpertRuntime:
         if any(value < -1 or value >= self.manifest.num_experts for value in ids):
             raise ValueError("route ID is outside the expert pack")
         active = list(dict.fromkeys(value for value in ids if value >= 0))
-        use_arena = len(active) > self.slots_per_layer
-        self._record_invocation(use_arena, topk_ids)
+        slots = self.slots_for_layer(layer_id)
+        use_arena = len(active) > slots
+        self._record_invocation(use_arena, topk_ids, layer_id)
         if use_arena:
             if not self.prefill_arena:
                 raise ValueError("routing exceeds cache capacity; enable prefill_arena")
@@ -236,8 +283,7 @@ class Qwen38SynchronousExpertRuntime:
                 self.arena = self._allocate(self.manifest.num_experts)
             if self.arena_layer != layer_id:
                 self.arena_layer = None
-                for expert in range(self.manifest.num_experts):
-                    self._fill(layer_id, expert, self.arena, expert)
+                self._fill_arena(layer_id)
                 self.arena_layer = layer_id
                 self.arena_loads += 1
             tensors = self.arena
@@ -246,9 +292,9 @@ class Qwen38SynchronousExpertRuntime:
         else:
             if layer_id not in self.policies:
                 self.policies[layer_id] = LayerExpertCachePolicy(
-                    self.manifest.num_experts, self.slots_per_layer
+                    self.manifest.num_experts, slots
                 )
-                self.caches[layer_id] = self._allocate(self.slots_per_layer)
+                self.caches[layer_id] = self._allocate(slots)
             policy = self.policies[layer_id]
             mapping, misses = policy.ensure(active)
             tensors = self.caches[layer_id]
@@ -264,7 +310,7 @@ class Qwen38SynchronousExpertRuntime:
             self.hits += len(active) - len(misses)
             self.misses += len(misses)
             remapped = self._remap(layer_id, topk_ids, mapping)
-            capacity = self.slots_per_layer
+            capacity = slots
         return PreparedExperts(
             {**tensors, **self._scales(layer_id)}, remapped, capacity, use_arena
         )
@@ -299,9 +345,10 @@ class Qwen38SynchronousExpertRuntime:
             for records in self.manifest.tensors.values()
         ]
         return {
-            "decode_cache_bytes": sum(per_layer)
-            // self.manifest.num_experts
-            * self.slots_per_layer,
+            "decode_cache_bytes": sum(
+                size // self.manifest.num_experts * self.slots_for_layer(layer)
+                for layer, size in zip(self.manifest.tensors, per_layer)
+            ),
             "prefill_arena_bytes": max(per_layer) if self.prefill_arena else 0,
             "pinned_staging_bytes": (
                 self.staging.numel() if self.device.type == "cuda" else 0

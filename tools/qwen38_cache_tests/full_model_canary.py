@@ -132,6 +132,9 @@ def _extract_decode_throughput(server_log_path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--checkpoint", required=True)
+    parser.add_argument("--revision", help="HF revision shared by config, tokenizer and weights")
+    parser.add_argument("--cache-dir", help="existing HF hub cache directory")
+    parser.add_argument("--served-model-name", help="API model ID; defaults to checkpoint argument")
     parser.add_argument("--manifest", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--ple-backend", choices=["pinned", "file"], default="pinned")
@@ -146,6 +149,12 @@ def main():
     parser.add_argument("--contexts", nargs="+", type=int, default=[8192, 32768])
     parser.add_argument("--context-length", type=int, default=225280)
     parser.add_argument("--chunk", type=int, default=8192)
+    parser.add_argument("--staging-buffers", type=int, default=4)
+    parser.add_argument("--staging-buffer-mib", type=int, default=64)
+    parser.add_argument("--warm-decode-cache", action="store_true")
+    parser.add_argument("--layer-cache-slots", help="JSON file containing a capacity list")
+    parser.add_argument("--route-trace-path", help="profiling-only JSONL path inside server environment")
+    parser.add_argument("--route-trace-limit", type=int, default=10000)
     parser.add_argument("--context-max-new-tokens", type=int, default=32)
     parser.add_argument("--context-ignore-eos", action="store_true")
     # Memory knobs mirroring a known-good deployment profile; omitted by
@@ -164,6 +173,12 @@ def main():
     parser.add_argument("--request-timeout", type=int, default=7200)
     parser.add_argument("--cache-stats-log-interval", type=int, default=0)
     args = parser.parse_args()
+    if args.route_trace_limit < 1:
+        parser.error("route trace limit must be positive")
+    if args.warm_decode_cache and args.runtime_mode not in ("device", "threaded"):
+        parser.error("decode warmup requires device/threaded mode")
+    if not 2 <= args.staging_buffers <= 64 or args.staging_buffer_mib < 0:
+        parser.error("staging buffers must be 2..64 and staging buffer MiB non-negative")
     if min(
         args.startup_timeout,
         args.request_timeout,
@@ -174,10 +189,19 @@ def main():
         parser.error("timeouts, slots, chunk and context max_new_tokens must be positive")
     if args.cache_stats_log_interval < 0:
         parser.error("cache stats log interval must be non-negative")
-    checkpoint = Path(args.checkpoint).resolve()
     manifest = Path(args.manifest).resolve()
-    if not checkpoint.is_dir() or not manifest.is_file():
-        parser.error("local checkpoint and expert-pack manifest are required")
+    if not manifest.is_file():
+        parser.error("local expert-pack manifest is required")
+    from sglang.srt.model_loader.qwen38_nvfp4_common import (
+        resolve_cached_checkpoint, cached_checkpoint_weight_files,
+        validate_cached_checkpoint_revision,
+    )
+    checkpoint = resolve_cached_checkpoint(
+        args.checkpoint, revision=args.revision, cache_dir=args.cache_dir
+    )
+    cached_checkpoint_weight_files(checkpoint)
+    pack_revision = json.loads(manifest.read_text())["checkpoint_revision"]
+    validate_cached_checkpoint_revision(checkpoint, object(), pack_revision)
     if any(
         length < 1 or length + args.context_max_new_tokens > args.context_length
         for length in args.contexts
@@ -205,19 +229,34 @@ def main():
     }
     if args.cache_stats_log_interval:
         extra["stats_log_interval"] = args.cache_stats_log_interval
+    if args.runtime_mode != "sync":
+        extra["staging_buffers"] = args.staging_buffers
+        extra["staging_buffer_bytes"] = args.staging_buffer_mib << 20
+    if args.warm_decode_cache:
+        extra["warm_decode_cache"] = True
+    if args.layer_cache_slots:
+        extra["layer_cache_slots"] = json.loads(Path(args.layer_cache_slots).read_text())
+    if args.route_trace_path:
+        extra["route_trace_path"] = args.route_trace_path
+        extra["route_trace_limit"] = args.route_trace_limit
     command = [
         sys.executable,
         "-m",
         "sglang.launch_server",
         "--model-path",
-        str(checkpoint),
+        args.checkpoint,
+        "--served-model-name",
+        args.served_model_name or args.checkpoint,
+        "--reasoning-parser",
+        "qwen3",
         "--load-format",
         "qwen38_nvfp4_cache",
         "--model-loader-extra-config",
         json.dumps(extra),
         "--language-model-only",
         "--ple-offload-embedding",
-        "--disable-cuda-graph",
+        "--cuda-graph-backend-prefill=disabled",
+        "--cuda-graph-backend-decode=disabled",
         "--disable-shared-experts-fusion",
         "--moe-runner-backend",
         "flashinfer_cutlass",
@@ -236,6 +275,10 @@ def main():
     ]
     if args.ple_backend == "file" and not args.ple_dir:
         parser.error("file PLE backend requires --ple-dir")
+    if args.revision:
+        command += ["--revision", args.revision]
+    if args.cache_dir:
+        command += ["--download-dir", args.cache_dir]
     if args.mem_fraction_static is not None:
         command += ["--mem-fraction-static", str(args.mem_fraction_static)]
     if args.max_mamba_cache_size is not None:

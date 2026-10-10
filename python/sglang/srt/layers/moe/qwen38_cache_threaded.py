@@ -84,6 +84,8 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         self.worker.start()
 
     def _raise_error(self):
+        if self.poisoned:
+            raise RuntimeError("threaded expert runtime is poisoned; recreate runtime")
         if self.worker_error is not None:
             raise RuntimeError(
                 "background expert transfer failed; recreate runtime"
@@ -127,22 +129,26 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                     if self.worker_error is not None:
                         raise RuntimeError("previous transfer failed")
                     if job.arena:
-                        if job.plan.item():
+                        counts = job.plan.tolist() if self.warm_decode_cache else None
+                        if (counts[-1] if counts is not None else job.plan.item()):
                             raise ValueError("invalid prefill route ID")
                         if self.arena_layer != job.layer:
                             if self.arena_last_use is not None:
                                 self.transfer.wait_event(self.arena_last_use)
                             self.arena_layer = None
-                            for expert in range(self.manifest.num_experts):
-                                self._fill(job.layer, expert, self.arena, expert)
+                            self._fill_arena(job.layer)
                             self.arena_layer = job.layer
                             self.arena_loads += 1
                         elif self.arena_last_use is not None:
                             self.transfer.wait_event(self.arena_last_use)
+                        if self.warm_decode_cache:
+                            self._warm_from_arena(job.layer, counts[:-1])
                         # Metadata (route/plan kernels) ran on the metadata
                         # stream; nothing else needs to move for full reads.
                         self._finish_job(job)
+                        self.arena_last_use = job.computed
                     else:
+                        capacity = self.slots_for_layer(job.layer)
                         values = job.plan.tolist()
                         status, misses, active, arena = values[:4]
                         if status or arena:
@@ -151,8 +157,8 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                             )
                         active_slots = values[
                             4
-                            + 2 * self.slots_per_layer : 4
-                            + 2 * self.slots_per_layer
+                            + 2 * capacity : 4
+                            + 2 * capacity
                             + active
                         ]
                         for index in range(misses):
@@ -222,7 +228,12 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         result = super().memory_budget()
         # Each outstanding decode job owns one pinned transfer plan.
         result["max_pending_plan_bytes"] = (
-            self.jobs.maxsize * (4 + 3 * self.slots_per_layer) * 4
+            self.jobs.maxsize
+            * max(
+                4 + 3 * self.max_layer_slots,
+                self.manifest.num_experts + 1 if self.warm_decode_cache else 1,
+            )
+            * 4
         )
         return result
 
@@ -243,8 +254,9 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                 raise ValueError("threaded cache requires CUDA int32 route IDs")
             if topk_ids.shape[1] != self.manifest.top_k:
                 raise ValueError("top-k differs from the pack")
-            arena = topk_ids.numel() > self.slots_per_layer
-            self._record_invocation(arena, topk_ids)
+            capacity = self.slots_for_layer(layer_id)
+            arena = topk_ids.numel() > capacity
+            self._record_invocation(arena, topk_ids, layer_id)
             if arena and self.arena is None:
                 raise ValueError("route bound exceeds cache; enable prefill arena")
             self.capacity.acquire()  # bounded producer backpressure, not a per-layer CUDA wait
@@ -260,15 +272,18 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                     compute.wait_event(previous)
                 state = self.device_states[layer_id]
                 self.metadata_stream.wait_stream(compute)
+                if layer_id in self.warm_ready:
+                    self.metadata_stream.wait_event(self.warm_ready[layer_id])
                 if arena:
                     remapped = topk_ids
                     with torch.cuda.stream(self.metadata_stream):
                         scratch = torch.empty_like(topk_ids)
                         cache_route(topk_ids, state["lookup"], scratch, state["counts"])
-                        plan = torch.empty(
-                            1, dtype=torch.int32, device="cpu", pin_memory=True
+                        counters = (
+                            state["counts"] if self.warm_decode_cache else state["counts"][-1:]
                         )
-                        plan.copy_(state["counts"][-1:], non_blocking=True)
+                        plan = torch.empty_like(counters, device="cpu", pin_memory=True)
+                        plan.copy_(counters, non_blocking=True)
                         planned.record(self.metadata_stream)
                     topk_ids.record_stream(self.metadata_stream)
                 else:
@@ -302,8 +317,8 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                 self.jobs.put_nowait(job)
                 queued = True
                 timeout = _ready_timeout_seconds()
-                # Host stall here is bounded by worker pickup latency, not by
-                # copy completion; the copies themselves stay asynchronous.
+                # Includes plan completion, host staging, and ring backpressure;
+                # the final H2Ds need only be enqueued, not completed.
                 if timeout == 0:
                     job.ready_set.wait()
                 elif not job.ready_set.wait(timeout):
@@ -325,7 +340,7 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                         **self.layer_scales[layer_id],
                     },
                     remapped,
-                    self.manifest.num_experts if arena else self.slots_per_layer,
+                    self.manifest.num_experts if arena else capacity,
                     arena,
                 )
                 result = execute(prepared)
