@@ -8,9 +8,7 @@ allocating all 512 routed experts per layer on the GPU.
 
 from __future__ import annotations
 
-import glob
 import os
-from pathlib import Path
 
 import torch
 
@@ -25,6 +23,9 @@ from sglang.srt.model_loader.loader import (
 )
 from sglang.srt.model_loader.qwen38_nvfp4_common import (
     filtered_safetensors_weights_iterator,
+    cached_checkpoint_weight_files,
+    resolve_cached_checkpoint,
+    validate_cached_checkpoint_revision,
     validate_qwen38_model_config,
 )
 from sglang.srt.model_loader.qwen38_nvfp4_pack.format import (
@@ -32,6 +33,7 @@ from sglang.srt.model_loader.qwen38_nvfp4_pack.format import (
     load_manifest,
 )
 from sglang.srt.model_loader.utils import set_default_torch_dtype
+from sglang.srt.layers.moe.qwen38_cache_capacity import normalize_layer_slots
 
 
 class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
@@ -49,6 +51,11 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             "runtime_mode",
             "stats_log_interval",
             "staging_buffers",
+            "staging_buffer_bytes",
+            "warm_decode_cache",
+            "layer_cache_slots",
+            "route_trace_path",
+            "route_trace_limit",
         }
         if unexpected:
             raise ValueError(
@@ -64,6 +71,13 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             )
         if not isinstance(config.get("prefill_arena", True), bool):
             raise ValueError("prefill_arena must be a JSON boolean")
+        if not isinstance(config.get("warm_decode_cache", False), bool):
+            raise ValueError("warm_decode_cache must be a JSON boolean")
+        if config.get("warm_decode_cache", False) and (
+            config.get("runtime_mode", "sync") not in ("device", "threaded")
+            or not config.get("prefill_arena", True)
+        ):
+            raise ValueError("decode warmup requires device/threaded mode and prefill arena")
         if config.get("runtime_mode", "sync") not in (
             "sync",
             "async",
@@ -81,13 +95,25 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
         slots = int(config.get("cache_slots_per_layer", 56))
         if not 10 <= slots <= 512:
             raise ValueError("cache_slots_per_layer must be between top-k=10 and 512")
+        normalize_layer_slots(
+            slots, config.get("layer_cache_slots"), self.manifest.num_layers,
+            self.manifest.num_experts, minimum=10,
+        )
 
     def download_model(self, model_config) -> None:
-        if not Path(model_config.model_path).is_dir():
-            raise ValueError(
-                "qwen38_nvfp4_cache currently requires a local checkpoint directory; "
-                "prepare the runtime pack before starting the server"
-            )
+        # Base loader API name only: this resolves existing cache, never downloads.
+        self._prepare_checkpoint(model_config)
+
+    def _prepare_checkpoint(self, model_config):
+        checkpoint_dir = resolve_cached_checkpoint(
+            model_config.model_path,
+            revision=getattr(model_config, "revision", None),
+            cache_dir=self.load_config.download_dir,
+        )
+        validate_cached_checkpoint_revision(
+            checkpoint_dir, model_config.hf_config, self.manifest.checkpoint_revision
+        )
+        return cached_checkpoint_weight_files(checkpoint_dir)
 
     def load_model(self, *, model_config, device_config):
         errors = validate_qwen38_model_config(model_config.hf_config)
@@ -117,12 +143,7 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
         if not getattr(model_config.hf_config, "language_model_only", False):
             raise ValueError("qwen38_nvfp4_cache requires --language-model-only")
 
-        checkpoint_dir = Path(model_config.model_path)
-        weight_files = sorted(glob.glob(str(checkpoint_dir / "*.safetensors")))
-        if not weight_files:
-            raise RuntimeError(
-                f"no safetensors checkpoint files found in {checkpoint_dir}"
-            )
+        weight_files = self._prepare_checkpoint(model_config)
 
         delegate = _get_quantization_config(model_config, self.load_config)
         if delegate is None or delegate.get_name() != "modelopt_mixed":
@@ -183,12 +204,21 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                 runtime_options["staging_buffers"] = int(
                     self.config.get("staging_buffers", 4)
                 )
+            if runtime_options:
+                runtime_options["staging_buffer_bytes"] = int(
+                    self.config.get("staging_buffer_bytes", 64 << 20)
+                )
+            if self.config.get("runtime_mode", "sync") in ("device", "threaded"):
+                runtime_options["warm_decode_cache"] = self.config.get("warm_decode_cache", False)
             runtime = runtime_class(
                 pack,
                 target_device,
                 slots_per_layer=int(self.config.get("cache_slots_per_layer", 56)),
                 prefill_arena=self.config.get("prefill_arena", True),
                 stats_log_interval=int(self.config.get("stats_log_interval", 0)),
+                layer_cache_slots=self.config.get("layer_cache_slots"),
+                route_trace_path=self.config.get("route_trace_path"),
+                route_trace_limit=self.config.get("route_trace_limit", 10000),
                 **runtime_options,
             )
             runtime.reserve()
@@ -213,6 +243,7 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
         model.qwen38_expert_runtime = runtime
         model.qwen38_cache_config = {
             "slots_per_layer": runtime.slots_per_layer,
+            "layer_cache_slots": runtime.layer_cache_slots,
             "prefill_arena": runtime.prefill_arena,
         }
         return model.eval()

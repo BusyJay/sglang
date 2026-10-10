@@ -64,6 +64,9 @@ class TestBackgroundTransport(unittest.TestCase):
         runtime.retired = queue.Queue()
         runtime.capacity = threading.BoundedSemaphore(permits)
         runtime.worker_error = None
+        runtime.poisoned = False
+        runtime.warm_decode_cache = False
+        runtime.slots_for_layer = lambda _: 2
         runtime.arena_layer = 0
         runtime.arena_last_use = None
         runtime.transfer = SimpleNamespace(
@@ -108,6 +111,7 @@ class TestBackgroundTransport(unittest.TestCase):
                 self.assertIsNone(job.error)
                 self.assertIsInstance(job.ready, FakeCudaEvent)
                 self.assertIs(job.ready.recorded_on, runtime.transfer)
+            self.assertIs(runtime.arena_last_use, jobs[-1].computed)
         finally:
             completion.set()
             runtime.jobs.join()
@@ -144,3 +148,80 @@ class TestBackgroundTransport(unittest.TestCase):
             reaper.join(3)
         self.assertFalse(worker.is_alive())
         self.assertFalse(reaper.is_alive())
+
+    def test_poisoned_runtime_rejects_new_work(self):
+        runtime = self._runtime(1)
+        runtime.poisoned = True
+        with self.assertRaisesRegex(RuntimeError, "poisoned"):
+            runtime._raise_error()
+
+    def test_cross_layer_arena_waits_before_bulk_fill(self):
+        runtime = self._runtime(1)
+        previous = object()
+        runtime.arena_last_use = previous
+        runtime.arena_loads = 0
+        operations = []
+        runtime.transfer.wait_event = lambda event: operations.append(("wait", event))
+        runtime._fill_arena = lambda layer: operations.append(("fill", layer))
+        planned = SimpleNamespace(synchronize=lambda: None)
+        computed = SimpleNamespace(synchronize=lambda: None)
+        job = self._job(planned, computed)
+        job.layer = 1
+        runtime.capacity.acquire()
+        worker, reaper = self._threads(runtime)
+        try:
+            runtime.jobs.put(job)
+            self.assertTrue(job.ready_set.wait(3))
+            runtime.jobs.join()
+            self.assertIsNone(job.error)
+            self.assertEqual(operations, [("wait", planned), ("wait", previous), ("fill", 1)])
+            self.assertEqual(runtime.arena_loads, 1)
+            self.assertIs(runtime.arena_last_use, computed)
+        finally:
+            runtime.jobs.put(None)
+            worker.join(3)
+            runtime.retired.put(None)
+            reaper.join(3)
+
+    def test_warmup_dispatch_precedes_ready_notice(self):
+        runtime = self._runtime(1)
+        runtime.warm_decode_cache = True
+        warm_calls = []
+        runtime._warm_from_arena = lambda layer, counts: warm_calls.append((layer, counts))
+        job = self._job(SimpleNamespace(synchronize=lambda: None), SimpleNamespace(synchronize=lambda: None))
+        job.plan = SimpleNamespace(tolist=lambda: [5, 2, 0, 0])
+        runtime.capacity.acquire()
+        worker, reaper = self._threads(runtime)
+        try:
+            runtime.jobs.put(job)
+            self.assertTrue(job.ready_set.wait(3))
+            runtime.jobs.join()
+            self.assertIsNone(job.error)
+            self.assertEqual(warm_calls, [(0, [5, 2, 0])])
+            self.assertIs(job.ready.recorded_on, runtime.transfer)
+        finally:
+            runtime.jobs.put(None)
+            worker.join(3)
+            runtime.retired.put(None)
+            reaper.join(3)
+
+    def test_warmup_failure_propagates_without_ready_event(self):
+        runtime = self._runtime(1)
+        runtime.warm_decode_cache = True
+        runtime._warm_from_arena = mock.Mock(side_effect=RuntimeError("D2D failed"))
+        job = self._job(SimpleNamespace(synchronize=lambda: None), SimpleNamespace(synchronize=lambda: None))
+        job.plan = SimpleNamespace(tolist=lambda: [4, 2, 0])
+        runtime.capacity.acquire()
+        worker, reaper = self._threads(runtime)
+        try:
+            runtime.jobs.put(job)
+            self.assertTrue(job.ready_set.wait(3))
+            runtime.jobs.join()
+            self.assertIsInstance(job.error, RuntimeError)
+            self.assertIsNone(job.ready)
+            self.assertIsNotNone(runtime.worker_error)
+        finally:
+            runtime.jobs.put(None)
+            worker.join(3)
+            runtime.retired.put(None)
+            reaper.join(3)

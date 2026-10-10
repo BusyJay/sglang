@@ -10,18 +10,23 @@ import torch
 
 from sglang.kernels.ops.moe.qwen38_expert_cache import cache_route
 from sglang.srt.layers.moe.qwen38_cache_runtime import Qwen38SynchronousExpertRuntime
+from sglang.srt.model_loader.qwen38_nvfp4_pack.format import REQUIRED_TENSORS
 
 
 class Qwen38AsyncExpertRuntime(Qwen38SynchronousExpertRuntime):
-    def __init__(self, pack, device, *, staging_buffers=4, **kwargs):
-        super().__init__(pack, device, **kwargs)
+    def __init__(
+        self, pack, device, *, staging_buffers=4, staging_buffer_bytes=64 << 20, **kwargs
+    ):
+        super().__init__(
+            pack, device, staging_buffer_bytes=staging_buffer_bytes, **kwargs
+        )
         if self.device.type != "cuda":
             raise ValueError("async expert runtime requires CUDA")
         if not 2 <= staging_buffers <= 64:
             raise ValueError("staging_buffers must be between 2 and 64")
         self.transfer = torch.cuda.Stream(device=self.device)
         self.ring = [self.staging] + [
-            torch.empty_like(self.staging, pin_memory=True)
+            torch.empty_like(self.staging, device="cpu", pin_memory=True)
             for _ in range(staging_buffers - 1)
         ]
         self.ring_events = [None] * staging_buffers
@@ -36,7 +41,7 @@ class Qwen38AsyncExpertRuntime(Qwen38SynchronousExpertRuntime):
             self.route_counts, device="cpu", pin_memory=True
         )
         self.host_lookup = torch.empty(
-            self.manifest.num_experts, dtype=torch.int32, pin_memory=True
+            self.manifest.num_experts, dtype=torch.int32, device="cpu", pin_memory=True
         )
         self.lookup_event = None
         self.outputs = {}
@@ -48,28 +53,104 @@ class Qwen38AsyncExpertRuntime(Qwen38SynchronousExpertRuntime):
         self.transfer.synchronize()
 
     def _copy(self, view, destination):
-        # reserve() invokes this override only after __init__ finishes.
+        self._copy_batch([(view, destination)])
+
+    def _order_transfer(self):
+        self.transfer.wait_stream(torch.cuda.current_stream(self.device))
+
+    def _copy_batch(self, entries):
+        """Consume mmap views into reusable pinned pages, with one event per page.
+
+        Full tensors are split into bounded contiguous H2Ds. Small tensors share
+        a page/event, but retain their individual GPU destinations. No writable
+        alias of the read-only pack or intermediate bytearray is constructed.
+        """
+        pending = []
+        used = 0
         index = self.ring_index
-        self.ring_index = (index + 1) % len(self.ring)
-        event = self.ring_events[index]
-        if event is not None:
-            event.synchronize()  # CPU must not overwrite an in-flight pinned page.
+        host_view = None
+        batches_before = self.staging_batches
         try:
-            source = torch.frombuffer(bytearray(view), dtype=torch.uint8)
-            staging = self.ring[index][: source.numel()]
-            staging.copy_(source)
-            self.transfer.wait_stream(torch.cuda.current_stream(self.device))
-            with torch.cuda.stream(self.transfer):
-                destination.reshape(-1).view(torch.uint8).copy_(
-                    staging, non_blocking=True
-                )
-                event = torch.cuda.Event()
-                event.record(self.transfer)
-                self.ring_events[index] = event
-                self.ready = event
-            self.transferred_bytes += source.numel()
+            self._order_transfer()
+            for view, destination in entries:
+                target = destination.reshape(-1).view(torch.uint8)
+                if len(view) != target.numel():
+                    raise ValueError("pack view and destination byte sizes differ")
+                offset = 0
+                while offset < len(view):
+                    if host_view is None:
+                        event = self.ring_events[index]
+                        if event is not None:
+                            event.synchronize()  # Never overwrite in-flight pinned bytes.
+                        host_view = memoryview(self.ring[index].numpy()).cast("B")
+                    count = min(len(view) - offset, len(host_view) - used)
+                    part = view[offset : offset + count]
+                    try:
+                        host_view[used : used + count] = part
+                    finally:
+                        part.release()
+                    pending.append((target[offset : offset + count], used, count))
+                    offset += count
+                    used += count
+                    if used == len(host_view):
+                        host_view.release()
+                        host_view = None
+                        self._dispatch_staging_batch(index, pending)
+                        pending = []
+                        used = 0
+                        index = self.ring_index
+            if pending:
+                self._dispatch_staging_batch(index, pending)
         finally:
-            view.release()
+            if host_view is not None:
+                host_view.release()
+            try:
+                if self.staging_batches != batches_before:
+                    # Ring events are re-recorded on reuse. Publish an immutable
+                    # completion event for persistent slot-ready dependencies.
+                    self.ready = torch.cuda.Event()
+                    self.ready.record(self.transfer)
+            finally:
+                for view, _ in entries:
+                    view.release()
+
+    def _dispatch_staging_batch(self, index, pending):
+        with torch.cuda.stream(self.transfer):
+            try:
+                for target, offset, count in pending:
+                    target.copy_(
+                        self.ring[index][offset : offset + count], non_blocking=True
+                    )
+                    self.transferred_bytes += count
+                    self.h2d_copy_calls += 1
+            finally:
+                # Record even on partial dispatch failure to protect staging reuse.
+                event = self.ring_events[index]
+                if event is None:
+                    event = torch.cuda.Event(blocking=True)
+                    self.ring_events[index] = event
+                event.record(self.transfer)
+                self.staging_batches += 1
+                self.ring_index = (index + 1) % len(self.ring)
+
+    def _fill(self, layer_id, expert_id, tensors, slot_id):
+        self._copy_batch(
+            [
+                (
+                    self.pack.expert_tensor_bytes(layer_id, expert_id, name),
+                    tensors[name][slot_id],
+                )
+                for name in REQUIRED_TENSORS
+            ]
+        )
+
+    def _fill_arena(self, layer_id):
+        self._copy_batch(
+            [
+                (self.pack.tensor_bytes(layer_id, name), self.arena[name])
+                for name in REQUIRED_TENSORS
+            ]
+        )
 
     def _scales(self, layer_id):
         # Scalar scale validation reads CUDA values; join transfer before reading.

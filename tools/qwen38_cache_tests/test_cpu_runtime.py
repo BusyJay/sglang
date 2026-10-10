@@ -11,6 +11,7 @@ from unittest import mock
 from ._load_source import REPO_ROOT, load_source
 from .test_cpu_cache_policy import cache_module
 from .test_cpu_pack_builder import builder_module, format_module
+from .test_cpu_cache_capacity import capacity
 
 try:
     import torch
@@ -153,6 +154,33 @@ class TestSynchronousRuntime(unittest.TestCase):
         self.assertEqual(stats["misses"], 2)
         self.assertEqual(stats["arena_loads"], 1)
         self.assertAlmostEqual(stats["cache_hit_rate"], 0.5)
+
+    def test_heterogeneous_layer_capacities_and_memory_budget(self):
+        runtime = self.runtime_module.Qwen38SynchronousExpertRuntime(
+            self.pack, "cpu", slots_per_layer=2, layer_cache_slots=[1, 3]
+        )
+        runtime.reserve()
+        ids = torch.tensor([[0, 1]], dtype=torch.int32)
+        first = runtime.run(0, ids, lambda prepared: prepared)
+        second = runtime.run(1, ids, lambda prepared: prepared)
+        self.assertTrue(first.arena)
+        self.assertFalse(second.arena)
+        self.assertEqual(second.num_experts, 3)
+        self.assertEqual(runtime.caches[0]["w13_weight"].shape[0], 1)
+        self.assertEqual(runtime.caches[1]["w13_weight"].shape[0], 3)
+        self.assertEqual(runtime.memory_budget()["decode_cache_bytes"], self.runtime.memory_budget()["decode_cache_bytes"])
+
+    def test_bounded_route_trace_records_actual_layer_and_routes(self):
+        path = self.root / "trace.jsonl"
+        runtime = self.runtime_module.Qwen38SynchronousExpertRuntime(
+            self.pack, "cpu", slots_per_layer=2,
+            route_trace_path=str(path), route_trace_limit=1,
+        )
+        ids = torch.tensor([[0, 1]], dtype=torch.int32)
+        for layer in (1, 0):
+            runtime.run(layer, ids, lambda prepared: None)
+        self.assertEqual([json.loads(line) for line in path.read_text().splitlines()],
+                         [{"layer": 1, "routes": [[0, 1]]}])
 
     def test_padding_and_invalid_routes(self):
         ids = torch.tensor([[-1, 2]], dtype=torch.int32)

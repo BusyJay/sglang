@@ -194,7 +194,7 @@ H2D copies, records a per-job ready event on the transfer stream, and notifies
 through a lightweight host flag. A separate retirement thread waits for compute
 completion and retains gate-free plan storage until all consumers finish. The
 caller does not read the GPU plan; it does wait briefly for the worker
-readiness notice (bounded by worker pickup latency, not copy duration); the
+readiness notice (including plan completion, staging and ring backpressure); the
 copies themselves remain asynchronous behind events. Queue capacity is bounded
 (64 jobs), so a producer that outruns transfer experiences backpressure;
 startup and explicit close/synchronize also wait. Host allocation, Python

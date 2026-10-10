@@ -111,6 +111,7 @@ def load_layer_checkpoint(layer, checkpoint, index, layer_id):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--checkpoint", required=True)
+    parser.add_argument("--cache-dir", help="existing Hugging Face hub cache")
     parser.add_argument("--output", required=True)
     parser.add_argument("--checkpoint-revision", required=True)
     parser.add_argument("--sglang-commit", required=True)
@@ -132,7 +133,15 @@ def main():
 
     if not torch.cuda.is_available() or torch.cuda.get_device_capability() != (12, 0):
         parser.error("conversion requires SM120 CUDA")
-    checkpoint = Path(args.checkpoint)
+    from sglang.srt.model_loader.qwen38_nvfp4_common import (
+        resolve_cached_checkpoint, cached_checkpoint_weight_files,
+        validate_cached_checkpoint_revision,
+    )
+    checkpoint = resolve_cached_checkpoint(
+        args.checkpoint, revision=args.checkpoint_revision, cache_dir=args.cache_dir
+    )
+    cached_checkpoint_weight_files(checkpoint)
+    validate_cached_checkpoint_revision(checkpoint, object(), args.checkpoint_revision)
     config = json.loads((checkpoint / "config.json").read_text())
     index = json.loads((checkpoint / "model.safetensors.index.json").read_text())[
         "weight_map"

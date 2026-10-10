@@ -75,3 +75,19 @@ summary with `avg_token_per_second`, `max_token_per_second` and
 For the current 5090 + `--mem-fraction-static 0.90` deployment profile, the
 working high-cache baseline is `cache_slots_per_layer=112`. See
 `CACHE_TUNING_112.md` for the measured hit-rate and throughput numbers.
+
+Bulk prefill transport, bounded large staging buffers, and synthetic validation:
+[BULK_TRANSPORT_OPTIMIZATION.md](../../flash-next-plan/BULK_TRANSPORT_OPTIMIZATION.md).
+Async/device/threaded modes default to four buffers of up to 64 MiB each;
+canary flags `--staging-buffers` and `--staging-buffer-mib` configure the ring.
+
+Optional device/threaded arena-to-decode seeding: `--warm-decode-cache` (off by
+default). Implementation and GPU comparison guidance:
+[DECODE_CACHE_WARMUP.md](../../flash-next-plan/DECODE_CACHE_WARMUP.md).
+
+Per-layer capacities and profiling-only route capture / CPU replay:
+[LAYER_CAPACITY_REPLAY.md](../../flash-next-plan/LAYER_CAPACITY_REPLAY.md).
+
+Checkpoint directory or cached Hugging Face repo ID (no downloads), with updated
+canary/conversion/Docker commands:
+[OFFLINE_MODEL_ID_SUPPORT.md](../../flash-next-plan/OFFLINE_MODEL_ID_SUPPORT.md).
