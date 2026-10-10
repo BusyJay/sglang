@@ -211,9 +211,15 @@ def main():
                 "prompt": prompt,
                 "answer_pattern": pattern,
             }
-            encoded = tokenizer.encode(
-                prompt, add_special_tokens=False
-            )[: args.context_length]
+            try:
+                prompt_text = tokenizer.apply_chat_template(
+                    [{"role": "user", "content": prompt}],
+                    add_generation_prompt=True,
+                    tokenize=False,
+                )
+            except Exception:
+                prompt_text = prompt
+            encoded = tokenizer.encode(prompt_text, add_special_tokens=False)[: args.context_length]
             begun = time.monotonic()
             response = request(
                 url + "/generate",
