@@ -91,3 +91,15 @@ Per-layer capacities and profiling-only route capture / CPU replay:
 Checkpoint directory or cached Hugging Face repo ID (no downloads), with updated
 canary/conversion/Docker commands:
 [OFFLINE_MODEL_ID_SUPPORT.md](../../flash-next-plan/OFFLINE_MODEL_ID_SUPPORT.md).
+
+Representative pre-listener startup warmup: `--warmups qwen38_offload` on the
+Python HTTP server, or canary flag `--offload-startup-warmup`. See
+[STARTUP_WARMUP.md](../../flash-next-plan/STARTUP_WARMUP.md).
+
+## Segmented decode graph (opt-in)
+
+The canary accepts `--decode-graph --runtime-mode threaded`. Prefill remains eager;
+decode uses batch-1 `breakable` graphs, with routed MoE/host transport replayed
+eagerly at every boundary. Details, limitations and GPU validation steps are in
+[DECODE_GRAPH.md](../../flash-next-plan/DECODE_GRAPH.md). The small GPU suite includes synthetic graph
+replay versus resident CUTLASS parity; it never downloads weights.

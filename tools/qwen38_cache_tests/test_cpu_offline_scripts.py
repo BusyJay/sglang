@@ -52,7 +52,8 @@ class TestOfflineScripts(unittest.TestCase):
                 "sglang.srt.model_loader.qwen38_nvfp4_common": common_module,
             }), mock.patch("sys.argv", ["canary", "--checkpoint", "nvidia/test-model",
                 "--manifest", str(manifest), "--output", root, "--revision", "fixture",
-                "--cache-dir", root, "--contexts", "8"]), \
+                "--cache-dir", root, "--contexts", "8", "--offload-startup-warmup",
+                "--decode-graph", "--runtime-mode", "threaded"]), \
                 mock.patch.object(common_module, "resolve_cached_checkpoint", return_value=Path(root)) as resolve, \
                 mock.patch.object(common_module, "cached_checkpoint_weight_files"), \
                 mock.patch.object(canary.subprocess, "Popen", return_value=process) as launch, \
@@ -64,5 +65,8 @@ class TestOfflineScripts(unittest.TestCase):
             args = launch.call_args.args[0]
             for flag, expected in (("--model-path", "nvidia/test-model"),
                 ("--served-model-name", "nvidia/test-model"), ("--revision", "fixture"),
-                ("--reasoning-parser", "qwen3"), ("--download-dir", root)):
+                ("--reasoning-parser", "qwen3"), ("--download-dir", root),
+                ("--warmups", "qwen38_offload")):
                 self.assertEqual(args[args.index(flag) + 1], expected)
+            self.assertIn("--cuda-graph-backend-decode=breakable", args)
+            self.assertIn("--cuda-graph-backend-prefill=disabled", args)

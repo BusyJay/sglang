@@ -18,6 +18,7 @@ No torch.compile.
 
 from __future__ import annotations
 
+import copy
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
@@ -194,6 +195,15 @@ class BreakableCudaGraphBackend(DedupedCudaGraphMixin, BaseCudaGraphBackend):
             return tuple(self._alloc_full_buffer(o, size) for o in output)
         if isinstance(output, list):
             return [self._alloc_full_buffer(o, size) for o in output]
+        if hasattr(output, "__dict__"):
+            clone = copy.copy(output)
+            for key, value in vars(output).items():
+                try:
+                    value = self._alloc_full_buffer(value, size)
+                except TypeError:
+                    pass
+                setattr(clone, key, value)
+            return clone
         raise TypeError(f"Unsupported BCG output type: {type(output)}")
 
     def _slice_output(self, output: Any, num_tokens: int) -> Any:
@@ -207,6 +217,15 @@ class BreakableCudaGraphBackend(DedupedCudaGraphMixin, BaseCudaGraphBackend):
             return tuple(self._slice_output(item, num_tokens) for item in output)
         if isinstance(output, list):
             return [self._slice_output(item, num_tokens) for item in output]
+        if hasattr(output, "__dict__"):
+            clone = copy.copy(output)
+            for key, value in vars(output).items():
+                try:
+                    value = self._slice_output(value, num_tokens)
+                except TypeError:
+                    pass
+                setattr(clone, key, value)
+            return clone
         raise TypeError(f"Unsupported BCG output type: {type(output)}")
 
     def _copy_output_to_buffer(
@@ -245,6 +264,14 @@ class BreakableCudaGraphBackend(DedupedCudaGraphMixin, BaseCudaGraphBackend):
                 )
             for item, buffer in zip(output, output_buffer):
                 self._copy_output_to_buffer(item, buffer, num_tokens)
+            return
+        if hasattr(output, "__dict__") and hasattr(output_buffer, "__dict__"):
+            for key, value in vars(output).items():
+                buffer_value = getattr(output_buffer, key)
+                try:
+                    self._copy_output_to_buffer(value, buffer_value, num_tokens)
+                except TypeError:
+                    setattr(output_buffer, key, value)
             return
         raise TypeError(
             "Unsupported BCG output buffer pair: "

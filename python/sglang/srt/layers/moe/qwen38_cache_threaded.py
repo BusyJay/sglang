@@ -6,8 +6,9 @@ is expressed with CUDA events only: the worker records a per-job ready event on
 the transfer stream after dispatching copies and notifies the caller through a
 lightweight flag; the compute stream then waits on that event before MoE reads.
 A bounded queue may apply host backpressure when the producer outruns transport.
-Startup and explicit synchronize/close wait intentionally. CUDA Graph capture is
-not supported. Raw driver stream memory operations are deliberately avoided so
+Startup and explicit synchronize/close wait intentionally. Full CUDA Graph
+capture is not supported; breakable decode graphs run this runtime eagerly at
+each MoE boundary. Raw driver stream memory operations are deliberately avoided so
 every CUDA state transition goes through PyTorch's own locking.
 """
 

@@ -152,6 +152,10 @@ def main():
     parser.add_argument("--staging-buffers", type=int, default=4)
     parser.add_argument("--staging-buffer-mib", type=int, default=64)
     parser.add_argument("--warm-decode-cache", action="store_true")
+    parser.add_argument("--decode-graph", action="store_true",
+                        help="opt into batch-1 breakable decode graph (threaded runtime only)")
+    parser.add_argument("--offload-startup-warmup", action="store_true",
+                        help="run representative offload prefill/decode before serving")
     parser.add_argument("--layer-cache-slots", help="JSON file containing a capacity list")
     parser.add_argument("--route-trace-path", help="profiling-only JSONL path inside server environment")
     parser.add_argument("--route-trace-limit", type=int, default=10000)
@@ -177,6 +181,8 @@ def main():
         parser.error("route trace limit must be positive")
     if args.warm_decode_cache and args.runtime_mode not in ("device", "threaded"):
         parser.error("decode warmup requires device/threaded mode")
+    if args.decode_graph and args.runtime_mode != "threaded":
+        parser.error("--decode-graph requires --runtime-mode threaded")
     if not 2 <= args.staging_buffers <= 64 or args.staging_buffer_mib < 0:
         parser.error("staging buffers must be 2..64 and staging buffer MiB non-negative")
     if min(
@@ -256,7 +262,7 @@ def main():
         "--language-model-only",
         "--ple-offload-embedding",
         "--cuda-graph-backend-prefill=disabled",
-        "--cuda-graph-backend-decode=disabled",
+        "--cuda-graph-backend-decode=" + ("breakable" if args.decode_graph else "disabled"),
         "--disable-shared-experts-fusion",
         "--moe-runner-backend",
         "flashinfer_cutlass",
@@ -277,6 +283,8 @@ def main():
         parser.error("file PLE backend requires --ple-dir")
     if args.revision:
         command += ["--revision", args.revision]
+    if args.offload_startup_warmup:
+        command += ["--warmups", "qwen38_offload"]
     if args.cache_dir:
         command += ["--download-dir", args.cache_dir]
     if args.mem_fraction_static is not None:

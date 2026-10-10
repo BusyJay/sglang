@@ -13,6 +13,16 @@ from sglang.srt.layers.quantization.base_config import (
     QuantizationConfig,
     QuantizeMethodBase,
 )
+from sglang.srt.model_executor.runner_backend_utils.breakable_cuda_graph import (
+    eager_on_graph,
+)
+
+
+def _capture_expert_output(_method, hidden_states, *_route_inputs):
+    # Upstream segments have only been recorded, not replayed: their route IDs
+    # are not valid yet. Do not enqueue a host transfer from capture-time data.
+    # Warmup initializes CUTLASS; replay always runs the real expert boundary.
+    return torch.zeros_like(hidden_states)
 
 
 class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
@@ -74,15 +84,7 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
         self.runtime = runtime
 
     def apply(self, layer, dispatch_output):
-        from dataclasses import replace
-
-        from sglang.srt.layers.moe.moe_runner import MoeRunner
-        from sglang.srt.layers.moe.moe_runner.flashinfer_cutlass import (
-            FlashInferCutlassMoeQuantInfo,
-            materialize_swiglu_params_for_cutlass,
-        )
         from sglang.srt.layers.moe.token_dispatcher.standard import StandardCombineInput
-        from sglang.srt.layers.moe.utils import MoeRunnerBackend
 
         if self.runtime is None:
             raise RuntimeError("Qwen3.8 expert runtime was not bound by the loader")
@@ -97,6 +99,48 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
         topk = dispatch_output.topk_output
         if not hasattr(topk, "topk_ids"):
             topk = topk.to_standard()
+
+        hidden_states = self._run_experts(
+            dispatch_output.hidden_states,
+            topk.topk_weights,
+            topk.topk_ids,
+            topk.router_logits,
+            dispatch_output.hidden_states_pre_quant,
+        )
+        return StandardCombineInput(hidden_states=hidden_states)
+
+    @eager_on_graph(True, capture_stub=_capture_expert_output)
+    def _run_experts(
+        self, hidden_states, topk_weights, topk_ids, router_logits,
+        hidden_states_pre_quant=None,
+    ):
+        """Replay host transport for every token, never capture a transfer job.
+
+        Pass tensors directly through the break boundary: the breakable backend
+        weak-refs tensor inputs and pins its output bridge. Capturing a closure
+        over dispatch_output instead would retain every layer's intermediates.
+        CUTLASS stays eager here so computed events cover its actual execution
+        on every replay, including evictions and prefill-to-decode transitions.
+        """
+        from dataclasses import replace
+
+        from sglang.srt.layers.moe.moe_runner import MoeRunner
+        from sglang.srt.layers.moe.moe_runner.flashinfer_cutlass import (
+            FlashInferCutlassMoeQuantInfo,
+            materialize_swiglu_params_for_cutlass,
+        )
+        from sglang.srt.layers.moe.token_dispatcher.standard import (
+            StandardDispatchOutput,
+        )
+        from sglang.srt.layers.moe.topk import StandardTopKOutput
+        from sglang.srt.layers.moe.utils import MoeRunnerBackend
+
+        dispatch_output = StandardDispatchOutput(
+            hidden_states,
+            None,
+            StandardTopKOutput(topk_weights, topk_ids, router_logits),
+            hidden_states_pre_quant,
+        )
 
         def execute(prepared):
             capacity = prepared.num_experts
@@ -132,16 +176,16 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
                 swiglu_limit=swiglu_limit,
                 apply_routed_scaling_factor=False,
             )
-            from sglang.srt.layers.moe.topk import StandardTopKOutput
-
             remapped = StandardTopKOutput(
-                topk.topk_weights, prepared.topk_ids, topk.router_logits
+                topk_weights, prepared.topk_ids, router_logits
             )
             return self.runners[capacity].run(
                 dispatch_output._replace(topk_output=remapped), quant_info
             )
 
-        return self.runtime.run(self.layer_id, topk.topk_ids, execute)
+        # Return a plain tensor, so eager_on_graph copies fresh output into the
+        # fixed bridge consumed by the next GPU segment on every replay.
+        return self.runtime.run(self.layer_id, topk_ids, execute).hidden_states
 
 
 class Qwen38CachedModelOptConfig(QuantizationConfig):

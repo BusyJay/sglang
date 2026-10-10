@@ -25,6 +25,13 @@ def warmup(name: str):
     return decorator
 
 
+@warmup("qwen38_offload")
+async def qwen38_offload(disaggregation_mode, tokenizer_manager):
+    from sglang.srt.entrypoints.qwen38_warmup import warmup_qwen38_offload
+
+    await warmup_qwen38_offload(disaggregation_mode, tokenizer_manager)
+
+
 async def execute_warmups(
     disaggregation_mode: str,
     warmup_names: List[str],
