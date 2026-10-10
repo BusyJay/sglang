@@ -19,6 +19,17 @@ import urllib.request
 from pathlib import Path
 
 
+def _visible_generation_text(text):
+    """Drop any wrapped hidden-reasoning span so only the visible reply remains."""
+    open_pos = text.find("<think")
+    if open_pos == -1:
+        return text.strip()
+    close_pos = text.rfind("thinking>", open_pos)
+    if close_pos == -1:
+        return text.strip()
+    return (text[:open_pos] + text[close_pos + len("thinking>") :]).strip()
+
+
 def request(url, data=None, timeout=30):
     body = None if data is None else json.dumps(data).encode()
     req = urllib.request.Request(url, body, {"Content-Type": "application/json"})
@@ -227,13 +238,14 @@ def main():
                     "input_ids": encoded,
                     "sampling_params": {
                         "temperature": 0,
-                        "max_new_tokens": 64,
-                        "stop": ["\n"],
+                        "max_new_tokens": 1024,
                     },
                 },
                 timeout=args.request_timeout,
             )
-            text = (response.get("text") or "").strip()
+            # This checkpoint replies after a hidden reasoning span that
+            # may hold extra lines; drop the span before matching.
+            text = _visible_generation_text(response.get("text") or "")
             matched = re.search(pattern, text) is not None
             case.update(
                 seconds=time.monotonic() - begun,
