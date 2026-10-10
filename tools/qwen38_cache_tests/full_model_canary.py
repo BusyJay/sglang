@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -52,6 +53,13 @@ def main():
     parser.add_argument("--mem-fraction-static", type=float)
     parser.add_argument("--max-mamba-cache-size", type=int)
     parser.add_argument("--mamba-full-memory-ratio", type=float)
+    parser.add_argument(
+        "--probe",
+        action="append",
+        default=None,
+        metavar='"PROMPT|EXPECTED_ANSER_PATTERN"',
+        help="semantic correctness probe checked after the context cases; repeatable",
+    )
     parser.add_argument("--startup-timeout", type=int, default=3600)
     parser.add_argument("--request-timeout", type=int, default=7200)
     args = parser.parse_args()
@@ -192,7 +200,47 @@ def main():
                 (output / f"context-{length}.json").write_text(
                     json.dumps(case, indent=2) + "\n"
                 )
-            report["status"] = "passed"
+        # Semantic correctness probes: real prompts with expected answers, kept
+        # distinct from the repetition fixtures above which only prove serving.
+        for probe in args.probe or []:
+            prompt, _, pattern = probe.partition("|")
+            if not prompt or not pattern:
+                raise ValueError(f"probe must be PROMPT|ANSWER_REGEX: {probe!r}")
+            case = {
+                "context_tokens": len(prompt),
+                "prompt": prompt,
+                "answer_pattern": pattern,
+            }
+            encoded = tokenizer.encode(
+                prompt, add_special_tokens=False
+            )[: args.context_length]
+            begun = time.monotonic()
+            response = request(
+                url + "/generate",
+                {
+                    "input_ids": encoded,
+                    "sampling_params": {
+                        "temperature": 0,
+                        "max_new_tokens": 64,
+                        "stop": ["\n"],
+                    },
+                },
+                timeout=args.request_timeout,
+            )
+            text = (response.get("text") or "").strip()
+            matched = re.search(pattern, text) is not None
+            case.update(
+                seconds=time.monotonic() - begun,
+                response_text=text[:200],
+                matched=matched,
+                meta_info=response.get("meta_info"),
+            )
+            report["cases"].append(case)
+            print(f"Probe {prompt!r} -> {'MATCH' if matched else 'NO MATCH'}", flush=True)
+            if not matched:
+                report["error"] = f"semantic probe failed: {case}"
+                raise AssertionError(report["error"])
+        report["status"] = "passed"
     except Exception as error:
         report["error"] = f"{type(error).__name__}: {error}"
         raise

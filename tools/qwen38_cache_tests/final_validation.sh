@@ -58,6 +58,7 @@ stage canary_threaded_8k_32k bash "$model" \
   --image "$image" --device "$device" --checkpoint "$checkpoint" \
   --pack "$root/results/packs/assembled" --results "$stages_dir/canary-threaded" -- canary \
   --runtime-mode threaded --contexts 8192 32768 \
+  --probe 'What is 1 plus 1? Answer with only the number.|(?<![0-9])2(?![0-9])' \
   --mem-fraction-static 0.90 --mamba-full-memory-ratio 0.22 --max-mamba-cache-size 15
 [[ $overall == passed ]] || exit 1
 
