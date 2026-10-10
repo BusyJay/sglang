@@ -137,6 +137,23 @@ class TestSynchronousRuntime(unittest.TestCase):
         self.runtime.run(0, ids, lambda _: None)
         self.assertEqual(self.runtime.arena_loads, 3)
 
+    def test_stats_snapshot_tracks_cache_and_arena_activity(self):
+        cache_ids = torch.tensor([[0, 1]], dtype=torch.int64)
+        arena_ids = torch.tensor([[0, 1], [2, 3]], dtype=torch.int64)
+
+        self.runtime.run(0, cache_ids, lambda prepared: prepared.topk_ids.clone())
+        self.runtime.run(0, cache_ids, lambda prepared: prepared.topk_ids.clone())
+        self.runtime.run(0, arena_ids, lambda prepared: prepared.topk_ids.clone())
+
+        stats = self.runtime.stats_snapshot()
+        self.assertEqual(stats["run_invocations"], 3)
+        self.assertEqual(stats["cache_invocations"], 2)
+        self.assertEqual(stats["arena_invocations"], 1)
+        self.assertEqual(stats["hits"], 2)
+        self.assertEqual(stats["misses"], 2)
+        self.assertEqual(stats["arena_loads"], 1)
+        self.assertAlmostEqual(stats["cache_hit_rate"], 0.5)
+
     def test_padding_and_invalid_routes(self):
         ids = torch.tensor([[-1, 2]], dtype=torch.int32)
         mapped = self.runtime.run(0, ids, lambda p: p.topk_ids)

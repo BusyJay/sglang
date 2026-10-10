@@ -244,6 +244,7 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             if topk_ids.shape[1] != self.manifest.top_k:
                 raise ValueError("top-k differs from the pack")
             arena = topk_ids.numel() > self.slots_per_layer
+            self._record_invocation(arena, topk_ids)
             if arena and self.arena is None:
                 raise ValueError("route bound exceeds cache; enable prefill arena")
             self.capacity.acquire()  # bounded producer backpressure, not a per-layer CUDA wait

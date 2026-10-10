@@ -47,6 +47,7 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             "cache_slots_per_layer",
             "prefill_arena",
             "runtime_mode",
+            "stats_log_interval",
             "staging_buffers",
         }
         if unexpected:
@@ -187,6 +188,7 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                 target_device,
                 slots_per_layer=int(self.config.get("cache_slots_per_layer", 56)),
                 prefill_arena=self.config.get("prefill_arena", True),
+                stats_log_interval=int(self.config.get("stats_log_interval", 0)),
                 **runtime_options,
             )
             runtime.reserve()
