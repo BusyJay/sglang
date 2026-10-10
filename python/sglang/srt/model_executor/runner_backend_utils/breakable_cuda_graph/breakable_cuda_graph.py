@@ -24,6 +24,7 @@ buffers to keep break-point tensors at stable addresses.
 
 import threading
 import warnings
+from contextlib import nullcontext
 from contextvars import ContextVar
 from typing import Any, Callable, Optional
 
@@ -376,13 +377,19 @@ class BreakableCUDAGraphCapture:
         else:
             graph = graph_cls()
             self._current_graph_needs_instantiate = False
-        if _is_xpu:
-            # torch.xpu.XPUGraph.capture_begin takes only an optional pool.
-            graph.capture_begin(pool=self._pool)
-        else:
-            graph.capture_begin(
-                pool=self._pool, capture_error_mode=self._capture_error_mode
-            )
+        stream_ctx = (
+            get_device_module().stream(self._stream)
+            if self._stream is not None
+            else nullcontext()
+        )
+        with stream_ctx:
+            if _is_xpu:
+                # torch.xpu.XPUGraph.capture_begin takes only an optional pool.
+                graph.capture_begin(pool=self._pool)
+            else:
+                graph.capture_begin(
+                    pool=self._pool, capture_error_mode=self._capture_error_mode
+                )
         self._current_graph = graph
 
     def _end_current_segment(self) -> None:
@@ -400,9 +407,15 @@ class BreakableCUDAGraphCapture:
         # A segment that enqueued no kernels (back-to-back breaks, or a segment
         # whose ops all ran eagerly) captures an empty graph, which replays as a
         # no-op. Torch warns about it on every such capture_end; expected here.
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", message="The CUDA Graph is empty")
-            graph.capture_end()
+        stream_ctx = (
+            get_device_module().stream(self._stream)
+            if self._stream is not None
+            else nullcontext()
+        )
+        with stream_ctx:
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", message="The CUDA Graph is empty")
+                graph.capture_end()
         self.cuda_graph._append_segment(graph, self._current_graph_needs_instantiate)
         self._current_graph = None
         self._current_graph_needs_instantiate = False

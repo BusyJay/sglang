@@ -3,12 +3,51 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
 from sglang.srt.arg_groups.overrides import declare_resolution, resolving_view
 
 logger = logging.getLogger(__name__)
+
+
+def resolve_qwen38_cuda_graph(server_args: Any) -> None:
+    """Validate after JSON/convenience/legacy graph options are resolved."""
+    from sglang.srt.model_executor.cuda_graph_config import Backend, Phase, with_phase
+
+    cfg = resolving_view(server_args)
+    if cfg.load_format != "qwen38_nvfp4_cache":
+        return
+    graph = cfg.cuda_graph_config
+    if graph.prefill.backend != Backend.DISABLED:
+        raise ValueError("qwen38 offload requires --cuda-graph-backend-prefill=disabled")
+    if graph.decode.backend == Backend.DISABLED:
+        return
+    if graph.decode.backend != Backend.BREAKABLE:
+        raise ValueError(
+            "qwen38 offload decode graph requires backend=breakable, not full/tc_piecewise"
+        )
+    extra = cfg.model_loader_extra_config or {}
+    if isinstance(extra, str):
+        extra = json.loads(extra)
+    if extra.get("runtime_mode", "sync") != "threaded":
+        raise ValueError("qwen38 offload decode graph requires runtime_mode=threaded")
+    if cfg.enable_torch_compile:
+        raise ValueError(
+            "qwen38 offload decode graph does not support --enable-torch-compile"
+        )
+    if graph.decode.bs not in (None, [1]) or graph.decode.max_bs not in (None, 1):
+        raise ValueError("qwen38 offload decode graph supports only bs=[1], max_bs=1")
+    declare_resolution(
+        server_args,
+        "resolve_qwen38_cuda_graph",
+        cuda_graph_config=with_phase(graph, Phase.DECODE, bs=[1], max_bs=1),
+    )
+    logger.info(
+        "qwen38 offload: segmented decode graph enabled "
+        "(host transport and CUTLASS remain eager)"
+    )
 
 
 def handle_qwen38_nvfp4_cache(server_args: Any) -> None:
@@ -55,6 +94,6 @@ def handle_qwen38_nvfp4_cache(server_args: Any) -> None:
         moe_runner_backend="flashinfer_cutlass",
     )
     logger.info(
-        "qwen38_nvfp4_cache selected: language-model-only, eager execution, "
+        "qwen38_nvfp4_cache selected: language-model-only, eager by default, "
         "single-rank parallelism and FlashInfer CUTLASS are required"
     )

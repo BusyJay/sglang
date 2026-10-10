@@ -535,6 +535,9 @@ def handle_cuda_graph_config(server_args: Any):
     cfg = resolving_view(server_args)
 
     parse_cuda_graph_config(server_args)
+    from sglang.srt.arg_groups.qwen38_cache_hook import resolve_qwen38_cuda_graph
+
+    resolve_qwen38_cuda_graph(server_args)
     apply_cuda_graph_compatibility(server_args)
     apply_deepep_adjustments(server_args)
     apply_cuda_graph_disaggregation_roles(server_args)

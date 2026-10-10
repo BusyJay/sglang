@@ -21,7 +21,7 @@ class TestNvfp4CachedParity(unittest.TestCase):
 
         init_single_process_dist()
 
-    def _exercise(self, mode):
+    def _exercise(self, mode, decode_graph=False):
         from sglang.srt.layers.moe.fused_moe_triton.layer import FusedMoE
         from sglang.srt.layers.moe.utils import MoeA2ABackend, MoeRunnerBackend
         from sglang.srt.layers.quantization.modelopt_quant import ModelOptFp4Config
@@ -100,7 +100,8 @@ class TestNvfp4CachedParity(unittest.TestCase):
             with tempfile.TemporaryDirectory() as value:
                 exported = Path(value) / "layer"
                 export_runtime_layer(layer, exported)
-                report = check_exported_layer(layer, exported, mode, slots=4)
+                report = check_exported_layer(layer, exported, mode, slots=4,
+                                              decode_graph=decode_graph)
                 self.assertEqual(report["status"], "passed")
                 self.assertGreater(report["arena_loads"], 0)
             self.assertLess(torch.cuda.max_memory_allocated(), 1 << 30)
@@ -116,3 +117,6 @@ class TestNvfp4CachedParity(unittest.TestCase):
 
     def test_threaded_cutlass_parity(self):
         self._exercise("threaded")
+
+    def test_threaded_breakable_decode_cutlass_parity(self):
+        self._exercise("threaded", decode_graph=True)
