@@ -21,13 +21,55 @@ from pathlib import Path
 
 def _visible_generation_text(text):
     """Drop any wrapped hidden-reasoning span so only the visible reply remains."""
-    open_pos = text.find("<think")
-    if open_pos == -1:
-        return text.strip()
-    close_pos = text.rfind("thinking>", open_pos)
-    if close_pos == -1:
-        return text.strip()
-    return (text[:open_pos] + text[close_pos + len("thinking>") :]).strip()
+    stripped = re.sub(r"<think[^>]*>.*?</think>", "", text, flags=re.DOTALL)
+    stripped = re.sub(r"<thinking[^>]*>.*?</thinking>", "", stripped, flags=re.DOTALL)
+    for closing_tag in ("</think>", "</thinking>"):
+        close_pos = stripped.rfind(closing_tag)
+        if close_pos != -1:
+            stripped = stripped[close_pos + len(closing_tag) :]
+    return stripped.strip()
+
+
+def _encode_probe_prompt(tokenizer, prompt, context_length):
+    """Render a user prompt through the chat template when available."""
+    try:
+        prompt_text = tokenizer.apply_chat_template(
+            [{"role": "user", "content": prompt}],
+            add_generation_prompt=True,
+            tokenize=False,
+        )
+    except Exception:
+        prompt_text = prompt
+    encoded = tokenizer.encode(prompt_text, add_special_tokens=False)[:context_length]
+    if not encoded:
+        raise ValueError(f"probe prompt encoded to zero tokens: {prompt!r}")
+    return prompt_text, encoded
+
+
+def _probe_case(prompt, pattern, tokenizer, context_length):
+    """Build a report entry for a semantic correctness probe."""
+    prompt_text, encoded = _encode_probe_prompt(tokenizer, prompt, context_length)
+    return {
+        "prompt": prompt,
+        "answer_pattern": pattern,
+        "prompt_text": prompt_text,
+        "prompt_tokens": len(encoded),
+    }, encoded
+
+
+def _finalize_probe_case(case, response, elapsed_seconds):
+    """Attach raw and visible generations plus the regex match result."""
+    raw_text = response.get("text") or ""
+    visible_text = _visible_generation_text(raw_text)
+    matched = re.search(case["answer_pattern"], visible_text) is not None
+    case.update(
+        seconds=elapsed_seconds,
+        raw_response_text=raw_text[:800],
+        response_text=visible_text[:400],
+        matched=matched,
+        meta_info=response.get("meta_info"),
+    )
+    return matched
 
 
 def request(url, data=None, timeout=30):
@@ -40,6 +82,51 @@ def request(url, data=None, timeout=30):
 def ready(url, timeout=5):
     with urllib.request.urlopen(url + "/ready", timeout=timeout) as response:
         return 200 <= response.status < 300
+
+
+def _extract_cache_stats(server_log_path):
+    marker = "Qwen38ExpertCacheStats["
+    latest = None
+    if not server_log_path.is_file():
+        return None
+    for line in server_log_path.read_text(errors="replace").splitlines():
+        marker_pos = line.find(marker)
+        if marker_pos == -1:
+            continue
+        payload_pos = line.find("{", marker_pos)
+        if payload_pos == -1:
+            continue
+        payload = line[payload_pos:].strip()
+        try:
+            latest = json.loads(payload)
+        except json.JSONDecodeError:
+            continue
+    return latest
+
+
+def _extract_decode_throughput(server_log_path):
+    marker = "gen throughput (token/s):"
+    samples = []
+    if not server_log_path.is_file():
+        return None
+    for line in server_log_path.read_text(errors="replace").splitlines():
+        marker_pos = line.find(marker)
+        if marker_pos == -1:
+            continue
+        payload = line[marker_pos + len(marker) :]
+        value_text = payload.split(",", 1)[0].strip()
+        try:
+            samples.append(float(value_text))
+        except ValueError:
+            continue
+    if not samples:
+        return None
+    return {
+        "samples": len(samples),
+        "avg_token_per_second": sum(samples) / len(samples),
+        "max_token_per_second": max(samples),
+        "last_token_per_second": samples[-1],
+    }
 
 
 def main():
@@ -59,6 +146,8 @@ def main():
     parser.add_argument("--contexts", nargs="+", type=int, default=[8192, 32768])
     parser.add_argument("--context-length", type=int, default=225280)
     parser.add_argument("--chunk", type=int, default=8192)
+    parser.add_argument("--context-max-new-tokens", type=int, default=32)
+    parser.add_argument("--context-ignore-eos", action="store_true")
     # Memory knobs mirroring a known-good deployment profile; omitted by
     # default so auto-sizing still applies when callers want it.
     parser.add_argument("--mem-fraction-static", type=float)
@@ -73,15 +162,27 @@ def main():
     )
     parser.add_argument("--startup-timeout", type=int, default=3600)
     parser.add_argument("--request-timeout", type=int, default=7200)
+    parser.add_argument("--cache-stats-log-interval", type=int, default=0)
     args = parser.parse_args()
-    if min(args.startup_timeout, args.request_timeout, args.slots, args.chunk) <= 0:
-        parser.error("timeouts, slots and chunk must be positive")
+    if min(
+        args.startup_timeout,
+        args.request_timeout,
+        args.slots,
+        args.chunk,
+        args.context_max_new_tokens,
+    ) <= 0:
+        parser.error("timeouts, slots, chunk and context max_new_tokens must be positive")
+    if args.cache_stats_log_interval < 0:
+        parser.error("cache stats log interval must be non-negative")
     checkpoint = Path(args.checkpoint).resolve()
     manifest = Path(args.manifest).resolve()
     if not checkpoint.is_dir() or not manifest.is_file():
         parser.error("local checkpoint and expert-pack manifest are required")
-    if any(length < 1 or length + 32 > args.context_length for length in args.contexts):
-        parser.error("requested contexts must fit context-length with 32 output tokens")
+    if any(
+        length < 1 or length + args.context_max_new_tokens > args.context_length
+        for length in args.contexts
+    ):
+        parser.error("requested contexts must fit context-length with context max_new_tokens")
     output = Path(args.output)
     output.mkdir(parents=True, exist_ok=True)
     # Config bytes define the requested metadata identity; user pack revision
@@ -102,6 +203,8 @@ def main():
         "prefill_arena": True,
         "runtime_mode": args.runtime_mode,
     }
+    if args.cache_stats_log_interval:
+        extra["stats_log_interval"] = args.cache_stats_log_interval
     command = [
         sys.executable,
         "-m",
@@ -150,13 +253,14 @@ def main():
         "weights_downloaded": False,
     }
     process = None
+    server_log_path = output / "server.log"
     try:
         # Avoid attaching to an unrelated process that already occupies the port.
         import socket
 
         with socket.socket() as probe:
             probe.bind(("127.0.0.1", args.port))
-        with (output / "server.log").open("w") as log:
+        with server_log_path.open("w") as log:
             print("Starting local SGLang; details in server.log", flush=True)
             process = subprocess.Popen(
                 command,
@@ -193,7 +297,11 @@ def main():
                     url + "/generate",
                     {
                         "input_ids": ids,
-                        "sampling_params": {"temperature": 0, "max_new_tokens": 32},
+                        "sampling_params": {
+                            "temperature": 0,
+                            "max_new_tokens": args.context_max_new_tokens,
+                            "ignore_eos": args.context_ignore_eos,
+                        },
                     },
                     timeout=args.request_timeout,
                 )
@@ -217,20 +325,7 @@ def main():
             prompt, _, pattern = probe.partition("|")
             if not prompt or not pattern:
                 raise ValueError(f"probe must be PROMPT|ANSWER_REGEX: {probe!r}")
-            case = {
-                "context_tokens": len(prompt),
-                "prompt": prompt,
-                "answer_pattern": pattern,
-            }
-            try:
-                prompt_text = tokenizer.apply_chat_template(
-                    [{"role": "user", "content": prompt}],
-                    add_generation_prompt=True,
-                    tokenize=False,
-                )
-            except Exception:
-                prompt_text = prompt
-            encoded = tokenizer.encode(prompt_text, add_special_tokens=False)[: args.context_length]
+            case, encoded = _probe_case(prompt, pattern, tokenizer, args.context_length)
             begun = time.monotonic()
             response = request(
                 url + "/generate",
@@ -243,16 +338,7 @@ def main():
                 },
                 timeout=args.request_timeout,
             )
-            # This checkpoint replies after a hidden reasoning span that
-            # may hold extra lines; drop the span before matching.
-            text = _visible_generation_text(response.get("text") or "")
-            matched = re.search(pattern, text) is not None
-            case.update(
-                seconds=time.monotonic() - begun,
-                response_text=text[:200],
-                matched=matched,
-                meta_info=response.get("meta_info"),
-            )
+            matched = _finalize_probe_case(case, response, time.monotonic() - begun)
             report["cases"].append(case)
             print(f"Probe {prompt!r} -> {'MATCH' if matched else 'NO MATCH'}", flush=True)
             if not matched:
@@ -276,6 +362,12 @@ def main():
         except Exception as error:
             report["status"] = "failed"
             report["cleanup_error"] = f"{type(error).__name__}: {error}"
+        cache_stats = _extract_cache_stats(server_log_path)
+        if cache_stats is not None:
+            report["cache_stats"] = cache_stats
+        decode_throughput = _extract_decode_throughput(server_log_path)
+        if decode_throughput is not None:
+            report["decode_throughput"] = decode_throughput
         (output / "report.json").write_text(
             json.dumps(report, indent=2, default=str) + "\n"
         )

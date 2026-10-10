@@ -9,6 +9,9 @@ stream/event implementation, not the asynchronous production fast path.
 
 from __future__ import annotations
 
+import atexit
+import json
+import logging
 import threading
 from dataclasses import dataclass
 
@@ -21,6 +24,9 @@ from sglang.srt.model_loader.qwen38_nvfp4_pack.format import (
 )
 
 
+logger = logging.getLogger(__name__)
+
+
 @dataclass
 class PreparedExperts:
     tensors: dict[str, torch.Tensor]
@@ -30,7 +36,15 @@ class PreparedExperts:
 
 
 class Qwen38SynchronousExpertRuntime:
-    def __init__(self, pack, device, *, slots_per_layer=56, prefill_arena=True):
+    def __init__(
+        self,
+        pack,
+        device,
+        *,
+        slots_per_layer=56,
+        prefill_arena=True,
+        stats_log_interval=0,
+    ):
         self.pack = pack
         self.manifest = pack.manifest
         self.device = torch.device(device)
@@ -40,6 +54,9 @@ class Qwen38SynchronousExpertRuntime:
             raise ValueError("invalid expert-cache capacity")
         self.slots_per_layer = slots_per_layer
         self.prefill_arena = prefill_arena
+        self.stats_log_interval = int(stats_log_interval)
+        if self.stats_log_interval < 0:
+            raise ValueError("stats_log_interval must be non-negative")
         self.policies = {}
         self.caches = {}
         self.arena = None
@@ -47,6 +64,12 @@ class Qwen38SynchronousExpertRuntime:
         self.layer_scales = {}
         self.lock = threading.Lock()
         self.hits = self.misses = self.arena_loads = self.transferred_bytes = 0
+        self.run_invocations = 0
+        self.cache_invocations = 0
+        self.arena_invocations = 0
+        self.route_token_count = 0
+        self._last_logged_runs = 0
+        self._atexit_registered = False
         largest = max(
             record.nbytes // self.manifest.num_experts
             for records in self.manifest.tensors.values()
@@ -67,6 +90,66 @@ class Qwen38SynchronousExpertRuntime:
                     raise ValueError(
                         "expert pack layers have different runtime layouts"
                     )
+        self._register_atexit_logger()
+
+    def _register_atexit_logger(self):
+        if self._atexit_registered:
+            return
+
+        def _log_final_stats(runtime=self):
+            runtime.log_stats("final")
+
+        atexit.register(_log_final_stats)
+        self._atexit_registered = True
+
+    def _record_invocation(self, arena: bool, topk_ids: torch.Tensor):
+        self.run_invocations += 1
+        self.route_token_count += int(topk_ids.numel())
+        if arena:
+            self.arena_invocations += 1
+        else:
+            self.cache_invocations += 1
+        self._maybe_log_stats()
+
+    def stats_snapshot(self):
+        cache_events = self.hits + self.misses
+        return {
+            "slots_per_layer": self.slots_per_layer,
+            "prefill_arena": self.prefill_arena,
+            "run_invocations": self.run_invocations,
+            "cache_invocations": self.cache_invocations,
+            "arena_invocations": self.arena_invocations,
+            "route_token_count": self.route_token_count,
+            "hits": self.hits,
+            "misses": self.misses,
+            "arena_loads": self.arena_loads,
+            "transferred_bytes": self.transferred_bytes,
+            "cache_event_count": cache_events,
+            "cache_hit_rate": (
+                float(self.hits) / float(cache_events) if cache_events else None
+            ),
+            "avg_route_tokens_per_run": (
+                float(self.route_token_count) / float(self.run_invocations)
+                if self.run_invocations
+                else None
+            ),
+        }
+
+    def log_stats(self, label="snapshot"):
+        stats = self.stats_snapshot()
+        if stats["run_invocations"] == 0:
+            return
+        logger.info(
+            "Qwen38ExpertCacheStats[%s] %s", label, json.dumps(stats, sort_keys=True)
+        )
+
+    def _maybe_log_stats(self):
+        if not self.stats_log_interval:
+            return
+        if self.run_invocations - self._last_logged_runs < self.stats_log_interval:
+            return
+        self._last_logged_runs = self.run_invocations
+        self.log_stats("periodic")
 
     def reserve(self):
         """Allocate before SGLang measures free memory for the KV pool."""
@@ -145,6 +228,7 @@ class Qwen38SynchronousExpertRuntime:
             raise ValueError("route ID is outside the expert pack")
         active = list(dict.fromkeys(value for value in ids if value >= 0))
         use_arena = len(active) > self.slots_per_layer
+        self._record_invocation(use_arena, topk_ids)
         if use_arena:
             if not self.prefill_arena:
                 raise ValueError("routing exceeds cache capacity; enable prefill_arena")

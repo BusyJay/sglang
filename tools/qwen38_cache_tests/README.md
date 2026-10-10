@@ -63,3 +63,15 @@ synchronization. Async events, JIT routing, full model execution, long-context
 and MTP are not validated. Speculative decoding is rejected at startup.
 
 GPU continuation, conversion and canary commands: [RUN_ON_GPU.md](RUN_ON_GPU.md).
+
+## Cache metrics and 112-slot baseline
+
+`full_model_canary.py` now copies the latest `Qwen38ExpertCacheStats[...]` JSON
+line from `server.log` into `report.json` as `cache_stats`. When the server
+emits decode throughput lines, the canary also records a `decode_throughput`
+summary with `avg_token_per_second`, `max_token_per_second` and
+`last_token_per_second`.
+
+For the current 5090 + `--mem-fraction-static 0.90` deployment profile, the
+working high-cache baseline is `cache_slots_per_layer=112`. See
+`CACHE_TUNING_112.md` for the measured hit-rate and throughput numbers.

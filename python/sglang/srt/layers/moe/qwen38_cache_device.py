@@ -143,6 +143,7 @@ class Qwen38DeviceExpertRuntime(Qwen38AsyncExpertRuntime):
         status, miss_count, active_count, arena = values[:4]
         if status:
             raise ValueError(f"device cache route/plan error {status}")
+        self._record_invocation(bool(arena), topk_ids)
         if arena:
             if not self.prefill_arena:
                 raise ValueError("routing exceeds cache capacity; enable prefill_arena")
