@@ -24,6 +24,7 @@ def main():
         "sglang.srt.model_loader.qwen38_nvfp4_pack.parity",
         "sglang.srt.layers.quantization.qwen38_nvfp4_cache",
         "sglang.srt.model_loader.qwen38_nvfp4_cache_loader",
+        "sglang.srt.models.qwen4_exp",
     ]
     for module in modules:
         importlib.import_module(module)

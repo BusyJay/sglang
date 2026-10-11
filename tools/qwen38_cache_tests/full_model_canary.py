@@ -139,7 +139,7 @@ def main():
     parser.add_argument("--served-model-name", help="API model ID; defaults to checkpoint argument")
     parser.add_argument("--manifest", required=True)
     parser.add_argument("--output", required=True)
-    parser.add_argument("--ple-backend", choices=["pinned", "file"], default="pinned")
+    parser.add_argument("--ple-backend", choices=["pinned", "file", "lazy"], default="pinned")
     parser.add_argument("--ple-dir")
     parser.add_argument("--port", type=int, default=30938)
     parser.add_argument(

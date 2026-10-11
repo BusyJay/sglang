@@ -26,6 +26,13 @@ async def warmup_qwen38_first_prefill(disaggregation_mode, tokenizer_manager):
     )
 
 
+async def warmup_qwen38_short_prefill(disaggregation_mode, tokenizer_manager):
+    """Warm the common first-prefill path with one bounded chunk."""
+    await _warmup_qwen38_prefill(
+        disaggregation_mode, tokenizer_manager, (128,), 1
+    )
+
+
 async def _warmup_qwen38_prefill(
     disaggregation_mode, tokenizer_manager, sizes, decode_tokens
 ):

@@ -1,6 +1,7 @@
 """Inference-only Qwen4-Exp (text + VL) on the Qwen3.5 backbone."""
 
 import math
+import time
 from contextlib import nullcontext
 from typing import Any, Iterable, Optional, Set, Tuple, Union
 
@@ -67,6 +68,10 @@ from sglang.srt.models.qwen3_5 import (
     Qwen3_5LinearDecoderLayer,
 )
 from sglang.srt.models.qwen3_vl import Qwen3VLForConditionalGeneration
+from sglang.srt.model_executor.runner_backend_utils.breakable_cuda_graph import (
+    eager_on_graph,
+)
+from sglang.srt.models.qwen4_exp_ple_lazy import PleCheckpointShard, PleRowCache
 from sglang.srt.models.qwen4_exp_ple_table import (
     allocate_ple_host_table,
     make_ple_file_prefetcher,
@@ -539,6 +544,8 @@ class Qwen4ExpNGramEmbedding(nn.Module):
                 ngram_embedding,
                 backend=getattr(config, "ple_offload_backend", "pinned"),
                 table_dir=getattr(config, "ple_offload_dir", None),
+                cache_tables=max(1, len(config.ple_layer_ids)),
+                checkpoint_rows=total_vocab_size,
             )
         self.ngram_embedding = ngram_embedding
 
@@ -762,6 +769,7 @@ def _gather_ple_embedding_from_pinned_kernel(
     tp_vocab_end,
     is_fp8: tl.constexpr,
     BLOCK_D: tl.constexpr,
+    MASK_INVALID: tl.constexpr = False,
 ):
     row_id = tl.program_id(0)
     global_idx = tl.load(ids_ptr + row_id)
@@ -775,7 +783,7 @@ def _gather_ple_embedding_from_pinned_kernel(
         weight_ptr = weight_ptr.to(tl.int64).to(tl.pointer_type(tl.bfloat16))
     values = tl.load(
         weight_ptr + local_idx * embedding_dim + offsets,
-        mask=mask,
+        mask=mask & (in_range | (not MASK_INVALID)),
         other=0.0,
     ).to(tl.bfloat16)
     tl.store(
@@ -786,7 +794,7 @@ def _gather_ple_embedding_from_pinned_kernel(
 
 
 class Qwen4ExpPinnedHostEmbedding(VocabParallelEmbedding):
-    """PLE table read directly from host memory (pinned, or a file-backed mmap).
+    """PLE gathers from a pinned table, file mmap, or lazy checkpoint row cache.
 
     The table stays in its checkpoint storage dtype (fp8 with a per-tensor
     weight_scale for fp8 checkpoints, bf16 otherwise); gathers emit bf16.
@@ -819,6 +827,8 @@ class Qwen4ExpPinnedHostEmbedding(VocabParallelEmbedding):
         *,
         backend: str = "pinned",
         table_dir: Optional[str] = None,
+        cache_tables: int = 1,
+        checkpoint_rows: Optional[int] = None,
     ) -> None:
         nn.Module.__init__(self)
         if not isinstance(embedding.quant_method, UnquantizedEmbeddingMethod):
@@ -841,22 +851,35 @@ class Qwen4ExpPinnedHostEmbedding(VocabParallelEmbedding):
         self.quant_method = None
 
         source_weight = embedding.weight
-        host_table = allocate_ple_host_table(
-            shape=source_weight.shape,
-            dtype=source_weight.dtype,
-            backend=backend,
-            table_dir=table_dir,
-            # Each TP rank holds a different vocabulary shard of the same shape.
-            tag=(
-                f"rows{self.shard_indices.org_vocab_start_index}"
-                f"-{self.shard_indices.org_vocab_end_index}"
-            ),
+        self._lazy = backend == "lazy"
+        self._lazy_shards = []
+        self._lazy_cache = None
+        self._cache_tables = cache_tables
+        self._checkpoint_rows = checkpoint_rows or self.org_vocab_size
+        self._staging_event = None
+        self._lazy_stats_at = time.monotonic()
+        self._lazy_lookup_seconds = 0.0
+        host_table = (
+            torch.empty_like(source_weight, device="meta")
+            if self._lazy
+            else allocate_ple_host_table(
+                shape=source_weight.shape,
+                dtype=source_weight.dtype,
+                backend=backend,
+                table_dir=table_dir,
+                # Each TP rank holds a different vocabulary shard of the same shape.
+                tag=(
+                    f"rows{self.shard_indices.org_vocab_start_index}"
+                    f"-{self.shard_indices.org_vocab_end_index}"
+                ),
+            )
         )
         # Only the file backend has anything to prefetch (rows live on storage).
         self._file_prefetcher = make_ple_file_prefetcher(host_table)
         # ... and only it needs its resident set bounded: a fault maps a whole
         # folio, so the mapping would otherwise creep towards the full table.
         self._file_rss_trimmer = make_ple_file_rss_trimmer(host_table)
+        # Lazy keeps only a meta parameter for loader shape/dtype bookkeeping.
         cpu_weight = nn.Parameter(host_table, requires_grad=False)
         for name, value in vars(source_weight).items():
             setattr(cpu_weight, name, value)
@@ -885,6 +908,8 @@ class Qwen4ExpPinnedHostEmbedding(VocabParallelEmbedding):
     ) -> torch.Tensor:
         expected_shape = (*input_ids.shape, self.embedding_dim)
         if out is None:
+            if self._lazy:
+                return self._gather_lazy(input_ids)
             output = self.allocate_output(expected_shape, input_ids.device)
         else:
             if tuple(out.shape) != expected_shape:
@@ -897,6 +922,10 @@ class Qwen4ExpPinnedHostEmbedding(VocabParallelEmbedding):
                     "PLE prefetch output must be bfloat16 on the id device"
                 )
             output = out
+
+        if self._lazy:
+            output.copy_(self._gather_lazy(input_ids))
+            return output
 
         flat_ids = input_ids.reshape(-1).long()
         if flat_ids.numel():
@@ -916,6 +945,124 @@ class Qwen4ExpPinnedHostEmbedding(VocabParallelEmbedding):
                 is_fp8=self.weight.dtype == torch.float8_e4m3fn,
                 BLOCK_D=self._block_d,
             )
+        return output
+
+    def bind_lazy_shard(self, descriptor, row_start, row_end):
+        if not self._lazy or not isinstance(descriptor, PleCheckpointShard):
+            raise ValueError("lazy PLE requires indexed safetensors checkpoint shards")
+        if (
+            descriptor.dtype != self.weight.dtype
+            or descriptor.shape[1] != self.embedding_dim
+        ):
+            raise ValueError(
+                "lazy PLE checkpoint dtype/width must match embedding storage"
+            )
+        self._lazy_shards.append((row_start, row_end, descriptor))
+
+    def finalize_lazy(self):
+        if not self._lazy:
+            return
+        cursor = 0
+        for start, end, _ in sorted(self._lazy_shards, key=lambda x: x[0]):
+            if start != cursor or end <= start or end > self.org_vocab_size:
+                raise ValueError(
+                    "missing, overlapping or oversized lazy PLE checkpoint shards"
+                )
+            cursor = end
+        if cursor < self._checkpoint_rows:
+            raise ValueError("lazy PLE checkpoint does not cover the n-gram vocabulary")
+        budget = envs.SGLANG_QWEN4_PLE_LAZY_CACHE_MB.get()
+        batch_rows = envs.SGLANG_QWEN4_PLE_LAZY_BATCH_ROWS.get()
+        if budget <= 0 or batch_rows <= 0:
+            raise ValueError("lazy PLE cache MB and batch rows must be positive")
+        self._row_bytes = self.embedding_dim * self.weight.element_size()
+        capacity = int(budget * (1 << 20) / self._cache_tables / self._row_bytes)
+        if capacity < 1:
+            raise ValueError("lazy PLE cache budget is too small")
+        capacity = min(capacity, cursor)
+        self._lazy_cache = PleRowCache(
+            self._lazy_shards, row_bytes=self._row_bytes, capacity_rows=capacity
+        )
+        self._batch_rows = min(batch_rows, capacity)
+        self._lazy_staging = torch.empty(
+            (self._batch_rows, self._row_bytes),
+            dtype=torch.uint8,
+            device="cpu",
+            pin_memory=True,
+        )
+        logger.info(
+            "PLE lazy ready: rows=%d, cache=%.1f MiB, staging=%.1f MiB, shards=%d; no table payload loaded",
+            cursor,
+            capacity * self._row_bytes / (1 << 20),
+            self._lazy_staging.numel() / (1 << 20),
+            len(self._lazy_shards),
+        )
+
+    def _capture_lazy_output(self, input_ids):
+        # Capture-time hash IDs are uninitialized. Only allocate the bridge.
+        return self.allocate_output(
+            (*input_ids.shape, self.embedding_dim), input_ids.device
+        )
+
+    @eager_on_graph(True, capture_stub=_capture_lazy_output)
+    def _gather_lazy(self, input_ids):
+        import numpy as np
+
+        if torch.cuda.is_current_stream_capturing():
+            raise RuntimeError(
+                "lazy PLE requires eager execution or breakable CUDA graph"
+            )
+        if self._lazy_cache is None:
+            raise RuntimeError("lazy PLE checkpoint index has not been finalized")
+        output = self.allocate_output(
+            (*input_ids.shape, self.embedding_dim), input_ids.device
+        )
+        # One D2H synchronization for the whole lookup, including prefill.
+        lookup_start = time.monotonic()
+        ids = input_ids.reshape(-1).long().cpu().numpy()
+        flat_output = output.view(-1, self.embedding_dim)
+        tp_start = self.shard_indices.org_vocab_start_index
+        tp_end = min(self.shard_indices.org_vocab_end_index, self._checkpoint_rows)
+        for base in range(0, len(ids), self._batch_rows):
+            if self._staging_event is not None:
+                self._staging_event.synchronize()
+            chunk = ids[base : base + self._batch_rows]
+            valid = (chunk >= tp_start) & (chunk < tp_end)
+            unique, inverse = np.unique(chunk[valid], return_inverse=True)
+            staging = self._lazy_staging[: len(unique)]
+            self._lazy_cache.fill(unique.tolist(), staging)
+            mapped = np.full(len(chunk), -1, dtype=np.int64)
+            mapped[valid] = inverse
+            mapped_gpu = torch.from_numpy(mapped).to(input_ids.device)
+            _gather_ple_embedding_from_pinned_kernel[(len(chunk),)](
+                staging.data_ptr(),
+                mapped_gpu,
+                flat_output[base : base + len(chunk)],
+                embedding_dim=self.embedding_dim,
+                tp_vocab_start=0,
+                tp_vocab_end=len(unique),
+                is_fp8=self.weight.dtype == torch.float8_e4m3fn,
+                BLOCK_D=self._block_d,
+                MASK_INVALID=True,
+            )
+            if self._staging_event is None:
+                self._staging_event = torch.cuda.Event()
+            self._staging_event.record(torch.cuda.current_stream())
+        self._lazy_lookup_seconds += time.monotonic() - lookup_start
+        now = time.monotonic()
+        interval = envs.SGLANG_QWEN4_PLE_LAZY_STATS_INTERVAL_S.get()
+        if interval > 0 and now - self._lazy_stats_at >= interval:
+            cache = self._lazy_cache
+            logger.info(
+                "PLE lazy stats: hit=%.1f%% hits=%d misses=%d read=%.1f MiB calls=%d host_lookup=%.3fs (cumulative)",
+                100 * cache.hits / max(1, cache.hits + cache.misses),
+                cache.hits,
+                cache.misses,
+                cache.read_bytes / (1 << 20),
+                cache.read_calls,
+                self._lazy_lookup_seconds,
+            )
+            self._lazy_stats_at = now
         return output
 
     def reduce(self, output: torch.Tensor) -> torch.Tensor:
@@ -1188,6 +1335,12 @@ class Qwen4ExpPLELayer(nn.Module):
         prefetched = self._get_prefetch_buffer(lookup_tokens, lookup_ids)
         output_view = prefetched.view(lookup_tokens, self.ple_embedding.ngram_heads, -1)
         offloaded_embedding = self.ple_embedding.ngram_embedding
+
+        if offloaded_embedding._lazy:
+            # The eager graph boundary must run on the graph's main stream.
+            offloaded_embedding.gather(lookup_ids, out=output_view)
+            self._prefetch_state = prefetched, semantic_tokens, physical_tokens
+            return
 
         stream = self._prefetch_stream
         stream.wait_stream(torch.cuda.current_stream())
@@ -2028,6 +2181,13 @@ class Qwen4ExpForConditionalGeneration(Qwen3VLForConditionalGeneration):
             if ple_mod is None:
                 return False
             emb = ple_mod.ngram_embedding
+            if isinstance(loaded_weight, PleCheckpointShard):
+                if not isinstance(emb, Qwen4ExpPinnedHostEmbedding) or not emb._lazy:
+                    raise ValueError("indexed PLE checkpoint requires lazy embedding")
+                if loaded_weight.dtype != emb.weight.dtype:
+                    raise ValueError(
+                        "lazy PLE checkpoint dtype must match ple_embedding_dtype"
+                    )
             if (
                 loaded_weight.dtype == torch.float8_e4m3fn
                 and emb.weight.dtype != torch.float8_e4m3fn
@@ -2075,7 +2235,16 @@ class Qwen4ExpForConditionalGeneration(Qwen3VLForConditionalGeneration):
             shard_start = shard_idx * shard_size
             actual_rows = loaded_weight.shape[0]
             shard_end = shard_start + actual_rows
-            copy_ple_rows_to_tp_embedding(emb, loaded_weight, shard_start, shard_end)
+            if isinstance(loaded_weight, PleCheckpointShard):
+                emb.bind_lazy_shard(loaded_weight, shard_start, shard_end)
+            else:
+                if isinstance(emb, Qwen4ExpPinnedHostEmbedding) and emb._lazy:
+                    raise ValueError(
+                        "lazy PLE requires --load-format qwen38_nvfp4_cache"
+                    )
+                copy_ple_rows_to_tp_embedding(
+                    emb, loaded_weight, shard_start, shard_end
+                )
             loaded_shard_params.add(f"{mod_prefix}.ngram_embedding.weight")
             return True
 
@@ -2277,6 +2446,11 @@ class Qwen4ExpForConditionalGeneration(Qwen3VLForConditionalGeneration):
                         )
                         continue
             loaded_params.add(name)
+
+        for ple_mod in ple_modules.values():
+            emb = ple_mod.ngram_embedding
+            if isinstance(emb, Qwen4ExpPinnedHostEmbedding):
+                emb.finalize_lazy()
 
         loaded_params.update(loaded_buffers)
         loaded_params.update(loaded_shard_params)

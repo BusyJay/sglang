@@ -315,3 +315,58 @@ if __name__ == "__main__":
     import sys
 
     sys.exit(pytest.main([__file__, "-v", "-s"]))
+
+
+@pytest.mark.parametrize("dtype", [torch.bfloat16, torch.float8_e4m3fn])
+def test_qwen4_ple_lazy_misses_hits_eviction_and_breakable_replay(dtype):
+    from safetensors.torch import save_file
+    from sglang.srt.models.qwen4_exp_ple_lazy import read_ple_checkpoint_index
+    from sglang.srt.model_executor.runner_backend_utils.breakable_cuda_graph import (
+        BreakableCUDAGraph,
+        BreakableCUDAGraphCapture,
+    )
+    from unittest.mock import patch
+
+    source = _make_source_embedding(
+        dtype=dtype, embedding_dim=7, org_vocab_size=16, vocab_end=16
+    )
+    rows = (torch.arange(112).reshape(16, 7).float() / 8).to(dtype)
+    name = "model.layers.1.ple.ple_embedding.ngram_embedding.shard_0.weight"
+    with tempfile.TemporaryDirectory() as directory:
+        path = os.path.join(directory, "ple.safetensors")
+        save_file({name: rows}, path)
+        offloaded = Qwen4ExpPinnedHostEmbedding(source, backend="lazy")
+        assert offloaded.weight.is_meta
+        offloaded.bind_lazy_shard(read_ple_checkpoint_index(path)[name], 0, 16)
+        # Four-row cache, two-row staging forces reuse while GPU reads are in flight.
+        with patch.object(
+            qwen4_exp_module.envs.SGLANG_QWEN4_PLE_LAZY_CACHE_MB,
+            "get",
+            return_value=4 * 7 * rows.element_size() / (1 << 20),
+        ), patch.object(
+            qwen4_exp_module.envs.SGLANG_QWEN4_PLE_LAZY_BATCH_ROWS,
+            "get",
+            return_value=2,
+        ):
+            offloaded.finalize_lazy()
+        ids = torch.tensor([0, 1, 0, 7, 15, -1, 16], device="cuda")
+        out = torch.empty((7, 7), device="cuda", dtype=torch.bfloat16)
+        expected = torch.zeros_like(out)
+        valid = (ids >= 0) & (ids < 16)
+        expected[valid] = rows.to("cuda").to(torch.bfloat16)[ids[valid]]
+        for _ in range(2):
+            offloaded.gather(ids, out=out)
+            torch.testing.assert_close(out, expected, rtol=0, atol=0)
+
+        graph = BreakableCUDAGraph()
+        stream = torch.cuda.Stream()
+        with BreakableCUDAGraphCapture(graph, stream=stream):
+            result = offloaded.gather(ids + 0)
+        for values in ([3, 5, 7, 9, 11, 13, 15], [1, 1, 1, 2, 2, 2, 2]):
+            ids.copy_(torch.tensor(values, device="cuda"))
+            graph.replay()
+            torch.cuda.synchronize()
+            torch.testing.assert_close(
+                result, rows.to("cuda").to(torch.bfloat16)[ids], rtol=0, atol=0
+            )
+        offloaded._lazy_cache.close()
