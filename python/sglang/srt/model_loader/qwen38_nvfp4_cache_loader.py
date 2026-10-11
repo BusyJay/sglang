@@ -213,8 +213,14 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                     model = _initialize_model(model_config, self.load_config, quant_config)
                 if remote_vision and getattr(model, "visual", None) is not None:
                     raise ValueError("Flash-Next offload worker unexpectedly allocated a local ViT")
+                lazy_ple = (
+                    getattr(model_config.hf_text_config, "ple_offload_backend", "pinned")
+                    == "lazy"
+                )
                 weights = filtered_safetensors_weights_iterator(
-                    weight_files, language_model_only=True
+                    weight_files,
+                    language_model_only=True,
+                    lazy_ple=lazy_ple,
                 )
                 DefaultModelLoader.load_weights_and_postprocess(
                     model, weights, target_device

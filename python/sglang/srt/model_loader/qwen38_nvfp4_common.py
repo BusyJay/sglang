@@ -103,19 +103,28 @@ def should_skip_checkpoint_tensor(name: str, *, language_model_only: bool) -> bo
 
 
 def filtered_safetensors_weights_iterator(
-    files: Iterable[str], *, language_model_only: bool = True
+    files: Iterable[str], *, language_model_only: bool = True, lazy_ple: bool = False
 ) -> Iterator[tuple[str, object]]:
     """Check names before get_tensor(), so skipped 63+ GiB experts are untouched."""
     from safetensors import safe_open
 
     for filename in files:
+        if lazy_ple:
+            from sglang.srt.models.qwen4_exp_ple_lazy import read_ple_checkpoint_index
+
+            ple_index = read_ple_checkpoint_index(str(filename))
+        else:
+            ple_index = {}
         with safe_open(str(filename), framework="pt", device="cpu") as handle:
             for name in handle.keys():
                 if should_skip_checkpoint_tensor(
                     name, language_model_only=language_model_only
                 ):
                     continue
-                yield name, handle.get_tensor(name)
+                if name in ple_index:
+                    yield name, ple_index[name]
+                else:
+                    yield name, handle.get_tensor(name)
 
 
 def validate_qwen38_model_config(hf_config) -> list[str]:

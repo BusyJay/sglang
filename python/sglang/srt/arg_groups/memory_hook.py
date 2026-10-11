@@ -37,10 +37,15 @@ def handle_offload_compatibility(server_args: Any) -> None:
             "would stage the pinned PLE embedding back to the device."
         )
 
-    if cfg.ple_offload_backend == "file" and cfg.ple_offload_embedding is False:
+    if cfg.ple_offload_backend == "lazy" and cfg.load_format != "qwen38_nvfp4_cache":
         raise ValueError(
-            "--ple-offload-backend file requires --ple-offload-embedding: "
-            "the file-backed table is the offloaded table."
+            "--ple-offload-backend lazy requires --load-format qwen38_nvfp4_cache"
+        )
+    if cfg.ple_offload_backend == "lazy" and cfg.enable_torch_compile:
+        raise ValueError("lazy PLE does not support --enable-torch-compile")
+    if cfg.ple_offload_backend in ("file", "lazy") and cfg.ple_offload_embedding is False:
+        raise ValueError(
+            "--ple-offload-backend file/lazy requires --ple-offload-embedding"
         )
 
 

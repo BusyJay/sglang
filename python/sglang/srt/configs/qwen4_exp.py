@@ -70,8 +70,8 @@ class Qwen4ExpTextConfig(Qwen3NextConfig):
         self.ngram_vocab_size_base = ngram_vocab_size_base
         self.make_ngram_vocab_size_divisible_by = make_ngram_vocab_size_divisible_by
         self.ple_offload_embedding = ple_offload_embedding
-        # Host storage for the offloaded table: "pinned" or "file" (a sparse
-        # file-backed mmap for unified-memory devices); see --ple-offload-backend.
+        # Host storage: pinned table, file mmap for unified-memory devices,
+        # or lazy checkpoint row cache; see --ple-offload-backend.
         self.ple_offload_backend = ple_offload_backend
         self.ple_offload_dir = ple_offload_dir
         # "float8_e4m3fn" keeps fp8 PLE tables fp8-resident; text_config-scoped.

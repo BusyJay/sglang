@@ -959,8 +959,11 @@ class ExecOffload(msgspec.Struct):
             "directly; use it on unified-memory devices (e.g. GB10 / DGX Spark) "
             "where pinned host memory comes out of the same pool as the model "
             "weights. Requires a device that reports "
-            "cudaDevAttrPageableMemoryAccessUsesHostPageTables.",
-            choices=["pinned", "file"],
+            "cudaDevAttrPageableMemoryAccessUsesHostPageTables. 'lazy' reads "
+            "checkpoint rows on demand into a bounded pinned cache; requires "
+            "--load-format qwen38_nvfp4_cache. Cache budget is controlled by "
+            "SGLANG_QWEN4_PLE_LAZY_CACHE_MB (default 512 MiB per process).",
+            choices=["pinned", "file", "lazy"],
         ),
     ] = "pinned"
     ple_offload_dir: A[

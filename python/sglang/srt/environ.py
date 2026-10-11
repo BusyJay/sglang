@@ -308,6 +308,10 @@ class Envs:
     # (deterministic name, reused across restarts), whether prefill-sized
     # gathers hint the page cache first, and an escape hatch for the device
     # attribute check (pageable host memory reachable through host page tables).
+    # Total pinned row-cache budget across PLE tables in one process.
+    SGLANG_QWEN4_PLE_LAZY_CACHE_MB = EnvInt(512)
+    SGLANG_QWEN4_PLE_LAZY_BATCH_ROWS = EnvInt(65536)
+    SGLANG_QWEN4_PLE_LAZY_STATS_INTERVAL_S = EnvFloat(30.0)
     SGLANG_QWEN4_PLE_FILE_DIR = EnvStr(lambda: _default_cache_subdir("ple"))
     SGLANG_QWEN4_PLE_FILE_PREFETCH = EnvBool(True)
     SGLANG_QWEN4_PLE_FILE_SKIP_DEVICE_CHECK = EnvBool(False)
