@@ -5,6 +5,42 @@ transfer plans, compact route sampling in the existing plan D2H, and a standalon
 CPU analysis process. Continue using the FlashInfer per-capacity runner patch.
 GPU execution and throughput must be validated on the target machine.
 
+## Prefill cache reuse
+
+Threaded runtime now defaults to `prefill_reuse_cache: true` and
+`prefill_seed_cache: true`. Prefill exports cache keys alongside the route
+histogram in one pinned D2H plan. Routed resident expert rows are scattered from
+decode cache to arena on the transfer stream, without allocating a gathered
+expert-weight tensor. Aligned rows use 16-byte copies in the CUDA scatter kernel;
+short scalar rows use byte copies. Remaining experts load from mmap in contiguous
+runs. The dense full-layer fallback is bypassed when reuse occurred so it cannot
+overwrite the saved H2D traffic. Arena writes still wait for its previous reader.
+
+An empty layer cache is seeded once from the first arena chunk using prompt
+frequency, even when `warm_decode_cache` is off. Subsequent chunks preserve that
+cache and can reuse it. Existing `warm_decode_cache: true` keeps its explicit
+every-arena-invocation reseeding behavior. SLRU seeds enter probation. This trades
+one seed D2D for fewer H2Ds on subsequent chunks and can also change early decode
+hits. Single-chunk cold prefill does not benefit from reuse and pays the seed
+cost; seed selection from the first chunk can mismatch later decode hotspots.
+
+For an old-path comparison add both `--no-prefill-reuse-cache` and
+`--no-prefill-seed-cache` to the canary. To measure reuse with an already hot cache,
+disable only seeding. These options map to the two loader booleans above, and
+are supported in threaded mode. No extra full expert arena is allocated.
+
+New cumulative stats: `prefill_reused_experts`, `prefill_reuse_d2d_bytes`,
+`prefill_seed_runs`, `prefill_h2d_bytes`, `prefill_host_dispatch_seconds`.
+The last measures host dispatch including staging/ring waits, not GPU completion
+or a complete prefill latency. Use deltas around a request and measure total
+prefill/TTFT: the last scheduler prefill throughput log can be inflated by overlap
+result processing. With 112 slots, a full resident cache can replace at most
+112/512 of a dense layer's H2D with D2D; this is a traffic bound, not a speedup
+prediction. Fragmented remaining H2D runs can increase copy-call overhead.
+
+New GPU tests verify vector/scalar scatter rows and all six expert tensors across
+repeated layer changes, independent compute streams, initial seed and pool views.
+
 ## Suggested comparisons
 
 Keep prompts, decode length, concurrency, graph settings, warmup, and memory

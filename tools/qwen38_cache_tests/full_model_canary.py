@@ -178,6 +178,8 @@ def main():
     )
     parser.add_argument("--cache-policy", choices=["lfu", "slru"], default="lfu")
     parser.add_argument("--cache-protected-fraction", type=float, default=0.7)
+    parser.add_argument("--no-prefill-reuse-cache", action="store_true")
+    parser.add_argument("--no-prefill-seed-cache", action="store_true")
     parser.add_argument(
         "--encoder-urls",
         nargs="+",
@@ -299,6 +301,8 @@ def main():
     if args.runtime_mode == "threaded":
         extra["cache_policy"] = args.cache_policy
         extra["cache_protected_fraction"] = args.cache_protected_fraction
+        extra["prefill_reuse_cache"] = not args.no_prefill_reuse_cache
+        extra["prefill_seed_cache"] = not args.no_prefill_seed_cache
     if args.layer_cache_slots:
         extra["layer_cache_slots"] = json.loads(Path(args.layer_cache_slots).read_text())
     if args.route_trace_path:

@@ -81,6 +81,16 @@ class TestPackFormat(unittest.TestCase):
                 with self.assertRaises(TypeError):
                     pack.tensor_bytes(0, "w13_weight")[0] = 9
 
+    def test_background_prefetch_finishes_and_pack_remains_readable(self):
+        with tempfile.TemporaryDirectory() as value:
+            manifest = load_manifest(make_pack(Path(value)))
+            with Qwen38ExpertPack(manifest) as pack:
+                pack.start_prefetch()
+                pack.start_prefetch()
+                pack.wait_prefetch()
+                self.assertIsNone(pack._prefetch_error)
+                self.assertEqual(bytes(pack.tensor_bytes(0, "w13_weight")), bytes(range(8)))
+
     def test_overlap_is_rejected(self):
         with tempfile.TemporaryDirectory() as value:
             with self.assertRaisesRegex(ValueError, "overlap"):

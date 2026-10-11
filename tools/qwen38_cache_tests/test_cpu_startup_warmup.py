@@ -47,6 +47,15 @@ class TestStartupWarmup(unittest.TestCase):
             self.assertTrue(req.sampling_params["ignore_eos"])
             self.assertFalse(req.stream)
 
+    def test_first_prefill_warmup_exercises_chunk_path(self):
+        manager, calls = self.manager(context=8192)
+        with mock.patch.dict("sys.modules", {
+            "sglang.srt.managers.io_struct": SimpleNamespace(GenerateReqInput=Request)
+        }):
+            asyncio.run(warmup.warmup_qwen38_first_prefill("null", manager))
+        self.assertEqual([len(req.input_ids) for req in calls], [4224])
+        self.assertEqual(calls[0].sampling_params["max_new_tokens"], 1)
+
     def test_small_context_is_bounded_and_deduplicated(self):
         manager, calls = self.manager(context=32)
         self.run_warmup(manager)

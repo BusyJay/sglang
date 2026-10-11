@@ -40,7 +40,7 @@ class TestBackgroundTransport(unittest.TestCase):
             {
                 "torch": fake_torch,
                 "sglang.kernels.ops.moe.qwen38_expert_cache": SimpleNamespace(
-                    cache_plan=None, cache_route=None
+                    cache_plan=None, cache_route=None, cache_scatter=None
                 ),
                 "sglang.srt.layers.moe.qwen38_cache_device": SimpleNamespace(
                     Qwen38DeviceExpertRuntime=object
@@ -73,6 +73,11 @@ class TestBackgroundTransport(unittest.TestCase):
         runtime.poisoned = False
         runtime.warm_decode_cache = False
         runtime.cache_policy = "lfu"
+        runtime.prefill_reuse_cache = False
+        runtime.prefill_seed_cache = False
+        runtime.prefill_h2d_bytes = 0
+        runtime.prefill_host_dispatch_seconds = 0.0
+        runtime.transferred_bytes = 0
         runtime.slots_for_layer = lambda _: 2
         runtime.arena_residents = None
         runtime.manifest = SimpleNamespace(num_experts=3)
@@ -172,7 +177,8 @@ class TestBackgroundTransport(unittest.TestCase):
         operations = []
         runtime.transfer.wait_event = lambda event: operations.append(("wait", event))
         runtime._ensure_arena_experts = (
-            lambda layer, counts: operations.append(("fill", layer)) or True
+            lambda layer, counts, keys, **kwargs:
+            operations.append(("fill", layer)) or True
         )
         planned = SimpleNamespace(synchronize=lambda: None)
         computed = SimpleNamespace(synchronize=lambda: None)
@@ -234,6 +240,103 @@ class TestBackgroundTransport(unittest.TestCase):
             self.assertIsInstance(job.error, RuntimeError)
             self.assertIsNone(job.ready)
             self.assertIsNotNone(runtime.worker_error)
+        finally:
+            runtime.jobs.put(None)
+            worker.join(3)
+            runtime.retired.put(None)
+            reaper.join(3)
+
+    def test_prefill_reuse_excludes_residents_from_dense_host_load(self):
+        runtime = self._runtime(1)
+        runtime.prefill_reuse_cache = True
+        runtime.prefill_reused_experts = runtime.prefill_reuse_d2d_bytes = 0
+        runtime.arena_residents = set()
+        runtime.manifest = SimpleNamespace(
+            num_experts=4, tensors={0: {"weight": SimpleNamespace(nbytes=400)}}
+        )
+        runtime.device_states = {0: {"keys": "keys", "counts": "counts"}}
+        runtime.caches = {0: {"weight": "cache"}}
+        runtime.arena = {"weight": "arena"}
+        loaded = []
+        runtime._fill_arena_selected = lambda layer, experts: loaded.append(experts)
+        runtime._fill_arena = mock.Mock(side_effect=AssertionError("must not overwrite reuse with full H2D"))
+        with mock.patch.object(self.module, "REQUIRED_TENSORS", ("weight",)), \
+             mock.patch.object(self.module, "cache_scatter") as scatter, \
+             mock.patch.object(self.module.torch.cuda, "stream", create=True,
+                               new=lambda _: contextlib.nullcontext()):
+            self.assertTrue(runtime._ensure_arena_experts(0, [1, 1, 1, 1, 0], [2, -1]))
+            scatter.assert_called_once_with("cache", "arena", "keys", "counts")
+        self.assertEqual(loaded, [[0, 1, 3]])
+        self.assertEqual(runtime.arena_residents, {0, 1, 2, 3})
+        self.assertEqual(runtime.prefill_reuse_d2d_bytes, 100)
+        self.assertFalse(runtime._ensure_arena_experts(0, [1, 1, 1, 1, 0], [2, -1]))
+
+    def test_prefill_copy_choice_accounts_for_fragmentation(self):
+        choose = self.module._prefer_dense_prefill
+        self.assertFalse(choose(list(range(112, 512)), 512))
+        fragmented = [expert for expert in range(512) if expert % 5]
+        self.assertTrue(choose(fragmented, 512))
+        self.assertFalse(choose(list(range(384)), 512))
+
+    def test_fragmented_prefill_uses_bulk_copy_before_scatter(self):
+        runtime = self._runtime(1)
+        runtime.prefill_reuse_cache = True
+        runtime.arena_residents = set()
+        runtime.manifest = SimpleNamespace(num_experts=512)
+        runtime._fill_arena = mock.Mock()
+        runtime._fill_arena_selected = mock.Mock()
+        counts = [1] * 512 + [0]
+        keys = list(range(0, 512, 5))
+        with mock.patch.object(self.module, "cache_scatter") as scatter:
+            self.assertTrue(runtime._ensure_arena_experts(0, counts, keys))
+        runtime._fill_arena.assert_called_once_with(0)
+        runtime._fill_arena_selected.assert_not_called()
+        scatter.assert_not_called()
+        self.assertIsNone(runtime.arena_residents)
+
+    def test_startup_prefill_forces_bulk_copy_before_scatter(self):
+        runtime = self._runtime(1)
+        runtime.prefill_reuse_cache = True
+        runtime.arena_residents = set()
+        runtime.manifest = SimpleNamespace(num_experts=4)
+        runtime._fill_arena = mock.Mock()
+        runtime._fill_arena_selected = mock.Mock()
+        with mock.patch.object(self.module, "cache_scatter") as scatter:
+            self.assertTrue(runtime._ensure_arena_experts(
+                0, [1, 0, 0, 0, 0], [0, -1], force_dense=True
+            ))
+        runtime._fill_arena.assert_called_once_with(0)
+        runtime._fill_arena_selected.assert_not_called()
+        scatter.assert_not_called()
+
+    def test_startup_prefill_counts_each_chunk_once(self):
+        runtime = self._runtime(1)
+        runtime.prefill_tokens_seen = 0
+        runtime.prefill_dense_current = False
+        self.assertTrue(runtime._dense_startup_prefill(0, True, 4096))
+        self.assertTrue(runtime._dense_startup_prefill(1, True, 4096))
+        self.assertEqual(runtime.prefill_tokens_seen, 4096)
+        self.assertFalse(runtime._dense_startup_prefill(0, True, 4096))
+        self.assertFalse(runtime._dense_startup_prefill(1, True, 4096))
+        self.assertEqual(runtime.prefill_tokens_seen, 8192)
+
+    def test_empty_cache_prefill_seed_precedes_readiness(self):
+        runtime = self._runtime(1)
+        runtime.prefill_seed_cache = True
+        runtime.prefill_seed_runs = 0
+        calls = []
+        runtime._warm_from_arena = lambda layer, counts: calls.append((layer, counts))
+        job = self._job(SimpleNamespace(synchronize=lambda: None), SimpleNamespace(synchronize=lambda: None))
+        job.plan = SimpleNamespace(tolist=lambda: [3, 2, 1, 0, -1, -1])
+        runtime.capacity.acquire()
+        worker, reaper = self._threads(runtime)
+        try:
+            runtime.jobs.put(job)
+            self.assertTrue(job.ready_set.wait(3))
+            runtime.jobs.join()
+            self.assertIsNone(job.error)
+            self.assertEqual(calls, [(0, [3, 2, 1])])
+            self.assertEqual(runtime.prefill_seed_runs, 1)
         finally:
             runtime.jobs.put(None)
             worker.join(3)

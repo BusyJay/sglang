@@ -235,6 +235,74 @@ class TestGpuCache(unittest.TestCase):
                 expected_loaded * one_expert_bytes,
             )
 
+    def test_prefill_reuses_cache_across_layers_and_seeds_only_empty_layers(self):
+        from sglang.srt.layers.moe.qwen38_cache_threaded import Qwen38ThreadedExpertRuntime
+        from sglang.srt.model_loader.qwen38_nvfp4_pack.format import REQUIRED_TENSORS
+
+        for adaptive in (False, True):
+            runtime = Qwen38ThreadedExpertRuntime(
+                self.fixture.pack, "cuda", slots_per_layer=2, adaptive_cache=adaptive,
+                adaptive_cache_mode="sample", cache_policy="slru",
+            )
+            self.addCleanup(runtime.close)
+            runtime.reserve()
+            one_expert = sum(self.fixture.pack.manifest.tensors[0][name].nbytes // 4
+                             for name in REQUIRED_TENSORS)
+            streams = [torch.cuda.Stream(), torch.cuda.Stream()]
+            for step in range(3):
+                for layer in (0, 1):
+                    with torch.cuda.stream(streams[step % 2]):
+                        ids = torch.tensor([[0, 1], [2, 3]], dtype=torch.int32, device="cuda")
+                        before = runtime.transferred_bytes
+                        output = runtime.run(layer, ids, lambda prepared: {
+                            name: prepared.tensors[name][prepared.topk_ids.long()].clone()
+                            for name in REQUIRED_TENSORS
+                        })
+                    runtime.synchronize()
+                    self.assertEqual(runtime.transferred_bytes - before,
+                                     (4 if step == 0 else 2) * one_expert)
+                    for name in REQUIRED_TENSORS:
+                        expected = getattr(self.fixture.resident[layer], name)[ids.cpu()]
+                        self.assertTrue(torch.equal(output[name].cpu(), expected), name)
+            self.assertEqual(runtime.prefill_seed_runs, 2)
+            self.assertEqual(runtime.prefill_reused_experts, 8)
+            self.assertEqual(runtime.prefill_reuse_d2d_bytes, 8 * one_expert)
+            runtime.close()
+
+    def test_prefill_cache_scatter_handles_vector_and_scalar_rows(self):
+        from sglang.kernels.ops.moe.qwen38_expert_cache import cache_scatter
+
+        for row_bytes in (7, 16, 1024):
+            source = torch.arange(3 * row_bytes, device="cuda").to(torch.uint8).reshape(3, row_bytes)
+            arena = torch.zeros((8, row_bytes), device="cuda", dtype=torch.uint8)
+            keys = torch.tensor([5, -1, 2], device="cuda", dtype=torch.int32)
+            counts = torch.zeros(9, device="cuda", dtype=torch.int32)
+            counts[5] = counts[2] = 1
+            cache_scatter(source, arena, keys, counts)
+            self.assertTrue(torch.equal(arena[5], source[0]))
+            self.assertTrue(torch.equal(arena[2], source[2]))
+            self.assertEqual(arena[0].sum().item(), 0)
+
+    def test_prefill_reuse_can_be_disabled_for_old_path_comparison(self):
+        from sglang.srt.layers.moe.qwen38_cache_threaded import Qwen38ThreadedExpertRuntime
+        runtime = Qwen38ThreadedExpertRuntime(
+            self.fixture.pack, "cuda", slots_per_layer=2,
+            prefill_reuse_cache=False, prefill_seed_cache=False,
+        )
+        self.addCleanup(runtime.close)
+        runtime.reserve()
+        for _ in range(2):
+            for layer in (0, 1):
+                ids = torch.tensor([[0, 1], [2, 3]], dtype=torch.int32, device="cuda")
+                before = runtime.transferred_bytes
+                output = runtime.run(layer, ids, lambda prepared:
+                                     prepared.tensors["w13_weight"][prepared.topk_ids.long()].clone())
+                runtime.synchronize()
+                self.assertGreater(runtime.transferred_bytes, before)
+                self.assertTrue(torch.equal(output.cpu(), self.fixture.resident[layer].w13_weight[ids.cpu()]))
+        self.assertEqual(runtime.prefill_seed_runs, 0)
+        self.assertEqual(runtime.prefill_reused_experts, 0)
+
     def test_threaded_adaptive_repartition_preserves_budget_and_weights(self):
         from sglang.srt.layers.moe.qwen38_cache_threaded import (
             Qwen38ThreadedExpertRuntime,

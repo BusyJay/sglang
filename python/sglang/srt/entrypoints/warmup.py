@@ -32,6 +32,13 @@ async def qwen38_offload(disaggregation_mode, tokenizer_manager):
     await warmup_qwen38_offload(disaggregation_mode, tokenizer_manager)
 
 
+@warmup("qwen38_first_prefill")
+async def qwen38_first_prefill(disaggregation_mode, tokenizer_manager):
+    from sglang.srt.entrypoints.qwen38_warmup import warmup_qwen38_first_prefill
+
+    await warmup_qwen38_first_prefill(disaggregation_mode, tokenizer_manager)
+
+
 async def execute_warmups(
     disaggregation_mode: str,
     warmup_names: List[str],
