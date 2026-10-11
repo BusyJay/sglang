@@ -1860,7 +1860,7 @@ class Qwen4ExpForConditionalGeneration(Qwen3VLForConditionalGeneration):
             "mrope_section" in rope_config and not self.language_model_only
         )
         self.deepstack_visual_indexes = (
-            self.visual.deepstack_visual_indexes if self.visual is not None else []
+            [] if self.language_model_only else config.vision_config.deepstack_visual_indexes
         )
 
     def get_embed_and_head(self):
@@ -2101,11 +2101,16 @@ class Qwen4ExpForConditionalGeneration(Qwen3VLForConditionalGeneration):
         skipped_visual_count = 0
 
         for name, loaded_weight in weights:
+            # An EPD encoder owns only the visual tower, not language/PLE layers.
+            if self.config.encoder_only and "visual" not in name:
+                continue
             if "rotary_emb.inv_freq" in name:
                 continue
             if "mtp" in name:
                 continue
-            if "visual" in name and self.language_model_only:
+            if "visual" in name and (
+                self.language_model_only or self.skip_local_encoder_init
+            ):
                 skipped_visual_count += 1
                 continue
             if "language_model" in name:
@@ -2275,6 +2280,14 @@ class Qwen4ExpForConditionalGeneration(Qwen3VLForConditionalGeneration):
 
         loaded_params.update(loaded_buffers)
         loaded_params.update(loaded_shard_params)
+
+        if self.config.encoder_only:
+            from sglang.srt.model_loader.encoder_weights import validate_encoder_weights
+
+            validate_encoder_weights(
+                (name for name in params_dict if name.startswith("visual.")),
+                loaded_params,
+            )
 
         if skipped_visual_count > 0:
             logger.info(

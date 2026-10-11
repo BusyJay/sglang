@@ -103,3 +103,19 @@ decode uses batch-1 `breakable` graphs, with routed MoE/host transport replayed
 eagerly at every boundary. Details, limitations and GPU validation steps are in
 [DECODE_GRAPH.md](../../flash-next-plan/DECODE_GRAPH.md). The small GPU suite includes synthetic graph
 replay versus resident CUTLASS parity; it never downloads weights.
+
+## Remote ViT on another GPU (EPD)
+
+Use `--language-only --encoder-urls ...` on the offload language worker, not
+`--language-model-only`; the existing encoder uses `--encoder-only` and the normal
+loader on its own GPU. Canary accepts `--encoder-urls ... --image /local/image.png`.
+See [REMOTE_VIT_OFFLOAD.md](../../flash-next-plan/REMOTE_VIT_OFFLOAD.md), including
+the Docker networking requirement and two-patch merge order.
+
+## Encoder-only selective loading
+
+The Qwen4Exp EPD encoder uses visual-only safetensors reads (index shard
+selection, header fallback, and name filtering before `get_tensor`). This avoids
+language tensor materialization and whole-shard GPU staging. Missing visual
+parameters now fail startup. See `flash-next-plan/REMOTE_VIT_OFFLOAD.md` for
+encoder memory/cache settings and checkpoint format limitations.

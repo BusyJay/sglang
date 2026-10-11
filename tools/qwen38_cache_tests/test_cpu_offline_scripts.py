@@ -34,7 +34,7 @@ class TestOfflineScripts(unittest.TestCase):
             self.assertIn("--checkpoint\nnvidia/test-model", result.stdout)
             self.assertIn("--revision\nfixture-revision", result.stdout)
 
-    def test_canary_model_id_reaches_server_without_path_coercion(self):
+    def test_canary_model_id_reaches_server_without_path_coercion(self, remote=False):
         canary = load_source("qwen38_offline_canary_test", "tools/qwen38_cache_tests/full_model_canary.py")
         with tempfile.TemporaryDirectory() as root:
             manifest = Path(root) / "manifest.json"
@@ -47,18 +47,25 @@ class TestOfflineScripts(unittest.TestCase):
             process.wait.return_value = 0
             info = {}
             responses = [info, {"text": "answer", "meta_info": {}}]
+            remote_flags = []
+            if remote:
+                image = Path(root) / "fixture.png"
+                image.write_bytes(b"fixture-image")
+                remote_flags = ["--encoder-urls", "http://encoder-fixture:31000",
+                    "--image", str(image), "--image-answer-pattern", "red"]
+                responses.append({"choices": [{"message": {"content": "red square"}}]})
             with mock.patch.dict("sys.modules", {
                 "transformers": mock.Mock(AutoTokenizer=mock.Mock(from_pretrained=mock.Mock(return_value=tokenizer))),
                 "sglang.srt.model_loader.qwen38_nvfp4_common": common_module,
             }), mock.patch("sys.argv", ["canary", "--checkpoint", "nvidia/test-model",
                 "--manifest", str(manifest), "--output", root, "--revision", "fixture",
                 "--cache-dir", root, "--contexts", "8", "--offload-startup-warmup",
-                "--decode-graph", "--runtime-mode", "threaded"]), \
+                "--decode-graph", "--runtime-mode", "threaded"] + remote_flags), \
                 mock.patch.object(common_module, "resolve_cached_checkpoint", return_value=Path(root)) as resolve, \
                 mock.patch.object(common_module, "cached_checkpoint_weight_files"), \
                 mock.patch.object(canary.subprocess, "Popen", return_value=process) as launch, \
                 mock.patch.object(canary, "ready", return_value=True), \
-                mock.patch.object(canary, "request", side_effect=responses), \
+                mock.patch.object(canary, "request", side_effect=responses) as request_mock, \
                 mock.patch.object(canary.os, "killpg"):
                 self.assertEqual(canary.main(), 0)
             resolve.assert_called_once_with("nvidia/test-model", revision="fixture", cache_dir=root)
@@ -70,3 +77,14 @@ class TestOfflineScripts(unittest.TestCase):
                 self.assertEqual(args[args.index(flag) + 1], expected)
             self.assertIn("--cuda-graph-backend-decode=breakable", args)
             self.assertIn("--cuda-graph-backend-prefill=disabled", args)
+            self.assertEqual("--language-model-only" in args, not remote)
+            if remote:
+                self.assertIn("--language-only", args)
+                self.assertIn("http://encoder-fixture:31000", args)
+                payload = request_mock.call_args.args[1]
+                self.assertTrue(request_mock.call_args.args[0].endswith("/v1/chat/completions"))
+                self.assertTrue(payload["messages"][0]["content"][0]["image_url"]["url"].startswith(
+                    "data:image/png;base64,"))
+
+    def test_canary_remote_vision_and_image_probe(self):
+        self.test_canary_model_id_reaches_server_without_path_coercion(remote=True)

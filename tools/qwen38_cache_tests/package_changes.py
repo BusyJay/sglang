@@ -15,6 +15,8 @@ from pathlib import Path
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", required=True)
+    parser.add_argument("--split-first", nargs="+",
+                        help="repository paths for patch 1; remaining changes become patch 2")
     args = parser.parse_args()
     repo = Path(__file__).resolve().parents[2]
 
@@ -27,7 +29,7 @@ def main():
     paths = sorted({os.fsdecode(path) for path in changed + untracked if path})
     output = Path(args.output_dir).resolve()
     output.mkdir(parents=True, exist_ok=True)
-    name = "qwen38-flash-next-decode-graph-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    name = "qwen38-flash-next-head-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     archive = output / (name + ".tar.gz")
     if archive.exists():
         raise FileExistsError(archive)
@@ -38,11 +40,22 @@ def main():
         if paths:
             git("add", "-A", "--", *paths, env=env)
         tree = git("write-tree", env=env).decode().strip()
+        stages = [("01-from-current-head.patch", head, tree)]
+        if args.split_first:
+            unknown = set(args.split_first) - set(paths)
+            if unknown:
+                raise ValueError(f"split-first paths are not pending changes: {sorted(unknown)}")
+            first_env = {**os.environ, "GIT_INDEX_FILE": str(temp / "first.index")}
+            git("read-tree", head, env=first_env)
+            git("add", "-A", "--", *args.split_first, env=first_env)
+            first_tree = git("write-tree", env=first_env).decode().strip()
+            stages = [("01-sampler-single-rank.patch", head, first_tree),
+                      ("02-flash-next-remote-vit.patch", first_tree, tree)]
         root = temp / name
         root.mkdir()
         patches = []
-        for label, base in (("01-from-current-head.patch", head),):
-            payload = git("diff", "--binary", "--full-index", base, tree, "--")
+        for label, base, target in stages:
+            payload = git("diff", "--binary", "--full-index", base, target, "--")
             (root / label).write_bytes(payload)
             # Apply to an isolated index, checking both patch validity and the
             # exact resulting Git tree. No user files/index/branches are touched.
@@ -51,9 +64,9 @@ def main():
             git("apply", "--cached", "--check", str(root / label), env=check_env)
             git("apply", "--cached", str(root / label), env=check_env)
             restored = git("write-tree", env=check_env).decode().strip()
-            if restored != tree:
+            if restored != target:
                 raise RuntimeError(f"{label} did not reproduce snapshot")
-            patches.append({"file": label, "base_commit": base,
+            patches.append({"file": label, "base_tree_or_commit": base, "target_tree": target,
                 "sha256": hashlib.sha256(payload).hexdigest(), "apply_verified": True})
         (root / "snapshot.json").write_text(json.dumps({
             "head": head, "snapshot_tree": tree,
@@ -63,21 +76,19 @@ def main():
         (root / "README.md").write_text(
             "# Flash-Next current snapshot\n\n"
             "Includes all current tracked/untracked changes relative to HEAD only.\n"
-            "Includes segmented decode graph, startup warmup and updated test tooling.\n"
-            "Previously committed offload/offline-loading changes must already exist on the target.\n"
+            "Previously committed changes must already exist on the target.\n"
             "No weights, images, environments or compiled extensions are included.\n\n"
             "Verify: `sha256sum -c SHA256SUMS` from this extracted directory.\n\n"
-            f"Base commit: `{head}`. Use `01-from-current-head.patch`.\n\n"
+            f"Base commit: `{head}`. Apply patches in the order in snapshot.json.\n\n"
             "From the target SGLang checkout, with a clean worktree:\n\n"
-            "```bash\ngit apply --check /absolute/package/01-from-current-head.patch\n"
-            "git apply /absolute/package/01-from-current-head.patch\n"
+            "```bash\ngit apply --check /absolute/package/PATCH.patch\n"
+            "git apply /absolute/package/PATCH.patch\n"
+            "# Commit patch 1 before applying patch 2, if splitting commits.\n"
             "python3 tools/qwen38_cache_tests/run_cpu.py\n```\n\n"
             "If your GPU checkout has further edits/commits, check its diff before applying.\n"
-            "The patch was applied to an isolated Git index and reproduced snapshot_tree exactly.\n"
-            "Read restored flash-next-plan/DECODE_GRAPH.md and STARTUP_WARMUP.md.\n"
-            "CPU regression: 102 tests, 89 passed, 13 skipped (PyTorch unavailable).\n"
-            "New GPU graph parity and full-model integration have NOT run locally.\n"
-            "Use canary --runtime-mode threaded --decode-graph; warmup is opt-in.\n"
+            "Each patch was verified against its isolated base index; together they reproduce snapshot_tree.\n"
+            "Read restored flash-next-plan/REMOTE_VIT_OFFLOAD.md for remote ViT and validation.\n"
+            "New ViT GPU/full-model integration has NOT run locally. No weights were downloaded.\n"
         )
         # Copy current instructions into the package for reading before applying.
         docs = root / "docs"

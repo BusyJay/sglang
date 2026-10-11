@@ -42,6 +42,11 @@ import numpy as np
 import torch
 
 from sglang.srt.constants import GIB_BYTES
+from sglang.srt.model_loader.encoder_weights import (
+    encoder_safetensors_weights_iterator,
+    is_qwen4_encoder_source,
+    select_encoder_safetensors,
+)
 from sglang.srt.model_loader.post_load import stage_module_for_post_load
 from sglang.srt.model_loader.remote_instance_weight_loader_utils import (
     RemoteInstanceWeightLoaderBackend,
@@ -608,7 +613,11 @@ class DefaultModelLoader(BaseModelLoader):
                 source.fall_back_to_pt,
                 source.allow_patterns_overrides,
             )
-            if use_safetensors and source.model_config is not None:
+            if (
+                use_safetensors
+                and source.model_config is not None
+                and not is_qwen4_encoder_source(source)
+            ):
                 hf_weights_files = maybe_add_mtp_safetensors(
                     hf_weights_files,
                     hf_folder,
@@ -620,7 +629,15 @@ class DefaultModelLoader(BaseModelLoader):
             hf_weights_files = list(resolved_source.weight_files)
             use_safetensors = resolved_source.use_safetensors
 
-        if self.load_config.load_format == LoadFormat.NPCACHE:
+        if use_safetensors and is_qwen4_encoder_source(source):
+            hf_weights_files = select_encoder_safetensors(hf_folder, hf_weights_files)
+            logger.info(
+                "Loading Qwen4Exp encoder visual tensors from %d shards using "
+                "selective CPU mmap (no whole-shard prefetch or GPU staging)",
+                len(hf_weights_files),
+            )
+            weights_iterator = encoder_safetensors_weights_iterator(hf_weights_files)
+        elif self.load_config.load_format == LoadFormat.NPCACHE:
             # Currently np_cache only support *.bin checkpoints
             assert use_safetensors is False
             weights_iterator = np_cache_weights_iterator(
@@ -776,13 +793,19 @@ class DefaultModelLoader(BaseModelLoader):
                 source.fall_back_to_pt,
                 source.allow_patterns_overrides,
             )
-            if use_safetensors and source.model_config is not None:
+            if (
+                use_safetensors
+                and source.model_config is not None
+                and not is_qwen4_encoder_source(source)
+            ):
                 weight_files = maybe_add_mtp_safetensors(
                     weight_files,
                     hf_folder,
                     "model.safetensors.index.json",
                     source.model_config.hf_config,
                 )
+            if use_safetensors and is_qwen4_encoder_source(source):
+                weight_files = select_encoder_safetensors(hf_folder, weight_files)
             resolved_sources.append(
                 DefaultModelLoader.ResolvedSource(
                     source=source,
@@ -805,7 +828,12 @@ class DefaultModelLoader(BaseModelLoader):
                 "Startup weight-loading overlap requires safetensors checkpoints"
             )
         weight_files = sorted(
-            {path for source in resolved_sources for path in source.weight_files}
+            {
+                path
+                for source in resolved_sources
+                if not is_qwen4_encoder_source(source.source)
+                for path in source.weight_files
+            }
         )
         return _prefetch_all_checkpoints(weight_files, num_threads=num_threads)
 

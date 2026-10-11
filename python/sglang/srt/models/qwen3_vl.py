@@ -1314,7 +1314,8 @@ class Qwen3VLForConditionalGeneration(nn.Module):
         self.use_data_parallel = get_mm().mm_enable_dp_encoder
 
         self.language_model_only = getattr(config, "language_model_only", False)
-        if self.language_model_only:
+        self.skip_local_encoder_init = getattr(config, "skip_local_encoder_init", False)
+        if self.language_model_only or self.skip_local_encoder_init:
             self.visual = None
         else:
             self.visual = Qwen3VLMoeVisionModel(
@@ -1441,6 +1442,11 @@ class Qwen3VLForConditionalGeneration(nn.Module):
     def _get_visual_feature(
         self, items: List[MultimodalDataItem], grid_thw: torch.Tensor
     ) -> torch.Tensor:
+        if self.skip_local_encoder_init:
+            raise RuntimeError(
+                "Local ViT is disabled on this language-only EPD worker; "
+                "visual embeddings must come from the encoder server."
+            )
         assert grid_thw.dim() == 2, grid_thw.dim()
         if self.use_data_parallel:
             return run_dp_sharded_mrope_vision_model(

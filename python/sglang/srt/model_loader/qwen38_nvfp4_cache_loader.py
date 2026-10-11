@@ -140,8 +140,13 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             raise ValueError(
                 "Qwen3.8 pack/model shape mismatch: " + "; ".join(mismatches)
             )
-        if not getattr(model_config.hf_config, "language_model_only", False):
-            raise ValueError("qwen38_nvfp4_cache requires --language-model-only")
+        hf_config = model_config.hf_config
+        remote_vision = bool(getattr(hf_config, "language_only", False))
+        if remote_vision:
+            if not getattr(hf_config, "skip_local_encoder_init", False):
+                raise ValueError("Flash-Next EPD offload must disable local ViT initialization")
+        elif not getattr(hf_config, "language_model_only", False):
+            raise ValueError("qwen38_nvfp4_cache requires --language-model-only or remote --language-only")
 
         weight_files = self._prepare_checkpoint(model_config)
 
@@ -159,6 +164,8 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
         with set_default_torch_dtype(model_config.dtype):
             with target_device:
                 model = _initialize_model(model_config, self.load_config, quant_config)
+            if remote_vision and getattr(model, "visual", None) is not None:
+                raise ValueError("Flash-Next offload worker unexpectedly allocated a local ViT")
             weights = filtered_safetensors_weights_iterator(
                 weight_files, language_model_only=True
             )
