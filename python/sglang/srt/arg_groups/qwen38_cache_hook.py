@@ -56,6 +56,16 @@ def handle_qwen38_nvfp4_cache(server_args: Any) -> None:
         return
 
     errors = []
+    remote_vision = bool(cfg.language_only)
+    if cfg.encoder_only:
+        errors.append("encoder GPU must use the normal loader, not qwen38_nvfp4_cache")
+    if remote_vision:
+        if cfg.language_model_only:
+            errors.append("--language-only cannot be combined with --language-model-only")
+        if cfg.enable_adaptive_dispatch_to_encoder:
+            errors.append("Flash-Next offload EPD requires remote-only encoder dispatch")
+        if cfg.enable_multimodal is False:
+            errors.append("Flash-Next offload EPD requires multimodal processing")
     for label, option, size in (
         ("tensor", "--tp-size", cfg.tp_size),
         ("data", "--dp-size", cfg.dp_size),
@@ -88,12 +98,13 @@ def handle_qwen38_nvfp4_cache(server_args: Any) -> None:
         "handle_qwen38_nvfp4_cache",
         disable_cuda_graph=True,
         disable_shared_experts_fusion=True,
-        language_model_only=True,
+        language_model_only=not remote_vision,
         ple_offload_embedding=True,
         max_running_requests=1,
         moe_runner_backend="flashinfer_cutlass",
     )
     logger.info(
-        "qwen38_nvfp4_cache selected: language-model-only, eager by default, "
-        "single-rank parallelism and FlashInfer CUTLASS are required"
+        "qwen38_nvfp4_cache selected: %s, eager by default, "
+        "single-rank parallelism and FlashInfer CUTLASS are required",
+        "remote ViT (EPD), no local vision tower" if remote_vision else "language-model-only",
     )

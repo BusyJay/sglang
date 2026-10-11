@@ -8,6 +8,8 @@ configured GPU container with local checkpoint and runtime pack mounted.
 from __future__ import annotations
 
 import argparse
+import base64
+import mimetypes
 import json
 import os
 import re
@@ -152,6 +154,13 @@ def main():
     parser.add_argument("--staging-buffers", type=int, default=4)
     parser.add_argument("--staging-buffer-mib", type=int, default=64)
     parser.add_argument("--warm-decode-cache", action="store_true")
+    parser.add_argument("--encoder-urls", nargs="+",
+                        help="existing ViT servers on other GPUs; enables language-only EPD")
+    parser.add_argument("--encoder-transfer-backend", default="zmq_to_scheduler")
+    parser.add_argument("--image", help="local image for remote-ViT OpenAI chat probe")
+    parser.add_argument("--image-prompt", default="Describe the image briefly.")
+    parser.add_argument("--image-answer-pattern", help="regex checked against the visible image answer")
+    parser.add_argument("--image-max-new-tokens", type=int, default=1024)
     parser.add_argument("--decode-graph", action="store_true",
                         help="opt into batch-1 breakable decode graph (threaded runtime only)")
     parser.add_argument("--offload-startup-warmup", action="store_true",
@@ -177,6 +186,12 @@ def main():
     parser.add_argument("--request-timeout", type=int, default=7200)
     parser.add_argument("--cache-stats-log-interval", type=int, default=0)
     args = parser.parse_args()
+    if args.image and not args.encoder_urls:
+        parser.error("--image requires --encoder-urls (ViT is not loaded locally)")
+    if args.image_answer_pattern and not args.image:
+        parser.error("--image-answer-pattern requires --image")
+    if args.image_max_new_tokens <= 0:
+        parser.error("--image-max-new-tokens must be positive")
     if args.route_trace_limit < 1:
         parser.error("route trace limit must be positive")
     if args.warm_decode_cache and args.runtime_mode not in ("device", "threaded"):
@@ -259,7 +274,6 @@ def main():
         "qwen38_nvfp4_cache",
         "--model-loader-extra-config",
         json.dumps(extra),
-        "--language-model-only",
         "--ple-offload-embedding",
         "--cuda-graph-backend-prefill=disabled",
         "--cuda-graph-backend-decode=" + ("breakable" if args.decode_graph else "disabled"),
@@ -279,6 +293,11 @@ def main():
         "--port",
         str(args.port),
     ]
+    if args.encoder_urls:
+        command += ["--language-only", "--encoder-urls", *args.encoder_urls,
+                    "--encoder-transfer-backend", args.encoder_transfer_backend]
+    else:
+        command += ["--language-model-only"]
     if args.ple_backend == "file" and not args.ple_dir:
         parser.error("file PLE backend requires --ple-dir")
     if args.revision:
@@ -395,6 +414,30 @@ def main():
             if not matched:
                 report["error"] = f"semantic probe failed: {case}"
                 raise AssertionError(report["error"])
+        if args.image:
+            image_path = Path(args.image)
+            mime = mimetypes.guess_type(image_path.name)[0]
+            if mime not in ("image/png", "image/jpeg", "image/webp"):
+                raise ValueError("image probe requires local PNG/JPEG/WebP")
+            data_url = "data:" + mime + ";base64," + base64.b64encode(image_path.read_bytes()).decode()
+            begun = time.monotonic()
+            response = request(url + "/v1/chat/completions", {
+                "model": args.served_model_name or args.checkpoint,
+                "messages": [{"role": "user", "content": [
+                    {"type": "image_url", "image_url": {"url": data_url}},
+                    {"type": "text", "text": args.image_prompt},
+                ]}],
+                "temperature": 0, "max_tokens": args.image_max_new_tokens, "stream": False,
+            }, timeout=args.request_timeout)
+            visible = _visible_generation_text(response["choices"][0]["message"].get("content") or "")
+            if not visible:
+                raise AssertionError("empty visible answer for remote ViT probe")
+            matched = not args.image_answer_pattern or re.search(args.image_answer_pattern, visible) is not None
+            report["cases"].append({"image": str(image_path), "response_text": visible,
+                "matched": matched, "seconds": time.monotonic() - begun,
+                "usage": response.get("usage")})
+            if not matched:
+                raise AssertionError("remote ViT answer pattern did not match")
         report["status"] = "passed"
     except Exception as error:
         report["error"] = f"{type(error).__name__}: {error}"

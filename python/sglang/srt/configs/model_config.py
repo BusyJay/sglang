@@ -452,6 +452,7 @@ class ModelConfig:
         encoder_only: bool = False,
         language_only: bool = False,
         language_model_only: bool = False,
+        skip_local_encoder_init: bool = False,
         disable_hybrid_swa_memory: bool = False,
         model_config_parser: str = "auto",
         speculative_algorithm: Optional[str] = None,
@@ -747,6 +748,7 @@ class ModelConfig:
 
         self.hf_config.encoder_only = encoder_only
         self.hf_config.language_only = language_only
+        self.hf_config.skip_local_encoder_init = skip_local_encoder_init
         # Checkpoints declare this one themselves (hf_transformers/processor.py),
         # so the flag may only turn it on: writing the default back would build a
         # vision tower with no weights to fill.
@@ -811,6 +813,9 @@ class ModelConfig:
             is_multi_layer_eagle=cfg.enable_multi_layer_eagle,
             language_only=cfg.language_only,
             language_model_only=cfg.language_model_only,
+            skip_local_encoder_init=(
+                cfg.language_only and not cfg.enable_adaptive_dispatch_to_encoder
+            ),
             encoder_only=cfg.encoder_only,
             is_draft_model=is_draft_model,
             is_draft_quantization_explicit=(
