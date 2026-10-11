@@ -62,6 +62,9 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             "adaptive_cache_mode",
             "cache_policy",
             "cache_protected_fraction",
+            "prefill_reuse_cache",
+            "prefill_seed_cache",
+            "async_pack_prefetch",
         }
         if unexpected:
             raise ValueError(
@@ -81,6 +84,13 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             raise ValueError("warm_decode_cache must be a JSON boolean")
         if not isinstance(config.get("adaptive_cache", False), bool):
             raise ValueError("adaptive_cache must be a JSON boolean")
+        if not isinstance(config.get("async_pack_prefetch", False), bool):
+            raise ValueError("async_pack_prefetch must be a JSON boolean")
+        for option in ("prefill_reuse_cache", "prefill_seed_cache"):
+            if type(config.get(option, True)) is not bool:
+                raise ValueError(f"{option} must be a JSON boolean")
+            if option in config and config.get("runtime_mode", "sync") != "threaded":
+                raise ValueError(f"{option} requires threaded mode")
         if config.get("adaptive_cache", False) and config.get("runtime_mode", "sync") != "threaded":
             raise ValueError("adaptive_cache requires runtime_mode=threaded")
         if type(config.get("adaptive_cache_window", 512)) is not int or config.get("adaptive_cache_window", 512) < 16:
@@ -194,17 +204,24 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             target_device
         ) != (12, 0):
             raise ValueError("qwen38_nvfp4_cache requires an SM120 CUDA device")
-        with set_default_torch_dtype(model_config.dtype):
-            with target_device:
-                model = _initialize_model(model_config, self.load_config, quant_config)
-            if remote_vision and getattr(model, "visual", None) is not None:
-                raise ValueError("Flash-Next offload worker unexpectedly allocated a local ViT")
-            weights = filtered_safetensors_weights_iterator(
-                weight_files, language_model_only=True
-            )
-            DefaultModelLoader.load_weights_and_postprocess(
-                model, weights, target_device
-            )
+        pack = Qwen38ExpertPack(self.manifest)
+        try:
+            if self.config.get("async_pack_prefetch", False):
+                pack.start_prefetch()
+            with set_default_torch_dtype(model_config.dtype):
+                with target_device:
+                    model = _initialize_model(model_config, self.load_config, quant_config)
+                if remote_vision and getattr(model, "visual", None) is not None:
+                    raise ValueError("Flash-Next offload worker unexpectedly allocated a local ViT")
+                weights = filtered_safetensors_weights_iterator(
+                    weight_files, language_model_only=True
+                )
+                DefaultModelLoader.load_weights_and_postprocess(
+                    model, weights, target_device
+                )
+        except BaseException:
+            pack.close()
+            raise
 
         from sglang.srt.layers.moe.qwen38_cache_runtime import (
             Qwen38SynchronousExpertRuntime,
@@ -213,7 +230,6 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             Qwen38CachedNvFp4MoeMethod,
         )
 
-        pack = Qwen38ExpertPack(self.manifest)
         try:
             runtime_class = Qwen38SynchronousExpertRuntime
             runtime_options = {}
@@ -251,6 +267,8 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                     ("adaptive_cache_mode", "rebalance"),
                     ("cache_policy", "lfu"),
                     ("cache_protected_fraction", 0.7),
+                    ("prefill_reuse_cache", True),
+                    ("prefill_seed_cache", True),
                 ):
                     runtime_options[name] = self.config.get(name, default)
             if runtime_options:

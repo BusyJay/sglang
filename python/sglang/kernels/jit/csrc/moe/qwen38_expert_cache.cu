@@ -4,6 +4,52 @@
 #include "tvm_ffi_utils.h"
 
 namespace {
+template <typename T>
+__global__ void scatter_kernel(const T* cache, T* arena,
+                               const int32_t* keys, const int32_t* counts,
+                               int slots, int experts, int64_t row_bytes) {
+  int64_t size = static_cast<int64_t>(slots) * row_bytes;
+  for (int64_t i = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+       i < size; i += static_cast<int64_t>(blockDim.x) * gridDim.x) {
+    int slot = i / row_bytes;
+    int expert = keys[slot];
+    if (expert >= 0 && expert < experts && counts[expert])
+      arena[static_cast<int64_t>(expert) * row_bytes + i % row_bytes] = cache[i];
+  }
+}
+}
+
+struct Qwen38CacheScatter {
+  static void run(TensorView cache, TensorView arena, TensorView keys, TensorView counts) {
+    CHECK_INPUT_AND_TYPE(cache, dl_uint8); CHECK_INPUT_AND_TYPE(arena, dl_uint8);
+    CHECK_INPUT_AND_TYPE(keys, dl_int32); CHECK_INPUT_AND_TYPE(counts, dl_int32);
+    CHECK_DIM(2, cache); CHECK_DIM(2, arena); CHECK_DIM(1, keys); CHECK_DIM(1, counts);
+    CHECK_DEVICE(cache, arena); CHECK_DEVICE(cache, keys); CHECK_DEVICE(cache, counts);
+    TVM_FFI_ICHECK_EQ(cache.size(0), keys.size(0));
+    TVM_FFI_ICHECK_EQ(cache.size(1), arena.size(1));
+    TVM_FFI_ICHECK_EQ(counts.size(0), arena.size(0) + 1);
+    int64_t size = cache.size(0) * cache.size(1);
+    if (!size) return;
+    int blocks = static_cast<int>(std::min<int64_t>((size + 255) / 256, 65535));
+    if (cache.size(1) % 16 == 0) {
+      size /= 16;
+      blocks = static_cast<int>(std::min<int64_t>((size + 255) / 256, 65535));
+      scatter_kernel<<<blocks, 256, 0, get_stream(cache.device())>>>(
+          static_cast<const uint4*>(cache.data_ptr()), static_cast<uint4*>(arena.data_ptr()),
+          static_cast<const int32_t*>(keys.data_ptr()), static_cast<const int32_t*>(counts.data_ptr()),
+          cache.size(0), arena.size(0), cache.size(1) / 16);
+    } else {
+      scatter_kernel<<<blocks, 256, 0, get_stream(cache.device())>>>(
+        static_cast<const uint8_t*>(cache.data_ptr()), static_cast<uint8_t*>(arena.data_ptr()),
+        static_cast<const int32_t*>(keys.data_ptr()), static_cast<const int32_t*>(counts.data_ptr()),
+        cache.size(0), arena.size(0), cache.size(1));
+    }
+    auto status = cudaGetLastError();
+    TVM_FFI_ICHECK_EQ(status, cudaSuccess) << cudaGetErrorString(status);
+  }
+};
+
+namespace {
 __global__ void route_kernel(const int32_t* ids, const int32_t* lookup,
                              int32_t* output, int32_t* counts,
                              int64_t size, int32_t experts) {

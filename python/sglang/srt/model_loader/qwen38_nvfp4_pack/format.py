@@ -9,8 +9,11 @@ capability; consuming a pack under a different ABI is unsafe.
 from __future__ import annotations
 
 import json
+import logging
 import mmap
 import os
+import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterator, Mapping
@@ -34,6 +37,8 @@ SUPPORTED_DTYPES = {
     "bfloat16": 2,
     "float32": 4,
 }
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -313,6 +318,47 @@ class Qwen38ExpertPack:
         self.manifest = manifest
         self._stream = manifest.payload_path.open("rb", buffering=0)
         self._mapping = mmap.mmap(self._stream.fileno(), 0, access=mmap.ACCESS_READ)
+        self._prefetch_thread = None
+        self._prefetch_stop = threading.Event()
+        self._prefetch_error = None
+
+    def start_prefetch(self) -> None:
+        """Populate the shared file page cache while model weights load."""
+        if self._prefetch_thread is not None:
+            return
+        self._prefetch_thread = threading.Thread(
+            target=self._prefetch, name="qwen38-pack-prefetch", daemon=True
+        )
+        self._prefetch_thread.start()
+
+    def _prefetch(self) -> None:
+        started = time.perf_counter()
+        size = self.manifest.payload_nbytes
+        offset = 0
+        try:
+            fd = os.open(self.manifest.payload_path, os.O_RDONLY)
+            try:
+                while offset < size and not self._prefetch_stop.is_set():
+                    count = min(8 << 20, size - offset)
+                    data = os.pread(fd, count, offset)
+                    if len(data) != count:
+                        raise OSError(f"short expert-pack read at offset {offset}")
+                    offset += count
+            finally:
+                os.close(fd)
+        except OSError as exc:
+            self._prefetch_error = exc
+            logger.warning("Expert-pack prefetch stopped at %d bytes: %s", offset, exc)
+        else:
+            if offset == size:
+                logger.info(
+                    "Expert-pack prefetch completed: %.2f GiB in %.2f s",
+                    offset / (1 << 30), time.perf_counter() - started,
+                )
+
+    def wait_prefetch(self) -> None:
+        if self._prefetch_thread is not None:
+            self._prefetch_thread.join()
 
     def tensor_bytes(self, layer: int, name: str) -> memoryview:
         record = self.manifest.tensors[layer][name]
@@ -336,6 +382,8 @@ class Qwen38ExpertPack:
             yield name, record, self.tensor_bytes(layer, name)
 
     def close(self) -> None:
+        self._prefetch_stop.set()
+        self.wait_prefetch()
         if not self._mapping.closed:
             self._mapping.close()
         self._stream.close()
