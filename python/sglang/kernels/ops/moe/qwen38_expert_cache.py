@@ -25,8 +25,28 @@ def cache_route(topk_ids, lookup, remapped, counts):
 
 
 def cache_plan(
-    counts, lookup, keys, frequency, ages, generation, clock, plan, decay=0.95
+    counts,
+    lookup,
+    keys,
+    frequency,
+    ages,
+    generation,
+    clock,
+    plan,
+    decay=0.95,
+    policy=0,
+    protected_fraction=0.7,
 ):
     _module().plan(
-        counts, lookup, keys, frequency, ages, generation, clock, plan, decay
+        counts,
+        lookup,
+        keys,
+        frequency,
+        ages,
+        generation,
+        clock,
+        plan,
+        decay,
+        policy,
+        protected_fraction,
     )
