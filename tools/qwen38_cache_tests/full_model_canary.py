@@ -154,8 +154,35 @@ def main():
     parser.add_argument("--staging-buffers", type=int, default=4)
     parser.add_argument("--staging-buffer-mib", type=int, default=64)
     parser.add_argument("--warm-decode-cache", action="store_true")
-    parser.add_argument("--encoder-urls", nargs="+",
-                        help="existing ViT servers on other GPUs; enables language-only EPD")
+    parser.add_argument(
+        "--adaptive-cache",
+        action="store_true",
+        help="live fixed-budget per-layer expert-cache allocation",
+    )
+    parser.add_argument(
+        "--adaptive-cache-window",
+        type=int,
+        default=512,
+        help="decode samples per layer before evaluating a new allocation",
+    )
+    parser.add_argument(
+        "--adaptive-cache-interval",
+        type=int,
+        default=4096,
+        help="unsampled single-token decode calls per layer between contiguous windows",
+    )
+    parser.add_argument(
+        "--adaptive-cache-mode",
+        choices=["rebalance", "observe", "sample"],
+        default="rebalance",
+    )
+    parser.add_argument("--cache-policy", choices=["lfu", "slru"], default="lfu")
+    parser.add_argument("--cache-protected-fraction", type=float, default=0.7)
+    parser.add_argument(
+        "--encoder-urls",
+        nargs="+",
+        help="existing ViT servers on other GPUs; enables language-only EPD",
+    )
     parser.add_argument("--encoder-transfer-backend", default="zmq_to_scheduler")
     parser.add_argument("--image", help="local image for remote-ViT OpenAI chat probe")
     parser.add_argument("--image-prompt", default="Describe the image briefly.")
@@ -196,6 +223,14 @@ def main():
         parser.error("route trace limit must be positive")
     if args.warm_decode_cache and args.runtime_mode not in ("device", "threaded"):
         parser.error("decode warmup requires device/threaded mode")
+    if args.adaptive_cache and args.runtime_mode != "threaded":
+        parser.error("adaptive cache requires threaded mode")
+    if args.adaptive_cache_window < 16:
+        parser.error("adaptive cache window must be at least 16")
+    if args.adaptive_cache_interval < 0 or not 0 <= args.cache_protected_fraction < 1:
+        parser.error("invalid adaptive interval or protected fraction")
+    if args.cache_policy == "slru" and args.runtime_mode != "threaded":
+        parser.error("SLRU requires threaded mode")
     if args.decode_graph and args.runtime_mode != "threaded":
         parser.error("--decode-graph requires --runtime-mode threaded")
     if not 2 <= args.staging_buffers <= 64 or args.staging_buffer_mib < 0:
@@ -217,6 +252,7 @@ def main():
         resolve_cached_checkpoint, cached_checkpoint_weight_files,
         validate_cached_checkpoint_revision,
     )
+
     checkpoint = resolve_cached_checkpoint(
         args.checkpoint, revision=args.revision, cache_dir=args.cache_dir
     )
@@ -255,6 +291,14 @@ def main():
         extra["staging_buffer_bytes"] = args.staging_buffer_mib << 20
     if args.warm_decode_cache:
         extra["warm_decode_cache"] = True
+    if args.adaptive_cache:
+        extra["adaptive_cache"] = True
+        extra["adaptive_cache_window"] = args.adaptive_cache_window
+        extra["adaptive_cache_interval"] = args.adaptive_cache_interval
+        extra["adaptive_cache_mode"] = args.adaptive_cache_mode
+    if args.runtime_mode == "threaded":
+        extra["cache_policy"] = args.cache_policy
+        extra["cache_protected_fraction"] = args.cache_protected_fraction
     if args.layer_cache_slots:
         extra["layer_cache_slots"] = json.loads(Path(args.layer_cache_slots).read_text())
     if args.route_trace_path:

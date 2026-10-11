@@ -45,6 +45,12 @@ class TestBackgroundTransport(unittest.TestCase):
                 "sglang.srt.layers.moe.qwen38_cache_device": SimpleNamespace(
                     Qwen38DeviceExpertRuntime=object
                 ),
+                "sglang.srt.layers.moe.qwen38_expert_cache": SimpleNamespace(
+                    LayerExpertCachePolicy=None
+                ),
+                "sglang.srt.model_loader.qwen38_nvfp4_pack.format": SimpleNamespace(
+                    REQUIRED_TENSORS=()
+                ),
                 "sglang.srt.layers.moe.qwen38_cache_runtime": SimpleNamespace(
                     PreparedExperts=None
                 ),
@@ -66,7 +72,10 @@ class TestBackgroundTransport(unittest.TestCase):
         runtime.worker_error = None
         runtime.poisoned = False
         runtime.warm_decode_cache = False
+        runtime.cache_policy = "lfu"
         runtime.slots_for_layer = lambda _: 2
+        runtime.arena_residents = None
+        runtime.manifest = SimpleNamespace(num_experts=3)
         runtime.arena_layer = 0
         runtime.arena_last_use = None
         runtime.transfer = SimpleNamespace(
@@ -78,7 +87,7 @@ class TestBackgroundTransport(unittest.TestCase):
         launched = threading.Event()
         launched.set()
         # Arena jobs carry the pinned overflow counter; 0 means no bad route.
-        plan = SimpleNamespace(item=lambda: 0)
+        plan = SimpleNamespace(tolist=lambda: [0, 0, 0, 0])
         return self.module.TransferJob(0, True, plan, planned, completed, launched)
 
     def _threads(self, runtime):
@@ -162,7 +171,9 @@ class TestBackgroundTransport(unittest.TestCase):
         runtime.arena_loads = 0
         operations = []
         runtime.transfer.wait_event = lambda event: operations.append(("wait", event))
-        runtime._fill_arena = lambda layer: operations.append(("fill", layer))
+        runtime._ensure_arena_experts = (
+            lambda layer, counts: operations.append(("fill", layer)) or True
+        )
         planned = SimpleNamespace(synchronize=lambda: None)
         computed = SimpleNamespace(synchronize=lambda: None)
         job = self._job(planned, computed)
@@ -209,7 +220,10 @@ class TestBackgroundTransport(unittest.TestCase):
         runtime = self._runtime(1)
         runtime.warm_decode_cache = True
         runtime._warm_from_arena = mock.Mock(side_effect=RuntimeError("D2D failed"))
-        job = self._job(SimpleNamespace(synchronize=lambda: None), SimpleNamespace(synchronize=lambda: None))
+        job = self._job(
+            SimpleNamespace(synchronize=lambda: None),
+            SimpleNamespace(synchronize=lambda: None),
+        )
         job.plan = SimpleNamespace(tolist=lambda: [4, 2, 0])
         runtime.capacity.acquire()
         worker, reaper = self._threads(runtime)

@@ -1,0 +1,97 @@
+import json
+import subprocess
+import sys
+import unittest
+
+from ._load_source import REPO_ROOT
+from .replay_cache import minimum_slots
+from . import test_cpu_background_transport as transport
+
+
+class TestCacheAnalysis(unittest.TestCase):
+    def test_minimum_slots_with_nonconcave_curves(self):
+        curves = [{1: 10, 2: 9, 3: 1}, {1: 8, 2: 1, 3: 0}]
+        self.assertEqual(
+            minimum_slots(curves, 9),
+            {"layer_cache_slots": [3, 1], "used_slots": 4, "misses": 9},
+        )
+        with self.assertRaises(ValueError):
+            minimum_slots(curves, 0)
+
+    def test_standalone_analysis_process_resets_between_windows(self):
+        worker = (
+            REPO_ROOT / "python/sglang/srt/layers/moe/qwen38_cache_analysis_worker.py"
+        )
+        request = dict(
+            current=[2, 2],
+            num_experts=8,
+            top_k=1,
+            policy="slru",
+            protected_fraction=0.5,
+            routes=[[[step % 3] for step in range(32)], [[7]] * 32],
+        )
+        result = subprocess.run(
+            [sys.executable, str(worker)],
+            input=(json.dumps(request) + "\n") * 2,
+            capture_output=True,
+            text=True,
+            timeout=20,
+            check=True,
+        )
+        replies = [json.loads(line) for line in result.stdout.splitlines()]
+        self.assertEqual(len(replies), 2)
+        self.assertEqual(replies[0]["target"], [3, 1])
+        self.assertEqual(replies[0]["evaluation"], replies[1]["evaluation"])
+
+    def test_contiguous_sampling_windows_and_prefill_boundary(self):
+        transport.TestBackgroundTransport.setUpClass()
+        runtime = transport.TestBackgroundTransport()._runtime(1)
+        runtime.adaptive_cache = True
+        runtime.adaptive_cache_window = 3
+        runtime.adaptive_cache_interval = 2
+        runtime.adaptive_steps = [0, 0]
+        from types import SimpleNamespace
+
+        single = SimpleNamespace(shape=(1, 1))
+        positions = [runtime._sample_position(0, single) for _ in range(7)]
+        self.assertEqual(
+            positions, [(0, 0), (0, 1), (0, 2), None, None, (1, 0), (1, 1)]
+        )
+        self.assertIsNone(runtime._sample_position(0, SimpleNamespace(shape=(2, 1))))
+        self.assertEqual(runtime._sample_position(0, single), (2, 0))
+
+    def test_retirement_reuses_plan_only_after_compute_completion(self):
+        import queue
+        import threading
+        from types import SimpleNamespace
+
+        transport.TestBackgroundTransport.setUpClass()
+        runtime = transport.TestBackgroundTransport()._runtime(1)
+        runtime.host_plans = {16: queue.SimpleQueue()}
+        completed = threading.Event()
+        plan = SimpleNamespace(numel=lambda: 16)
+        job = transport.TestBackgroundTransport()._job(
+            SimpleNamespace(synchronize=lambda: None),
+            SimpleNamespace(synchronize=lambda: completed.wait(3)),
+        )
+        job.plan = plan
+        runtime.capacity.acquire()
+        runtime.jobs.put(job)
+        runtime.jobs.get_nowait()
+        reaper = threading.Thread(target=runtime._retire)
+        reaper.start()
+        try:
+            runtime.retired.put(job)
+            self.assertTrue(runtime.host_plans[16].empty())
+            completed.set()
+            runtime.retired.join()
+            self.assertIs(runtime.host_plans[16].get_nowait(), plan)
+        finally:
+            completed.set()
+            runtime.retired.put(None)
+            reaper.join(3)
+        self.assertFalse(reaper.is_alive())
+
+
+if __name__ == "__main__":
+    unittest.main()

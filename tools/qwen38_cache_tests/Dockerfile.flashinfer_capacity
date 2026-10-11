@@ -1,0 +1,6 @@
+FROM swallow-sglang:v0.5.21
+
+COPY tools/qwen38_cache_tests/patch_flashinfer_capacity_runner.py /tmp/patch_flashinfer_capacity_runner.py
+RUN /opt/sglang/bin/python3 /tmp/patch_flashinfer_capacity_runner.py \
+    && /opt/sglang/bin/python3 -m py_compile /opt/sglang/lib/python3.12/site-packages/flashinfer/fused_moe/core.py \
+    && rm /tmp/patch_flashinfer_capacity_runner.py

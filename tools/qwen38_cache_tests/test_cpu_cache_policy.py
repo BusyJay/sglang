@@ -66,6 +66,44 @@ class TestCachePolicy(unittest.TestCase):
         self.assertNotIn(1, cache.expert_to_slot)
         self.assertIn(2, cache.expert_to_slot)
 
+    def test_slru_scan_does_not_evict_reused_hot_experts(self):
+        cache = LayerExpertCachePolicy(32, 4, policy="slru", protected_fraction=0.5)
+        cache.ensure([0, 1])
+        cache.ensure([0, 1])
+        for expert in range(2, 20):
+            cache.ensure([expert])
+        self.assertEqual(cache.ensure([0, 1])[1], [])
+        self.assertEqual(sum(s.frequency == 1 for s in cache.slots), 2)
+
+    def test_slru_demotes_oldest_protected_and_protects_active_set(self):
+        cache = LayerExpertCachePolicy(16, 4, policy="slru", protected_fraction=0.5)
+        cache.ensure([0, 1, 2, 3])
+        cache.ensure([0, 1])
+        cache.ensure([2])
+        self.assertEqual(cache.slots[cache.expert_to_slot[0]].frequency, 0)
+        self.assertEqual(cache.slots[cache.expert_to_slot[2]].frequency, 1)
+        cache.ensure([0, 4])
+        self.assertIn(0, cache.expert_to_slot)
+        self.assertIn(4, cache.expert_to_slot)
+        self.assertLessEqual(sum(s.frequency == 1 for s in cache.slots), 2)
+
+    def test_slru_zero_protected_capacity_is_lru(self):
+        cache = LayerExpertCachePolicy(16, 2, policy="slru", protected_fraction=0)
+        cache.ensure([0, 1])
+        cache.ensure([0])
+        cache.ensure([2])
+        self.assertIn(0, cache.expert_to_slot)
+        self.assertNotIn(1, cache.expert_to_slot)
+
+    def test_invalid_policy_options(self):
+        for options in (
+            {"policy": "unknown"},
+            {"protected_fraction": 1},
+            {"protected_fraction": -0.1},
+        ):
+            with self.assertRaises(ValueError):
+                LayerExpertCachePolicy(16, 4, **options)
+
     def test_tensor_remap_stays_on_cpu(self):
         try:
             import torch

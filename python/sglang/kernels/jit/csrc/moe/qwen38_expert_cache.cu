@@ -63,7 +63,8 @@ namespace {
 __global__ void plan_kernel(const int32_t* counts, int32_t* lookup, int32_t* keys,
                             float* frequency, int64_t* ages, int64_t* generation,
                             int64_t* clock, int32_t* plan, int experts, int slots,
-                            float decay) {
+                            float decay, int policy, int protected_slots,
+                            bool export_routes) {
   if (threadIdx.x || blockIdx.x) return;
   // plan: status, miss_count, active_count, arena; S (expert, slot) pairs;
   // S active slot IDs. status=1 for invalid routes, 0 for success.
@@ -75,10 +76,11 @@ __global__ void plan_kernel(const int32_t* counts, int32_t* lookup, int32_t* key
   int active = 0;
   for (int e = 0; e < experts; ++e) active += counts[e] > 0;
   if (active > slots) { plan[3] = 1; return; }
-  for (int s = 0; s < slots; ++s) frequency[s] *= decay;
+  if (!policy) for (int s = 0; s < slots; ++s) frequency[s] *= decay;
   for (int e = 0; e < experts; ++e) {
     if (!counts[e]) continue;
     int slot = lookup[e];
+    bool hit = slot >= 0;
     if (slot < 0) {
       int victim = -1;
       for (int s = 0; s < slots; ++s) {
@@ -100,8 +102,20 @@ __global__ void plan_kernel(const int32_t* counts, int32_t* lookup, int32_t* key
       plan[4 + 2 * miss] = e;
       plan[5 + 2 * miss] = slot;
     }
-    frequency[slot] += 1;
     ages[slot] = ++clock[0];
+    if (!policy) {
+      frequency[slot] += 1;
+    } else if (hit && frequency[slot] != 1) {
+      frequency[slot] = 1;
+      int count = 0, oldest = -1;
+      for (int s = 0; s < slots; ++s) {
+        if (frequency[s] != 1) continue;
+        ++count;
+        if (oldest < 0 || ages[s] < ages[oldest]) oldest = s;
+      }
+      if (count > protected_slots) frequency[oldest] = 0;
+    }
+    if (export_routes) plan[4 + 3 * slots + plan[2]] = e;
     plan[4 + 2 * slots + plan[2]++] = slot;
   }
 }
@@ -110,7 +124,8 @@ __global__ void plan_kernel(const int32_t* counts, int32_t* lookup, int32_t* key
 struct Qwen38CachePlan {
   static void run(TensorView counts, TensorView lookup, TensorView keys,
                   TensorView frequency, TensorView ages, TensorView generation,
-                  TensorView clock, TensorView plan, double decay) {
+                  TensorView clock, TensorView plan, double decay,
+                  int64_t policy, double protected_fraction) {
     CHECK_INPUT_AND_TYPE(counts, dl_int32);
     CHECK_INPUT_AND_TYPE(lookup, dl_int32);
     CHECK_INPUT_AND_TYPE(keys, dl_int32);
@@ -134,14 +149,18 @@ struct Qwen38CachePlan {
     TVM_FFI_ICHECK_EQ(ages.size(0), slots);
     TVM_FFI_ICHECK_EQ(generation.size(0), slots);
     TVM_FFI_ICHECK_EQ(clock.size(0), 1);
-    TVM_FFI_ICHECK_EQ(plan.size(0), 4 + 3 * slots);
+    TVM_FFI_ICHECK(plan.size(0) == 4 + 3 * slots || plan.size(0) == 4 + 4 * slots);
+    TVM_FFI_ICHECK(policy == 0 || policy == 1);
+    TVM_FFI_ICHECK_GE(protected_fraction, 0.0);
+    TVM_FFI_ICHECK_LT(protected_fraction, 1.0);
     TVM_FFI_ICHECK_GT(decay, 0.0); TVM_FFI_ICHECK_LE(decay, 1.0);
     plan_kernel<<<1, 1, 0, get_stream(counts.device())>>>(
         static_cast<const int32_t*>(counts.data_ptr()), static_cast<int32_t*>(lookup.data_ptr()),
         static_cast<int32_t*>(keys.data_ptr()), static_cast<float*>(frequency.data_ptr()),
         static_cast<int64_t*>(ages.data_ptr()), static_cast<int64_t*>(generation.data_ptr()),
         static_cast<int64_t*>(clock.data_ptr()), static_cast<int32_t*>(plan.data_ptr()),
-        experts, slots, static_cast<float>(decay));
+        experts, slots, static_cast<float>(decay), static_cast<int>(policy),
+        static_cast<int>(slots * protected_fraction), plan.size(0) == 4 + 4 * slots);
     auto status = cudaGetLastError();
     TVM_FFI_ICHECK_EQ(status, cudaSuccess) << cudaGetErrorString(status);
   }

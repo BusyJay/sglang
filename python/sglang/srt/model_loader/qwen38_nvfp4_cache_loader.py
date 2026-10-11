@@ -56,6 +56,12 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             "layer_cache_slots",
             "route_trace_path",
             "route_trace_limit",
+            "adaptive_cache",
+            "adaptive_cache_window",
+            "adaptive_cache_interval",
+            "adaptive_cache_mode",
+            "cache_policy",
+            "cache_protected_fraction",
         }
         if unexpected:
             raise ValueError(
@@ -73,6 +79,33 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             raise ValueError("prefill_arena must be a JSON boolean")
         if not isinstance(config.get("warm_decode_cache", False), bool):
             raise ValueError("warm_decode_cache must be a JSON boolean")
+        if not isinstance(config.get("adaptive_cache", False), bool):
+            raise ValueError("adaptive_cache must be a JSON boolean")
+        if config.get("adaptive_cache", False) and config.get("runtime_mode", "sync") != "threaded":
+            raise ValueError("adaptive_cache requires runtime_mode=threaded")
+        if type(config.get("adaptive_cache_window", 512)) is not int or config.get("adaptive_cache_window", 512) < 16:
+            raise ValueError("adaptive_cache_window must be an integer >= 16")
+        if (
+            type(config.get("adaptive_cache_interval", 4096)) is not int
+            or config.get("adaptive_cache_interval", 4096) < 0
+        ):
+            raise ValueError("adaptive_cache_interval must be a non-negative integer")
+        if config.get("adaptive_cache_mode", "rebalance") not in (
+            "rebalance",
+            "observe",
+            "sample",
+        ):
+            raise ValueError("adaptive_cache_mode must be rebalance, observe or sample")
+        if config.get("cache_policy", "lfu") not in ("lfu", "slru"):
+            raise ValueError("cache_policy must be lfu or slru")
+        fraction = config.get("cache_protected_fraction", 0.7)
+        if type(fraction) not in (int, float) or not 0 <= fraction < 1:
+            raise ValueError("cache_protected_fraction must be in [0, 1)")
+        if (
+            config.get("cache_policy", "lfu") != "lfu"
+            and config.get("runtime_mode", "sync") != "threaded"
+        ):
+            raise ValueError("SLRU requires runtime_mode=threaded")
         if config.get("warm_decode_cache", False) and (
             config.get("runtime_mode", "sync") not in ("device", "threaded")
             or not config.get("prefill_arena", True)
@@ -211,6 +244,15 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                 runtime_options["staging_buffers"] = int(
                     self.config.get("staging_buffers", 4)
                 )
+                runtime_options["adaptive_cache"] = self.config.get("adaptive_cache", False)
+                runtime_options["adaptive_cache_window"] = self.config.get("adaptive_cache_window", 512)
+                for name, default in (
+                    ("adaptive_cache_interval", 4096),
+                    ("adaptive_cache_mode", "rebalance"),
+                    ("cache_policy", "lfu"),
+                    ("cache_protected_fraction", 0.7),
+                ):
+                    runtime_options[name] = self.config.get(name, default)
             if runtime_options:
                 runtime_options["staging_buffer_bytes"] = int(
                     self.config.get("staging_buffer_bytes", 64 << 20)

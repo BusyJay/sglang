@@ -62,6 +62,7 @@ class TestGpuCache(unittest.TestCase):
         )
         runtime.reserve()
         from sglang.srt.model_loader.qwen38_nvfp4_pack.format import REQUIRED_TENSORS
+
         pointers = [
             runtime.caches[0]["w13_weight"].data_ptr(),
             runtime.arena["w13_weight"].data_ptr(),
@@ -110,6 +111,236 @@ class TestGpuCache(unittest.TestCase):
     def test_threaded_pipeline(self):
         self._exercise("threaded")
 
+    def test_slru_planner_matches_cpu_on_evictions_and_exports_routes(self):
+        import random
+        from sglang.kernels.ops.moe.qwen38_expert_cache import cache_plan, cache_route
+        from sglang.srt.layers.moe.qwen38_expert_cache import LayerExpertCachePolicy
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
+
+        runtime = Qwen38ThreadedExpertRuntime(
+            self.fixture.pack,
+            "cuda",
+            slots_per_layer=3,
+            cache_policy="slru",
+            cache_protected_fraction=0.5,
+        )
+        self.addCleanup(runtime.close)
+        runtime.reserve()
+        state = runtime.device_states[0]
+        plan = torch.empty(4 + 4 * 3, dtype=torch.int32, device="cuda")
+        reference = LayerExpertCachePolicy(4, 3, policy="slru", protected_fraction=0.5)
+        rng = random.Random(42)
+        for _ in range(64):
+            active = sorted(rng.sample(range(4), 2))
+            ids = torch.tensor([active], dtype=torch.int32, device="cuda")
+            remapped = torch.empty_like(ids)
+            cache_route(ids, state["lookup"], remapped, state["counts"])
+            cache_plan(
+                state["counts"],
+                state["lookup"],
+                state["keys"],
+                state["frequency"],
+                state["ages"],
+                state["generation"],
+                state["clock"],
+                plan,
+                policy=1,
+                protected_fraction=0.5,
+            )
+            mapping, misses = reference.ensure(active)
+            values = plan.cpu().tolist()
+            self.assertEqual(values[:4], [0, len(misses), 2, 0])
+            self.assertEqual(values[13:15], active)
+            self.assertEqual(
+                state["keys"].cpu().tolist(),
+                [
+                    -1 if slot.expert_id is None else slot.expert_id
+                    for slot in reference.slots
+                ],
+            )
+            self.assertEqual(
+                state["frequency"].cpu().tolist(),
+                [slot.frequency for slot in reference.slots],
+            )
+
+    def test_slru_threaded_weights_across_scan_and_rebalance(self):
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
+        from sglang.srt.model_loader.qwen38_nvfp4_pack.format import REQUIRED_TENSORS
+
+        runtime = Qwen38ThreadedExpertRuntime(
+            self.fixture.pack,
+            "cuda",
+            slots_per_layer=3,
+            cache_policy="slru",
+            adaptive_cache=True,
+            adaptive_cache_mode="sample",
+            adaptive_cache_window=16,
+        )
+        self.addCleanup(runtime.close)
+        runtime.reserve()
+        for step in range(40):
+            if step == 20:
+                runtime.adaptive_target = [2, 4]
+                runtime._maybe_rebalance()
+            for layer in (0, 1):
+                active = ((0, 1), (1, 2), (2, 3))[step % 3]
+                ids = torch.tensor([active], dtype=torch.int32, device="cuda")
+                output = runtime.run(
+                    layer,
+                    ids,
+                    lambda prepared: {
+                        name: prepared.tensors[name][prepared.topk_ids.long()].clone()
+                        for name in REQUIRED_TENSORS
+                    },
+                )
+                for name, tensor in output.items():
+                    expected = getattr(self.fixture.resident[layer], name)[ids.cpu()]
+                    self.assertTrue(torch.equal(tensor.cpu(), expected), name)
+        self.assertLess(runtime.host_plan_allocations, 20)
+
+    def test_threaded_sparse_prefill_arena_loads_only_routed_experts(self):
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
+        from sglang.srt.model_loader.qwen38_nvfp4_pack.format import REQUIRED_TENSORS
+
+        runtime = Qwen38ThreadedExpertRuntime(
+            self.fixture.pack, "cuda", slots_per_layer=2,
+        )
+        self.addCleanup(runtime.close)
+        runtime.reserve()
+        one_expert_bytes = sum(
+            self.fixture.pack.manifest.tensors[0][name].nbytes // 4
+            for name in REQUIRED_TENSORS
+        )
+        for pair, expected_loaded in (((0, 1), 2), ((0, 1), 0), ((2, 3), 2)):
+            ids = torch.tensor([pair, pair], dtype=torch.int32, device="cuda")
+            before = runtime.transferred_bytes
+            result = runtime.run(
+                0,
+                ids,
+                lambda prepared: prepared.tensors["w13_weight"][
+                    prepared.topk_ids.long()
+                ].clone(),
+            )
+            runtime.synchronize()
+            expected = self.fixture.resident[0].w13_weight[ids.cpu()]
+            self.assertTrue(torch.equal(result.cpu(), expected))
+            self.assertEqual(
+                runtime.transferred_bytes - before,
+                expected_loaded * one_expert_bytes,
+            )
+
+    def test_threaded_adaptive_repartition_preserves_budget_and_weights(self):
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
+        from sglang.srt.model_loader.qwen38_nvfp4_pack.format import REQUIRED_TENSORS
+
+        runtime = Qwen38ThreadedExpertRuntime(
+            self.fixture.pack,
+            "cuda",
+            slots_per_layer=3,
+            adaptive_cache=True,
+        )
+        self.addCleanup(runtime.close)
+        runtime.reserve()
+        pool_ptrs = {name: tensor.data_ptr() for name, tensor in runtime.cache_pool.items()}
+        for layout in ([3, 3], [2, 4], [4, 2]):
+            if layout != [3, 3]:
+                runtime.adaptive_target = layout
+                runtime._maybe_rebalance()
+            self.assertEqual(sum(runtime.layer_cache_slots), 6)
+            self.assertEqual(
+                {name: tensor.data_ptr() for name, tensor in runtime.cache_pool.items()},
+                pool_ptrs,
+            )
+            for layer in (0, 1):
+                ids = torch.tensor([[0, 1]], dtype=torch.int32, device="cuda")
+                misses_before = runtime.misses
+                output = runtime.run(
+                    layer,
+                    ids,
+                    lambda prepared: {
+                        name: prepared.tensors[name][prepared.topk_ids.long()].clone()
+                        for name in REQUIRED_TENSORS
+                    },
+                )
+                runtime.synchronize()
+                if layout != [3, 3]:
+                    self.assertEqual(runtime.misses, misses_before)
+                for name in REQUIRED_TENSORS:
+                    expected = getattr(self.fixture.resident[layer], name)[ids.cpu()]
+                    self.assertTrue(torch.equal(output[name].cpu(), expected), name)
+
+    def test_threaded_adaptive_hotspot_changes_layout(self):
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
+
+        runtime = Qwen38ThreadedExpertRuntime(
+            self.fixture.pack, "cuda", slots_per_layer=3,
+            adaptive_cache=True, adaptive_cache_window=16,
+        )
+        self.addCleanup(runtime.close)
+        runtime.reserve()
+        for step in range(16):
+            for layer, pair in (
+                (0, ((0, 1), (1, 2), (2, 3))[step % 3]),
+                (1, (0, 1)),
+            ):
+                ids = torch.tensor([pair], dtype=torch.int32, device="cuda")
+                runtime.run(
+                    layer, ids,
+                    lambda prepared: prepared.tensors["w13_weight"][prepared.topk_ids.long()].clone(),
+                )
+        runtime.jobs.join()
+        runtime.adaptive_samples.join()
+        self.assertEqual(runtime.adaptive_target, [4, 2])
+        runtime._maybe_rebalance()
+        self.assertEqual(runtime.layer_cache_slots, [4, 2])
+        self.assertEqual(runtime.adaptive_rebalances, 1)
+
+    def test_threaded_adaptive_retains_hot_nonprefix_slots(self):
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
+
+        runtime = Qwen38ThreadedExpertRuntime(
+            self.fixture.pack,
+            "cuda",
+            slots_per_layer=3,
+            adaptive_cache=True,
+        )
+        self.addCleanup(runtime.close)
+        runtime.reserve()
+        for pair in ((0, 1), (2, 3), (2, 3), (2, 3)):
+            ids = torch.tensor([pair], dtype=torch.int32, device="cuda")
+            runtime.run(
+                0,
+                ids,
+                lambda prepared: prepared.tensors["w13_weight"][
+                    prepared.topk_ids.long()
+                ].clone(),
+            )
+        runtime.synchronize()
+        runtime.adaptive_target = [2, 4]
+        runtime._maybe_rebalance()
+        misses_before = runtime.misses
+        ids = torch.tensor([[2, 3]], dtype=torch.int32, device="cuda")
+        actual = runtime.run(
+            0, ids,
+            lambda prepared: prepared.tensors["w13_weight"][prepared.topk_ids.long()].clone(),
+        )
+        runtime.synchronize()
+        self.assertEqual(runtime.misses, misses_before)
+        expected = self.fixture.resident[0].w13_weight[ids.cpu()]
+        self.assertTrue(torch.equal(actual.cpu(), expected))
+
     def test_threaded_bulk_split_inside_float_tensor(self):
         # Odd byte boundaries deliberately split float32 alpha tensors too.
         self._exercise("threaded", staging_buffer_bytes=11)
@@ -151,7 +382,9 @@ class TestGpuCache(unittest.TestCase):
         self._exercise("device", layer_cache_slots=[2, 3])
 
     def test_warm_seed_decode_hit_avoids_h2d(self):
-        from sglang.srt.layers.moe.qwen38_cache_threaded import Qwen38ThreadedExpertRuntime
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
         from sglang.srt.model_loader.qwen38_nvfp4_pack.format import REQUIRED_TENSORS
 
         runtime = Qwen38ThreadedExpertRuntime(

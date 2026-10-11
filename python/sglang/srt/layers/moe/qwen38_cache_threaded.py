@@ -17,6 +17,13 @@ from __future__ import annotations
 import os
 import queue
 import threading
+import logging
+import time
+import json
+import subprocess
+import sys
+import select
+from pathlib import Path
 from dataclasses import dataclass, field
 
 import torch
@@ -24,6 +31,10 @@ import torch
 from sglang.kernels.ops.moe.qwen38_expert_cache import cache_plan, cache_route
 from sglang.srt.layers.moe.qwen38_cache_device import Qwen38DeviceExpertRuntime
 from sglang.srt.layers.moe.qwen38_cache_runtime import PreparedExperts
+from sglang.srt.layers.moe.qwen38_expert_cache import LayerExpertCachePolicy
+from sglang.srt.model_loader.qwen38_nvfp4_pack.format import REQUIRED_TENSORS
+
+logger = logging.getLogger(__name__)
 
 
 def _ready_timeout_seconds() -> float | None:
@@ -47,6 +58,7 @@ class TransferJob:
     planned: object
     computed: object
     launched: threading.Event
+    sample: tuple[int, int] | None = None  # observation cycle, offset within window
     ready: object = None  # CUDA event recorded on the transfer stream by worker
     error: BaseException | None = None  # set instead of ready when transport fails
     ready_set: threading.Event = field(
@@ -55,8 +67,60 @@ class TransferJob:
 
 
 class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
-    def __init__(self, pack, device, *, max_pending=64, **kwargs):
+    def __init__(
+        self,
+        pack,
+        device,
+        *,
+        max_pending=64,
+        adaptive_cache=False,
+        adaptive_cache_window=512,
+        adaptive_cache_interval=4096,
+        adaptive_cache_mode="rebalance",
+        cache_policy="lfu",
+        cache_protected_fraction=0.7,
+        **kwargs,
+    ):
         super().__init__(pack, device, **kwargs)
+        if not isinstance(adaptive_cache, bool):
+            raise ValueError("adaptive_cache must be a boolean")
+        self.adaptive_cache = adaptive_cache
+        if type(adaptive_cache_window) is not int or adaptive_cache_window < 16:
+            raise ValueError("adaptive_cache_window must be an integer >= 16")
+        self.adaptive_cache_window = adaptive_cache_window
+        if type(adaptive_cache_interval) is not int or adaptive_cache_interval < 0:
+            raise ValueError("adaptive_cache_interval must be a non-negative integer")
+        if adaptive_cache_mode not in ("rebalance", "observe", "sample"):
+            raise ValueError("adaptive_cache_mode must be rebalance, observe or sample")
+        if cache_policy not in ("lfu", "slru") or not 0 <= cache_protected_fraction < 1:
+            raise ValueError("invalid cache policy or protected fraction")
+        self.adaptive_cache_interval = adaptive_cache_interval
+        self.adaptive_cache_mode = adaptive_cache_mode
+        self.cache_policy = cache_policy
+        self.cache_protected_fraction = cache_protected_fraction
+        self.adaptive_steps = [0] * self.manifest.num_layers
+        self.adaptive_process = None
+        self.analysis_stopping = threading.Event()
+        self.adaptive_evaluations = 0
+        self.adaptive_analysis_seconds = 0.0
+        self.adaptive_last_evaluation = None
+        self.host_plans = {}
+        self.host_plan_allocations = 0
+        self.cache_pool = None
+        self.adaptive_samples = None
+        self.adaptive_worker = None
+        self.adaptive_target = None
+        self.adaptive_lock = threading.Lock()
+        self.adaptive_rebalances = 0
+        self.adaptive_sample_drops = 0
+        self.adaptive_migrated_experts = 0
+        self.adaptive_evicted_experts = 0
+        self.adaptive_last_rebalance_seconds = 0.0
+        self.layer_hits = [0] * self.manifest.num_layers
+        self.layer_misses = [0] * self.manifest.num_layers
+        # None means the shared prefill arena contains every expert of its
+        # current layer; otherwise this set tracks only loaded expert IDs.
+        self.arena_residents = set()
         if not 1 <= max_pending <= 1024:
             raise ValueError("max_pending must be between 1 and 1024")
         self.jobs = queue.Queue(maxsize=max_pending)
@@ -69,12 +133,47 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         self.reaper = None
 
     def reserve(self):
+        if self.adaptive_cache:
+            budget = sum(self.layer_cache_slots)
+            first = self.manifest.tensors[0]
+            self.cache_pool = {
+                name: torch.zeros(
+                    (budget, *first[name].shape[1:]),
+                    dtype=getattr(torch, first[name].dtype),
+                    device=self.device,
+                )
+                for name in REQUIRED_TENSORS
+            }
+            self.transfer.wait_stream(torch.cuda.current_stream(self.device))
+            self._assign_pool_views(self.layer_cache_slots)
+            self.adaptive_samples = queue.Queue(maxsize=4096)
         super().reserve()
         # Precompile the JIT routing/planner before creating the worker or
         # issuing any runtime job so failures surface at startup.
         from sglang.kernels.ops.moe.qwen38_expert_cache import _module
 
         _module()
+        if self.adaptive_cache:
+            # Extra plan tail exports compact original expert IDs. No second
+            # histogram D2H, memset or routing kernel is needed for sampling.
+            for state in self.device_states.values():
+                state["plan"] = torch.empty(
+                    4 + 4 * state["keys"].numel(), dtype=torch.int32, device=self.device
+                )
+            self.metadata_stream.wait_stream(torch.cuda.current_stream(self.device))
+            if self.adaptive_cache_mode != "sample":
+                self.adaptive_process = subprocess.Popen(
+                    [
+                        sys.executable,
+                        str(
+                            Path(__file__).with_name("qwen38_cache_analysis_worker.py")
+                        ),
+                    ],
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    text=True,
+                    bufsize=1,
+                )
         self.worker = threading.Thread(
             target=self._work, name="qwen38-expert-h2d", daemon=True
         )
@@ -83,6 +182,322 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         )
         self.reaper.start()
         self.worker.start()
+        if self.adaptive_cache:
+            self.adaptive_worker = threading.Thread(
+                target=self._analyze_routes, name="qwen38-cache-adaptive", daemon=True
+            )
+            self.adaptive_worker.start()
+
+    def _assign_pool_views(self, layout):
+        offset = 0
+        for layer, slots in enumerate(layout):
+            self.caches[layer] = {
+                name: tensor.narrow(0, offset, slots)
+                for name, tensor in self.cache_pool.items()
+            }
+            offset += slots
+        if offset > next(iter(self.cache_pool.values())).shape[0]:
+            raise ValueError("adaptive layout exceeds expert-cache GPU budget")
+
+    def _host_plan(self, source):
+        size = source.numel()
+        pool = self.host_plans.get(size)
+        if pool is None:
+            pool = self.host_plans[size] = queue.SimpleQueue()
+        try:
+            return pool.get_nowait()
+        except queue.Empty:
+            self.host_plan_allocations += 1
+            return torch.empty_like(source, device="cpu", pin_memory=True)
+
+    def _sample_position(self, layer, topk_ids):
+        if not self.adaptive_cache:
+            return None
+        if topk_ids.shape[0] != 1:
+            # Do not join decode observations across unobserved prefill/batches.
+            period = self.adaptive_cache_window + self.adaptive_cache_interval
+            self.adaptive_steps[layer] = (
+                self.adaptive_steps[layer] // period + 1
+            ) * period
+            return None
+        step = self.adaptive_steps[layer]
+        self.adaptive_steps[layer] += 1
+        cycle, index = divmod(
+            step, self.adaptive_cache_window + self.adaptive_cache_interval
+        )
+        return (cycle, index) if index < self.adaptive_cache_window else None
+
+    def _migrate_pool(self, target):
+        from sglang.srt.layers.moe.qwen38_cache_adaptive import relocate_slots
+
+        old_offsets = []
+        new_offsets = []
+        old_cursor = new_cursor = 0
+        for old_slots, new_slots in zip(self.layer_cache_slots, target):
+            old_offsets.append(old_cursor)
+            new_offsets.append(new_cursor)
+            old_cursor += old_slots
+            new_cursor += new_slots
+        moves = {}
+        retained = {}
+        occupied = evicted = 0
+        for layer, new_slots in enumerate(target):
+            state = self.device_states[layer]
+            keys = state["keys"].cpu().tolist()
+            frequency = state["frequency"].cpu().tolist()
+            ages = state["ages"].cpu().tolist()
+            residents = [slot for slot, expert in enumerate(keys) if expert >= 0]
+            occupied += len(residents)
+            residents.sort(key=lambda slot: (-frequency[slot], -ages[slot]))
+            selected = residents[:new_slots]
+            evicted += len(residents) - len(selected)
+            retained[layer] = [
+                (keys[slot], frequency[slot], ages[slot]) for slot in selected
+            ]
+            for new_slot, old_slot in enumerate(selected):
+                moves[old_offsets[layer] + old_slot] = new_offsets[layer] + new_slot
+        with torch.cuda.stream(torch.cuda.current_stream(self.device)):
+            for pool in self.cache_pool.values():
+                scratch = torch.empty_like(pool[0])
+                relocate_slots(
+                    moves,
+                    lambda src, dst: pool[dst].copy_(pool[src]),
+                    lambda src: scratch.copy_(pool[src]),
+                    lambda dst: pool[dst].copy_(scratch),
+                )
+        self.transfer.wait_stream(torch.cuda.current_stream(self.device))
+        return retained, occupied - evicted, evicted
+
+    def _restore_device_policy(self, retained):
+        for layer, records in retained.items():
+            if not records:
+                continue
+            state = self.device_states[layer]
+            experts = torch.tensor(
+                [record[0] for record in records], dtype=torch.int64,
+                device=self.device,
+            )
+            slots = torch.arange(len(records), dtype=torch.int32, device=self.device)
+            state["lookup"][experts] = slots
+            state["keys"][:len(records)].copy_(experts.to(torch.int32))
+            state["frequency"][:len(records)].copy_(torch.tensor(
+                [record[1] for record in records], dtype=torch.float32,
+                device=self.device,
+            ))
+            state["ages"][:len(records)].copy_(torch.tensor(
+                [record[2] for record in records], dtype=torch.int64,
+                device=self.device,
+            ))
+            state["generation"][:len(records)].fill_(1)
+            state["clock"].fill_(max(record[2] for record in records))
+
+    def _fill_arena_selected(self, layer, experts):
+        """Copy contiguous runs of routed experts into their original IDs."""
+        if not experts:
+            return
+        runs = []
+        start = previous = experts[0]
+        for expert in experts[1:]:
+            if expert != previous + 1:
+                runs.append((start, previous + 1))
+                start = expert
+            previous = expert
+        runs.append((start, previous + 1))
+        entries = []
+        try:
+            for name in REQUIRED_TENSORS:
+                record = self.manifest.tensors[layer][name]
+                expert_bytes = record.nbytes // self.manifest.num_experts
+                source = self.pack.tensor_bytes(layer, name)
+                try:
+                    for first, end in runs:
+                        entries.append((
+                            source[first * expert_bytes : end * expert_bytes],
+                            self.arena[name][first:end],
+                        ))
+                finally:
+                    source.release()
+            self._copy_batch(entries)
+        except BaseException:
+            for source, _ in entries:
+                source.release()
+            raise
+
+    def _ensure_arena_experts(self, layer, counts):
+        if self.arena_layer != layer:
+            self.arena_residents = set()
+        if self.arena_residents is None:
+            return False
+        missing = [
+            expert for expert, count in enumerate(counts[:-1])
+            if count and expert not in self.arena_residents
+        ]
+        if not missing:
+            return False
+        # Sparse copies avoid transferring the other experts on short prefills.
+        # Dense routing keeps the six large contiguous transfers, which are
+        # cheaper than hundreds of small H2Ds.
+        if len(missing) * 4 >= self.manifest.num_experts * 3:
+            self._fill_arena(layer)
+            self.arena_residents = None
+        else:
+            self._fill_arena_selected(layer, missing)
+            self.arena_residents.update(missing)
+        return True
+
+    def _analyze_routes(self):
+        cycle = None
+        routes = None
+        while not self.analysis_stopping.is_set():
+            try:
+                item = self.adaptive_samples.get(timeout=1)
+            except queue.Empty:
+                continue
+            if item is None:
+                self.adaptive_samples.task_done()
+                return
+            try:
+                layer, sample_cycle, index, active = item
+                if cycle != sample_cycle:
+                    cycle = sample_cycle
+                    routes = [[] for _ in range(self.manifest.num_layers)]
+                if routes is None:
+                    continue
+                if len(routes[layer]) != index:
+                    # Never replay a sequence with dropped samples as contiguous.
+                    routes = None
+                    continue
+                routes[layer].append(active)
+                if min(map(len, routes)) < self.adaptive_cache_window:
+                    continue
+                if self.adaptive_cache_mode == "sample":
+                    routes = None
+                    continue
+                with self.adaptive_lock:
+                    current = list(self.layer_cache_slots)
+                request = dict(
+                    routes=routes,
+                    current=current,
+                    num_experts=self.manifest.num_experts,
+                    top_k=self.manifest.top_k,
+                    policy=self.cache_policy,
+                    protected_fraction=self.cache_protected_fraction,
+                )
+                self.adaptive_process.stdin.write(json.dumps(request) + "\n")
+                self.adaptive_process.stdin.flush()
+                deadline = time.monotonic() + 120
+                while not select.select([self.adaptive_process.stdout], [], [], 1)[0]:
+                    if self.analysis_stopping.is_set():
+                        return
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError("adaptive cache analysis timed out")
+                reply = json.loads(self.adaptive_process.stdout.readline())
+                routes = None
+                self.adaptive_evaluations += 1
+                self.adaptive_analysis_seconds += reply["seconds"]
+                self.adaptive_last_evaluation = reply["evaluation"]
+                logger.info(
+                    "Qwen38 adaptive cache evaluation: %s; analysis=%.3fs",
+                    reply["evaluation"],
+                    reply["seconds"],
+                )
+                if (
+                    reply["target"] is not None
+                    and self.adaptive_cache_mode == "rebalance"
+                ):
+                    with self.adaptive_lock:
+                        self.adaptive_target = reply["target"]
+            except BaseException:
+                logger.exception("Disabling adaptive expert-cache analysis")
+                self.adaptive_cache = False
+                return
+            finally:
+                self.adaptive_samples.task_done()
+
+    def _maybe_rebalance(self):
+        with self.adaptive_lock:
+            target = self.adaptive_target
+            self.adaptive_target = None
+            if target is None or target == self.layer_cache_slots:
+                return
+            with self.lock:
+                try:
+                    started = time.perf_counter()
+                    self.jobs.join()
+                    self.metadata_stream.synchronize()
+                    self.transfer.synchronize()
+                    torch.cuda.synchronize(self.device)
+                    old = self.layer_cache_slots
+                    retained, migrated, evicted = self._migrate_pool(target)
+                    self._assign_pool_views(target)
+                    self.layer_cache_slots = list(target)
+                    self.max_layer_slots = max(target)
+                    self.policies = {
+                        layer: LayerExpertCachePolicy(self.manifest.num_experts, slots)
+                        for layer, slots in enumerate(target)
+                    }
+                    self.device_states.clear()
+                    self.slot_ready.clear()
+                    self.slot_last_use.clear()
+                    self.warm_ready.clear()
+                    self.layer_computed.clear()
+                    for layer in range(self.manifest.num_layers):
+                        state = self._state(layer)
+                        state["plan"] = torch.empty(
+                            4 + 4 * target[layer], dtype=torch.int32, device=self.device
+                        )
+                    self._restore_device_policy(retained)
+                    if self.cache_policy == "slru":
+                        for layer, state in self.device_states.items():
+                            # Retention sorting puts protected residents first.
+                            # Shrinking also shrinks the protected-segment bound.
+                            state["frequency"][
+                                int(target[layer] * self.cache_protected_fraction) :
+                            ].zero_()
+                    self.metadata_stream.wait_stream(torch.cuda.current_stream(self.device))
+                    self.transfer.wait_stream(torch.cuda.current_stream(self.device))
+                    torch.cuda.current_stream(self.device).synchronize()
+                except BaseException:
+                    self.poisoned = True
+                    raise
+                self.adaptive_rebalances += 1
+                self.adaptive_migrated_experts += migrated
+                self.adaptive_evicted_experts += evicted
+                self.adaptive_last_rebalance_seconds = time.perf_counter() - started
+                logger.info(
+                    "Qwen38 adaptive cache: layer slots %s -> %s; "
+                    "migrated=%d evicted=%d pause=%.3fs",
+                    old, target, migrated, evicted,
+                    self.adaptive_last_rebalance_seconds,
+                )
+
+    def stats_snapshot(self):
+        result = super().stats_snapshot()
+        if self.adaptive_cache:
+            result.update(
+                adaptive_rebalances=self.adaptive_rebalances,
+                adaptive_sample_drops=self.adaptive_sample_drops,
+                adaptive_migrated_experts=self.adaptive_migrated_experts,
+                adaptive_evicted_experts=self.adaptive_evicted_experts,
+                adaptive_last_rebalance_seconds=self.adaptive_last_rebalance_seconds,
+                layer_hits=list(self.layer_hits),
+                layer_misses=list(self.layer_misses),
+                adaptive_evaluations=self.adaptive_evaluations,
+                adaptive_analysis_seconds=self.adaptive_analysis_seconds,
+                adaptive_last_evaluation=self.adaptive_last_evaluation,
+            )
+        result.update(
+            cache_policy=self.cache_policy,
+            cache_protected_fraction=self.cache_protected_fraction,
+            layer_cache_slots=list(self.layer_cache_slots),
+            layer_hits=list(self.layer_hits),
+            layer_misses=list(self.layer_misses),
+            adaptive_cache_mode=self.adaptive_cache_mode,
+            adaptive_cache_window=self.adaptive_cache_window,
+            adaptive_cache_interval=self.adaptive_cache_interval,
+            host_plan_allocations=self.host_plan_allocations,
+        )
+        return result
 
     def _raise_error(self):
         if self.poisoned:
@@ -130,20 +545,28 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                     if self.worker_error is not None:
                         raise RuntimeError("previous transfer failed")
                     if job.arena:
-                        counts = job.plan.tolist() if self.warm_decode_cache else None
-                        if (counts[-1] if counts is not None else job.plan.item()):
+                        counts = job.plan.tolist()
+                        if counts[-1]:
                             raise ValueError("invalid prefill route ID")
                         if self.arena_layer != job.layer:
                             if self.arena_last_use is not None:
                                 self.transfer.wait_event(self.arena_last_use)
                             self.arena_layer = None
-                            self._fill_arena(job.layer)
+                            loaded = self._ensure_arena_experts(job.layer, counts)
                             self.arena_layer = job.layer
-                            self.arena_loads += 1
                         elif self.arena_last_use is not None:
                             self.transfer.wait_event(self.arena_last_use)
+                            loaded = self._ensure_arena_experts(job.layer, counts)
+                        else:
+                            loaded = self._ensure_arena_experts(job.layer, counts)
+                        if loaded:
+                            self.arena_loads += 1
                         if self.warm_decode_cache:
                             self._warm_from_arena(job.layer, counts[:-1])
+                            if self.cache_policy == "slru":
+                                # Prefill counts seed probation; decode reuse promotes.
+                                with torch.cuda.stream(self.transfer):
+                                    self.device_states[job.layer]["frequency"].zero_()
                         # Metadata (route/plan kernels) ran on the metadata
                         # stream; nothing else needs to move for full reads.
                         self._finish_job(job)
@@ -155,6 +578,13 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                         if status or arena:
                             raise ValueError(
                                 f"unexpected device transfer plan: status={status}, arena={arena}"
+                            )
+                        sample = None
+                        if job.sample is not None:
+                            sample = (
+                                job.layer,
+                                *job.sample,
+                                values[4 + 3 * capacity : 4 + 3 * capacity + active],
                             )
                         active_slots = values[
                             4
@@ -176,9 +606,17 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                             self.slot_last_use[job.layer][slot] = job.computed
                         self.misses += misses
                         self.hits += active - misses
+                        self.layer_misses[job.layer] += misses
+                        self.layer_hits[job.layer] += active - misses
                         # Hits may need no copy at all; the ready event still
                         # has to exist and order any misses that were issued.
                         self._finish_job(job, record_event=bool(misses))
+                        # Publish readiness before any analysis queue work.
+                        if sample is not None and self.adaptive_cache:
+                            try:
+                                self.adaptive_samples.put_nowait(sample)
+                            except queue.Full:
+                                self.adaptive_sample_drops += 1
                     job = None
                 except BaseException as error:
                     if job is None:
@@ -208,6 +646,8 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                 except BaseException as error:
                     self.worker_error = error
                 finally:
+                    if job.plan is not None and hasattr(self, "host_plans"):
+                        self.host_plans[job.plan.numel()].put(job.plan)
                     self.capacity.release()
                     self.jobs.task_done()
                     self.retired.task_done()
@@ -224,6 +664,17 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                 self.worker.join()
                 self.retired.put(None)
                 self.reaper.join()
+            if self.adaptive_worker is not None and self.adaptive_worker.is_alive():
+                self.analysis_stopping.set()
+                self.adaptive_worker.join()
+            if self.adaptive_process is not None:
+                self.adaptive_process.stdin.close()
+                try:
+                    self.adaptive_process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    self.adaptive_process.kill()
+                    self.adaptive_process.wait()
+                self.adaptive_process.stdout.close()
 
     def memory_budget(self):
         result = super().memory_budget()
@@ -231,14 +682,16 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         result["max_pending_plan_bytes"] = (
             self.jobs.maxsize
             * max(
-                4 + 3 * self.max_layer_slots,
-                self.manifest.num_experts + 1 if self.warm_decode_cache else 1,
+                4 + (4 if self.adaptive_cache else 3) * self.max_layer_slots,
+                self.manifest.num_experts + 1,
             )
             * 4
         )
         return result
 
     def run(self, layer_id, topk_ids, execute):
+        if self.adaptive_cache and self.adaptive_target is not None:
+            self._maybe_rebalance()
         with self.lock, torch.no_grad(), torch.cuda.device(self.device):
             self._raise_error()
             if torch.cuda.is_current_stream_capturing():
@@ -267,6 +720,7 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             planned = torch.cuda.Event()
             computed = torch.cuda.Event()
             plan = None
+            sample = self._sample_position(layer_id, topk_ids)
             previous = self.layer_computed.get(layer_id)
             try:
                 if previous is not None:
@@ -280,11 +734,8 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                     with torch.cuda.stream(self.metadata_stream):
                         scratch = torch.empty_like(topk_ids)
                         cache_route(topk_ids, state["lookup"], scratch, state["counts"])
-                        counters = (
-                            state["counts"] if self.warm_decode_cache else state["counts"][-1:]
-                        )
-                        plan = torch.empty_like(counters, device="cpu", pin_memory=True)
-                        plan.copy_(counters, non_blocking=True)
+                        plan = self._host_plan(state["counts"])
+                        plan.copy_(state["counts"], non_blocking=True)
                         planned.record(self.metadata_stream)
                     topk_ids.record_stream(self.metadata_stream)
                 else:
@@ -302,19 +753,24 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                             state["generation"],
                             state["clock"],
                             state["plan"],
+                            policy=int(self.cache_policy == "slru"),
+                            protected_fraction=self.cache_protected_fraction,
                         )
                         cache_route(
                             topk_ids, state["lookup"], remapped, state["counts"]
                         )
-                        plan = torch.empty_like(
-                            state["plan"], device="cpu", pin_memory=True
-                        )
-                        plan.copy_(state["plan"], non_blocking=True)
+                        source = state["plan"]
+                        if sample is None and source.numel() != 4 + 3 * capacity:
+                            source = source[: 4 + 3 * capacity]
+                        plan = self._host_plan(source)
+                        plan.copy_(source, non_blocking=True)
                         planned.record(self.metadata_stream)
                     topk_ids.record_stream(self.metadata_stream)
                     remapped.record_stream(compute)
                 compute.wait_event(planned)
-                job = TransferJob(layer_id, arena, plan, planned, computed, launched)
+                job = TransferJob(
+                    layer_id, arena, plan, planned, computed, launched, sample
+                )
                 self.jobs.put_nowait(job)
                 queued = True
                 timeout = _ready_timeout_seconds()
@@ -348,6 +804,10 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                 return result
             except BaseException:
                 if not queued:
+                    if plan is not None:
+                        # A failed copy/launch must finish before reusing its host buffer.
+                        self.metadata_stream.synchronize()
+                        self.host_plans[plan.numel()].put(plan)
                     self.capacity.release()
                 raise
             finally:
