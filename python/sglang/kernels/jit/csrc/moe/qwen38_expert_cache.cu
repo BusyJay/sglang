@@ -4,6 +4,47 @@
 #include "tvm_ffi_utils.h"
 
 namespace {
+__global__ void alpha_scatter_kernel(const float* g1, const float* g2,
+                                     float* slot_g1, float* slot_g2,
+                                     const int32_t* plan, int experts, int slots) {
+  if (plan[0] || plan[3]) return;
+  for (int i = threadIdx.x; i < plan[1] && i < slots; i += blockDim.x) {
+    int expert = plan[4 + 2 * i], slot = plan[5 + 2 * i];
+    if (expert >= 0 && expert < experts && slot >= 0 && slot < slots) {
+      slot_g1[slot] = g1[expert];
+      slot_g2[slot] = g2[expert];
+    }
+  }
+}
+}
+
+struct Qwen38CacheAlphaScatter {
+  static void run(TensorView g1, TensorView g2, TensorView slot_g1,
+                  TensorView slot_g2, TensorView plan) {
+    CHECK_INPUT_AND_TYPE(g1, dl_float32); CHECK_INPUT_AND_TYPE(g2, dl_float32);
+    CHECK_INPUT_AND_TYPE(slot_g1, dl_float32); CHECK_INPUT_AND_TYPE(slot_g2, dl_float32);
+    CHECK_INPUT_AND_TYPE(plan, dl_int32);
+    CHECK_DIM(1, g1); CHECK_DIM(1, g2); CHECK_DIM(1, slot_g1);
+    CHECK_DIM(1, slot_g2); CHECK_DIM(1, plan);
+    CHECK_DEVICE(g1, g2); CHECK_DEVICE(g1, slot_g1);
+    CHECK_DEVICE(g1, slot_g2); CHECK_DEVICE(g1, plan);
+    TVM_FFI_ICHECK_GT(g1.size(0), 0);
+    TVM_FFI_ICHECK_GT(slot_g1.size(0), 0);
+    TVM_FFI_ICHECK_LE(slot_g1.size(0), g1.size(0));
+    TVM_FFI_ICHECK_EQ(g1.size(0), g2.size(0));
+    TVM_FFI_ICHECK_EQ(slot_g1.size(0), slot_g2.size(0));
+    TVM_FFI_ICHECK(plan.size(0) == 4 + 3 * slot_g1.size(0) ||
+                  plan.size(0) == 4 + 4 * slot_g1.size(0));
+    alpha_scatter_kernel<<<1, 128, 0, get_stream(g1.device())>>>(
+        static_cast<const float*>(g1.data_ptr()), static_cast<const float*>(g2.data_ptr()),
+        static_cast<float*>(slot_g1.data_ptr()), static_cast<float*>(slot_g2.data_ptr()),
+        static_cast<const int32_t*>(plan.data_ptr()), g1.size(0), slot_g1.size(0));
+    auto status = cudaGetLastError();
+    TVM_FFI_ICHECK_EQ(status, cudaSuccess) << cudaGetErrorString(status);
+  }
+};
+
+namespace {
 template <typename T>
 __global__ void scatter_kernel(const T* cache, T* arena,
                                const int32_t* keys, const int32_t* counts,

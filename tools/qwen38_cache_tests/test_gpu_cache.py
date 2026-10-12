@@ -111,6 +111,111 @@ class TestGpuCache(unittest.TestCase):
     def test_threaded_pipeline(self):
         self._exercise("threaded")
 
+    def test_decode_transport_options_preserve_all_tensors_and_migration(self):
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
+        from sglang.srt.model_loader.qwen38_nvfp4_pack.format import REQUIRED_TENSORS
+
+        for alphas in (False, True):
+            with self.subTest(alphas=alphas):
+                runtime = Qwen38ThreadedExpertRuntime(
+                    self.fixture.pack,
+                    "cuda",
+                    slots_per_layer=2,
+                    layer_cache_slots=[2, 4],
+                    adaptive_cache=True,
+                    adaptive_cache_mode="sample",
+                    prefill_seed_cache=False,
+                    staging_buffer_bytes=11,
+                    resident_alphas=alphas,
+                )
+                self.addCleanup(runtime.close)
+                runtime.reserve()
+                streams = [torch.cuda.Stream(), torch.cuda.Stream()]
+                calls_before = runtime.h2d_copy_calls
+                misses_before = runtime.misses
+                bytes_before = runtime.transferred_bytes
+                row_bytes = sum(
+                    self.fixture.pack.manifest.tensors[0][name].nbytes // 4
+                    for name in REQUIRED_TENSORS
+                )
+                # Two misses, all hits, eviction, duplicate and padding.
+                for step, pair in enumerate(((0, 1), (0, 1), (2, 3), (3, 3), (-1, 3))):
+                    with torch.cuda.stream(streams[step % 2]):
+                        ids = torch.tensor([pair], dtype=torch.int32, device="cuda")
+                        output = runtime.run(
+                            0,
+                            ids,
+                            lambda prepared: {
+                                name: prepared.tensors[name][
+                                    prepared.topk_ids.long()
+                                ].clone()
+                                for name in REQUIRED_TENSORS
+                            },
+                        )
+                    runtime.synchronize()
+                    valid = torch.tensor(pair) >= 0
+                    for name in REQUIRED_TENSORS:
+                        expected = getattr(self.fixture.resident[0], name)[
+                            torch.tensor(pair)[valid]
+                        ]
+                        self.assertTrue(
+                            torch.equal(output[name].cpu()[0, valid], expected), name
+                        )
+                self.assertEqual(runtime.misses - misses_before, 4)
+                self.assertEqual(
+                    runtime.transferred_bytes - bytes_before,
+                    4 * (row_bytes - (8 if alphas else 0)),
+                )
+                self.assertEqual(
+                    runtime.decode_alpha_h2d_calls_avoided, 8 if alphas else 0
+                )
+                if alphas:
+                    self.assertEqual(
+                        runtime.memory_budget()["resident_alpha_bytes"], 64
+                    )
+                self.assertGreater(runtime.h2d_copy_calls, calls_before)
+                runtime.adaptive_target = [4, 2]
+                runtime._maybe_rebalance()
+                for pair in ((2, 3), (0, 1)):
+                    ids = torch.tensor([pair], dtype=torch.int32, device="cuda")
+                    output = runtime.run(
+                        0,
+                        ids,
+                        lambda prepared: {
+                            name: prepared.tensors[name][prepared.topk_ids.long()].clone()
+                            for name in REQUIRED_TENSORS
+                        },
+                    )
+                    runtime.synchronize()
+                    for name in REQUIRED_TENSORS:
+                        expected = getattr(self.fixture.resident[0], name)[ids.cpu()]
+                        self.assertTrue(
+                            torch.equal(output[name].cpu(), expected), name
+                        )
+                runtime.close()
+
+    def test_alpha_scatter_updates_only_misses_and_rejects_invalid_plan(self):
+        from sglang.kernels.ops.moe.qwen38_expert_cache import cache_alpha_scatter
+
+        for plan_size in (10, 12):  # ordinary and adaptive plan layouts
+            g1 = torch.tensor([1.0, 2.0, 3.0, 4.0], device="cuda")
+            g2 = g1 + 10
+            slot_g1 = torch.full((2,), -9.0, device="cuda")
+            slot_g2 = torch.full((2,), -8.0, device="cuda")
+            plan = torch.zeros(plan_size, dtype=torch.int32, device="cuda")
+            plan[:6] = torch.tensor([0, 1, 1, 0, 3, 1], device="cuda")
+            cache_alpha_scatter(g1, g2, slot_g1, slot_g2, plan)
+            self.assertEqual(slot_g1.tolist(), [-9.0, 4.0])
+            self.assertEqual(slot_g2.tolist(), [-8.0, 14.0])
+            for status, arena in ((1, 0), (0, 1)):
+                plan[0], plan[3] = status, arena
+                plan[4] = 0
+                cache_alpha_scatter(g1, g2, slot_g1, slot_g2, plan)
+                self.assertEqual(slot_g1.tolist(), [-9.0, 4.0])
+                self.assertEqual(slot_g2.tolist(), [-8.0, 14.0])
+
     def test_slru_planner_matches_cpu_on_evictions_and_exports_routes(self):
         import random
         from sglang.kernels.ops.moe.qwen38_expert_cache import cache_plan, cache_route

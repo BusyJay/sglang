@@ -40,7 +40,8 @@ class TestBackgroundTransport(unittest.TestCase):
             {
                 "torch": fake_torch,
                 "sglang.kernels.ops.moe.qwen38_expert_cache": SimpleNamespace(
-                    cache_plan=None, cache_route=None, cache_scatter=None
+                    cache_plan=None, cache_route=None, cache_scatter=None,
+                    cache_alpha_scatter=None,
                 ),
                 "sglang.srt.layers.moe.qwen38_cache_device": SimpleNamespace(
                     Qwen38DeviceExpertRuntime=object
@@ -75,6 +76,8 @@ class TestBackgroundTransport(unittest.TestCase):
         runtime.cache_policy = "lfu"
         runtime.prefill_reuse_cache = False
         runtime.prefill_seed_cache = False
+        runtime.resident_alphas = False
+        runtime.decode_copy_names = tuple(self.module.REQUIRED_TENSORS)
         runtime.prefill_h2d_bytes = 0
         runtime.prefill_host_dispatch_seconds = 0.0
         runtime.transferred_bytes = 0
@@ -293,6 +296,59 @@ class TestBackgroundTransport(unittest.TestCase):
         runtime._fill_arena_selected.assert_not_called()
         scatter.assert_not_called()
         self.assertIsNone(runtime.arena_residents)
+
+    def test_alpha_update_failure_poisoning_precedes_ready_notice(self):
+        runtime = self._runtime(1)
+        runtime.resident_alphas = True
+        runtime.adaptive_cache = False
+        # Resident alpha tables replace the two per-slot alpha H2Ds, so the
+        # per-expert copy set must shrink to the weight tensors only.
+        runtime.decode_copy_names = ("w1",)
+        runtime.caches = {
+            0: {"w1": "slot_w1", "g1_alphas": "slot_g1", "g2_alphas": "slot_g2"}
+        }
+        runtime.alpha_tables = {0: {"g1_alphas": "g1", "g2_alphas": "g2"}}
+        runtime.device_states = {0: {"plan": "device_plan"}}
+        runtime.decode_alpha_h2d_calls_avoided = 0
+        runtime.slot_last_use = {0: [None, None]}
+        runtime._fill = mock.Mock()
+        job = self._job(
+            SimpleNamespace(synchronize=lambda: None),
+            SimpleNamespace(synchronize=lambda: None),
+        )
+        job.arena = False
+        job.plan = SimpleNamespace(tolist=lambda: [0, 1, 1, 0, 2, 0, 0, 0, 0])
+        runtime.capacity.acquire()
+        with mock.patch.object(
+            self.module,
+            "cache_alpha_scatter",
+            side_effect=RuntimeError("alpha write failed"),
+        ) as scatter, mock.patch.object(
+            self.module.torch.cuda,
+            "stream",
+            create=True,
+            new=lambda _: contextlib.nullcontext(),
+        ):
+            worker, reaper = self._threads(runtime)
+            try:
+                runtime.jobs.put(job)
+                self.assertTrue(job.ready_set.wait(3))
+                runtime.jobs.join()
+                self.assertIsInstance(job.error, RuntimeError)
+                self.assertIsNone(job.ready)
+                self.assertIsNotNone(runtime.worker_error)
+                runtime._fill.assert_called_once_with(
+                    0, 2, runtime.caches[0], 0, names=("w1",)
+                )
+                scatter.assert_called_once_with(
+                    "g1", "g2", "slot_g1", "slot_g2", "device_plan"
+                )
+                self.assertEqual(runtime.decode_alpha_h2d_calls_avoided, 0)
+            finally:
+                runtime.jobs.put(None)
+                worker.join(3)
+                runtime.retired.put(None)
+                reaper.join(3)
 
     def test_startup_prefill_forces_bulk_copy_before_scatter(self):
         runtime = self._runtime(1)
