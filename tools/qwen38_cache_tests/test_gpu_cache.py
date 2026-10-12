@@ -111,6 +111,68 @@ class TestGpuCache(unittest.TestCase):
     def test_threaded_pipeline(self):
         self._exercise("threaded")
 
+    def test_fused_decode_plan_matches_reference_state_and_plan(self):
+        import random
+        from sglang.kernels.ops.moe.qwen38_expert_cache import (
+            cache_route, cache_plan, cache_decode_plan,
+        )
+
+        experts, slots, top_k = 512, 16, 10
+        for policy in (0, 1):
+            for adaptive in (False, True):
+                with self.subTest(policy=policy, adaptive=adaptive):
+                    def fresh():
+                        return {
+                            "lookup": torch.full((experts,), -1, dtype=torch.int32, device="cuda"),
+                            "keys": torch.full((slots,), -1, dtype=torch.int32, device="cuda"),
+                            "frequency": torch.zeros(slots, device="cuda"),
+                            "ages": torch.zeros(slots, dtype=torch.int64, device="cuda"),
+                            "generation": torch.zeros(slots, dtype=torch.int64, device="cuda"),
+                            "clock": torch.zeros(1, dtype=torch.int64, device="cuda"),
+                            "counts": torch.zeros(experts + 1, dtype=torch.int32, device="cuda"),
+                            "plan": torch.full((4 + (4 if adaptive else 3) * slots,),
+                                               -77, dtype=torch.int32, device="cuda"),
+                        }
+                    reference, fused = fresh(), fresh()
+                    rng = random.Random(17)
+                    rows = [list(range(10)), list(reversed(range(10))),
+                            [3] * top_k, [-1] * top_k, [511, 0] * 5]
+                    rows += [rng.sample(range(48), top_k) for _ in range(80)]
+                    rows += [[-2] + [1] * 9, [512] + [-1] * 9]
+                    for row in rows:
+                        ids = torch.tensor([row], dtype=torch.int32, device="cuda")
+                        ref_out, fused_out = torch.empty_like(ids), torch.empty_like(ids)
+                        cache_route(ids, reference["lookup"], ref_out, reference["counts"])
+                        cache_plan(*(reference[name] for name in (
+                            "counts", "lookup", "keys", "frequency", "ages",
+                            "generation", "clock", "plan")), policy=policy)
+                        cache_route(ids, reference["lookup"], ref_out, reference["counts"])
+                        cache_decode_plan(ids, fused_out, *(fused[name] for name in (
+                            "counts", "lookup", "keys", "frequency", "ages",
+                            "generation", "clock", "plan")), policy=policy)
+                        for name in reference:
+                            self.assertTrue(torch.equal(reference[name], fused[name]),
+                                            (policy, adaptive, row, name))
+                        self.assertTrue(torch.equal(ref_out, fused_out), row)
+
+    def test_fused_decode_overflow_preserves_policy(self):
+        from sglang.kernels.ops.moe.qwen38_expert_cache import cache_decode_plan
+        from sglang.srt.layers.moe.qwen38_cache_threaded import Qwen38ThreadedExpertRuntime
+        runtime = Qwen38ThreadedExpertRuntime(self.fixture.pack, "cuda", slots_per_layer=2)
+        self.addCleanup(runtime.close)
+        runtime.reserve()
+        state = runtime.device_states[0]
+        before = {name: state[name].clone() for name in (
+            "lookup", "keys", "frequency", "ages", "generation", "clock")}
+        ids = torch.tensor([[0, 1, 2]], dtype=torch.int32, device="cuda")
+        remapped = torch.empty_like(ids)
+        cache_decode_plan(ids, remapped, *(state[name] for name in (
+            "counts", "lookup", "keys", "frequency", "ages", "generation",
+            "clock", "plan")))
+        self.assertEqual(state["plan"][:4].tolist(), [0, 0, 0, 1])
+        for name in before:
+            self.assertTrue(torch.equal(before[name], state[name]), name)
+
     def test_decode_transport_options_preserve_all_tensors_and_migration(self):
         from sglang.srt.layers.moe.qwen38_cache_threaded import (
             Qwen38ThreadedExpertRuntime,

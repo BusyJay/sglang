@@ -16,6 +16,7 @@ def _module():
             ("plan", "Qwen38CachePlan::run"),
             ("scatter", "Qwen38CacheScatter::run"),
             ("alpha_scatter", "Qwen38CacheAlphaScatter::run"),
+            ("decode_plan", "Qwen38CacheDecodePlan::run"),
         ],
     )
 
@@ -29,6 +30,14 @@ def cache_route(topk_ids, lookup, remapped, counts):
 def cache_alpha_scatter(g1, g2, slot_g1, slot_g2, plan):
     """Fill both slot alpha tables from the device miss plan in one launch."""
     _module().alpha_scatter(g1, g2, slot_g1, slot_g2, plan)
+
+
+def cache_decode_plan(ids, remapped, counts, lookup, keys, frequency, ages,
+                      generation, clock, plan, decay=0.95, policy=0,
+                      protected_fraction=0.7):
+    """Fuse one-token histogram, policy and remap with the reference policy."""
+    _module().decode_plan(ids, remapped, counts, lookup, keys, frequency, ages,
+                          generation, clock, plan, decay, policy, protected_fraction)
 
 
 def cache_scatter(cache, arena, keys, counts):

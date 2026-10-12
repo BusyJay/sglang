@@ -42,6 +42,7 @@ class TestBackgroundTransport(unittest.TestCase):
                 "sglang.kernels.ops.moe.qwen38_expert_cache": SimpleNamespace(
                     cache_plan=None, cache_route=None, cache_scatter=None,
                     cache_alpha_scatter=None,
+                    cache_decode_plan=None,
                 ),
                 "sglang.srt.layers.moe.qwen38_cache_device": SimpleNamespace(
                     Qwen38DeviceExpertRuntime=object
