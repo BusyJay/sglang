@@ -28,7 +28,12 @@ from dataclasses import dataclass, field
 
 import torch
 
-from sglang.kernels.ops.moe.qwen38_expert_cache import cache_plan, cache_route, cache_scatter
+from sglang.kernels.ops.moe.qwen38_expert_cache import (
+    cache_alpha_scatter,
+    cache_plan,
+    cache_route,
+    cache_scatter,
+)
 from sglang.srt.layers.moe.qwen38_cache_device import Qwen38DeviceExpertRuntime
 from sglang.srt.layers.moe.qwen38_cache_runtime import PreparedExperts
 from sglang.srt.layers.moe.qwen38_expert_cache import LayerExpertCachePolicy
@@ -97,6 +102,7 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         cache_protected_fraction=0.7,
         prefill_reuse_cache=True,
         prefill_seed_cache=True,
+        resident_alphas=True,
         **kwargs,
     ):
         super().__init__(pack, device, **kwargs)
@@ -120,6 +126,18 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             raise ValueError("prefill reuse and seed options must be booleans")
         self.prefill_reuse_cache = prefill_reuse_cache
         self.prefill_seed_cache = prefill_seed_cache
+        if type(resident_alphas) is not bool:
+            raise ValueError("resident_alphas must be a boolean")
+        self.resident_alphas = resident_alphas
+        # Resident per-expert alpha tables let one fused scatter fill both slot
+        # alphas, so those two rows leave the per-expert decode copy set.
+        self.decode_copy_names = tuple(
+            name
+            for name in REQUIRED_TENSORS
+            if not resident_alphas or name not in ("g1_alphas", "g2_alphas")
+        )
+        self.alpha_tables = {}
+        self.decode_alpha_h2d_calls_avoided = 0
         self.prefill_reused_experts = self.prefill_reuse_d2d_bytes = 0
         self.prefill_seed_runs = self.prefill_h2d_bytes = 0
         self.prefill_host_dispatch_seconds = 0.0
@@ -180,6 +198,21 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         from sglang.kernels.ops.moe.qwen38_expert_cache import _module
 
         _module()
+        if self.resident_alphas:
+            # Reserve before KV allocation. Copies finish before worker startup;
+            # immutable expert-ID tables survive cache eviction and migration.
+            for layer in self.manifest.tensors:
+                tables = {}
+                for name in ("g1_alphas", "g2_alphas"):
+                    tables[name] = torch.empty(
+                        self.manifest.num_experts,
+                        dtype=torch.float32,
+                        device=self.device,
+                    )
+                    self.transfer.wait_stream(torch.cuda.current_stream(self.device))
+                    self._copy(self.pack.tensor_bytes(layer, name), tables[name])
+                self.alpha_tables[layer] = tables
+            self.transfer.synchronize()
         if self.adaptive_cache:
             # Extra plan tail exports compact original expert IDs. No second
             # histogram D2H, memset or routing kernel is needed for sampling.
@@ -561,6 +594,8 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             host_plan_allocations=self.host_plan_allocations,
             prefill_reuse_cache=self.prefill_reuse_cache,
             prefill_seed_cache=self.prefill_seed_cache,
+            resident_alphas=self.resident_alphas,
+            decode_alpha_h2d_calls_avoided=self.decode_alpha_h2d_calls_avoided,
             prefill_reused_experts=self.prefill_reused_experts,
             prefill_reuse_d2d_bytes=self.prefill_reuse_d2d_bytes,
             prefill_seed_runs=self.prefill_seed_runs,
@@ -686,7 +721,27 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                                 # The overwritten slot must have finished its
                                 # previous reader before its bytes change.
                                 self.transfer.wait_event(last)
-                            self._fill(job.layer, expert, self.caches[job.layer], slot)
+                            self._fill(
+                                job.layer,
+                                expert,
+                                self.caches[job.layer],
+                                slot,
+                                names=self.decode_copy_names,
+                            )
+                        if misses and self.resident_alphas:
+                            # All victim readers were joined above. The job
+                            # event covers both weight H2D and alpha writes.
+                            tables = self.alpha_tables[job.layer]
+                            tensors = self.caches[job.layer]
+                            with torch.cuda.stream(self.transfer):
+                                cache_alpha_scatter(
+                                    tables["g1_alphas"],
+                                    tables["g2_alphas"],
+                                    tensors["g1_alphas"],
+                                    tensors["g2_alphas"],
+                                    self.device_states[job.layer]["plan"],
+                                )
+                            self.decode_alpha_h2d_calls_avoided += 2 * misses
                         # Metadata is ordered after the previous same-layer
                         # compute; read-only hits are complete with no CPU wait.
                         for slot in active_slots:
@@ -765,6 +820,11 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
 
     def memory_budget(self):
         result = super().memory_budget()
+        result["resident_alpha_bytes"] = sum(
+            tensor.numel() * tensor.element_size()
+            for tables in self.alpha_tables.values()
+            for tensor in tables.values()
+        )
         # Each outstanding decode job owns one pinned transfer plan.
         result["max_pending_plan_bytes"] = (
             self.jobs.maxsize

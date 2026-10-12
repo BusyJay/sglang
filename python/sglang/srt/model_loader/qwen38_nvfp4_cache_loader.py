@@ -65,6 +65,7 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             "prefill_reuse_cache",
             "prefill_seed_cache",
             "async_pack_prefetch",
+            "resident_alphas",
         }
         if unexpected:
             raise ValueError(
@@ -87,6 +88,11 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
         if not isinstance(config.get("async_pack_prefetch", False), bool):
             raise ValueError("async_pack_prefetch must be a JSON boolean")
         for option in ("prefill_reuse_cache", "prefill_seed_cache"):
+            if type(config.get(option, True)) is not bool:
+                raise ValueError(f"{option} must be a JSON boolean")
+            if option in config and config.get("runtime_mode", "sync") != "threaded":
+                raise ValueError(f"{option} requires threaded mode")
+        for option in ("resident_alphas",):
             if type(config.get(option, True)) is not bool:
                 raise ValueError(f"{option} must be a JSON boolean")
             if option in config and config.get("runtime_mode", "sync") != "threaded":
@@ -275,6 +281,7 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                     ("cache_protected_fraction", 0.7),
                     ("prefill_reuse_cache", True),
                     ("prefill_seed_cache", True),
+                    ("resident_alphas", True),
                 ):
                     runtime_options[name] = self.config.get(name, default)
             if runtime_options:

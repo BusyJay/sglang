@@ -15,6 +15,7 @@ def _module():
             ("route", "Qwen38CacheRoute::run"),
             ("plan", "Qwen38CachePlan::run"),
             ("scatter", "Qwen38CacheScatter::run"),
+            ("alpha_scatter", "Qwen38CacheAlphaScatter::run"),
         ],
     )
 
@@ -23,6 +24,11 @@ def cache_route(topk_ids, lookup, remapped, counts):
     if topk_ids.dtype != torch.int32:
         raise ValueError("Qwen3.8 JIT routing requires int32 IDs")
     _module().route(topk_ids, lookup, remapped, counts)
+
+
+def cache_alpha_scatter(g1, g2, slot_g1, slot_g2, plan):
+    """Fill both slot alpha tables from the device miss plan in one launch."""
+    _module().alpha_scatter(g1, g2, slot_g1, slot_g2, plan)
 
 
 def cache_scatter(cache, arena, keys, counts):

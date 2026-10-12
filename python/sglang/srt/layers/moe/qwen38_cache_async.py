@@ -133,14 +133,14 @@ class Qwen38AsyncExpertRuntime(Qwen38SynchronousExpertRuntime):
                 self.staging_batches += 1
                 self.ring_index = (index + 1) % len(self.ring)
 
-    def _fill(self, layer_id, expert_id, tensors, slot_id):
+    def _fill(self, layer_id, expert_id, tensors, slot_id, names=REQUIRED_TENSORS):
         self._copy_batch(
             [
                 (
                     self.pack.expert_tensor_bytes(layer_id, expert_id, name),
                     tensors[name][slot_id],
                 )
-                for name in REQUIRED_TENSORS
+                for name in names
             ]
         )
 
