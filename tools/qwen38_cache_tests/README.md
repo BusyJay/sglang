@@ -76,6 +76,11 @@ For the current 5090 + `--mem-fraction-static 0.90` deployment profile, the
 working high-cache baseline is `cache_slots_per_layer=112`. See
 `CACHE_TUNING_112.md` for the measured hit-rate and throughput numbers.
 
+The later 96-slot, long-context patch-by-patch comparison is recorded in
+[OCT13_PATCH_COMPARISON.md](OCT13_PATCH_COMPARISON.md). These two workloads
+have different context lengths and cache settings, so compare their results
+within each report.
+
 Bulk prefill transport, bounded large staging buffers, and synthetic validation:
 [BULK_TRANSPORT_OPTIMIZATION.md](../../flash-next-plan/BULK_TRANSPORT_OPTIMIZATION.md).
 Async/device/threaded modes default to four buffers of up to 64 MiB each;
