@@ -103,6 +103,7 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         prefill_reuse_cache=True,
         prefill_seed_cache=True,
         resident_alphas=True,
+        prefill_copy_mode="auto",
         **kwargs,
     ):
         super().__init__(pack, device, **kwargs)
@@ -128,7 +129,10 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         self.prefill_seed_cache = prefill_seed_cache
         if type(resident_alphas) is not bool:
             raise ValueError("resident_alphas must be a boolean")
+        if prefill_copy_mode not in ("auto", "dense", "sparse"):
+            raise ValueError("prefill_copy_mode must be auto, dense or sparse")
         self.resident_alphas = resident_alphas
+        self.prefill_copy_mode = prefill_copy_mode
         # Resident per-expert alpha tables let one fused scatter fill both slot
         # alphas, so those two rows leave the per-expert decode copy set.
         self.decode_copy_names = tuple(
@@ -138,6 +142,21 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         )
         self.alpha_tables = {}
         self.decode_alpha_h2d_calls_avoided = 0
+        self.prefill_copy_stats = [
+            dict(
+                dense=0,
+                sparse=0,
+                resident=0,
+                startup_dense=0,
+                forced_dense=0,
+                heuristic_dense=0,
+                missing=0,
+                host_missing=0,
+                missing_runs=0,
+                reuse_candidates=0,
+            )
+            for _ in range(self.manifest.num_layers)
+        ]
         self.prefill_reused_experts = self.prefill_reuse_d2d_bytes = 0
         self.prefill_seed_runs = self.prefill_h2d_bytes = 0
         self.prefill_host_dispatch_seconds = 0.0
@@ -392,34 +411,59 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             raise
 
     def _ensure_arena_experts(self, layer, counts, keys=None, *, force_dense=False):
+        stats = self.prefill_copy_stats[layer]
         if self.arena_layer != layer:
             self.arena_residents = set()
         if self.arena_residents is None:
+            stats["resident"] += 1
             return False
         missing = [
-            expert for expert, count in enumerate(counts[:-1])
+            expert
+            for expert, count in enumerate(counts[:-1])
             if count and expert not in self.arena_residents
         ]
         if not missing:
+            stats["resident"] += 1
             return False
+        stats["missing"] += len(missing)
         if force_dense:
             pack = getattr(self, "pack", None)
             if pack is not None:
                 pack.wait_prefetch()
             self._fill_arena(layer)
             self.arena_residents = None
+            stats["dense"] += 1
+            stats["startup_dense"] += 1
             return True
         resident = set()
         if self.prefill_reuse_cache and keys is not None:
             resident = {expert for expert in keys if expert >= 0}
         reused = [expert for expert in missing if expert in resident]
         host_missing = [expert for expert in missing if expert not in resident]
+        stats["host_missing"] += len(host_missing)
+        stats["reuse_candidates"] += len(reused)
+        stats["missing_runs"] += bool(host_missing) + sum(
+            right != left + 1 for left, right in zip(host_missing, host_missing[1:])
+        )
         # Decide before launching scatter; a fragmented, nearly full layer is
         # cheaper to replace than to merge with the decode cache.
-        if _prefer_dense_prefill(host_missing, self.manifest.num_experts):
+        dense = self.prefill_copy_mode == "dense" or (
+            self.prefill_copy_mode == "auto"
+            and _prefer_dense_prefill(host_missing, self.manifest.num_experts)
+        )
+        if dense:
             self._fill_arena(layer)
             self.arena_residents = None
+            stats["dense"] += 1
+            stats[
+                (
+                    "forced_dense"
+                    if self.prefill_copy_mode == "dense"
+                    else "heuristic_dense"
+                )
+            ] += 1
             return True
+        stats["sparse"] += 1
         if reused:
             # planned completion orders lookup/keys; prior fills on this
             # same transfer stream precede scatter. Later same-layer work
@@ -427,12 +471,18 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             state = self.device_states[layer]
             with torch.cuda.stream(self.transfer):
                 for name in REQUIRED_TENSORS:
-                    cache_scatter(self.caches[layer][name], self.arena[name],
-                                  state["keys"], state["counts"])
+                    cache_scatter(
+                        self.caches[layer][name],
+                        self.arena[name],
+                        state["keys"],
+                        state["counts"],
+                    )
             self.prefill_reused_experts += len(reused)
             self.prefill_reuse_d2d_bytes += sum(
-                self.manifest.tensors[layer][name].nbytes // self.manifest.num_experts
-                * len(reused) for name in REQUIRED_TENSORS
+                self.manifest.tensors[layer][name].nbytes
+                // self.manifest.num_experts
+                * len(reused)
+                for name in REQUIRED_TENSORS
             )
             self.arena_residents.update(reused)
         # Sparse copies avoid transferring the other experts on short prefills.
@@ -596,6 +646,8 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             prefill_seed_cache=self.prefill_seed_cache,
             resident_alphas=self.resident_alphas,
             decode_alpha_h2d_calls_avoided=self.decode_alpha_h2d_calls_avoided,
+            prefill_copy_mode=self.prefill_copy_mode,
+            prefill_copy_stats=[dict(stats) for stats in self.prefill_copy_stats],
             prefill_reused_experts=self.prefill_reused_experts,
             prefill_reuse_d2d_bytes=self.prefill_reuse_d2d_bytes,
             prefill_seed_runs=self.prefill_seed_runs,

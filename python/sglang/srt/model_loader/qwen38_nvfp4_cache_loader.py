@@ -66,6 +66,7 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             "prefill_seed_cache",
             "async_pack_prefetch",
             "resident_alphas",
+            "prefill_copy_mode",
         }
         if unexpected:
             raise ValueError(
@@ -97,6 +98,13 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                 raise ValueError(f"{option} must be a JSON boolean")
             if option in config and config.get("runtime_mode", "sync") != "threaded":
                 raise ValueError(f"{option} requires threaded mode")
+        if config.get("prefill_copy_mode", "auto") not in ("auto", "dense", "sparse"):
+            raise ValueError("prefill_copy_mode must be auto, dense or sparse")
+        if (
+            "prefill_copy_mode" in config
+            and config.get("runtime_mode", "sync") != "threaded"
+        ):
+            raise ValueError("prefill_copy_mode requires threaded mode")
         if config.get("adaptive_cache", False) and config.get("runtime_mode", "sync") != "threaded":
             raise ValueError("adaptive_cache requires runtime_mode=threaded")
         if type(config.get("adaptive_cache_window", 512)) is not int or config.get("adaptive_cache_window", 512) < 16:
@@ -282,6 +290,7 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                     ("prefill_reuse_cache", True),
                     ("prefill_seed_cache", True),
                     ("resident_alphas", True),
+                    ("prefill_copy_mode", "auto"),
                 ):
                     runtime_options[name] = self.config.get(name, default)
             if runtime_options:

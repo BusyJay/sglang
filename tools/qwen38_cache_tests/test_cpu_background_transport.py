@@ -78,6 +78,25 @@ class TestBackgroundTransport(unittest.TestCase):
         runtime.prefill_seed_cache = False
         runtime.resident_alphas = False
         runtime.decode_copy_names = tuple(self.module.REQUIRED_TENSORS)
+        runtime.prefill_copy_mode = "auto"
+        runtime.prefill_copy_stats = [
+            dict.fromkeys(
+                (
+                    "dense",
+                    "sparse",
+                    "resident",
+                    "startup_dense",
+                    "forced_dense",
+                    "heuristic_dense",
+                    "missing",
+                    "host_missing",
+                    "missing_runs",
+                    "reuse_candidates",
+                ),
+                0,
+            )
+            for _ in range(2)
+        ]
         runtime.prefill_h2d_bytes = 0
         runtime.prefill_host_dispatch_seconds = 0.0
         runtime.transferred_bytes = 0
@@ -296,6 +315,34 @@ class TestBackgroundTransport(unittest.TestCase):
         runtime._fill_arena_selected.assert_not_called()
         scatter.assert_not_called()
         self.assertIsNone(runtime.arena_residents)
+        self.assertEqual(runtime.prefill_copy_stats[0]["heuristic_dense"], 1)
+
+    def test_forced_sparse_preserves_reuse_on_fragmented_routes(self):
+        runtime = self._runtime(1)
+        runtime.prefill_copy_mode = "sparse"
+        runtime.prefill_reuse_cache = True
+        runtime.prefill_reused_experts = runtime.prefill_reuse_d2d_bytes = 0
+        runtime.arena_residents = set()
+        runtime.manifest = SimpleNamespace(num_experts=512)
+        runtime.device_states = {0: {"keys": "keys", "counts": "counts"}}
+        runtime.caches = {0: {}}
+        runtime._fill_arena = mock.Mock()
+        runtime._fill_arena_selected = mock.Mock()
+        keys = list(range(0, 512, 5))
+        with mock.patch.object(
+            self.module.torch.cuda,
+            "stream",
+            create=True,
+            new=lambda _: contextlib.nullcontext(),
+        ):
+            runtime._ensure_arena_experts(0, [1] * 512 + [0], keys)
+        runtime._fill_arena.assert_not_called()
+        runtime._fill_arena_selected.assert_called_once_with(
+            0, [expert for expert in range(512) if expert % 5]
+        )
+        self.assertEqual(runtime.arena_residents, set(range(512)))
+        self.assertEqual(runtime.prefill_copy_stats[0]["sparse"], 1)
+        self.assertEqual(runtime.prefill_copy_stats[0]["reuse_candidates"], len(keys))
 
     def test_alpha_update_failure_poisoning_precedes_ready_notice(self):
         runtime = self._runtime(1)
