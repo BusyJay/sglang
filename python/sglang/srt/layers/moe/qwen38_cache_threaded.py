@@ -30,6 +30,7 @@ import torch
 
 from sglang.kernels.ops.moe.qwen38_expert_cache import (
     cache_alpha_scatter,
+    cache_decode_plan,
     cache_plan,
     cache_route,
     cache_scatter,
@@ -104,6 +105,7 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         prefill_seed_cache=True,
         resident_alphas=True,
         prefill_copy_mode="auto",
+        fused_decode_plan=True,
         **kwargs,
     ):
         super().__init__(pack, device, **kwargs)
@@ -140,6 +142,10 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             for name in REQUIRED_TENSORS
             if not resident_alphas or name not in ("g1_alphas", "g2_alphas")
         )
+        if type(fused_decode_plan) is not bool:
+            raise ValueError("fused_decode_plan must be a boolean")
+        self.fused_decode_plan = fused_decode_plan
+        self.fused_decode_plan_invocations = 0
         self.alpha_tables = {}
         self.decode_alpha_h2d_calls_avoided = 0
         self.prefill_copy_stats = [
@@ -644,6 +650,8 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             host_plan_allocations=self.host_plan_allocations,
             prefill_reuse_cache=self.prefill_reuse_cache,
             prefill_seed_cache=self.prefill_seed_cache,
+            fused_decode_plan=self.fused_decode_plan,
+            fused_decode_plan_invocations=self.fused_decode_plan_invocations,
             resident_alphas=self.resident_alphas,
             decode_alpha_h2d_calls_avoided=self.decode_alpha_h2d_calls_avoided,
             prefill_copy_mode=self.prefill_copy_mode,
@@ -960,24 +968,35 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                 else:
                     with torch.cuda.stream(self.metadata_stream):
                         remapped = torch.empty_like(topk_ids)
-                        cache_route(
-                            topk_ids, state["lookup"], remapped, state["counts"]
-                        )
-                        cache_plan(
-                            state["counts"],
-                            state["lookup"],
-                            state["keys"],
-                            state["frequency"],
-                            state["ages"],
-                            state["generation"],
-                            state["clock"],
-                            state["plan"],
-                            policy=int(self.cache_policy == "slru"),
-                            protected_fraction=self.cache_protected_fraction,
-                        )
-                        cache_route(
-                            topk_ids, state["lookup"], remapped, state["counts"]
-                        )
+                        if (self.fused_decode_plan and topk_ids.shape[0] == 1
+                                and 0 < topk_ids.shape[1] <= 32):
+                            cache_decode_plan(
+                                topk_ids, remapped, state["counts"], state["lookup"],
+                                state["keys"], state["frequency"], state["ages"],
+                                state["generation"], state["clock"], state["plan"],
+                                policy=int(self.cache_policy == "slru"),
+                                protected_fraction=self.cache_protected_fraction,
+                            )
+                            self.fused_decode_plan_invocations += 1
+                        else:
+                            cache_route(
+                                topk_ids, state["lookup"], remapped, state["counts"]
+                            )
+                            cache_plan(
+                                state["counts"],
+                                state["lookup"],
+                                state["keys"],
+                                state["frequency"],
+                                state["ages"],
+                                state["generation"],
+                                state["clock"],
+                                state["plan"],
+                                policy=int(self.cache_policy == "slru"),
+                                protected_fraction=self.cache_protected_fraction,
+                            )
+                            cache_route(
+                                topk_ids, state["lookup"], remapped, state["counts"]
+                            )
                         source = state["plan"]
                         if sample is None and source.numel() != 4 + 3 * capacity:
                             source = source[: 4 + 3 * capacity]

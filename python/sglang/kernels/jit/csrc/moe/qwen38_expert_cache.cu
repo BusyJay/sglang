@@ -147,12 +147,11 @@ struct Qwen38CacheRoute {
 namespace {
 // E <= 512, S <= E: a single control thread avoids atomics/partial decisions.
 // Routing histogram is parallel; policy cost is bounded independently of tokens.
-__global__ void plan_kernel(const int32_t* counts, int32_t* lookup, int32_t* keys,
+__device__ void apply_plan(const int32_t* counts, int32_t* lookup, int32_t* keys,
                             float* frequency, int64_t* ages, int64_t* generation,
                             int64_t* clock, int32_t* plan, int experts, int slots,
                             float decay, int policy, int protected_slots,
-                            bool export_routes) {
-  if (threadIdx.x || blockIdx.x) return;
+                            bool export_routes, const int32_t* active_ids = nullptr, int active_size = -1) {
   // plan: status, miss_count, active_count, arena; S (expert, slot) pairs;
   // S active slot IDs. status=1 for invalid routes, 0 for success.
   plan[0] = counts[experts] ? 1 : 0;
@@ -160,11 +159,15 @@ __global__ void plan_kernel(const int32_t* counts, int32_t* lookup, int32_t* key
   plan[2] = 0;
   plan[3] = 0;
   if (plan[0]) return;
-  int active = 0;
-  for (int e = 0; e < experts; ++e) active += counts[e] > 0;
+  int active = active_size;
+  if (active < 0) {
+    active = 0;
+    for (int e = 0; e < experts; ++e) active += counts[e] > 0;
+  }
   if (active > slots) { plan[3] = 1; return; }
   if (!policy) for (int s = 0; s < slots; ++s) frequency[s] *= decay;
-  for (int e = 0; e < experts; ++e) {
+  for (int index = 0; index < (active_ids ? active : experts); ++index) {
+    int e = active_ids ? active_ids[index] : index;
     if (!counts[e]) continue;
     int slot = lookup[e];
     bool hit = slot >= 0;
@@ -204,6 +207,59 @@ __global__ void plan_kernel(const int32_t* counts, int32_t* lookup, int32_t* key
     }
     if (export_routes) plan[4 + 3 * slots + plan[2]] = e;
     plan[4 + 2 * slots + plan[2]++] = slot;
+  }
+
+}
+
+__global__ void plan_kernel(const int32_t* counts, int32_t* lookup, int32_t* keys,
+                            float* frequency, int64_t* ages, int64_t* generation,
+                            int64_t* clock, int32_t* plan, int experts, int slots,
+                            float decay, int policy, int protected_slots,
+                            bool export_routes) {
+  if (threadIdx.x || blockIdx.x) return;
+  apply_plan(counts, lookup, keys, frequency, ages, generation, clock, plan,
+             experts, slots, decay, policy, protected_slots, export_routes);
+}
+
+// One token, top-k <= 32. Only the small active list is sorted, preserving
+// the original planner's ascending expert order and its LFU/SLRU tie-breaks.
+__global__ void decode_plan_kernel(const int32_t* ids, int32_t* output,
+                                   int32_t* counts, int32_t* lookup, int32_t* keys,
+                                   float* frequency, int64_t* ages, int64_t* generation,
+                                   int64_t* clock, int32_t* plan, int experts, int slots,
+                                   int top_k, float decay, int policy, int protected_slots,
+                                   bool export_routes) {
+  __shared__ int32_t histogram[513];
+  __shared__ int32_t active_ids[32];
+  for (int e = threadIdx.x; e <= experts; e += blockDim.x) histogram[e] = 0;
+  __syncthreads();
+  if (threadIdx.x < top_k) {
+    int expert = ids[threadIdx.x];
+    if (expert >= 0 && expert < experts) atomicAdd(histogram + expert, 1);
+    else if (expert != -1) atomicAdd(histogram + experts, 1);
+  }
+  __syncthreads();
+  if (threadIdx.x == 0) {
+    int active = 0;
+    for (int i = 0; i < top_k; ++i) {
+      int expert = ids[i];
+      if (expert < 0 || expert >= experts) continue;
+      int pos = 0;
+      while (pos < active && active_ids[pos] < expert) ++pos;
+      if (pos < active && active_ids[pos] == expert) continue;
+      for (int j = active; j > pos; --j) active_ids[j] = active_ids[j - 1];
+      active_ids[pos] = expert;
+      ++active;
+    }
+    apply_plan(histogram, lookup, keys, frequency, ages, generation, clock, plan,
+               experts, slots, decay, policy, protected_slots, export_routes,
+               active_ids, active);
+  }
+  __syncthreads();
+  for (int e = threadIdx.x; e <= experts; e += blockDim.x) counts[e] = histogram[e];
+  if (threadIdx.x < top_k) {
+    int expert = ids[threadIdx.x];
+    output[threadIdx.x] = (expert >= 0 && expert < experts) ? lookup[expert] : -1;
   }
 }
 }
@@ -254,3 +310,57 @@ struct Qwen38CachePlan {
 };
 
 
+
+struct Qwen38CacheDecodePlan {
+  static void run(TensorView ids, TensorView output, TensorView counts,
+                  TensorView lookup, TensorView keys, TensorView frequency,
+                  TensorView ages, TensorView generation, TensorView clock,
+                  TensorView plan, double decay, int64_t policy,
+                  double protected_fraction) {
+    CHECK_INPUT_AND_TYPE(ids, dl_int32); CHECK_INPUT_AND_TYPE(output, dl_int32);
+    CHECK_DIM(2, ids); CHECK_DIM(2, output);
+    CHECK_DEVICE(ids, counts); CHECK_DEVICE(ids, output);
+    TVM_FFI_ICHECK_EQ(ids.size(0), 1);
+    TVM_FFI_ICHECK_GT(ids.size(1), 0); TVM_FFI_ICHECK_LE(ids.size(1), 32);
+    TVM_FFI_ICHECK_EQ(output.size(0), 1);
+    TVM_FFI_ICHECK_EQ(output.size(1), ids.size(1));
+    CHECK_INPUT_AND_TYPE(counts, dl_int32);
+    CHECK_INPUT_AND_TYPE(lookup, dl_int32);
+    CHECK_INPUT_AND_TYPE(keys, dl_int32);
+    CHECK_INPUT_AND_TYPE(frequency, dl_float32);
+    CHECK_INPUT_AND_TYPE(ages, dl_int64);
+    CHECK_INPUT_AND_TYPE(generation, dl_int64);
+    CHECK_INPUT_AND_TYPE(clock, dl_int64);
+    CHECK_INPUT_AND_TYPE(plan, dl_int32);
+    CHECK_DIM(1, counts); CHECK_DIM(1, lookup); CHECK_DIM(1, keys);
+    CHECK_DIM(1, frequency); CHECK_DIM(1, ages); CHECK_DIM(1, generation);
+    CHECK_DIM(1, clock); CHECK_DIM(1, plan);
+    CHECK_DEVICE(counts, lookup); CHECK_DEVICE(counts, keys);
+    CHECK_DEVICE(counts, frequency); CHECK_DEVICE(counts, ages);
+    CHECK_DEVICE(counts, generation); CHECK_DEVICE(counts, clock);
+    CHECK_DEVICE(counts, plan);
+    int experts = lookup.size(0), slots = keys.size(0);
+    TVM_FFI_ICHECK_GT(experts, 0); TVM_FFI_ICHECK_LE(experts, 512);
+    TVM_FFI_ICHECK_GT(slots, 0); TVM_FFI_ICHECK_LE(slots, experts);
+    TVM_FFI_ICHECK_EQ(counts.size(0), experts + 1);
+    TVM_FFI_ICHECK_EQ(frequency.size(0), slots);
+    TVM_FFI_ICHECK_EQ(ages.size(0), slots);
+    TVM_FFI_ICHECK_EQ(generation.size(0), slots);
+    TVM_FFI_ICHECK_EQ(clock.size(0), 1);
+    TVM_FFI_ICHECK(plan.size(0) == 4 + 3 * slots || plan.size(0) == 4 + 4 * slots);
+    TVM_FFI_ICHECK(policy == 0 || policy == 1);
+    TVM_FFI_ICHECK_GE(protected_fraction, 0.0);
+    TVM_FFI_ICHECK_LT(protected_fraction, 1.0);
+    TVM_FFI_ICHECK_GT(decay, 0.0); TVM_FFI_ICHECK_LE(decay, 1.0);
+    decode_plan_kernel<<<1, 128, 0, get_stream(ids.device())>>>(
+        static_cast<const int32_t*>(ids.data_ptr()), static_cast<int32_t*>(output.data_ptr()),
+        static_cast<int32_t*>(counts.data_ptr()), static_cast<int32_t*>(lookup.data_ptr()),
+        static_cast<int32_t*>(keys.data_ptr()), static_cast<float*>(frequency.data_ptr()),
+        static_cast<int64_t*>(ages.data_ptr()), static_cast<int64_t*>(generation.data_ptr()),
+        static_cast<int64_t*>(clock.data_ptr()), static_cast<int32_t*>(plan.data_ptr()),
+        experts, slots, ids.size(1), static_cast<float>(decay), static_cast<int>(policy),
+        static_cast<int>(slots * protected_fraction), plan.size(0) == 4 + 4 * slots);
+    auto status = cudaGetLastError();
+    TVM_FFI_ICHECK_EQ(status, cudaSuccess) << cudaGetErrorString(status);
+  }
+};
