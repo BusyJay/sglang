@@ -17,6 +17,7 @@ def _module():
             ("scatter", "Qwen38CacheScatter::run"),
             ("alpha_scatter", "Qwen38CacheAlphaScatter::run"),
             ("decode_plan", "Qwen38CacheDecodePlan::run"),
+            ("packed_scatter", "Qwen38PackedScatter::run"),
         ],
     )
 
@@ -72,3 +73,8 @@ def cache_plan(
         policy,
         protected_fraction,
     )
+
+
+def packed_scatter(scratch, descriptors):
+    """Internal byte scatter with immutable live-target address descriptors."""
+    _module().packed_scatter(scratch, descriptors)

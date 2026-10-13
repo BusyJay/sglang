@@ -15,6 +15,7 @@ every CUDA state transition goes through PyTorch's own locking.
 from __future__ import annotations
 
 import os
+import contextlib
 import queue
 import threading
 import logging
@@ -106,8 +107,20 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         resident_alphas=True,
         prefill_copy_mode="auto",
         fused_decode_plan=True,
+        packed_decode="direct",
+        packed_prefill="direct",
+        packed_min_bytes=4096,
+        packed_max_bytes=64 << 20,
+        packed_min_copies=2,
         **kwargs,
     ):
+        from sglang.srt.layers.moe.qwen38_packed_transport import validate_packed_config
+        validate_packed_config(packed_decode, packed_prefill, packed_min_bytes, packed_max_bytes, packed_min_copies)
+        self.packed_decode, self.packed_prefill = packed_decode, packed_prefill
+        self.packed_min_bytes, self.packed_max_bytes = packed_min_bytes, packed_max_bytes
+        self.packed_min_copies = packed_min_copies
+        self.packed_transport = None
+        self.profiler = None
         super().__init__(pack, device, **kwargs)
         if not isinstance(adaptive_cache, bool):
             raise ValueError("adaptive_cache must be a boolean")
@@ -282,6 +295,10 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                     bufsize=1,
                 )
         memory_mark(probe, "runtime.after_adaptive_metadata")
+        if self.packed_decode != "direct" or self.packed_prefill != "direct":
+            from sglang.srt.layers.moe.qwen38_packed_transport import PackedExpertTransport
+            self.packed_transport = PackedExpertTransport(self)
+            self.packed_transport.refresh_targets()
         self.worker = threading.Thread(
             target=self._work, name="qwen38-expert-h2d", daemon=True
         )
@@ -295,6 +312,31 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                 target=self._analyze_routes, name="qwen38-cache-adaptive", daemon=True
             )
             self.adaptive_worker.start()
+
+    def _host_range(self, kind):
+        return self.profiler.host_range(kind) if self.profiler is not None else contextlib.nullcontext()
+
+    def _gpu_range(self, kind, stream):
+        return self.profiler.gpu_range(kind, stream) if self.profiler is not None else contextlib.nullcontext()
+
+    def _copy_batch(self, entries):
+        if self.profiler is None:
+            return super()._copy_batch(entries)
+        with self.profiler.host_range("cpu_staging_and_enqueue"):
+            return super()._copy_batch(entries)
+
+    def _fill(self, layer_id, expert_id, tensors, slot_id, names=REQUIRED_TENSORS):
+        transport = self.packed_transport
+        if transport is not None:
+            kind = "prefill" if tensors is self.arena else "decode"
+            expected = self.arena if kind == "prefill" else self.caches[layer_id]
+            mode = self.packed_prefill if kind == "prefill" else self.packed_decode
+            if mode == "packed" and tensors is expected and tuple(names) == transport.layouts[kind][0]:
+                if transport.eligible(kind):
+                    with self._host_range("packed_cpu_staging_and_enqueue"):
+                        return transport.fill(layer_id, expert_id, slot_id, kind)
+                transport.counters[kind + "_fallbacks"] += 1
+        return super()._fill(layer_id, expert_id, tensors, slot_id, names=names)
 
     def _assign_pool_views(self, layout):
         offset = 0
@@ -419,6 +461,11 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                 start = expert
             previous = expert
         runs.append((start, previous + 1))
+        if self.packed_transport is not None and self.packed_prefill == "packed" and self.packed_transport.eligible("prefill") and len(runs) > 1:
+            # One routed expert per fill. Dense bulk prefill remains direct.
+            for expert in experts:
+                self._fill(layer, expert, self.arena, expert)
+            return
         entries = []
         try:
             for name in REQUIRED_TENSORS:
@@ -605,6 +652,8 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                     old = self.layer_cache_slots
                     retained, migrated, evicted = self._migrate_pool(target)
                     self._assign_pool_views(target)
+                    if self.packed_transport is not None:
+                        self.packed_transport.refresh_targets()
                     self.layer_cache_slots = list(target)
                     self.max_layer_slots = max(target)
                     self.policies = {
@@ -648,6 +697,9 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
 
     def stats_snapshot(self):
         result = super().stats_snapshot()
+        result["packed_decode"] = self.packed_decode
+        result["packed_prefill"] = self.packed_prefill
+        result["packed_transport"] = dict(self.packed_transport.counters) if self.packed_transport is not None else None
         if self.adaptive_cache:
             result.update(
                 adaptive_rebalances=self.adaptive_rebalances,
@@ -908,6 +960,8 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             for tables in self.alpha_tables.values()
             for tensor in tables.values()
         )
+        result["packed_scratch_bytes"] = self.packed_transport.scratch.numel() if self.packed_transport is not None else 0
+        result["packed_descriptor_bytes"] = sum(t.numel() * t.element_size() for pages in self.packed_transport.tables.values() for t in pages) if self.packed_transport is not None else 0
         # Each outstanding decode job owns one pinned transfer plan.
         result["max_pending_plan_bytes"] = (
             self.jobs.maxsize
