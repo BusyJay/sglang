@@ -736,4 +736,3 @@ class TestGpuCache(unittest.TestCase):
                 self.assertEqual(runtime.layer_cache_slots, [2, 4])
             finally:
                 runtime.close()
-
