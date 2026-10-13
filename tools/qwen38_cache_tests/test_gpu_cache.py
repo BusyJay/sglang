@@ -703,3 +703,37 @@ class TestGpuCache(unittest.TestCase):
             )
             cache_route(ids, lookup, out, counts)
             self.assertEqual(out.cpu().tolist(), [[mapping[e] for e in routes]])
+
+    def test_packed_transport_alpha_ring_and_target_migration(self):
+        from sglang.srt.layers.moe.qwen38_cache_threaded import Qwen38ThreadedExpertRuntime
+        from sglang.srt.model_loader.qwen38_nvfp4_pack.format import REQUIRED_TENSORS
+        for alphas in (False, True):
+            runtime = Qwen38ThreadedExpertRuntime(self.fixture.pack, "cuda", slots_per_layer=3,
+                adaptive_cache=True, adaptive_cache_mode="sample", staging_buffers=2,
+                staging_buffer_bytes=64, resident_alphas=alphas, prefill_copy_mode="sparse",
+                prefill_reuse_cache=False, packed_decode="packed", packed_prefill="packed",
+                packed_min_bytes=1, packed_max_bytes=1 << 20, packed_min_copies=2)
+            try:
+                runtime.reserve()
+                streams = [torch.cuda.Stream(), torch.cuda.Stream()]
+                runtime.prefill_tokens_seen = 128  # explicitly test sparse, not startup dense
+                for step in range(24):
+                    if step == 12:
+                        with runtime.adaptive_lock:
+                            runtime.adaptive_target = [2, 4]
+                    layer = step % 2
+                    cpu_ids = torch.tensor([[0, 2], [0, 2]] if step % 3 == 0 else [[step % 4, (step + 1) % 4]])
+                    with torch.cuda.stream(streams[step % 2]):
+                        ids = cpu_ids.to("cuda", dtype=torch.int32)
+                        actual = runtime.run(layer, ids, lambda prepared: {
+                            name: prepared.tensors[name][prepared.topk_ids.long()].clone() for name in REQUIRED_TENSORS})
+                    runtime.synchronize()
+                    for name in REQUIRED_TENSORS:
+                        self.assertTrue(torch.equal(actual[name].cpu(), getattr(self.fixture.resident[layer], name)[cpu_ids]), name)
+                self.assertGreater(runtime.packed_transport.counters["scatter_calls"], 0)
+                self.assertGreater(runtime.packed_transport.counters["prefill_experts"], 0)
+                self.assertGreaterEqual(runtime.packed_transport.counters["target_refreshes"], 2)
+                self.assertEqual(runtime.layer_cache_slots, [2, 4])
+            finally:
+                runtime.close()
+

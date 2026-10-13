@@ -42,6 +42,12 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
     def __init__(self, load_config) -> None:
         super().__init__(load_config)
         config = dict(load_config.model_loader_extra_config or {})
+        from sglang.srt.layers.moe.qwen38_packed_transport import validate_packed_config
+        validate_packed_config(config.get("packed_decode", "direct"), config.get("packed_prefill", "direct"),
+                               config.get("packed_min_bytes", 4096), config.get("packed_max_bytes", 64 << 20),
+                               config.get("packed_min_copies", 2))
+        if any(config.get(k, "direct") != "direct" for k in ("packed_decode", "packed_prefill")) and config.get("runtime_mode", "sync") != "threaded":
+            raise ValueError("packed transfer requires threaded runtime")
         unexpected = set(config) - {
             "manifest_path",
             "checkpoint_revision",
@@ -68,6 +74,7 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             "resident_alphas",
             "prefill_copy_mode",
             "fused_decode_plan",
+            "packed_decode", "packed_prefill", "packed_min_bytes", "packed_max_bytes", "packed_min_copies",
         }
         if unexpected:
             raise ValueError(
@@ -326,6 +333,8 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                     ("resident_alphas", True),
                     ("prefill_copy_mode", "auto"),
                     ("fused_decode_plan", True),
+                    ("packed_decode", "direct"), ("packed_prefill", "direct"),
+                    ("packed_min_bytes", 4096), ("packed_max_bytes", 64 << 20), ("packed_min_copies", 2),
                 ):
                     runtime_options[name] = self.config.get(name, default)
             if runtime_options:

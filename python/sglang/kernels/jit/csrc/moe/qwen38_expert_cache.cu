@@ -364,3 +364,39 @@ struct Qwen38CacheDecodePlan {
     TVM_FFI_ICHECK_EQ(status, cudaSuccess) << cudaGetErrorString(status);
   }
 };
+
+namespace {
+__global__ void packed_scatter_kernel(const uint8_t* scratch, const int64_t* desc) {
+  const int64_t* row = desc + 3 * blockIdx.x;
+  auto* target = reinterpret_cast<uint8_t*>(row[0]);
+  const auto* source = scratch + row[1];
+  const int64_t size = row[2];
+  const int64_t stride = static_cast<int64_t>(blockDim.x) * gridDim.y;
+  int64_t i = static_cast<int64_t>(blockIdx.y) * blockDim.x + threadIdx.x;
+  if ((reinterpret_cast<uintptr_t>(target) | reinterpret_cast<uintptr_t>(source) |
+       static_cast<uintptr_t>(size)) % 16 == 0) {
+    for (; i < size / 16; i += stride)
+      reinterpret_cast<uint4*>(target)[i] = reinterpret_cast<const uint4*>(source)[i];
+  } else {
+    for (; i < size; i += stride) target[i] = source[i];
+  }
+}
+}
+
+struct Qwen38PackedScatter {
+  static void run(TensorView scratch, TensorView descriptors) {
+    CHECK_INPUT_AND_TYPE(scratch, dl_uint8);
+    CHECK_INPUT_AND_TYPE(descriptors, dl_int64);
+    CHECK_DIM(1, scratch); CHECK_DIM(2, descriptors);
+    CHECK_DEVICE(scratch, descriptors);
+    TVM_FFI_ICHECK_EQ(descriptors.size(1), 3);
+    TVM_FFI_ICHECK_LE(descriptors.size(0), 1024);
+    if (!descriptors.size(0)) return;
+    // Internal descriptors are immutable validated layout/address tables.
+    packed_scatter_kernel<<<dim3(descriptors.size(0), 16), 256, 0,
+                            get_stream(scratch.device())>>>(
+        static_cast<const uint8_t*>(scratch.data_ptr()),
+        static_cast<const int64_t*>(descriptors.data_ptr()));
+    TVM_FFI_ICHECK_EQ(cudaGetLastError(), cudaSuccess);
+  }
+};
