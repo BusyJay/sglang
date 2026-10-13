@@ -54,6 +54,12 @@ def compute_post_capture_kv_resize(
     """Resize the KV pool after capture and return the new sizes for the
     orchestrator to assign. Takes the live ModelRunner because it reads
     post-capture GPU memory + the pool objects it must resize in place."""
+    from sglang.srt.layers.moe.qwen38_startup_memory import memory_mark
+
+    probe = getattr(model_runner, "qwen38_startup_memory_probe", None)
+    memory_mark(
+        probe, "runner.graph.after_capture.before_empty_cache", model=model_runner.model
+    )
     pool = model_runner.token_to_kv_pool
     torch.cuda.synchronize()
     free_gb = get_available_gpu_memory(
@@ -62,6 +68,7 @@ def compute_post_capture_kv_resize(
         distributed=get_parallel().launch_world_size > 1,
         cpu_group=get_parallel().world_group.cpu_group,
     )
+    memory_mark(probe, "runner.graph.after_capture.after_empty_cache")
     headroom_gb = model_runner.pre_model_load_memory * (
         1 - model_runner.mem_fraction_static
     )
@@ -116,7 +123,22 @@ def compute_post_capture_kv_resize(
     config = model_runner.kv_cache_configurator.config_from_budget(
         budget_bytes, cap_tokens=model_runner.max_total_num_tokens
     )
+    memory_mark(
+        probe,
+        "runner.kv.before_finalize",
+        metadata={
+            "budget_bytes": budget_bytes,
+            "free_gb": free_gb,
+            "headroom_gb": headroom_gb,
+            "mm_reservation_gb": mm_reservation_gb,
+        },
+    )
     pool.finalize_backing(config)
+    memory_mark(
+        probe,
+        "runner.kv.after_finalize",
+        metadata={"max_total_num_tokens": config.max_total_num_tokens},
+    )
     model_runner.token_to_kv_pool_allocator.resize(config)
     model_runner.req_to_token_pool.reset_aux_cache_allocator()
     if canary_workspace_bytes:

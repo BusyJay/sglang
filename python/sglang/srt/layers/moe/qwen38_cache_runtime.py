@@ -24,7 +24,6 @@ from sglang.srt.model_loader.qwen38_nvfp4_pack.format import (
     REQUIRED_TENSORS,
 )
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -191,8 +190,15 @@ class Qwen38SynchronousExpertRuntime:
 
     def reserve(self):
         """Allocate before SGLang measures free memory for the KV pool."""
+        from sglang.srt.layers.moe.qwen38_startup_memory import (
+            get_startup_memory_probe,
+            memory_mark,
+        )
+
+        probe = get_startup_memory_probe(self.device)
         with self.lock:
             for layer_id in self.manifest.tensors:
+                memory_mark(probe, f"base.layer.{layer_id:02d}.before")
                 slots = self.slots_for_layer(layer_id)
                 if layer_id not in self.caches:
                     self.caches[layer_id] = self._allocate(slots)
@@ -200,18 +206,35 @@ class Qwen38SynchronousExpertRuntime:
                         self.manifest.num_experts, slots
                     )
                 self._scales(layer_id)
+                memory_mark(probe, f"base.layer.{layer_id:02d}.after")
+            memory_mark(probe, "base.arena.before")
             if self.prefill_arena and self.arena is None:
                 self.arena = self._allocate(self.manifest.num_experts)
+            memory_mark(probe, "base.arena.after")
 
     def _allocate(self, capacity):
-        return {
-            name: torch.zeros(
+        from sglang.srt.layers.moe.qwen38_startup_memory import (
+            get_startup_memory_probe,
+            memory_mark,
+        )
+
+        probe = get_startup_memory_probe(self.device)
+        tensors = {}
+        for name in REQUIRED_TENSORS:
+            memory_mark(probe, f"base.allocate.{capacity}.{name}.before")
+            tensors[name] = torch.zeros(
                 (capacity, *self.manifest.tensors[0][name].shape[1:]),
                 dtype=getattr(torch, self.manifest.tensors[0][name].dtype),
                 device=self.device,
             )
-            for name in REQUIRED_TENSORS
-        }
+            memory_mark(
+                probe,
+                f"base.allocate.{capacity}.{name}.after",
+                metadata={
+                    "tensor_bytes": tensors[name].numel() * tensors[name].element_size()
+                },
+            )
+        return tensors
 
     def _copy(self, view, destination):
         # Copy read-only mmap bytes into bounded writable staging storage.

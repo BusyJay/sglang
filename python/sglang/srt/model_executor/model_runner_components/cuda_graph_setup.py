@@ -377,6 +377,10 @@ def capture_cuda_graphs(
 
     """
 
+    from sglang.srt.layers.moe.qwen38_startup_memory import memory_mark
+
+    probe = getattr(model_runner, "qwen38_startup_memory_probe", None)
+    memory_mark(probe, "graph.before_shared_output")
     model_runner.graph_shared_output = GraphSharedOutput.create_for_model_runner(
         model_runner
     )
@@ -388,7 +392,9 @@ def capture_cuda_graphs(
     # it. Always built: it serves both the fully-disabled case (decode/prefill
     # runners point at it) and the eager fallback when a cg runner can't run a
     # batch.
+    memory_mark(probe, "graph.after_shared_output.before_eager_warmup")
     eager_runner = EagerRunner(model_runner, run_warmup=not defer_distributed_setup)
+    memory_mark(probe, "graph.after_eager_warmup")
 
     if not defer_distributed_setup:
         refresh_deep_gemm_layout_memory_budget(model_runner)
@@ -400,6 +406,7 @@ def capture_cuda_graphs(
         model_runner=model_runner, eager_runner=eager_runner
     )
 
+    memory_mark(probe, "graph.after_prefill_capture")
     decode_phase = "draft_decode" if model_runner.is_draft_worker else "decode"
     decode = GraphCapture(
         runner=None,
@@ -422,8 +429,10 @@ def capture_cuda_graphs(
             capture_time=0,
         )
 
+    memory_mark(probe, "graph.after_decode_capture")
     if finalize:
         finalize_cuda_graph_capture(model_runner)
+    memory_mark(probe, "graph.after_finalize")
 
     return CudaGraphsCapture(eager_runner=eager_runner, prefill=prefill, decode=decode)
 

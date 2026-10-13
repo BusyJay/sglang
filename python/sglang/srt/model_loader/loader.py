@@ -1041,7 +1041,10 @@ class DefaultModelLoader(BaseModelLoader):
         DefaultModelLoader.postprocess_weights(model, target_device)
 
     @staticmethod
-    def load_weights_only(model, weights, target_device):
+    def load_weights_only(model, weights, target_device, startup_memory_probe=None):
+        from sglang.srt.layers.moe.qwen38_startup_memory import memory_mark
+
+        memory_mark(startup_memory_probe, "weights.begin.before_existing_cleanup")
         # Used in tests to verify memory savings when using online quantization.
         if is_cuda_alike():
             peak_memory = torch.cuda.max_memory_allocated()
@@ -1053,6 +1056,7 @@ class DefaultModelLoader(BaseModelLoader):
                 target_device.type, gpu_id=torch.cuda.current_device()
             )
 
+        memory_mark(startup_memory_probe, "weights.begin.after_existing_cleanup")
         quant_config = getattr(model, "quant_config", None)
         is_nvfp4_online = getattr(quant_config, "is_nvfp4_online", False)
         is_modelopt_fp4_online = (
@@ -1087,6 +1091,7 @@ class DefaultModelLoader(BaseModelLoader):
         else:
             model.load_weights(weights)
 
+        memory_mark(startup_memory_probe, "weights.end.before_existing_cleanup")
         # Used in tests to verify memory savings when using online quantization.
         if is_cuda_alike():
             memory_end = get_available_gpu_memory(
@@ -1097,9 +1102,26 @@ class DefaultModelLoader(BaseModelLoader):
                 f"{memory_start - memory_end:.3f}",
             )
 
+        memory_mark(startup_memory_probe, "weights.end.after_existing_cleanup")
+
     @staticmethod
-    def postprocess_weights(model, target_device):
-        for module, quant_method in _modules_with_quant_method(model):
+    def postprocess_weights(model, target_device, startup_memory_probe=None):
+        if startup_memory_probe is not None:
+            from sglang.srt.layers.moe.qwen38_startup_memory import memory_mark
+
+            names = {id(m): n for n, m in model.named_modules()}
+        for index, (module, quant_method) in enumerate(
+            _modules_with_quant_method(model)
+        ):
+            if startup_memory_probe is not None:
+                memory_mark(
+                    startup_memory_probe,
+                    f"postprocess.{index:04d}.before",
+                    metadata={
+                        "module": names.get(id(module)),
+                        "method": type(quant_method).__name__,
+                    },
+                )
             # When quant methods need to process weights after loading
             # (for repacking, quantizing, etc), they expect parameters
             # to be on the global target device. This scope is for the
@@ -1107,6 +1129,15 @@ class DefaultModelLoader(BaseModelLoader):
             # parameters onto device for processing and back off after.
             with device_loading_context(module, target_device):
                 quant_method.process_weights_after_loading(module)
+            if startup_memory_probe is not None:
+                memory_mark(
+                    startup_memory_probe,
+                    f"postprocess.{index:04d}.after",
+                    metadata={
+                        "module": names.get(id(module)),
+                        "method": type(quant_method).__name__,
+                    },
+                )
 
     @staticmethod
     def restore_weights_before_loading(model, target_device):

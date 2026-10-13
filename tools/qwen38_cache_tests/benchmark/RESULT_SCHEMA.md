@@ -68,3 +68,37 @@ fingerprint/round/candidate/order/pair/mode/trace/warmup. Foreign or incomplete
 units fail instead of entering statistics. A zero exit with absent/invalid result
 is stored as failed. Completed failures remain failures. Orphan results from
 interruption are preserved under `replay.orphan-N.json` before fresh execution.
+
+Campaign additions (`qwen38-campaign-v2` / `oct13-final-r3`): plan freezes full
+matrix, case weights and gate values, with digest. Stage suites contain subset
+and plan/prior-selection binding. Selections retain all raw artifact paths/hashes,
+failed units, per-case ratios, paired independent-round geometric TPOT ratios
+and deterministic bootstrap confidence. Candidate/holdout selection never alone
+certifies correctness. Profiles include canonical config/fallback, full plan,
+recursive screen/tune/holdout evidence, correctness seal and machine/code/model/
+input binding. Profile fingerprints and every referenced raw artifact are
+rechecked on validated loading. Baseline_pending/candidate/baseline states cannot
+load as validated acceleration; explicit fallback remains available.
+GPU small reports additionally record execution_kind/capability/code/environment.
+Synthetic CPU protocol tests produce no deployable validated profile.
+
+Final r2: campaign/selection/correctness/profile schemas are v2; suite version is
+`oct13-final-r3`. Run identity requires `input_artifacts` with exactly the same
+keys as `inputs`: each entry contains absolute `path` and JSON file byte `sha256`.
+Canonical digest(token list) is not this byte hash. Selection reopens and hashes
+every input file, then validates all request/warmup tokens and rebuilds measured
+multi-turn history using actual outputs and repeated tail stripping. Missing
+locator, changed bytes, wrong tokens or raw warmup evidence reject selection.
+All referenced files must remain accessible at their bound paths for loading.
+Launch receipt config contains assertions reflecting canonical profile < machine
+< explicit argv. Every execution mode checks assertions, loader JSON string/dict,
+and model/revision. Explicit overrides remain unvalidated.
+
+Final r3: suite version oct13-final-r3, v2 evidence schemas unchanged. CLI options
+use ServerArgs declarations for type/arity and exact production pure parsers;
+encoder_urls is always a list, Optional[int] mamba sizes are numeric. Complete
+list groups override atomically. Normal experiment receipt is
+experimental_unvalidated and does not require a machine profile; validated
+loading retains all real GPU evidence gates. User-authorized actual defaults are
+dynamic/packed/packed/group2 with L2 overlap-off. Every benchmark candidate must
+explicitly declare feature modes, preventing implicit default drift.

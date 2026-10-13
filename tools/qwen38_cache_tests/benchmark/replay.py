@@ -83,7 +83,7 @@ class ReplayProfile:
 def execute_interval(runtime, routes, events, execute, profile=None):
     """Boundary synchronization only; timing instrumentation is opt-in."""
     runtime.synchronize()
-    before = runtime.stats_snapshot()
+    before = runtime.boundary_stats_snapshot()
     started = time.perf_counter()
     for ids, event in zip(routes, events):
         if profile is not None:
@@ -93,7 +93,7 @@ def execute_interval(runtime, routes, events, execute, profile=None):
             profile.end(mark, event, started)
     runtime.synchronize()
     elapsed = time.perf_counter() - started
-    after = runtime.stats_snapshot()
+    after = runtime.boundary_stats_snapshot()
     return elapsed, before, after
 
 
@@ -123,8 +123,42 @@ def run(args):
     loader["stats_log_interval"] = 0  # boundary counters replace periodic logging in every replay mode
     runtime = Qwen38ThreadedExpertRuntime(pack, "cuda", **loader)
     evidence = []
+    backing = None
+    replay_l2 = suite.get("replay_l2", {})
+    if args.profile:
+        from sglang.srt.layers.moe.qwen38_cache_profile import CacheProfile
+        runtime.profiler = CacheProfile(torch.cuda)
     try:
         runtime.reserve()
+        if runtime.l2_mode != "off":
+            from sglang.srt.utils.cuda_vmm_utils import (VmmReservation, align_up,
+                get_device_granularity, make_device_allocation_prop)
+            size = replay_l2.get("backing_bytes", 0)
+            if type(size) is not int or size <= 0:
+                raise ValueError("L2 replay requires explicit replay_l2.backing_bytes")
+            device = torch.cuda.current_device()
+            granularity = get_device_granularity(device)
+            size = align_up(size, granularity)
+            backing = VmmReservation(size, make_device_allocation_prop(device), device)
+            handle = backing.map(0, size, retain_handle=True)
+            runtime.set_elastic_handles([(0, size, handle)])
+        # Same explicit prefill seed routes for EVERY candidate, outside timing.
+        # Dedicated replay storage is not scheduler KV lending evidence.
+        seed = replay_l2.get("seed", [])
+        for layer in range(manifest.num_layers):
+            experts = [expert for owner, expert in seed if owner == layer]
+            if not experts:
+                continue
+            count = max(runtime.slots_for_layer(layer) + manifest.top_k,
+                        len(experts))
+            count = (count + manifest.top_k - 1) // manifest.top_k * manifest.top_k
+            ids = torch.tensor([experts[i % len(experts)] for i in range(count)],
+                               dtype=torch.int32, device="cuda").reshape(-1, manifest.top_k)
+            runtime.run(layer, ids, lambda prepared: None)
+        runtime.synchronize()
+        if runtime.l2_mode == "fixed":
+            if set(map(tuple, runtime.l2_fixed_seed)) != runtime.elastic_storage.fixed_seeded:
+                raise ValueError("fixed replay seed incomplete; check shared seed/capacity")
         routes = [torch.tensor(e["routes"], dtype=torch.int32, device="cuda") for e in events]
         # Each independent worker starts empty; warmup is an explicit fixed prefix.
         for ids, event in zip(routes[:args.warmup_events], events[:args.warmup_events]):
@@ -171,18 +205,26 @@ def run(args):
                   "effective_child_env": subprocess_environment(),
                   "measured_event_range": [0, len(events)],
                   "warmup_policy": "repeat trace prefix, then measure entire trace from beginning",
-                  "initial_cache": "empty", "warmup_events": args.warmup_events,
+                  "initial_cache": "empty before explicit L2 pack seed and shared prefill seed",
+                  "l2_backing": {"kind": "dedicated-VMM; not borrowed KV", "bytes": backing.size if backing else 0,
+                                 "shared_prefill_seed": seed},
+                  "runtime_profile": runtime.profiler.results() if runtime.profiler else None, "warmup_events": args.warmup_events,
                   "before": before, "after": after, "counter_delta": numeric_delta(before, after),
                   "correctness": {"status": "passed" if args.correctness else "not_run",
                                   "scope": "all routed experts, all six payload tensors, compared byte-exact to real mmap pack; real MoE not executed",
                                   "evidence": evidence},
                   "actual_runtime_source": str(Path(__import__('inspect').getfile(Qwen38ThreadedExpertRuntime)).resolve()),
-                  "effective_runtime": {"stats_log_interval": runtime.stats_log_interval, "layer_cache_slots": runtime.layer_cache_slots, "adaptive_cache": runtime.adaptive_cache,
+                  "effective_runtime": {"decode_submit_experts": runtime.decode_submit_experts, "packed_decode": runtime.packed_decode, "packed_prefill": runtime.packed_prefill, "packed_attached": runtime.packed_transport is not None, "l2_mode": runtime.l2_mode, "l2_attached": runtime.elastic_storage is not None, "stats_log_interval": runtime.stats_log_interval, "layer_cache_slots": runtime.layer_cache_slots, "adaptive_cache": runtime.adaptive_cache,
                                         "resident_alphas": runtime.resident_alphas, "fused_decode_plan": runtime.fused_decode_plan,
                                         "prefill_copy_mode": runtime.prefill_copy_mode, "cache_policy": runtime.cache_policy},
                   "candidate": args.candidate, "payload_nbytes": manifest.payload_nbytes,
                   "token_wall_s": elapsed / sum(len(e["routes"]) for e in events if e["layer"] == 0) if mode == "benchmark" else None}
         write(args.output, report)
     finally:
-        runtime.close()
+        try:
+            runtime.close()
+        finally:
+            # Release physical owner only after all aliases were removed.
+            if backing is not None and (runtime.elastic_storage is None or not runtime.elastic_storage.blocks):
+                backing.close()
         # Runtime owns mmap views; child process exit releases the read-only pack.

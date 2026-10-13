@@ -97,13 +97,23 @@ def is_routed_expert_weight(name: str) -> bool:
 
 
 def should_skip_checkpoint_tensor(name: str, *, language_model_only: bool) -> bool:
-    return is_routed_expert_weight(name) or (
-        language_model_only and (name.startswith("visual.") or "model.visual." in name)
+    return (
+        "mtp" in name
+        or "rotary_emb.inv_freq" in name
+        or is_routed_expert_weight(name)
+        or (
+            language_model_only
+            and (name.startswith("visual.") or "model.visual." in name)
+        )
     )
 
 
 def filtered_safetensors_weights_iterator(
-    files: Iterable[str], *, language_model_only: bool = True, lazy_ple: bool = False
+    files: Iterable[str],
+    *,
+    language_model_only: bool = True,
+    lazy_ple: bool = False,
+    audit=None,
 ) -> Iterator[tuple[str, object]]:
     """Check names before get_tensor(), so skipped 63+ GiB experts are untouched."""
     from safetensors import safe_open
@@ -120,7 +130,27 @@ def filtered_safetensors_weights_iterator(
                 if should_skip_checkpoint_tensor(
                     name, language_model_only=language_model_only
                 ):
+                    if audit is not None:
+                        category = (
+                            "mtp"
+                            if "mtp" in name
+                            else (
+                                "rotary"
+                                if "rotary_emb.inv_freq" in name
+                                else (
+                                    "routed_experts"
+                                    if is_routed_expert_weight(name)
+                                    else "visual"
+                                )
+                            )
+                        )
+                        audit[category] = audit.get(category, 0) + 1
                     continue
+                if audit is not None:
+                    audit["lazy_ple" if name in ple_index else "read_tensor"] = (
+                        audit.get("lazy_ple" if name in ple_index else "read_tensor", 0)
+                        + 1
+                    )
                 if name in ple_index:
                     yield name, ple_index[name]
                 else:
