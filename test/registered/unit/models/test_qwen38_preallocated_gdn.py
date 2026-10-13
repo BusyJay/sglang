@@ -2,6 +2,7 @@
 import json
 import types
 import unittest
+import weakref
 from pathlib import Path
 from unittest.mock import patch
 
@@ -66,6 +67,8 @@ class TestPreallocatedGdn(unittest.TestCase):
             self.finalize(gdn)
             self.finalize(gdn)
         self.assertIs(gdn._fused_in_proj_weight, packed)
+        self.assertFalse(hasattr(qkvz, '_qwen38_gdn_packed_weight'))
+        self.assertFalse(hasattr(ba, '_qwen38_gdn_packed_weight'))
         self.assertEqual(qkvz.weight.untyped_storage().data_ptr(), ba.weight.untyped_storage().data_ptr())
         x = torch.ones((2, 4), dtype=torch.bfloat16)
         self.assertTrue(torch.equal(torch.nn.functional.linear(x, packed), torch.cat([
@@ -140,10 +143,14 @@ class TestPreallocatedGdn(unittest.TestCase):
         with torch.no_grad():
             gdn.in_proj_qkvz.weight.fill_(1)
             gdn.in_proj_ba.weight.fill_(2)
+        original = weakref.ref(gdn.in_proj_qkvz._qwen38_gdn_packed_weight)
         gdn.in_proj_ba.weight.data = torch.full_like(gdn.in_proj_ba.weight, 9)
         self.assertIsNone(preallocated_gdn_weight(gdn.in_proj_qkvz, gdn.in_proj_ba))
         self.finalize(gdn)
         self.assertTrue(torch.all(gdn._fused_in_proj_weight[8:] == 9))
+        self.assertIsNone(original(), 'fallback retained the obsolete packed buffer')
+        self.assertFalse(hasattr(gdn.in_proj_qkvz, '_qwen38_gdn_packed_weight'))
+        self.assertFalse(hasattr(gdn.in_proj_ba, '_qwen38_gdn_packed_weight'))
 
 
 if __name__ == '__main__':
