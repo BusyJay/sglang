@@ -1,0 +1,81 @@
+{
+  "stage": "A",
+  "suite_version": "oct13-a2",
+  "date": "2026-10-13 Asia/Shanghai",
+  "implementation_base_sha": "d1d85bf29b855e511d2a96f9a7f6cec73fc2bb1f",
+  "performance_base_sha": "384c83da44a4334dcaa74c474195ab960126e029",
+  "scope": "benchmark tools, sample configs, protocol tests and GPU handoff only; no runtime optimization or default change",
+  "checks": {
+    "benchmark_cpu_protocol": {
+      "status": "passed",
+      "tests": 29,
+      "command": "python3 -m unittest tools.qwen38_cache_tests.test_cpu_benchmark -v"
+    },
+    "existing_cpu_regression": {
+      "status": "passed_with_skips",
+      "tests": 180,
+      "passed": 160,
+      "skipped": 20,
+      "reason": "torch/numpy unavailable for skipped existing tests",
+      "command": "python3 tools/qwen38_cache_tests/run_cpu.py"
+    },
+    "python_syntax": {
+      "status": "passed",
+      "command": "python3 -m compileall -q tools/qwen38_cache_tests/benchmark"
+    },
+    "cli_subcommand_help": {
+      "status": "passed",
+      "subcommands": 10
+    },
+    "CUDA_compile": {
+      "status": "not_run",
+      "reason": "no available GPU/CUDA runtime dependencies on implementation host"
+    },
+    "GPU_payload_correctness": {
+      "status": "not_run"
+    },
+    "GPU_SM120_MoE_parity": {
+      "status": "not_run"
+    },
+    "real_model_startup_effective_config": {
+      "status": "not_run"
+    },
+    "real_tokenizer_chat_boundary": {
+      "status": "not_run",
+      "reason": "CPU template fixture only; real local tokenizer must be inspected on GPU host"
+    },
+    "model_semantic_correctness": {
+      "status": "not_run"
+    },
+    "GPU_trace_collection": {
+      "status": "not_run"
+    },
+    "GPU_performance_baseline": {
+      "status": "not_run"
+    },
+    "profile_backend": {
+      "status": "not_run"
+    },
+    "review_R1_R3": {
+      "status": "passed_cpu_only",
+      "evidence": "STAGE_A_REVIEW_RESPONSE.md; eight additional regression tests"
+    },
+    "GPU_replay_profile_overhead": {
+      "status": "not_run"
+    }
+  },
+  "limitations": [
+    "CPU fixtures, HTTP test streams and mocks do not establish GPU correctness or throughput.",
+    "GPU replay is transport-only with real pack payload/layout; no MoE compute, CUDA graph or scheduler overlap.",
+    "Model cache statistics are periodic snapshots with explicit alignment gaps, not exact request deltas.",
+    "TTFT/TPOT use client receipt timestamps; coalesced token chunks limit resolution.",
+    "Frozen answer TTFT includes prefill, first decode token and client overhead, not pure prefill compute.",
+    "Sample startup profile must be confirmed; startup warmup makes process-restart expert cache nonempty.",
+    "Real route capture is a separate profiling step; raw capture may include startup warmup and cap truncation, with incomplete sweeps rejected.",
+    "Checkpoint identity uses declared revision, JSON hashes and file size/mtime signatures; full pack payload is hashed, full model weights are not.",
+    "Candidate profiles remain diagnostic and unapproved. Validated selection/loading is stage E.",
+    "Five rounds and provisional 3% gates require noise calibration and review before stage B."
+  ],
+  "next_gate": "GPU smoke/correctness, frozen baseline raw result return, review; only then 06, followed by 05 and 01",
+  "review_revision_base_sha": "6194db936af5867d6074093f441b738b5097fb54"
+}
