@@ -1,0 +1,11 @@
+{
+  "checkpoint": "/absolute/local/checkpoint",
+  "manifest": "/absolute/local/pack/manifest.json",
+  "model_revision": "REPLACE_WITH_CHECKPOINT_REVISION",
+  "container_image": "REPLACE_WITH_LOCAL_IMAGE_DIGEST",
+  "port": 30938,
+  "deployment_args": [
+    "--language-model-only"
+  ],
+  "notes": "Set a legal language-only remote ViT launch in deployment_args if required. Any changed memory/chunk/layout requires a new suite and assertions. Do not silently shrink slots."
+}

@@ -1,0 +1,336 @@
+{
+  "version": "oct13-a2",
+  "num_layers": 48,
+  "num_experts": 512,
+  "top_k": 10,
+  "rounds": 5,
+  "seed": 42,
+  "startup_timeout_s": 3600,
+  "request_timeout_s": 14400,
+  "replay_timeout_s": 7200,
+  "trace_limit": 240000,
+  "baseline": "baseline04",
+  "candidates": [
+    {
+      "id": "baseline04",
+      "loader": {
+        "runtime_mode": "threaded",
+        "cache_slots_per_layer": 96,
+        "layer_cache_slots": [
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96,
+          96
+        ],
+        "prefill_arena": true,
+        "adaptive_cache": false,
+        "cache_policy": "lfu",
+        "cache_protected_fraction": 0.7,
+        "staging_buffers": 4,
+        "staging_buffer_bytes": 67108864,
+        "resident_alphas": true,
+        "fused_decode_plan": true,
+        "prefill_copy_mode": "auto",
+        "prefill_reuse_cache": true,
+        "prefill_seed_cache": true,
+        "warm_decode_cache": false,
+        "stats_log_interval": 400,
+        "async_pack_prefetch": true
+      },
+      "server_args": [
+        "--load-format",
+        "qwen38_nvfp4_cache",
+        "--reasoning-parser",
+        "qwen3",
+        "--ple-offload-embedding",
+        "--ple-offload-backend",
+        "lazy",
+        "--cuda-graph-backend-prefill=disabled",
+        "--cuda-graph-backend-decode=breakable",
+        "--disable-shared-experts-fusion",
+        "--moe-runner-backend",
+        "flashinfer_cutlass",
+        "--max-running-requests",
+        "1",
+        "--kv-cache-dtype",
+        "fp8_e4m3",
+        "--context-length",
+        "65536",
+        "--chunked-prefill-size",
+        "4096",
+        "--mem-fraction-static",
+        "0.8",
+        "--stream-interval",
+        "1",
+        "--warmups",
+        "qwen38_offload",
+        "--random-seed",
+        "42"
+      ],
+      "expected_effective": {
+        "chunked_prefill_size": 4096,
+        "kv_cache_dtype": "fp8_e4m3",
+        "max_running_requests": 1,
+        "cuda_graph_backend_prefill": "disabled",
+        "cuda_graph_backend_decode": "breakable",
+        "disable_overlap_schedule": false,
+        "mem_fraction_static": 0.8,
+        "context_length": 65536,
+        "ple_offload_backend": "lazy",
+        "ple_offload_embedding": true,
+        "disable_radix_cache": false,
+        "incremental_streaming_output": false,
+        "stream_interval": 1,
+        "load_format": "qwen38_nvfp4_cache",
+        "random_seed": 42
+      }
+    }
+  ],
+  "cases": [
+    {
+      "id": "short-decode",
+      "split": "tune",
+      "weight": 1.0,
+      "state": "process_restart",
+      "warmup_requests": [],
+      "turns": [
+        {
+          "tokens": "short.json",
+          "input_tokens": 512,
+          "sampling": {
+            "max_new_tokens": 2048,
+            "temperature": 0.0,
+            "top_p": 1.0,
+            "top_k": -1,
+            "sampling_seed": 42,
+            "ignore_eos": true
+          },
+          "length_policy": "fixed"
+        }
+      ]
+    },
+    {
+      "id": "context28k",
+      "split": "tune",
+      "weight": 1.0,
+      "state": "process_restart",
+      "warmup_requests": [],
+      "turns": [
+        {
+          "tokens": "28k.json",
+          "input_tokens": 28672,
+          "sampling": {
+            "max_new_tokens": 1024,
+            "temperature": 0.0,
+            "top_p": 1.0,
+            "top_k": -1,
+            "sampling_seed": 42,
+            "ignore_eos": true
+          },
+          "length_policy": "fixed"
+        }
+      ]
+    },
+    {
+      "id": "context50k",
+      "split": "tune",
+      "weight": 1.0,
+      "state": "process_restart",
+      "warmup_requests": [],
+      "turns": [
+        {
+          "tokens": "50k.json",
+          "input_tokens": 51200,
+          "sampling": {
+            "max_new_tokens": 1024,
+            "temperature": 0.0,
+            "top_p": 1.0,
+            "top_k": -1,
+            "sampling_seed": 42,
+            "ignore_eos": true
+          },
+          "length_policy": "fixed"
+        }
+      ]
+    },
+    {
+      "id": "raft-session",
+      "split": "tune",
+      "weight": 1.0,
+      "state": "process_restart",
+      "warmup_requests": [],
+      "turns": [
+        {
+          "tokens": "raft.json",
+          "input_tokens": 1,
+          "sampling": {
+            "max_new_tokens": 8192,
+            "temperature": 0.0,
+            "top_p": 1.0,
+            "top_k": -1,
+            "sampling_seed": 42,
+            "ignore_eos": false
+          },
+          "length_policy": "eos"
+        },
+        {
+          "tokens": "arbiter-suffix.json",
+          "input_tokens": 1,
+          "sampling": {
+            "max_new_tokens": 8192,
+            "temperature": 0.0,
+            "top_p": 1.0,
+            "top_k": -1,
+            "sampling_seed": 42,
+            "ignore_eos": false
+          },
+          "length_policy": "eos"
+        }
+      ]
+    },
+    {
+      "id": "short-hot",
+      "split": "holdout",
+      "weight": 1.0,
+      "state": "warm_sequence",
+      "warmup_requests": [
+        {
+          "tokens": "warmup.json",
+          "input_tokens": 1,
+          "sampling": {
+            "max_new_tokens": 64,
+            "temperature": 0.0,
+            "top_p": 1.0,
+            "top_k": -1,
+            "sampling_seed": 42,
+            "ignore_eos": true
+          },
+          "length_policy": "fixed"
+        }
+      ],
+      "turns": [
+        {
+          "tokens": "short-holdout.json",
+          "input_tokens": 768,
+          "sampling": {
+            "max_new_tokens": 2048,
+            "temperature": 0.0,
+            "top_p": 1.0,
+            "top_k": -1,
+            "sampling_seed": 42,
+            "ignore_eos": true
+          },
+          "length_policy": "fixed"
+        }
+      ]
+    },
+    {
+      "id": "context28k-holdout",
+      "split": "holdout",
+      "weight": 1.0,
+      "state": "process_restart",
+      "warmup_requests": [],
+      "turns": [
+        {
+          "tokens": "28k-holdout.json",
+          "input_tokens": 28672,
+          "sampling": {
+            "max_new_tokens": 1024,
+            "temperature": 0.0,
+            "top_p": 1.0,
+            "top_k": -1,
+            "sampling_seed": 42,
+            "ignore_eos": true
+          },
+          "length_policy": "fixed"
+        }
+      ]
+    },
+    {
+      "id": "context50k-holdout",
+      "split": "holdout",
+      "weight": 1.0,
+      "state": "process_restart",
+      "warmup_requests": [],
+      "turns": [
+        {
+          "tokens": "50k-holdout.json",
+          "input_tokens": 51200,
+          "sampling": {
+            "max_new_tokens": 1024,
+            "temperature": 0.0,
+            "top_p": 1.0,
+            "top_k": -1,
+            "sampling_seed": 42,
+            "ignore_eos": true
+          },
+          "length_policy": "fixed"
+        }
+      ]
+    }
+  ],
+  "cache_state": {
+    "process": "restart for every independent round/case/candidate",
+    "model_startup_warmup": "qwen38_offload; included in startup, excluded from request timings",
+    "expert_cache": "post startup warmup, then explicit case warmup; NOT empty for process_restart",
+    "prefix_kv": "fresh process then warmup/session retained; no flush between turns",
+    "ple": "lazy host backend, fresh process mappings; OS page cache uncontrolled",
+    "host_page_cache": "uncontrolled, no privileged drop; record order; never label OS-cold",
+    "remote_vit": "deployment_args must specify legal remote encoder URLs; requests text only"
+  },
+  "cost": {
+    "units": 35,
+    "estimated_seconds": null,
+    "note": "five fresh process rounds, 28672/51200 token cases; EOS reasoning capped at 8192 each; no measured runtime estimate"
+  },
+  "selection": {
+    "min_paired_rounds": 5,
+    "min_gain": 0.03,
+    "max_case_regression": 0.03,
+    "status": "provisional; calibrate after baseline review"
+  }
+}
