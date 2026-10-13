@@ -63,6 +63,7 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             "route_trace_path",
             "route_trace_limit",
             "adaptive_cache",
+            "preallocate_gdn_proj",
             "adaptive_cache_window",
             "adaptive_cache_interval",
             "adaptive_cache_mode",
@@ -150,6 +151,8 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             "threaded",
         ):
             raise ValueError("runtime_mode must be sync, async, device or threaded")
+        if type(config.get("preallocate_gdn_proj", False)) is not bool:
+            raise ValueError("preallocate_gdn_proj must be a JSON boolean")
         self.config = config
         self.manifest = load_manifest(manifest_path)
         self.manifest.validate_cutlass_layout()
@@ -220,7 +223,16 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             raise ValueError(
                 "qwen38_nvfp4_cache requires a serialized modelopt_mixed checkpoint"
             )
-        quant_config = Qwen38CachedModelOptConfig(delegate, self.manifest)
+        gdn_value_heads = None
+        if self.config.get("preallocate_gdn_proj", False):
+            gdn_value_heads = getattr(
+                model_config.hf_text_config, "linear_num_value_heads", None
+            )
+            if type(gdn_value_heads) is not int or gdn_value_heads <= 0:
+                raise ValueError("preallocate_gdn_proj requires linear_num_value_heads")
+        quant_config = Qwen38CachedModelOptConfig(
+            delegate, self.manifest, gdn_value_heads=gdn_value_heads
+        )
         target_device = torch.device(device_config.device)
         if target_device.type != "cuda" or torch.cuda.get_device_capability(
             target_device

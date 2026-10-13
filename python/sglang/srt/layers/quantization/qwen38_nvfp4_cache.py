@@ -193,10 +193,12 @@ class Qwen38CachedModelOptConfig(QuantizationConfig):
 
     supports_qwen38_mixed_precision = True
 
-    def __init__(self, delegate: QuantizationConfig, manifest):
+    def __init__(self, delegate: QuantizationConfig, manifest, gdn_value_heads=None):
         super().__init__()
         self.delegate = delegate
         self.manifest = manifest
+        self.gdn_value_heads = gdn_value_heads
+        self._pending_gdn_weights = {}
         self.packed_modules_mapping = delegate.packed_modules_mapping
 
     def __getattr__(self, name):
@@ -240,4 +242,29 @@ class Qwen38CachedModelOptConfig(QuantizationConfig):
             if self.delegate.resolve_quant_algo(prefix) != "NVFP4":
                 raise ValueError(f"{prefix} must use serialized NVFP4 routed experts")
             return Qwen38CachedNvFp4MoeMethod(self.manifest, prefix)
-        return self.delegate.get_quant_method(layer, prefix)
+        method = self.delegate.get_quant_method(layer, prefix)
+        if self.gdn_value_heads is not None and re.search(
+            r"(?:^|\.)layers\.\d+\.linear_attn\.in_proj_(?:qkvz|ba)$", prefix
+        ):
+            from sglang.srt.layers.quantization.unquant import UnquantizedLinearMethod
+            from sglang.srt.layers.quantization.qwen38_gdn_preallocated import (
+                Qwen38PreallocatedGdnLinearMethod,
+            )
+
+            key, projection = prefix.rsplit(".", 1)
+            other = "in_proj_ba" if projection == "in_proj_qkvz" else "in_proj_qkvz"
+            if (
+                type(method) is UnquantizedLinearMethod
+                and layer.params_dtype == torch.bfloat16
+            ):
+                # BA consumes only storage already selected by its QKVZ
+                # projection; quantized/mixed layouts keep the original path.
+                pair_is_preallocated = (
+                    projection == "in_proj_qkvz"
+                    and self.delegate.resolve_quant_algo(key + "." + other) is None
+                ) or (projection == "in_proj_ba" and key in self._pending_gdn_weights)
+                if pair_is_preallocated:
+                    return Qwen38PreallocatedGdnLinearMethod(
+                        self._pending_gdn_weights, key, projection, self.gdn_value_heads
+                    )
+        return method

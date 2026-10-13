@@ -660,7 +660,13 @@ class Qwen3_5GatedDeltaNet(nn.Module):
             and ba.bias is None
         ):
             return
-        fused = torch.cat([qkvz.weight.data, ba.weight.data], dim=0).contiguous()
+        from sglang.srt.layers.quantization.qwen38_gdn_preallocated import (
+            preallocated_gdn_weight,
+        )
+
+        fused = preallocated_gdn_weight(qkvz, ba)
+        if fused is None:
+            fused = torch.cat([qkvz.weight.data, ba.weight.data], dim=0).contiguous()
         self._fused_in_proj_qkvz_width = qkvz.weight.shape[0]
         qkvz.weight.data = fused[: self._fused_in_proj_qkvz_width]
         ba.weight.data = fused[self._fused_in_proj_qkvz_width :]
