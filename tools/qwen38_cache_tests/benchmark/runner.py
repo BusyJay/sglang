@@ -12,7 +12,7 @@ import urllib.request
 from pathlib import Path
 
 from .core import (ROOT, StreamMeasurement, check_effective, read, telemetry,
-                   token_file, write, subprocess_environment)
+                   token_file, write, subprocess_environment, source_loader_config)
 
 
 def request(url, data=None, timeout=30):
@@ -104,6 +104,7 @@ def run_unit(unit, suite, machine, inputs, output, mode, fingerprint=None):
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
     loader = {**candidate["loader"], "manifest_path": machine["manifest"]}
+    loader, omitted_controls = source_loader_config(loader)
     if mode == "trace":
         loader.update(route_trace_path=str((output / "routes.raw.jsonl").resolve()),
                       route_trace_limit=suite["trace_limit"])
@@ -120,6 +121,7 @@ def run_unit(unit, suite, machine, inputs, output, mode, fingerprint=None):
               "correctness": "completion/length/counts; semantic and generation parity require GPU review",
               "retry_policy": "none; failed units preserved and not silently rerun",
               "enforced_environment": env}
+    result["omitted_unsupported_neutral_controls"] = omitted_controls
     process = None
     log_path = output / "server.log"
     try:

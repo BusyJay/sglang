@@ -173,11 +173,7 @@ def validate(suite, machine, inputs=None):
         if type(submit) is not int or not 0 <= submit <= suite["num_experts"]:
             raise ValueError("invalid decode_submit_experts")
         mode = loader.get("l2_mode", "off")
-        import importlib.util
-        spec = importlib.util.spec_from_file_location("qwen38_l2_validation", ROOT / "python/sglang/srt/layers/moe/qwen38_l2_config.py")
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        validate_l2_config = module.validate_l2_config
+        from .config_validation import validate_l2_config
         validate_l2_config(mode, loader.get("l2_min_score", 2.0), loader.get("l2_margin", 0.1),
                            loader.get("l2_demotion_budget", 2), loader.get("l2_prefill_budget", 8))
         if mode != "off" and candidate["expected_effective"].get("disable_overlap_schedule") is not True:
@@ -272,6 +268,21 @@ def check_effective(info, candidate, loader):
         actual = json.loads(actual)
     if not isinstance(actual, dict) or actual != loader:
         raise ValueError("effective loader config mismatch")
+
+
+def source_loader_config(loader):
+    """Omit unsupported neutral controls; reject enabling absent source features."""
+    source = (ROOT / "python/sglang/srt/model_loader/qwen38_nvfp4_cache_loader.py").read_text()
+    result, omitted = dict(loader), []
+    for key, neutral in (("l2_mode", "off"), ("packed_decode", "direct"),
+                         ("packed_prefill", "direct"), ("decode_submit_experts", 1)):
+        if key not in result or f'"{key}"' in source:
+            continue
+        if type(result[key]) is not type(neutral) or result[key] != neutral:
+            raise ValueError(f"source does not implement requested {key}={result[key]!r}")
+        omitted.append(key)
+        del result[key]
+    return result, omitted
 
 
 class StreamMeasurement:
