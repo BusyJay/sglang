@@ -671,6 +671,12 @@ class Qwen3_5GatedDeltaNet(nn.Module):
         qkvz.weight.data = fused[: self._fused_in_proj_qkvz_width]
         ba.weight.data = fused[self._fused_in_proj_qkvz_width :]
         self._fused_in_proj_weight = fused
+        # Parameters and the fused weight now own the final storage. Drop the
+        # construction references, especially after a rebound parameter caused
+        # the fallback path to replace the original preallocated buffer.
+        for projection in (qkvz, ba):
+            if hasattr(projection, "_qwen38_gdn_packed_weight"):
+                del projection._qwen38_gdn_packed_weight
 
     def _finalize_fused_fp8_in_proj(self) -> bool:
         """Pack loaded Quark per-channel FP8 projections without requantizing."""
