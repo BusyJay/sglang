@@ -83,6 +83,7 @@ from sglang.srt.runtime_context import (
     get_disagg,
     get_exec,
     get_memory,
+    get_model,
     get_mm,
     get_parallel,
     get_schedule,
@@ -2183,7 +2184,19 @@ class KVCacheConfigurator:
         # reclaim referenced blocks. Without collecting first, the KV budget is
         # measured against an understated free-memory figure and the pool can be
         # sized orders of magnitude too small while GPU memory sits idle.
+        from sglang.srt.layers.moe.qwen38_startup_memory import (
+            get_startup_memory_probe,
+            memory_mark,
+        )
+
+        probe = (
+            get_startup_memory_probe(self.device)
+            if getattr(get_model(), "load_format", None) == "qwen38_nvfp4_cache"
+            else None
+        )
+        memory_mark(probe, "kv.budget.before_gc")
         gc.collect()
+        memory_mark(probe, "kv.budget.after_gc.before_empty_cache")
         available_gpu_memory = get_available_gpu_memory(
             self.device,
             self.gpu_id,
@@ -2191,6 +2204,11 @@ class KVCacheConfigurator:
             cpu_group=get_parallel().world_group.cpu_group,
         )
 
+        memory_mark(
+            probe,
+            "kv.budget.after_empty_cache",
+            metadata={"available_gpu_memory_gb": available_gpu_memory},
+        )
         slack_gb = pre_model_load_memory * (1 - get_schedule().mem_fraction_static)
         if self.mambaish_config is not None and self.post_capture_kv_active:
             # Mamba state is a fixed pre-capture allocation, so it can't ride the ~0 post-capture slack.

@@ -882,6 +882,10 @@ class ModelRunner:
         if memory_pool_config is not None:
             self.memory_pool_config = memory_pool_config
 
+        from sglang.srt.layers.moe.qwen38_startup_memory import memory_mark
+
+        probe = getattr(self, "qwen38_startup_memory_probe", None)
+        memory_mark(probe, "runner.kv.before_configure", model=self.model)
         self.init_kv_cache_configurator()
         result = self.kv_cache_configurator.configure(
             pre_model_load_memory=self.pre_model_load_memory
@@ -898,7 +902,13 @@ class ModelRunner:
         # Keep a reference so the shared byte buffer is not GC'd.
         self._unified_memory_pool = result.unified_memory_pool
 
+        memory_mark(
+            probe,
+            "runner.kv.after_allocate",
+            metadata={"max_total_num_tokens": self.max_total_num_tokens},
+        )
         self._init_post_memory_pool_components()
+        memory_mark(probe, "runner.kv.after_components", model=self.model)
 
     def _init_post_memory_pool_components(self):
         """Post-pool component wiring, split out of alloc_memory_pool so forks
@@ -1097,6 +1107,10 @@ class ModelRunner:
         )
         if is_scale_joiner:
             self._validate_elastic_cuda_graph_recapture()
+        from sglang.srt.layers.moe.qwen38_startup_memory import memory_mark
+
+        probe = getattr(self, "qwen38_startup_memory_probe", None)
+        memory_mark(probe, "runner.graph.before_capture")
         capture = capture_cuda_graphs(
             model_runner=self,
             capture_decode_cuda_graph=(
@@ -1105,6 +1119,7 @@ class ModelRunner:
             finalize=not defer_decode_capture,
             defer_distributed_setup=defer_decode_capture,
         )
+        memory_mark(probe, "runner.graph.after_capture")
         self.eager_runner = capture.eager_runner
         self.prefill_cuda_graph_runner = capture.prefill.runner
         self.decode_cuda_graph_runner = capture.decode.runner
@@ -1183,7 +1198,20 @@ class ModelRunner:
 
     def load_model(self):
         tic_total = time.perf_counter()
+        from sglang.srt.layers.moe.qwen38_startup_memory import (
+            get_startup_memory_probe,
+            memory_mark,
+        )
+
+        self.qwen38_startup_memory_probe = (
+            get_startup_memory_probe(self.device)
+            if get_model().load_format == "qwen38_nvfp4_cache"
+            else None
+        )
+        probe = self.qwen38_startup_memory_probe
+        memory_mark(probe, "runner.load.begin.before_empty_cache")
         before_avail_memory = get_available_gpu_memory(self.device, self.gpu_id)
+        memory_mark(probe, "runner.load.begin.after_empty_cache")
         logger.info(
             f"Load weight begin. avail mem={get_available_gpu_memory(self.device, self.gpu_id):.2f} GB"
         )
@@ -1241,7 +1269,9 @@ class ModelRunner:
         if not self.is_draft_worker:
             get_offloader().post_init()
 
+        memory_mark(probe, "runner.before_precompile", model=self.model)
         self.maybe_precompile_model_kernels_after_loading()
+        memory_mark(probe, "runner.after_precompile", model=self.model)
 
         # Register model for layerwise NVTX profiling if enabled
         if get_exec().comm.enable_layerwise_nvtx_marker:
@@ -1268,7 +1298,9 @@ class ModelRunner:
 
         self.dtype = self.model_config.dtype
 
+        memory_mark(probe, "runner.load.end.before_empty_cache", model=self.model)
         after_avail_memory = get_available_gpu_memory(self.device, self.gpu_id)
+        memory_mark(probe, "runner.load.end.after_empty_cache", model=self.model)
         self.weight_load_mem_usage = before_avail_memory - after_avail_memory
         self.weight_load_time = time.perf_counter() - tic_total
         # Get quantization config from ModelConfig

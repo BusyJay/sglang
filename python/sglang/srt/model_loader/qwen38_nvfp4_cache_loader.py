@@ -219,27 +219,60 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             target_device
         ) != (12, 0):
             raise ValueError("qwen38_nvfp4_cache requires an SM120 CUDA device")
+        from sglang.srt.layers.moe.qwen38_startup_memory import (
+            get_startup_memory_probe,
+            memory_mark,
+        )
+
+        probe = get_startup_memory_probe(target_device)
+        memory_mark(probe, "loader.before_pack", metadata={"config": self.config})
         pack = Qwen38ExpertPack(self.manifest)
+        memory_mark(probe, "loader.after_pack")
         try:
             if self.config.get("async_pack_prefetch", False):
                 pack.start_prefetch()
             with set_default_torch_dtype(model_config.dtype):
                 with target_device:
+                    memory_mark(probe, "loader.before_model_construct")
                     model = _initialize_model(model_config, self.load_config, quant_config)
+                    memory_mark(probe, "loader.after_model_construct", model=model)
                 if remote_vision and getattr(model, "visual", None) is not None:
                     raise ValueError("Flash-Next offload worker unexpectedly allocated a local ViT")
                 lazy_ple = (
                     getattr(model_config.hf_text_config, "ple_offload_backend", "pinned")
                     == "lazy"
                 )
+                checkpoint_audit = {} if probe is not None else None
                 weights = filtered_safetensors_weights_iterator(
                     weight_files,
                     language_model_only=True,
                     lazy_ple=lazy_ple,
+                    audit=checkpoint_audit,
                 )
-                DefaultModelLoader.load_weights_and_postprocess(
-                    model, weights, target_device
-                )
+                if probe is None:
+                    DefaultModelLoader.load_weights_and_postprocess(
+                        model, weights, target_device
+                    )
+                else:
+                    memory_mark(probe, "loader.before_load_weights", model=model)
+                    DefaultModelLoader.load_weights_only(
+                        model, weights, target_device, startup_memory_probe=probe
+                    )
+                    # Close generator handles and drop the iterator before observing
+                    # the boundary, as the combined loader normally does on return.
+                    if hasattr(weights, "close"):
+                        weights.close()
+                    del weights
+                    memory_mark(
+                        probe,
+                        "loader.after_load_weights",
+                        model=model,
+                        metadata={"checkpoint_filter_counts": checkpoint_audit},
+                    )
+                    DefaultModelLoader.postprocess_weights(
+                        model, target_device, startup_memory_probe=probe
+                    )
+                    memory_mark(probe, "loader.after_postprocess", model=model)
         except BaseException:
             pack.close()
             raise
@@ -312,7 +345,14 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                 route_trace_limit=self.config.get("route_trace_limit", 10000),
                 **runtime_options,
             )
+            memory_mark(probe, "loader.after_runtime_construct", model=model)
             runtime.reserve()
+            memory_mark(
+                probe,
+                "loader.after_runtime_reserve",
+                model=model,
+                metadata={"runtime_budget": runtime.memory_budget()},
+            )
             bound = set()
             for module in model.modules():
                 method = getattr(module, "quant_method", None)

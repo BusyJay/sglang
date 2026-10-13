@@ -22,6 +22,14 @@ def request(url, data=None, timeout=30):
         return json.load(response)
 
 
+def assert_port_available(port):
+    # Like the HTTP server, allow reuse after an owned process exits while
+    # its connections remain in TIME_WAIT. A live listener still rejects bind.
+    with socket.socket() as probe:
+        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        probe.bind(("127.0.0.1", port))
+
+
 def generate(url, ids, turn, timeout, artifact):
     measure = StreamMeasurement()
     started = time.perf_counter()
@@ -124,8 +132,7 @@ def run_unit(unit, suite, machine, inputs, output, mode, fingerprint=None):
         if any(not Path(p).resolve().is_relative_to(ROOT / "python/sglang") for p in imports.values()):
             raise RuntimeError("server imports another installed source tree")
         result["actual_imports"] = imports
-        with socket.socket() as port_probe:
-            port_probe.bind(("127.0.0.1", machine["port"]))
+        assert_port_available(machine["port"])
         with log_path.open("w") as log:
             process = subprocess.Popen(argv, cwd=ROOT, env=env, stdout=log,
                                        stderr=subprocess.STDOUT, start_new_session=True)

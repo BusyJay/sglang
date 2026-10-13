@@ -1,0 +1,37 @@
+{
+  "phase": "06",
+  "status": "ready-for-GPU-test; pending code review",
+  "parent": "55b13ab866d71b610599c5e92feb921003f737a1",
+  "suite_version": "oct13-06-r1",
+  "cpu": {
+    "status": "passed",
+    "tests": 207,
+    "skipped": 0,
+    "raw_log": "/data/workspace/qwen38-06-review-20261013/cpu-final207.log"
+  },
+  "benchmark_cpu": {
+    "status": "passed",
+    "tests": 31
+  },
+  "cuda_routing_SM120": {
+    "status": "compiled_and_loaded",
+    "kernel_execution": "not_run",
+    "raw_log": "/data/workspace/qwen38-06-review-20261013/cuda-verified.log"
+  },
+  "gpu_payload_correctness": "not_run",
+  "gpu_moe_parity": "not_run",
+  "gpu_KV_borrow_return_graph_session_long_context": "not_run",
+  "gpu_benchmark_and_profile_overhead": "not_run",
+  "validated_acceleration_profile": "not_generated",
+  "container": "lmsysorg/sglang@sha256:b1259f3ea3275f66237c498ea388919729018bc9f01c3d638391e06e2cf3f469",
+  "commands": [
+    "tools/qwen38_cache_tests/docker_cpu.sh lmsysorg/sglang:v0.5.21",
+    "docker run --rm --pull never --network none -v /data/workspace/sglang:/workspace/sglang:ro -w /workspace/sglang -e PYTHONPATH=/workspace/sglang/python -e PYTHONDONTWRITEBYTECODE=1 --entrypoint python3 lmsysorg/sglang:v0.5.21 tools/qwen38_cache_tests/compile_cuda.py"
+  ],
+  "limitations": [
+    "Transport replay uses dedicated VMM backing, not KV lending; does not execute MoE.",
+    "No GPU evidence or speed claim.",
+    "06 depends on a2; 05/01 not included.",
+    "Fixed L2 warmup is explicit loader seed; reclamation removes copies without automatic reseeding."
+  ]
+}

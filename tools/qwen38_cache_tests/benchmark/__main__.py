@@ -33,6 +33,8 @@ def identity(suite, machine, inputs, extra=None):
                  for p in sorted(Path(machine["checkpoint"]).rglob("*")) if p.is_file()},
              "checkpoint_identity_scope": "declared model revision + JSON hashes + all file size/mtime signatures; checkpoint weights not fully hashed",
              "inputs": {str(p.relative_to(inputs)): file_hash(p) for p in sorted(Path(inputs).rglob("*")) if p.is_file()},
+             "input_artifacts": {str(p.relative_to(inputs)): {"path": str(p.resolve()), "sha256": file_hash(p)}
+                 for p in sorted(Path(inputs).rglob("*")) if p.is_file()},
              "extra": extra}
     if manifest["checkpoint_revision"] != machine["model_revision"]:
         raise ValueError("model revision differs from pack")
@@ -48,7 +50,10 @@ def prepare(args):
     out.mkdir(parents=True, exist_ok=True)
     tokenizer = AutoTokenizer.from_pretrained(args.checkpoint, local_files_only=True, trust_remote_code=False)
     encode = lambda text: tokenizer.encode(text, add_special_tokens=False)
-    chat = lambda text: tokenizer.apply_chat_template([{"role": "user", "content": text}], tokenize=True, add_generation_prompt=True)
+    # Some tokenizer versions return BatchEncoding for tokenize=True.
+    # Rendering first keeps frozen input files as flat token-ID lists.
+    chat = lambda text: encode(tokenizer.apply_chat_template(
+        [{"role": "user", "content": text}], tokenize=False, add_generation_prompt=True))
     first = chat(RAFT)
     write(out / "raft.json", first)
     sentinel = "BENCHMARK_ASSISTANT_SENTINEL_71ecca"
@@ -274,6 +279,23 @@ def validate_replay_unit(unit, fingerprint, round_id, candidate, order, mode, tr
         raise ValueError("failed replay unit lacks error")
 
 
+def check_replay_l2(result, candidate):
+    if result["effective_runtime"].get("decode_submit_experts", 1) != candidate["loader"].get("decode_submit_experts", 1):
+        raise ValueError("replay effective decode submission mismatch")
+    for field in ("packed_decode", "packed_prefill"):
+        if result["effective_runtime"].get(field, "direct") != candidate["loader"].get(field, "direct"):
+            raise ValueError("replay effective packed configuration mismatch")
+    enabled = any(candidate["loader"].get(field, "direct") != "direct" for field in ("packed_decode", "packed_prefill"))
+    if result["effective_runtime"].get("packed_attached", False) != enabled:
+        raise ValueError("replay packed attachment mismatch")
+    mode = candidate["loader"].get("l2_mode", "off")
+    effective = result["effective_runtime"]
+    if effective.get("l2_mode", "off") != mode or effective.get("l2_attached", False) != (mode != "off"):
+        raise ValueError("replay effective L2 configuration mismatch")
+    if mode != "off" and not result.get("before", {}).get("l2"):
+        raise ValueError("replay L2 boundary state missing")
+
+
 def replay_matrix(args):
     suite, machine = read(args.suite), read(args.machine)
     validate(suite, machine, args.inputs)
@@ -300,6 +322,8 @@ def replay_matrix(args):
                 result = read(target / "unit.json")
                 validate_replay_unit(result, record["fingerprint"], r, candidate["id"], order,
                                      mode, meta["trace_sha256"], args.warmup_events, len(events), suite["version"])
+                if result["status"] == "ok":
+                    check_replay_l2(result["result"], candidate)
             else:
                 # No committed unit means incomplete work, never trust an orphan report.
                 orphan = target / "replay.json"
@@ -337,6 +361,7 @@ def replay_matrix(args):
                     if error is None:
                         validate_replay_result(worker_result, mode, candidate["id"], meta["trace_sha256"],
                                                args.warmup_events, len(events), suite["version"])
+                        check_replay_l2(worker_result, candidate)
                 except (OSError, ValueError, KeyError, TypeError) as exc:
                     error = error or f"invalid worker result: {exc}"
                 result = {"mode": mode, "trace_sha256": meta["trace_sha256"], "warmup_events": args.warmup_events,
@@ -383,6 +408,13 @@ def profile_candidate(args):
 
 
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "campaign":
+        from .campaign_cli import main as campaign_main
+        try:
+            return campaign_main(sys.argv[2:])
+        except (Exception, KeyboardInterrupt) as exc:
+            print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
+            return 1
     p = argparse.ArgumentParser(description=__doc__)
     subs = p.add_subparsers(dest="action", required=True)
     a = subs.add_parser("prepare-inputs")

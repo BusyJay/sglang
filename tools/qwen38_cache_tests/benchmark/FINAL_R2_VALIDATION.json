@@ -1,0 +1,63 @@
+{
+  "phase": "final combination/campaign/profile tools",
+  "revision": "r2",
+  "parent": "bb5127f7bade1dbf15fcdd78163653382fc77530",
+  "suite_version": "oct13-final-r2",
+  "status": "ready-for-GPU-test; pending final review",
+  "cpu": {
+    "status": "passed",
+    "tests": 242,
+    "skipped": 0,
+    "raw_log": "/data/workspace/qwen38-final-r2-review-20261013/cpu.log"
+  },
+  "campaign_cpu": {
+    "status": "passed",
+    "tests": 16,
+    "scope": "synthetic protocol fixtures only; no GPU performance or validation",
+    "raw_log": "/data/workspace/qwen38-final-r2-review-20261013/campaign.log"
+  },
+  "benchmark_cpu": {
+    "status": "passed",
+    "tests": 33
+  },
+  "cuda_SM120": {
+    "status": "compiled_and_loaded",
+    "kernel_execution": "not_run",
+    "raw_log": "/data/workspace/qwen38-final-r2-review-20261013/cuda.log"
+  },
+  "matrix": {
+    "unique_candidates": 32,
+    "idempotence": "passed",
+    "valid_combinations": "passed",
+    "method": "same-tree ablation; sequential 06/05/01 dependencies"
+  },
+  "GPU_correctness_and_performance": "not_run",
+  "GPU_real_trace_model_semantics_KV_graph_long_context": "not_run",
+  "validated_acceleration_profile": "not_generated",
+  "default": {
+    "l2_mode": "off",
+    "packed_decode": "direct",
+    "packed_prefill": "direct",
+    "decode_submit_experts": 1
+  },
+  "commands": [
+    "tools/qwen38_cache_tests/docker_cpu.sh lmsysorg/sglang:v0.5.21",
+    "python3 -m unittest tools.qwen38_cache_tests.test_cpu_campaign -v",
+    "python3 tools/qwen38_cache_tests/compile_cuda.py",
+    "python3 -m tools.qwen38_cache_tests.benchmark campaign --help"
+  ],
+  "raw_results": "/data/workspace/qwen38-final-r2-review-20261013",
+  "limitations": [
+    "Local evidence hashes are provenance, not cryptographic GPU hardware attestation.",
+    "Production promotion requires trusted actual GPU execution plus human semantic review.",
+    "5 paired holdout samples/3% gates are frozen starting values; insufficient confidence retains baseline.",
+    "Full model periodic counts remain approximate request alignment; duplicates only drained boundaries.",
+    "Checkpoint identity is revision, JSON hashes and file signatures; not full weight hash."
+  ],
+  "container": "lmsysorg/sglang@sha256:b1259f3ea3275f66237c498ea388919729018bc9f01c3d638391e06e2cf3f469",
+  "review_fixes": [
+    "R1 frozen input byte artifacts / exact first and multiturn IDs / warmup raw stream",
+    "R2 JSON string/dict and all-mode startup checks / fake execute",
+    "R3 canonical profile<machine<explicit options and matching assertions"
+  ]
+}

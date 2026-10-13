@@ -1,0 +1,40 @@
+{
+  "revision": "startup-memory-r1",
+  "parent": "af9aac635231f587268859ec3ceec0ab10b34050",
+  "suite_version": "oct13-final-r3 (frozen benchmark cases unchanged; source fingerprint changes)",
+  "status": "implemented; CPU passed; GPU not_run; no new reviewer notification requested",
+  "cpu": {
+    "tests": 258,
+    "skipped": 0,
+    "status": "passed",
+    "scope": "synthetic allocator protocol plus real CPU inventory, production postprocess AST, filter and canary fake-execute; existing full suite",
+    "imports_ModelOpt": "passed"
+  },
+  "offline_SM120": {
+    "status": "compiled_and_loaded",
+    "kernel_execution": "not_run"
+  },
+  "GPU": {
+    "probe_on_off": "not_run",
+    "adaptive_500MiB_cause": "unconfirmed",
+    "recovered_KV": "not_run",
+    "async_graph_correctness": "not_run",
+    "performance": "not_run"
+  },
+  "experimental_defaults": "unchanged dynamic/packed/packed/2 overlap-off",
+  "validated_profile": "not_generated",
+  "prior_final_validation": "FINAL_VALIDATION.json describes historic r3 only; new evidence is this file",
+  "commands": {
+    "cpu": "tools/qwen38_cache_tests/docker_cpu.sh lmsysorg/sglang:v0.5.21",
+    "cuda": "docker run --rm --pull never --network none -v /data/workspace/sglang:/workspace/sglang:ro -w /workspace/sglang -e PYTHONPATH=/workspace/sglang/python -e PYTHONDONTWRITEBYTECODE=1 --entrypoint python3 lmsysorg/sglang:v0.5.21 tools/qwen38_cache_tests/compile_cuda.py",
+    "package": "python3 tools/qwen38_cache_tests/benchmark/package_final.py --output /data/workspace/qwen38-all-patches-20261013-memory-diag-r1 --logs /data/workspace/qwen38-memory-diag-review-20261013",
+    "whitespace": "git diff --check"
+  },
+  "raw_hashes": {
+    "commands.json": "3592b87fc5da313d8bcdc4a1c5d6f4d25e1ef4baa9d65dd59591e8b4d6bf3fbe",
+    "cpu.log": "9cb14a85fa0d8e0213b4bd3dbec867c71c94c753a4ac21fcfd27dfcbcfa37a59",
+    "cuda.log": "898b43310afc2b81b019dec4988a854be8ed68a245dc46cc0910883e21b52bd2",
+    "gpu-availability.json": "533956b39c29374c6b4ae1ac6a48a89d43cb8ee635f4777686f5544ebc9949bb",
+    "prior-mtp-fix.txt": "ad882bec1185dfb8c4c8c62605ed071823bc8caee85e37b930c86fecf882dafd"
+  }
+}

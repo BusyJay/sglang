@@ -65,6 +65,10 @@ class TestLoaderFilter(unittest.TestCase):
             "model.language_model.layers.0.mlp.shared_expert.gate_proj.weight",
             "model.visual.blocks.0.attn.qkv.weight",
             "model.language_model.embed_tokens.weight",
+            "model.mtp.layers.0.mlp.experts.7.gate_proj.weight",
+            "model.mtp.embed_tokens.weight",
+            "model.mtp.lm_head.weight",
+            "model.language_model.layers.0.rotary_emb.inv_freq",
         ]
         handle = _FakeSafeOpen(names)
         with tempfile.TemporaryDirectory() as value:
@@ -74,8 +78,15 @@ class TestLoaderFilter(unittest.TestCase):
                 safe_open=mock.Mock(return_value=handle)
             )
             with mock.patch.dict("sys.modules", {"safetensors": fake_safetensors}):
-                loaded = list(filtered_safetensors_weights_iterator([str(filename)]))
+                audit = {}
+                loaded = list(
+                    filtered_safetensors_weights_iterator([str(filename)], audit=audit)
+                )
         expected = [names[1], names[3]]
+        self.assertEqual(
+            audit,
+            {"mtp": 3, "rotary": 1, "routed_experts": 1, "visual": 1, "read_tensor": 2},
+        )
         self.assertEqual(handle.requested, expected)
         self.assertEqual([name for name, _ in loaded], expected)
 

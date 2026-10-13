@@ -203,26 +203,47 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         self.reaper = None
 
     def reserve(self):
+        from sglang.srt.layers.moe.qwen38_startup_memory import (
+            get_startup_memory_probe,
+            memory_mark,
+        )
+
+        probe = get_startup_memory_probe(self.device)
+        memory_mark(
+            probe,
+            "runtime.reserve.begin",
+            metadata={"adaptive": self.adaptive_cache, "slots": self.layer_cache_slots},
+        )
         if self.adaptive_cache:
             budget = sum(self.layer_cache_slots)
             first = self.manifest.tensors[0]
-            self.cache_pool = {
-                name: torch.zeros(
+            self.cache_pool = {}
+            for name in REQUIRED_TENSORS:
+                memory_mark(probe, "adaptive.pool." + name + ".before")
+                self.cache_pool[name] = torch.zeros(
                     (budget, *first[name].shape[1:]),
                     dtype=getattr(torch, first[name].dtype),
                     device=self.device,
                 )
-                for name in REQUIRED_TENSORS
-            }
+                memory_mark(
+                    probe,
+                    "adaptive.pool." + name + ".after",
+                    metadata={
+                        "tensor_bytes": self.cache_pool[name].numel()
+                        * self.cache_pool[name].element_size()
+                    },
+                )
             self.transfer.wait_stream(torch.cuda.current_stream(self.device))
             self._assign_pool_views(self.layer_cache_slots)
             self.adaptive_samples = queue.Queue(maxsize=4096)
         super().reserve()
+        memory_mark(probe, "runtime.after_base_reserve")
         # Precompile the JIT routing/planner before creating the worker or
         # issuing any runtime job so failures surface at startup.
         from sglang.kernels.ops.moe.qwen38_expert_cache import _module
 
         _module()
+        memory_mark(probe, "runtime.after_routing_jit")
         if self.resident_alphas:
             # Reserve before KV allocation. Copies finish before worker startup;
             # immutable expert-ID tables survive cache eviction and migration.
@@ -238,6 +259,7 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                     self._copy(self.pack.tensor_bytes(layer, name), tables[name])
                 self.alpha_tables[layer] = tables
             self.transfer.synchronize()
+        memory_mark(probe, "runtime.after_resident_alphas")
         if self.adaptive_cache:
             # Extra plan tail exports compact original expert IDs. No second
             # histogram D2H, memset or routing kernel is needed for sampling.
@@ -259,6 +281,7 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                     text=True,
                     bufsize=1,
                 )
+        memory_mark(probe, "runtime.after_adaptive_metadata")
         self.worker = threading.Thread(
             target=self._work, name="qwen38-expert-h2d", daemon=True
         )

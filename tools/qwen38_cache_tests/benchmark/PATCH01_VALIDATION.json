@@ -1,0 +1,46 @@
+{
+  "phase": "01",
+  "revision": "r1",
+  "parent": "1d71e13964ef29db46fc103a76b13b7257e20d21",
+  "suite_version": "oct13-01-r1",
+  "status": "ready-for-GPU-test; pending code review",
+  "cpu": {
+    "status": "passed",
+    "tests": 226,
+    "skipped": 0,
+    "raw_log": "/data/workspace/qwen38-01-review-20261013/cpu-final.log"
+  },
+  "benchmark_cpu": {
+    "status": "passed",
+    "tests": 33,
+    "raw_log": "/data/workspace/qwen38-01-review-20261013/benchmark.log"
+  },
+  "submission_cpu": {
+    "status": "passed",
+    "tests": 5,
+    "raw_log": "/data/workspace/qwen38-01-review-20261013/submission-first.log"
+  },
+  "cuda_SM120": {
+    "status": "compiled_and_loaded",
+    "kernel_execution": "not_run",
+    "raw_log": "/data/workspace/qwen38-01-review-20261013/cuda.log"
+  },
+  "gpu_payload_alpha_ring_migration_combinations": "not_run",
+  "gpu_MoE_graph_KV_long_context": "not_run",
+  "gpu_benchmark_profile_overhead": "not_run",
+  "validated_profile": "not_generated",
+  "defaults": {
+    "decode_submit_experts": 1,
+    "packed_decode": "direct",
+    "packed_prefill": "direct",
+    "l2_mode": "off"
+  },
+  "dependency": "sequential on reviewed 05 r1 and 06 r3; L2 off/packed direct provides single01 ablation",
+  "packed_grouping_scope": "single expert immutable descriptors; no cross-expert DMA merge",
+  "commands": [
+    "tools/qwen38_cache_tests/docker_cpu.sh lmsysorg/sglang:v0.5.21",
+    "python3 tools/qwen38_cache_tests/compile_cuda.py",
+    "python3 tools/qwen38_cache_tests/run_gpu.py --require-sm120 --output \"$BENCH_DIR/01-gpu-small.json\""
+  ],
+  "container": "lmsysorg/sglang@sha256:b1259f3ea3275f66237c498ea388919729018bc9f01c3d638391e06e2cf3f469"
+}

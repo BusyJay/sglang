@@ -50,6 +50,8 @@ class TestGpuCache(unittest.TestCase):
             options["warm_decode_cache"] = True
         if layer_cache_slots is not None:
             options["layer_cache_slots"] = layer_cache_slots
+        allocated_before = torch.cuda.memory_allocated()
+        torch.cuda.reset_peak_memory_stats()
         runtime = runtime_class(self.fixture.pack, "cuda", slots_per_layer=2, **options)
         self.addCleanup(
             runtime.close
@@ -100,7 +102,7 @@ class TestGpuCache(unittest.TestCase):
                 self.assertTrue(torch.equal(actual[name].cpu(), ref[name]), name)
         self.assertEqual(runtime.caches[0]["w13_weight"].data_ptr(), pointers[0])
         self.assertEqual(runtime.arena["w13_weight"].data_ptr(), pointers[1])
-        self.assertLess(torch.cuda.max_memory_allocated(), 512 << 20)
+        self.assertLess(torch.cuda.max_memory_allocated() - allocated_before, 512 << 20)
 
     def test_sync_transfer_cache_arena(self):
         self._exercise("sync")
@@ -380,6 +382,7 @@ class TestGpuCache(unittest.TestCase):
         )
         self.addCleanup(runtime.close)
         runtime.reserve()
+        runtime.prefill_tokens_seen = 128
         one_expert_bytes = sum(
             self.fixture.pack.manifest.tensors[0][name].nbytes // 4
             for name in REQUIRED_TENSORS
@@ -413,6 +416,7 @@ class TestGpuCache(unittest.TestCase):
             )
             self.addCleanup(runtime.close)
             runtime.reserve()
+            runtime.prefill_tokens_seen = 128
             one_expert = sum(self.fixture.pack.manifest.tensors[0][name].nbytes // 4
                              for name in REQUIRED_TENSORS)
             streams = [torch.cuda.Stream(), torch.cuda.Stream()]

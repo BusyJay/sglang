@@ -7,5 +7,5 @@
   "deployment_args": [
     "--language-model-only"
   ],
-  "notes": "Set a legal language-only remote ViT launch in deployment_args if required. Any changed memory/chunk/layout requires a new suite and assertions. Do not silently shrink slots."
+  "notes": "Set legal language-only/remote ViT options here if required. Priority: profile argv < deployment_args < explicit override. All final options are checked at startup. Memory/chunk/layout changes need a new suite and GPU evidence before validation; never silently shrink slots."
 }

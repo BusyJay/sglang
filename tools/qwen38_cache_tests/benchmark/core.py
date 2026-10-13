@@ -1,4 +1,5 @@
 """CPU-only protocol validation, provenance, streaming metrics and pairing."""
+
 from __future__ import annotations
 
 import hashlib
@@ -28,11 +29,18 @@ ENV_KEYS = (
     "CUBLAS_WORKSPACE_CONFIG", "NCCL_P2P_DISABLE", "NCCL_IB_DISABLE",
     "SGLANG_ENABLE_TORCH_COMPILE", "SGLANG_QWEN38_ELASTIC_L2",
     "SGLANG_QWEN38_EXPERT_PACK_MANIFEST", "QWEN38_READY_TIMEOUT_SECONDS",
+    "SGLANG_QWEN4_PLE_LAZY_CACHE_MB", "SGLANG_FLASHINFER_WORKSPACE_SIZE",
+    "SGLANG_ENCODER_BOOTSTRAP_HEALTH_CHECK_INTERVAL", "SGLANG_VLM_CACHE_SIZE_MB",
+    "SGLANG_UNIFIED_RADIX_TREE_CORE_BACKEND",
 )
 
 
 def subprocess_environment(source=None):
     source = os.environ if source is None else source
+    if source.get("SGLANG_QWEN38_STARTUP_MEMORY_DIR"):
+        raise ValueError(
+            "startup memory diagnostics alter timing; use canary, not formal benchmark/profile evidence"
+        )
     effective = {key: source[key] for key in ENV_KEYS if key in source}
     effective.update(HF_HUB_OFFLINE="1", TRANSFORMERS_OFFLINE="1",
                      PYTHONPATH=str(ROOT / "python"))
@@ -148,10 +156,34 @@ def validate(suite, machine, inputs=None):
         raise ValueError("invalid port")
     for candidate in suite["candidates"]:
         loader = candidate["loader"]
+        for key in ("l2_mode", "packed_decode", "packed_prefill", "decode_submit_experts"):
+            if key not in loader:
+                raise ValueError("benchmark requires explicit feature setting: " + key)
         if loader.get("adaptive_cache") is not False:
             raise ValueError("isolation suite requires adaptive_cache=false")
         if loader.get("runtime_mode") != "threaded":
             raise ValueError("stage A production replay requires threaded")
+        import importlib.util
+        packed_spec = importlib.util.spec_from_file_location("qwen38_packed_validation", ROOT / "python/sglang/srt/layers/moe/qwen38_packed_transport.py")
+        packed_module = importlib.util.module_from_spec(packed_spec)
+        packed_spec.loader.exec_module(packed_module)
+        packed_module.validate_packed_config(loader.get("packed_decode", "direct"), loader.get("packed_prefill", "direct"),
+                                            loader.get("packed_min_bytes", 4096), loader.get("packed_max_bytes", 64 << 20), loader.get("packed_min_copies", 2))
+        submit = loader.get("decode_submit_experts", 1)
+        if type(submit) is not int or not 0 <= submit <= suite["num_experts"]:
+            raise ValueError("invalid decode_submit_experts")
+        mode = loader.get("l2_mode", "off")
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("qwen38_l2_validation", ROOT / "python/sglang/srt/layers/moe/qwen38_l2_config.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        validate_l2_config = module.validate_l2_config
+        validate_l2_config(mode, loader.get("l2_min_score", 2.0), loader.get("l2_margin", 0.1),
+                           loader.get("l2_demotion_budget", 2), loader.get("l2_prefill_budget", 8))
+        if mode != "off" and candidate["expected_effective"].get("disable_overlap_schedule") is not True:
+            raise ValueError("L2 requires overlap disabled")
+        if mode == "fixed" and not loader.get("l2_fixed_seed"):
+            raise ValueError("fixed L2 requires explicit seed")
         slots = loader["layer_cache_slots"]
         if len(slots) != suite["num_layers"] or any(type(n) is not int or not suite["top_k"] <= n <= suite["num_experts"] for n in slots):
             raise ValueError("invalid frozen slot vector")
@@ -238,7 +270,7 @@ def check_effective(info, candidate, loader):
     actual = info.get("model_loader_extra_config")
     if isinstance(actual, str):
         actual = json.loads(actual)
-    if actual != loader:
+    if not isinstance(actual, dict) or actual != loader:
         raise ValueError("effective loader config mismatch")
 
 

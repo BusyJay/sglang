@@ -1,0 +1,45 @@
+{
+  "phase": "05",
+  "revision": "r1",
+  "parent": "bb8a71dc35356f145cd3c6950d25da2e767e6a70",
+  "suite_version": "oct13-05-r1",
+  "status": "ready-for-GPU-test; pending code review",
+  "cpu": {
+    "status": "passed",
+    "tests": 220,
+    "skipped": 0,
+    "raw_log": "/data/workspace/qwen38-05-review-20261013/cpu-delivery.log"
+  },
+  "benchmark_cpu": {
+    "status": "passed",
+    "tests": 32,
+    "raw_log": "/data/workspace/qwen38-05-review-20261013/benchmark.log"
+  },
+  "packed_cpu": {
+    "status": "passed",
+    "tests": 6,
+    "raw_log": "/data/workspace/qwen38-05-review-20261013/packed-final.log"
+  },
+  "cuda_SM120": {
+    "status": "compiled_and_loaded",
+    "new_packed_scatter": "included",
+    "kernel_execution": "not_run",
+    "raw_log": "/data/workspace/qwen38-05-review-20261013/cuda.log"
+  },
+  "gpu_payload_alpha_tail_ring_migration": "not_run",
+  "gpu_MoE_graph_KV_long_context": "not_run",
+  "gpu_benchmark_profile_overhead": "not_run",
+  "validated_profile": "not_generated",
+  "defaults": {
+    "packed_decode": "direct",
+    "packed_prefill": "direct",
+    "l2_mode": "off"
+  },
+  "dependency": "sequential on reviewed 06 r3; L2 off ablation for 05-only; not independent 04+05 tree",
+  "commands": [
+    "tools/qwen38_cache_tests/docker_cpu.sh lmsysorg/sglang:v0.5.21",
+    "python3 tools/qwen38_cache_tests/compile_cuda.py",
+    "python3 tools/qwen38_cache_tests/run_gpu.py --require-sm120 --output \"$BENCH_DIR/05-gpu-small.json\""
+  ],
+  "container": "lmsysorg/sglang@sha256:b1259f3ea3275f66237c498ea388919729018bc9f01c3d638391e06e2cf3f469"
+}

@@ -1,3 +1,14 @@
+Current oct13-final-r3 test defaults are user-authorized dynamic/packed/packed/group2. See EXPERIMENTAL_DEFAULTS.md for ordinary startup and shutdown; historic off-default guidance below applies to explicit baselines. GPU not_run.
+
+> 01 update: see PATCH01_HANDOFF.md for submission groups and packed limitations.
+
+> 05 update: see PATCH05_HANDOFF.md for packed controls, GPU tests and matrix.
+
+> Execution update, 2026-10-13: user authorized preparing all patches before GPU testing.
+> Historical baseline-before-06 gate below is superseded. See PATCH06_HANDOFF.md
+> and ../OCT13_BENCHMARK_AND_PATCH_PLAN.md. This file retains Stage A commands/history;
+> current suite version is oct13-final-r3 and all GPU evidence remains not_run.
+
 # Stage A GPU handoff — benchmark only
 
 Implementation base is `d1d85bf29b855e511d2a96f9a7f6cec73fc2bb1f`.
@@ -222,7 +233,7 @@ validation checklist with CUDA compilation, SM120 MoE parity, replay payload
 correctness, model semantic checks, EOS/template boundary inspection, baseline
 noise and effective config verification. Label all unexecuted items `not_run`.
 Do not copy historical throughput numbers into these results. Review must freeze
-measurement gates and independent sample requirements before stage B (06).
+measurement gates and independent sample requirements before GPU performance acceptance.
 
 Stage A revision after R1–R3 review: old a1 results/packages are preserved, but
 cannot be resumed or treated as a2 evidence. Worker reports are validated for

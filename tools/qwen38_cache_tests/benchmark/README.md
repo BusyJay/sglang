@@ -1,3 +1,16 @@
+Current normal startup: [EXPERIMENTAL_DEFAULTS.md](EXPERIMENTAL_DEFAULTS.md). Actual loader/runtime defaults dynamic/packed/packed/group2; ordinary experiment requires no validated profile.
+
+Final campaign/profile CLI and recommended series: [FINAL_GPU_HANDOFF.md](FINAL_GPU_HANDOFF.md). Current status ready-for-GPU-test, GPU not_run.
+
+01 prepared on reviewed 05 r1; see [01 handoff](PATCH01_HANDOFF.md), `suite01.example.json`. Historical 01 r1 default was per-expert; current experimental default is group2, packed remains single-expert.
+
+05 prepared on reviewed 06 r3; see [05 handoff](PATCH05_HANDOFF.md) and `suite05.example.json`. Historical 05 r1 default was direct; current experimental default is packed, GPU not_run.
+
+Current execution order: prepare 06 → review → 05 → review → 01 → combination/profile tools,
+then GPU baseline and performance acceptance. Historical GPU-before-06 restrictions
+are superseded by the user's 2026-10-13 instruction. See [06 handoff](PATCH06_HANDOFF.md).
+Current suite version: `oct13-final-r3`; previous a2 evidence/packages remain historical.
+
 # Qwen3.8 Stage A benchmark
 
 Revision `oct13-a2` addresses R1–R3 from [STAGE_A_REVIEW.md](STAGE_A_REVIEW.md);
@@ -17,7 +30,7 @@ CPU protocol tests: `python3 -m unittest tools.qwen38_cache_tests.test_cpu_bench
 Full available CPU regression: `python3 tools/qwen38_cache_tests/run_cpu.py`.
 GPU compile/parity/performance remain `not_run` until executed on the GPU host.
 
-No 06/05/01, deployment default change, or historical speedup claim is included.
+Stage A a2 included no 06/05/01 or default change; current series includes user-authorized experimental defaults, without a speedup claim.
 Implementation base: d1d85bf29b855e511d2a96f9a7f6cec73fc2bb1f; performance base:
 384c83da44a4334dcaa74c474195ab960126e029. After committing benchmark files,
 create the review bundle (outside the checkout to avoid provenance pollution):
