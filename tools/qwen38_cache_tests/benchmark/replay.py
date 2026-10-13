@@ -5,7 +5,7 @@ import json
 import time
 from pathlib import Path
 
-from .core import ROOT, file_hash, read, write, subprocess_environment
+from .core import ROOT, file_hash, read, write, subprocess_environment, source_loader_config
 
 
 def validate_trace(path, meta, suite, manifest_hash):
@@ -83,7 +83,8 @@ class ReplayProfile:
 def execute_interval(runtime, routes, events, execute, profile=None):
     """Boundary synchronization only; timing instrumentation is opt-in."""
     runtime.synchronize()
-    before = runtime.boundary_stats_snapshot()
+    snapshot = getattr(runtime, "boundary_stats_snapshot", runtime.stats_snapshot)
+    before = snapshot()
     started = time.perf_counter()
     for ids, event in zip(routes, events):
         if profile is not None:
@@ -93,7 +94,7 @@ def execute_interval(runtime, routes, events, execute, profile=None):
             profile.end(mark, event, started)
     runtime.synchronize()
     elapsed = time.perf_counter() - started
-    after = runtime.boundary_stats_snapshot()
+    after = snapshot()
     return elapsed, before, after
 
 
@@ -116,7 +117,7 @@ def run(args):
     if (manifest.num_layers, manifest.num_experts, manifest.top_k) != (suite["num_layers"], suite["num_experts"], suite["top_k"]):
         raise ValueError("real pack dimensions differ from suite")
     pack = Qwen38ExpertPack(manifest)
-    loader = dict(candidate["loader"])
+    loader, omitted_controls = source_loader_config(candidate["loader"])
     loader["slots_per_layer"] = loader.pop("cache_slots_per_layer")
     loader.pop("runtime_mode")
     loader.pop("async_pack_prefetch", None)
@@ -126,11 +127,11 @@ def run(args):
     backing = None
     replay_l2 = suite.get("replay_l2", {})
     if args.profile:
-        from sglang.srt.layers.moe.qwen38_cache_profile import CacheProfile
+        from .cache_profile import CacheProfile
         runtime.profiler = CacheProfile(torch.cuda)
     try:
         runtime.reserve()
-        if runtime.l2_mode != "off":
+        if getattr(runtime, "l2_mode", "off") != "off":
             from sglang.srt.utils.cuda_vmm_utils import (VmmReservation, align_up,
                 get_device_granularity, make_device_allocation_prop)
             size = replay_l2.get("backing_bytes", 0)
@@ -156,7 +157,7 @@ def run(args):
                                dtype=torch.int32, device="cuda").reshape(-1, manifest.top_k)
             runtime.run(layer, ids, lambda prepared: None)
         runtime.synchronize()
-        if runtime.l2_mode == "fixed":
+        if getattr(runtime, "l2_mode", "off") == "fixed":
             if set(map(tuple, runtime.l2_fixed_seed)) != runtime.elastic_storage.fixed_seeded:
                 raise ValueError("fixed replay seed incomplete; check shared seed/capacity")
         routes = [torch.tensor(e["routes"], dtype=torch.int32, device="cuda") for e in events]
@@ -208,16 +209,16 @@ def run(args):
                   "initial_cache": "empty before explicit L2 pack seed and shared prefill seed",
                   "l2_backing": {"kind": "dedicated-VMM; not borrowed KV", "bytes": backing.size if backing else 0,
                                  "shared_prefill_seed": seed},
-                  "runtime_profile": runtime.profiler.results() if runtime.profiler else None, "warmup_events": args.warmup_events,
+                  "runtime_profile": runtime.profiler.results() if getattr(runtime, "profiler", None) else None, "warmup_events": args.warmup_events,
                   "before": before, "after": after, "counter_delta": numeric_delta(before, after),
                   "correctness": {"status": "passed" if args.correctness else "not_run",
                                   "scope": "all routed experts, all six payload tensors, compared byte-exact to real mmap pack; real MoE not executed",
                                   "evidence": evidence},
                   "actual_runtime_source": str(Path(__import__('inspect').getfile(Qwen38ThreadedExpertRuntime)).resolve()),
-                  "effective_runtime": {"decode_submit_experts": runtime.decode_submit_experts, "packed_decode": runtime.packed_decode, "packed_prefill": runtime.packed_prefill, "packed_attached": runtime.packed_transport is not None, "l2_mode": runtime.l2_mode, "l2_attached": runtime.elastic_storage is not None, "stats_log_interval": runtime.stats_log_interval, "layer_cache_slots": runtime.layer_cache_slots, "adaptive_cache": runtime.adaptive_cache,
+                  "effective_runtime": {"decode_submit_experts": getattr(runtime, "decode_submit_experts", 1), "packed_decode": getattr(runtime, "packed_decode", "direct"), "packed_prefill": getattr(runtime, "packed_prefill", "direct"), "packed_attached": getattr(runtime, "packed_transport", None) is not None, "l2_mode": getattr(runtime, "l2_mode", "off"), "l2_attached": getattr(runtime, "elastic_storage", None) is not None, "stats_log_interval": runtime.stats_log_interval, "layer_cache_slots": runtime.layer_cache_slots, "adaptive_cache": runtime.adaptive_cache,
                                         "resident_alphas": runtime.resident_alphas, "fused_decode_plan": runtime.fused_decode_plan,
                                         "prefill_copy_mode": runtime.prefill_copy_mode, "cache_policy": runtime.cache_policy},
-                  "candidate": args.candidate, "payload_nbytes": manifest.payload_nbytes,
+                  "omitted_unsupported_neutral_controls": omitted_controls, "candidate": args.candidate, "payload_nbytes": manifest.payload_nbytes,
                   "token_wall_s": elapsed / sum(len(e["routes"]) for e in events if e["layer"] == 0) if mode == "benchmark" else None}
         write(args.output, report)
     finally:

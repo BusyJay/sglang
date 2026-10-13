@@ -23,6 +23,7 @@ HERE = Path(__file__).parent / "benchmark"
 
 def fixture():
     suite = read(HERE / "suite.example.json")
+    suite["candidates"] = [c for c in suite["candidates"] if c["id"] != "experimental-defaults"]
     machine = read(HERE / "machine.example.json")
     machine["container_image"] = "local@sha256:test"
     return suite, machine
@@ -38,6 +39,22 @@ def stream_result(ids=(1, 2, 3), chunks=(1, 3), finish="length", output=3):
 
 
 class BenchmarkProtocol(unittest.TestCase):
+    def test_selected_source_omits_only_neutral_absent_features(self):
+        from .benchmark.core import source_loader_config
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "python/sglang/srt/model_loader/qwen38_nvfp4_cache_loader.py"
+            path.parent.mkdir(parents=True)
+            path.write_text('allowed = {"packed_decode", "packed_prefill"}\n')
+            with patch('tools.qwen38_cache_tests.benchmark.core.ROOT', root):
+                original = dict(l2_mode="off", decode_submit_experts=1, packed_decode="packed")
+                effective, omitted = source_loader_config(original)
+                self.assertEqual(effective, {"packed_decode": "packed"})
+                self.assertEqual(omitted, ["l2_mode", "decode_submit_experts"])
+                self.assertEqual(original['l2_mode'], "off")
+                with self.assertRaisesRegex(ValueError, 'does not implement'):
+                    source_loader_config(dict(l2_mode="dynamic"))
+
     def test_chunk_tokens_and_first_last_timing(self):
         result = stream_result()
         self.assertEqual(result["status"], "ok")
