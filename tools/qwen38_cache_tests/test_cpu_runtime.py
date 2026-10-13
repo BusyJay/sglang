@@ -259,7 +259,7 @@ class TestPublicMetadata(unittest.TestCase):
         for layer in range(48):
             key = f"model.language_model.layers.{layer}.mlp.experts"
             self.assertEqual(quantized[key]["quant_algo"], "NVFP4")
-        self.assertFalse(
+        self.assertTrue(
             common_module.should_skip_checkpoint_tensor(
                 "mtp.layers.0.mlp.experts.0.gate_proj.weight", language_model_only=True
             )
