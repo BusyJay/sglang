@@ -15,28 +15,42 @@ class TestDecodeGraphConfig(unittest.TestCase):
             for name, value in values.items():
                 setattr(args, name, value)
 
-        with mock.patch.dict("sys.modules", {
-            "sglang.srt.arg_groups.overrides": SimpleNamespace(
-                declare_resolution=declare, resolving_view=lambda args: args),
-            "sglang.srt.runtime_context": SimpleNamespace(get_exec=None),
-        }):
-            self.config = load_source("sglang.srt.model_executor.cuda_graph_config",
-                "python/sglang/srt/model_executor/cuda_graph_config.py")
-            self.hook = load_source("qwen38_graph_hook_test",
-                "python/sglang/srt/arg_groups/qwen38_cache_hook.py")
-        patch = mock.patch.dict("sys.modules", {
-            "sglang.srt.model_executor.cuda_graph_config": self.config,
-        })
+        with mock.patch.dict(
+            "sys.modules",
+            {
+                "sglang.srt.arg_groups.overrides": SimpleNamespace(
+                    declare_resolution=declare, resolving_view=lambda args: args
+                ),
+                "sglang.srt.runtime_context": SimpleNamespace(get_exec=None),
+            },
+        ):
+            self.config = load_source(
+                "sglang.srt.model_executor.cuda_graph_config",
+                "python/sglang/srt/model_executor/cuda_graph_config.py",
+            )
+            self.hook = load_source(
+                "qwen38_graph_hook_test",
+                "python/sglang/srt/arg_groups/qwen38_cache_hook.py",
+            )
+        patch = mock.patch.dict(
+            "sys.modules",
+            {
+                "sglang.srt.model_executor.cuda_graph_config": self.config,
+            },
+        )
         patch.start()
         self.addCleanup(patch.stop)
 
     def args(self, backend="breakable", **values):
-        args = SimpleNamespace(load_format="qwen38_nvfp4_cache",
+        args = SimpleNamespace(
+            load_format="qwen38_nvfp4_cache",
             cuda_graph_config=self.config.CudaGraphConfig(
                 decode=self.config.PhaseConfig(backend=backend),
-                prefill=self.config.PhaseConfig(backend="disabled")),
+                prefill=self.config.PhaseConfig(backend="disabled"),
+            ),
             model_loader_extra_config=json.dumps({"runtime_mode": "threaded"}),
-            enable_torch_compile=False)
+            enable_torch_compile=False,
+        )
         args.__dict__.update(values)
         return args
 
@@ -52,8 +66,9 @@ class TestDecodeGraphConfig(unittest.TestCase):
                 self.hook.resolve_qwen38_cuda_graph(self.args(backend))
         for mode in ("sync", "async", "device"):
             with self.assertRaisesRegex(ValueError, "runtime_mode=threaded"):
-                self.hook.resolve_qwen38_cuda_graph(self.args(
-                    model_loader_extra_config={"runtime_mode": mode}))
+                self.hook.resolve_qwen38_cuda_graph(
+                    self.args(model_loader_extra_config={"runtime_mode": mode})
+                )
         with self.assertRaisesRegex(ValueError, "torch-compile"):
             self.hook.resolve_qwen38_cuda_graph(self.args(enable_torch_compile=True))
         args = self.args()
@@ -67,8 +82,9 @@ class TestDecodeGraphConfig(unittest.TestCase):
                 self.hook.resolve_qwen38_cuda_graph(args)
 
     def test_eager_remains_supported(self):
-        self.hook.resolve_qwen38_cuda_graph(self.args("disabled",
-            model_loader_extra_config={"runtime_mode": "sync"}))
+        self.hook.resolve_qwen38_cuda_graph(
+            self.args("disabled", model_loader_extra_config={"runtime_mode": "sync"})
+        )
 
     def test_mtp_keeps_request_batch_one_graph(self):
         args = self.args(speculative_algorithm="NEXTN")
@@ -93,21 +109,29 @@ class TestEagerBreakReplay(unittest.TestCase):
             Stream=object,
             device=object,
         )
-        with mock.patch.dict("sys.modules", {
-            "torch": fake_torch,
-            prefix + ".cuda_utils": SimpleNamespace(checkCudaErrors=None),
-            "sglang.srt.utils": SimpleNamespace(get_device_module=None,
-                is_hip=lambda: False, is_xpu=lambda: False),
-        }):
-            self.graph = load_source("qwen38_real_break_test",
-                "python/sglang/srt/model_executor/runner_backend_utils/breakable_cuda_graph/breakable_cuda_graph.py")
+        with mock.patch.dict(
+            "sys.modules",
+            {
+                "torch": fake_torch,
+                prefix + ".cuda_utils": SimpleNamespace(checkCudaErrors=None),
+                "sglang.srt.utils": SimpleNamespace(
+                    get_device_module=None, is_hip=lambda: False, is_xpu=lambda: False
+                ),
+            },
+        ):
+            self.graph = load_source(
+                "qwen38_real_break_test",
+                "python/sglang/srt/model_executor/runner_backend_utils/breakable_cuda_graph/breakable_cuda_graph.py",
+            )
 
     def test_new_routes_inputs_and_errors_reach_host_on_every_replay(self):
         calls, breaks = [], []
-        capture = SimpleNamespace(_barrier_fn=None,
+        capture = SimpleNamespace(
+            _barrier_fn=None,
             _end_current_segment=lambda: calls.append("end"),
             _begin_new_segment=lambda: calls.append("begin"),
-            cuda_graph=SimpleNamespace(_break_fns=breaks))
+            cuda_graph=SimpleNamespace(_break_fns=breaks),
+        )
         ids, hidden = Tensor(0), Tensor(10)
 
         @self.graph.eager_on_graph(True)
@@ -119,7 +143,9 @@ class TestEagerBreakReplay(unittest.TestCase):
 
         token = self.graph._current_capture_var.set(capture)
         try:
-            with mock.patch.object(self.graph, "_weak_ref_if_tensor", side_effect=lambda x: x):
+            with mock.patch.object(
+                self.graph, "_weak_ref_if_tensor", side_effect=lambda x: x
+            ):
                 output = run(ids, hidden)
         finally:
             self.graph._current_capture_var.reset(token)
@@ -137,50 +163,94 @@ class TestEagerBreakReplay(unittest.TestCase):
 
     def test_quant_boundary_skips_capture_transport_and_replays_fresh_remap(self):
         topk = namedtuple("TopK", "topk_weights topk_ids router_logits")
-        dispatch = namedtuple("Dispatch", "hidden_states hidden_states_scale topk_output hidden_states_pre_quant")
+        dispatch = namedtuple(
+            "Dispatch",
+            "hidden_states hidden_states_scale topk_output hidden_states_pre_quant",
+        )
         calls, breaks = [], []
-        capture = SimpleNamespace(_barrier_fn=None,
-            _end_current_segment=lambda: None, _begin_new_segment=lambda: None,
-            cuda_graph=SimpleNamespace(_break_fns=breaks))
-        runner = SimpleNamespace(run=lambda batch, _quant: SimpleNamespace(
-            hidden_states=Tensor(batch.hidden_states.value + batch.topk_output.topk_ids.value)))
+        capture = SimpleNamespace(
+            _barrier_fn=None,
+            _end_current_segment=lambda: None,
+            _begin_new_segment=lambda: None,
+            cuda_graph=SimpleNamespace(_break_fns=breaks),
+        )
+        runner = SimpleNamespace(
+            run=lambda batch, _quant: SimpleNamespace(
+                hidden_states=Tensor(
+                    batch.hidden_states.value + batch.topk_output.topk_ids.value
+                )
+            )
+        )
 
         phases = []
+
         def transport(_layer, ids, execute, *, execution_phase=None):
             phases.append(execution_phase)
             calls.append(ids.value)
             # Different global routes yield different slot mappings each replay.
-            return execute(SimpleNamespace(num_experts=2,
-                tensors={name: None for name in (
-                    "w13_weight", "w2_weight", "w13_input_scale_quant",
-                    "w13_blockscale_swizzled", "g1_alphas", "w2_input_scale_quant",
-                    "w2_blockscale_swizzled", "g2_alphas")},
-                topk_ids=Tensor(ids.value % 2)))
+            return execute(
+                SimpleNamespace(
+                    num_experts=2,
+                    tensors={
+                        name: None
+                        for name in (
+                            "w13_weight",
+                            "w2_weight",
+                            "w13_input_scale_quant",
+                            "w13_blockscale_swizzled",
+                            "g1_alphas",
+                            "w2_input_scale_quant",
+                            "w2_blockscale_swizzled",
+                            "g2_alphas",
+                        )
+                    },
+                    topk_ids=Tensor(ids.value % 2),
+                )
+            )
 
-        with mock.patch.dict("sys.modules", {
-            "torch": SimpleNamespace(bfloat16="bf16", zeros_like=lambda _: Tensor(0)),
-            "sglang.srt.layers.quantization.base_config": SimpleNamespace(
-                FusedMoEMethodBase=object, QuantizationConfig=object, QuantizeMethodBase=object),
-            "sglang.srt.model_executor.runner_backend_utils.breakable_cuda_graph": self.graph,
-            "sglang.srt.layers.moe.moe_runner": SimpleNamespace(MoeRunner=None),
-            "sglang.srt.layers.moe.moe_runner.flashinfer_cutlass": SimpleNamespace(
-                FlashInferCutlassMoeQuantInfo=lambda **_: None,
-                materialize_swiglu_params_for_cutlass=None),
-            "sglang.srt.layers.moe.token_dispatcher.standard": SimpleNamespace(StandardDispatchOutput=dispatch),
-            "sglang.srt.layers.moe.topk": SimpleNamespace(StandardTopKOutput=topk),
-            "sglang.srt.layers.moe.utils": SimpleNamespace(MoeRunnerBackend=None),
-        }):
-            module = load_source("qwen38_quant_break_test",
-                "python/sglang/srt/layers/quantization/qwen38_nvfp4_cache.py")
+        with mock.patch.dict(
+            "sys.modules",
+            {
+                "torch": SimpleNamespace(
+                    bfloat16="bf16", zeros_like=lambda _: Tensor(0)
+                ),
+                "sglang.srt.layers.quantization.base_config": SimpleNamespace(
+                    FusedMoEMethodBase=object,
+                    QuantizationConfig=object,
+                    QuantizeMethodBase=object,
+                ),
+                "sglang.srt.model_executor.runner_backend_utils.breakable_cuda_graph": self.graph,
+                "sglang.srt.layers.moe.moe_runner": SimpleNamespace(MoeRunner=None),
+                "sglang.srt.layers.moe.moe_runner.flashinfer_cutlass": SimpleNamespace(
+                    FlashInferCutlassMoeQuantInfo=lambda **_: None,
+                    materialize_swiglu_params_for_cutlass=None,
+                ),
+                "sglang.srt.layers.moe.token_dispatcher.standard": SimpleNamespace(
+                    StandardDispatchOutput=dispatch
+                ),
+                "sglang.srt.layers.moe.topk": SimpleNamespace(StandardTopKOutput=topk),
+                "sglang.srt.layers.moe.utils": SimpleNamespace(MoeRunnerBackend=None),
+            },
+        ):
+            module = load_source(
+                "qwen38_quant_break_test",
+                "python/sglang/srt/layers/quantization/qwen38_nvfp4_cache.py",
+            )
             method = module.Qwen38CachedNvFp4MoeMethod(None, "fixture")
-            method.runtime = SimpleNamespace(run=transport, supports_execution_phase=True)
+            method.runtime = SimpleNamespace(
+                run=transport, supports_execution_phase=True
+            )
             method.runners[2] = runner
             method.swiglu_buffers = SimpleNamespace(get=lambda _: (None, None, None))
             hidden, ids = Tensor(10), Tensor(0)
             token = self.graph._current_capture_var.set(capture)
             try:
-                with mock.patch.object(self.graph, "_weak_ref_if_tensor", side_effect=lambda x: x):
-                    output = method._run_experts(hidden, None, ids, None, execution_phase="verify")
+                with mock.patch.object(
+                    self.graph, "_weak_ref_if_tensor", side_effect=lambda x: x
+                ):
+                    output = method._run_experts(
+                        hidden, None, ids, None, execution_phase="verify"
+                    )
             finally:
                 self.graph._current_capture_var.reset(token)
             self.assertEqual(calls, [])
@@ -197,19 +267,48 @@ class TestEagerBreakReplay(unittest.TestCase):
 class TestBreakableBackendOutputBuffer(unittest.TestCase):
     def test_verify_keeps_all_logits_and_hc_rows(self):
         import ast
+
         from ._load_source import REPO_ROOT
 
-        source = ast.parse((REPO_ROOT / "python/sglang/srt/model_executor/runner/decode_cuda_graph_runner.py").read_text())
-        cls = next(n for n in source.body if isinstance(n, ast.ClassDef) and n.name == "DecodeCudaGraphRunner")
-        methods = [n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name in ("cuda_graph_output_rows", "cuda_graph_output_capacity_rows")]
+        source = ast.parse(
+            (
+                REPO_ROOT
+                / "python/sglang/srt/model_executor/runner/decode_cuda_graph_runner.py"
+            ).read_text()
+        )
+        cls = next(
+            n
+            for n in source.body
+            if isinstance(n, ast.ClassDef) and n.name == "DecodeCudaGraphRunner"
+        )
+        methods = [
+            n
+            for n in cls.body
+            if isinstance(n, ast.FunctionDef)
+            and n.name in ("cuda_graph_output_rows", "cuda_graph_output_capacity_rows")
+        ]
         namespace = {"ForwardMode": SimpleNamespace(TARGET_VERIFY="verify")}
-        exec(compile(ast.Module(body=methods, type_ignores=[]), "output-rows", "exec"), namespace)
-        runner = SimpleNamespace(model_runner=SimpleNamespace(is_draft_worker=False), capture_forward_mode="verify", max_num_token=4)
-        runner.cuda_graph_output_rows = lambda output: namespace["cuda_graph_output_rows"](runner, output)
+        exec(
+            compile(ast.Module(body=methods, type_ignores=[]), "output-rows", "exec"),
+            namespace,
+        )
+        runner = SimpleNamespace(
+            model_runner=SimpleNamespace(is_draft_worker=False),
+            capture_forward_mode="verify",
+            max_num_token=4,
+        )
+        runner.cuda_graph_output_rows = lambda output: namespace[
+            "cuda_graph_output_rows"
+        ](runner, output)
         for width in (2, 3, 4):
-            output = SimpleNamespace(next_token_logits=SimpleNamespace(shape=(width, 248320)), hidden_states=SimpleNamespace(shape=(width, 10240)))
+            output = SimpleNamespace(
+                next_token_logits=SimpleNamespace(shape=(width, 248320)),
+                hidden_states=SimpleNamespace(shape=(width, 10240)),
+            )
             self.assertEqual(runner.cuda_graph_output_rows(output), width)
-            self.assertEqual(namespace["cuda_graph_output_capacity_rows"](runner, output), 4)
+            self.assertEqual(
+                namespace["cuda_graph_output_capacity_rows"](runner, output), 4
+            )
         runner.model_runner.is_draft_worker = True
         self.assertIsNone(runner.cuda_graph_output_rows(output))
 

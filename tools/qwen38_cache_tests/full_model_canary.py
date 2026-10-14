@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import argparse
 import base64
-import mimetypes
 import json
+import mimetypes
 import os
 import re
 import signal
@@ -134,12 +134,18 @@ def _extract_decode_throughput(server_log_path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--checkpoint", required=True)
-    parser.add_argument("--revision", help="HF revision shared by config, tokenizer and weights")
+    parser.add_argument(
+        "--revision", help="HF revision shared by config, tokenizer and weights"
+    )
     parser.add_argument("--cache-dir", help="existing HF hub cache directory")
-    parser.add_argument("--served-model-name", help="API model ID; defaults to checkpoint argument")
+    parser.add_argument(
+        "--served-model-name", help="API model ID; defaults to checkpoint argument"
+    )
     parser.add_argument("--manifest", required=True)
     parser.add_argument("--output", required=True)
-    parser.add_argument("--ple-backend", choices=["pinned", "file", "lazy"], default="pinned")
+    parser.add_argument(
+        "--ple-backend", choices=["pinned", "file", "lazy"], default="pinned"
+    )
     parser.add_argument("--ple-dir")
     parser.add_argument("--port", type=int, default=30938)
     parser.add_argument(
@@ -148,10 +154,12 @@ def main():
         default="sync",
     )
     slot_options = parser.add_mutually_exclusive_group()
-    slot_options.add_argument("--slots", type=int, default=None,
-                              help="legacy capacity per layer (default 56)")
-    slot_options.add_argument("--total-slots", type=int,
-                              help="total expert cache slots across all 48 layers")
+    slot_options.add_argument(
+        "--slots", type=int, default=None, help="legacy capacity per layer (default 56)"
+    )
+    slot_options.add_argument(
+        "--total-slots", type=int, help="total expert cache slots across all 48 layers"
+    )
     parser.add_argument("--contexts", nargs="+", type=int, default=[8192, 32768])
     parser.add_argument("--context-length", type=int, default=225280)
     parser.add_argument("--chunk", type=int, default=8192)
@@ -192,14 +200,26 @@ def main():
     parser.add_argument("--encoder-transfer-backend", default="zmq_to_scheduler")
     parser.add_argument("--image", help="local image for remote-ViT OpenAI chat probe")
     parser.add_argument("--image-prompt", default="Describe the image briefly.")
-    parser.add_argument("--image-answer-pattern", help="regex checked against the visible image answer")
+    parser.add_argument(
+        "--image-answer-pattern", help="regex checked against the visible image answer"
+    )
     parser.add_argument("--image-max-new-tokens", type=int, default=1024)
-    parser.add_argument("--decode-graph", action="store_true",
-                        help="opt into batch-1 breakable decode graph (threaded runtime only)")
-    parser.add_argument("--offload-startup-warmup", action="store_true",
-                        help="run representative offload prefill/decode before serving")
-    parser.add_argument("--layer-cache-slots", help="JSON file containing a capacity list")
-    parser.add_argument("--route-trace-path", help="profiling-only JSONL path inside server environment")
+    parser.add_argument(
+        "--decode-graph",
+        action="store_true",
+        help="opt into batch-1 breakable decode graph (threaded runtime only)",
+    )
+    parser.add_argument(
+        "--offload-startup-warmup",
+        action="store_true",
+        help="run representative offload prefill/decode before serving",
+    )
+    parser.add_argument(
+        "--layer-cache-slots", help="JSON file containing a capacity list"
+    )
+    parser.add_argument(
+        "--route-trace-path", help="profiling-only JSONL path inside server environment"
+    )
     parser.add_argument("--route-trace-limit", type=int, default=10000)
     parser.add_argument("--context-max-new-tokens", type=int, default=32)
     parser.add_argument("--context-ignore-eos", action="store_true")
@@ -208,7 +228,8 @@ def main():
     parser.add_argument("--mem-fraction-static", type=float)
     parser.add_argument("--max-mamba-cache-size", type=int)
     parser.add_argument(
-        "--mamba-ssm-dtype", choices=["float32", "bfloat16", "float16"],
+        "--mamba-ssm-dtype",
+        choices=["float32", "bfloat16", "float16"],
         help="set the same GDN state precision for target-only and MTP comparisons",
     )
     parser.add_argument("--mamba-full-memory-ratio", type=float)
@@ -222,8 +243,12 @@ def main():
     parser.add_argument("--startup-timeout", type=int, default=3600)
     parser.add_argument("--request-timeout", type=int, default=7200)
     parser.add_argument("--cache-stats-log-interval", type=int, default=0)
-    parser.add_argument("--mtp-steps", type=int, choices=[1, 2, 3],
-                        help="opt-in same-card eager MTP; verify width is steps + 1")
+    parser.add_argument(
+        "--mtp-steps",
+        type=int,
+        choices=[1, 2, 3],
+        help="opt-in same-card eager MTP; verify width is steps + 1",
+    )
     args = parser.parse_args()
     if args.mtp_steps and (args.runtime_mode != "threaded" or args.encoder_urls):
         parser.error("MTP requires threaded and pure text")
@@ -252,22 +277,30 @@ def main():
     if args.decode_graph and args.runtime_mode != "threaded":
         parser.error("--decode-graph requires --runtime-mode threaded")
     if not 2 <= args.staging_buffers <= 64 or args.staging_buffer_mib < 0:
-        parser.error("staging buffers must be 2..64 and staging buffer MiB non-negative")
-    if min(
-        args.startup_timeout,
-        args.request_timeout,
-        args.slots if args.slots is not None else 56,
-        args.chunk,
-        args.context_max_new_tokens,
-    ) <= 0:
-        parser.error("timeouts, slots, chunk and context max_new_tokens must be positive")
+        parser.error(
+            "staging buffers must be 2..64 and staging buffer MiB non-negative"
+        )
+    if (
+        min(
+            args.startup_timeout,
+            args.request_timeout,
+            args.slots if args.slots is not None else 56,
+            args.chunk,
+            args.context_max_new_tokens,
+        )
+        <= 0
+    ):
+        parser.error(
+            "timeouts, slots, chunk and context max_new_tokens must be positive"
+        )
     if args.cache_stats_log_interval < 0:
         parser.error("cache stats log interval must be non-negative")
     manifest = Path(args.manifest).resolve()
     if not manifest.is_file():
         parser.error("local expert-pack manifest is required")
     from sglang.srt.model_loader.qwen38_nvfp4_common import (
-        resolve_cached_checkpoint, cached_checkpoint_weight_files,
+        cached_checkpoint_weight_files,
+        resolve_cached_checkpoint,
         validate_cached_checkpoint_revision,
     )
 
@@ -281,7 +314,9 @@ def main():
         length < 1 or length + args.context_max_new_tokens > args.context_length
         for length in args.contexts
     ):
-        parser.error("requested contexts must fit context-length with context max_new_tokens")
+        parser.error(
+            "requested contexts must fit context-length with context max_new_tokens"
+        )
     output = Path(args.output)
     output.mkdir(parents=True, exist_ok=True)
     # Config bytes define the requested metadata identity; user pack revision
@@ -323,7 +358,9 @@ def main():
         extra["prefill_reuse_cache"] = not args.no_prefill_reuse_cache
         extra["prefill_seed_cache"] = not args.no_prefill_seed_cache
     if args.layer_cache_slots:
-        extra["layer_cache_slots"] = json.loads(Path(args.layer_cache_slots).read_text())
+        extra["layer_cache_slots"] = json.loads(
+            Path(args.layer_cache_slots).read_text()
+        )
     if args.route_trace_path:
         extra["route_trace_path"] = args.route_trace_path
         extra["route_trace_limit"] = args.route_trace_limit
@@ -343,7 +380,8 @@ def main():
         json.dumps(extra),
         "--ple-offload-embedding",
         "--cuda-graph-backend-prefill=disabled",
-        "--cuda-graph-backend-decode=" + ("breakable" if args.decode_graph else "disabled"),
+        "--cuda-graph-backend-decode="
+        + ("breakable" if args.decode_graph else "disabled"),
         "--disable-shared-experts-fusion",
         "--moe-runner-backend",
         "flashinfer_cutlass",
@@ -361,8 +399,13 @@ def main():
         str(args.port),
     ]
     if args.encoder_urls:
-        command += ["--language-only", "--encoder-urls", *args.encoder_urls,
-                    "--encoder-transfer-backend", args.encoder_transfer_backend]
+        command += [
+            "--language-only",
+            "--encoder-urls",
+            *args.encoder_urls,
+            "--encoder-transfer-backend",
+            args.encoder_transfer_backend,
+        ]
     else:
         command += ["--language-model-only"]
     if args.ple_backend == "file" and not args.ple_dir:
@@ -370,11 +413,18 @@ def main():
     if args.revision:
         command += ["--revision", args.revision]
     if args.mtp_steps:
-        command += ["--speculative-algorithm", "NEXTN",
-                    "--speculative-draft-load-format", "qwen38_mtp",
-                    "--speculative-num-steps", str(args.mtp_steps),
-                    "--speculative-eagle-topk", "1",
-                    "--speculative-num-draft-tokens", str(args.mtp_steps + 1)]
+        command += [
+            "--speculative-algorithm",
+            "NEXTN",
+            "--speculative-draft-load-format",
+            "qwen38_mtp",
+            "--speculative-num-steps",
+            str(args.mtp_steps),
+            "--speculative-eagle-topk",
+            "1",
+            "--speculative-num-draft-tokens",
+            str(args.mtp_steps + 1),
+        ]
     if args.offload_startup_warmup:
         command += ["--warmups", "qwen38_offload"]
     if args.cache_dir:
@@ -485,7 +535,9 @@ def main():
             )
             matched = _finalize_probe_case(case, response, time.monotonic() - begun)
             report["cases"].append(case)
-            print(f"Probe {prompt!r} -> {'MATCH' if matched else 'NO MATCH'}", flush=True)
+            print(
+                f"Probe {prompt!r} -> {'MATCH' if matched else 'NO MATCH'}", flush=True
+            )
             if not matched:
                 report["error"] = f"semantic probe failed: {case}"
                 raise AssertionError(report["error"])
@@ -494,23 +546,50 @@ def main():
             mime = mimetypes.guess_type(image_path.name)[0]
             if mime not in ("image/png", "image/jpeg", "image/webp"):
                 raise ValueError("image probe requires local PNG/JPEG/WebP")
-            data_url = "data:" + mime + ";base64," + base64.b64encode(image_path.read_bytes()).decode()
+            data_url = (
+                "data:"
+                + mime
+                + ";base64,"
+                + base64.b64encode(image_path.read_bytes()).decode()
+            )
             begun = time.monotonic()
-            response = request(url + "/v1/chat/completions", {
-                "model": args.served_model_name or args.checkpoint,
-                "messages": [{"role": "user", "content": [
-                    {"type": "image_url", "image_url": {"url": data_url}},
-                    {"type": "text", "text": args.image_prompt},
-                ]}],
-                "temperature": 0, "max_tokens": args.image_max_new_tokens, "stream": False,
-            }, timeout=args.request_timeout)
-            visible = _visible_generation_text(response["choices"][0]["message"].get("content") or "")
+            response = request(
+                url + "/v1/chat/completions",
+                {
+                    "model": args.served_model_name or args.checkpoint,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "image_url", "image_url": {"url": data_url}},
+                                {"type": "text", "text": args.image_prompt},
+                            ],
+                        }
+                    ],
+                    "temperature": 0,
+                    "max_tokens": args.image_max_new_tokens,
+                    "stream": False,
+                },
+                timeout=args.request_timeout,
+            )
+            visible = _visible_generation_text(
+                response["choices"][0]["message"].get("content") or ""
+            )
             if not visible:
                 raise AssertionError("empty visible answer for remote ViT probe")
-            matched = not args.image_answer_pattern or re.search(args.image_answer_pattern, visible) is not None
-            report["cases"].append({"image": str(image_path), "response_text": visible,
-                "matched": matched, "seconds": time.monotonic() - begun,
-                "usage": response.get("usage")})
+            matched = (
+                not args.image_answer_pattern
+                or re.search(args.image_answer_pattern, visible) is not None
+            )
+            report["cases"].append(
+                {
+                    "image": str(image_path),
+                    "response_text": visible,
+                    "matched": matched,
+                    "seconds": time.monotonic() - begun,
+                    "usage": response.get("usage"),
+                }
+            )
             if not matched:
                 raise AssertionError("remote ViT answer pattern did not match")
         report["status"] = "passed"

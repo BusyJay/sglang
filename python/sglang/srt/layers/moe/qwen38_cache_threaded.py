@@ -14,18 +14,18 @@ every CUDA state transition goes through PyTorch's own locking.
 
 from __future__ import annotations
 
-import os
 import contextlib
-import queue
-import threading
-import logging
-import time
 import json
+import logging
+import os
+import queue
+import select
 import subprocess
 import sys
-import select
-from pathlib import Path
+import threading
+import time
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import torch
 
@@ -116,9 +116,19 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         **kwargs,
     ):
         from sglang.srt.layers.moe.qwen38_packed_transport import validate_packed_config
-        validate_packed_config(packed_decode, packed_prefill, packed_min_bytes, packed_max_bytes, packed_min_copies)
+
+        validate_packed_config(
+            packed_decode,
+            packed_prefill,
+            packed_min_bytes,
+            packed_max_bytes,
+            packed_min_copies,
+        )
         self.packed_decode, self.packed_prefill = packed_decode, packed_prefill
-        self.packed_min_bytes, self.packed_max_bytes = packed_min_bytes, packed_max_bytes
+        self.packed_min_bytes, self.packed_max_bytes = (
+            packed_min_bytes,
+            packed_max_bytes,
+        )
         self.packed_min_copies = packed_min_copies
         self.packed_transport = None
         self.profiler = None
@@ -139,7 +149,10 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         self.adaptive_cache_mode = adaptive_cache_mode
         self.cache_policy = cache_policy
         self.cache_protected_fraction = cache_protected_fraction
-        if type(prefill_reuse_cache) is not bool or type(prefill_seed_cache) is not bool:
+        if (
+            type(prefill_reuse_cache) is not bool
+            or type(prefill_seed_cache) is not bool
+        ):
             raise ValueError("prefill reuse and seed options must be booleans")
         self.prefill_reuse_cache = prefill_reuse_cache
         self.prefill_seed_cache = prefill_seed_cache
@@ -249,17 +262,25 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                 )
             self.transfer.wait_stream(torch.cuda.current_stream(self.device))
             self._assign_pool_views(self.layer_cache_slots)
-            from sglang.srt.layers.moe.qwen38_cache_buffers import AdaptiveMetadataBuffers
+            from sglang.srt.layers.moe.qwen38_cache_buffers import (
+                AdaptiveMetadataBuffers,
+            )
 
             # Every legal future layout fits without growing policy buffers.
             minimum = getattr(self, "adaptive_min_slots", self.manifest.top_k)
-            maximum = min(self.manifest.num_experts,
-                          budget - (self.manifest.num_layers - 1) * minimum)
+            maximum = min(
+                self.manifest.num_experts,
+                budget - (self.manifest.num_layers - 1) * minimum,
+            )
             self.adaptive_metadata = AdaptiveMetadataBuffers(
-                self.manifest.num_layers, self.manifest.num_experts, maximum, self.device
+                self.manifest.num_layers,
+                self.manifest.num_experts,
+                maximum,
+                self.device,
             )
             self.migration_scratch = {
-                name: torch.empty_like(pool[0]) for name, pool in self.cache_pool.items()
+                name: torch.empty_like(pool[0])
+                for name, pool in self.cache_pool.items()
             }
             self.adaptive_samples = queue.Queue(maxsize=4096)
         super().reserve()
@@ -305,7 +326,10 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                 )
         memory_mark(probe, "runtime.after_adaptive_metadata")
         if self.packed_decode != "direct" or self.packed_prefill != "direct":
-            from sglang.srt.layers.moe.qwen38_packed_transport import PackedExpertTransport
+            from sglang.srt.layers.moe.qwen38_packed_transport import (
+                PackedExpertTransport,
+            )
+
             self.packed_transport = PackedExpertTransport(self)
             self.packed_transport.refresh_targets()
         self.worker = threading.Thread(
@@ -333,10 +357,18 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         return self.device_states[layer_id]
 
     def _host_range(self, kind):
-        return self.profiler.host_range(kind) if self.profiler is not None else contextlib.nullcontext()
+        return (
+            self.profiler.host_range(kind)
+            if self.profiler is not None
+            else contextlib.nullcontext()
+        )
 
     def _gpu_range(self, kind, stream):
-        return self.profiler.gpu_range(kind, stream) if self.profiler is not None else contextlib.nullcontext()
+        return (
+            self.profiler.gpu_range(kind, stream)
+            if self.profiler is not None
+            else contextlib.nullcontext()
+        )
 
     def _copy_batch(self, entries):
         if self.profiler is None:
@@ -350,7 +382,11 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             kind = "prefill" if tensors is self.arena else "decode"
             expected = self.arena if kind == "prefill" else self.caches[layer_id]
             mode = self.packed_prefill if kind == "prefill" else self.packed_decode
-            if mode == "packed" and tensors is expected and tuple(names) == transport.layouts[kind][0]:
+            if (
+                mode == "packed"
+                and tensors is expected
+                and tuple(names) == transport.layouts[kind][0]
+            ):
                 if transport.eligible(kind):
                     with self._host_range("packed_cpu_staging_and_enqueue"):
                         return transport.fill(layer_id, expert_id, slot_id, kind)
@@ -372,7 +408,8 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         if "prefill_plan" not in state:
             state["prefill_plan"] = torch.empty(
                 state["counts"].numel() + state["keys"].numel(),
-                dtype=torch.int32, device=self.device,
+                dtype=torch.int32,
+                device=self.device,
             )
         return state["prefill_plan"]
 
@@ -462,7 +499,12 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                 start = expert
             previous = expert
         runs.append((start, previous + 1))
-        if self.packed_transport is not None and self.packed_prefill == "packed" and self.packed_transport.eligible("prefill") and len(runs) > 1:
+        if (
+            self.packed_transport is not None
+            and self.packed_prefill == "packed"
+            and self.packed_transport.eligible("prefill")
+            and len(runs) > 1
+        ):
             # One routed expert per fill. Dense bulk prefill remains direct.
             for expert in experts:
                 self._fill(layer, expert, self.arena, expert)
@@ -475,10 +517,12 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                 source = self.pack.tensor_bytes(layer, name)
                 try:
                     for first, end in runs:
-                        entries.append((
-                            source[first * expert_bytes : end * expert_bytes],
-                            self.arena[name][first:end],
-                        ))
+                        entries.append(
+                            (
+                                source[first * expert_bytes : end * expert_bytes],
+                                self.arena[name][first:end],
+                            )
+                        )
                 finally:
                     source.release()
             self._copy_batch(entries)
@@ -487,7 +531,9 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                 source.release()
             raise
 
-    def _ensure_arena_experts(self, layer, counts, keys=None, *, force_dense=False, verify=False):
+    def _ensure_arena_experts(
+        self, layer, counts, keys=None, *, force_dense=False, verify=False
+    ):
         stats = self.prefill_copy_stats[layer]
         if self.arena_layer != layer:
             self.arena_residents = set()
@@ -524,10 +570,13 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         )
         # Decide before launching scatter; a fragmented, nearly full layer is
         # cheaper to replace than to merge with the decode cache.
-        dense = not verify and (self.prefill_copy_mode == "dense" or (
-            self.prefill_copy_mode == "auto"
-            and _prefer_dense_prefill(host_missing, self.manifest.num_experts)
-        ))
+        dense = not verify and (
+            self.prefill_copy_mode == "dense"
+            or (
+                self.prefill_copy_mode == "auto"
+                and _prefer_dense_prefill(host_missing, self.manifest.num_experts)
+            )
+        )
         if dense:
             self._fill_arena(layer)
             self.arena_residents = None
@@ -646,11 +695,18 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             if target is None or target == self.layer_cache_slots:
                 return
             minimum = getattr(self, "adaptive_min_slots", self.manifest.top_k)
-            if len(target) != self.manifest.num_layers or any(
-                type(slots) is not int or not minimum <= slots <= self.manifest.num_experts
-                for slots in target
-            ) or sum(target) != next(iter(self.cache_pool.values())).shape[0]:
-                raise ValueError("invalid adaptive layout or incomplete verify active-set capacity")
+            if (
+                len(target) != self.manifest.num_layers
+                or any(
+                    type(slots) is not int
+                    or not minimum <= slots <= self.manifest.num_experts
+                    for slots in target
+                )
+                or sum(target) != next(iter(self.cache_pool.values())).shape[0]
+            ):
+                raise ValueError(
+                    "invalid adaptive layout or incomplete verify active-set capacity"
+                )
             with self.lock:
                 try:
                     started = time.perf_counter()
@@ -684,7 +740,9 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                             state["frequency"][
                                 int(target[layer] * self.cache_protected_fraction) :
                             ].zero_()
-                    self.metadata_stream.wait_stream(torch.cuda.current_stream(self.device))
+                    self.metadata_stream.wait_stream(
+                        torch.cuda.current_stream(self.device)
+                    )
                     self.transfer.wait_stream(torch.cuda.current_stream(self.device))
                     torch.cuda.current_stream(self.device).synchronize()
                 except BaseException:
@@ -697,7 +755,10 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                 logger.info(
                     "Qwen38 adaptive cache: layer slots %s -> %s; "
                     "migrated=%d evicted=%d pause=%.3fs",
-                    old, target, migrated, evicted,
+                    old,
+                    target,
+                    migrated,
+                    evicted,
                     self.adaptive_last_rebalance_seconds,
                 )
 
@@ -705,7 +766,11 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         result = super().stats_snapshot()
         result["packed_decode"] = self.packed_decode
         result["packed_prefill"] = self.packed_prefill
-        result["packed_transport"] = dict(self.packed_transport.counters) if self.packed_transport is not None else None
+        result["packed_transport"] = (
+            dict(self.packed_transport.counters)
+            if self.packed_transport is not None
+            else None
+        )
         if self.adaptive_cache:
             result.update(
                 adaptive_rebalances=self.adaptive_rebalances,
@@ -725,7 +790,8 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             layer_cache_slots=list(self.layer_cache_slots),
             cache_slots_total=(
                 next(iter(self.cache_pool.values())).shape[0]
-                if self.cache_pool is not None else sum(self.layer_cache_slots)
+                if self.cache_pool is not None
+                else sum(self.layer_cache_slots)
             ),
             layer_hits=list(self.layer_hits),
             layer_misses=list(self.layer_misses),
@@ -798,8 +864,8 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                         raise RuntimeError("previous transfer failed")
                     if job.arena:
                         values = job.plan.tolist()
-                        counts = values[:self.manifest.num_experts + 1]
-                        keys = values[self.manifest.num_experts + 1:]
+                        counts = values[: self.manifest.num_experts + 1]
+                        keys = values[self.manifest.num_experts + 1 :]
                         if counts[-1]:
                             raise ValueError("invalid prefill route ID")
                         started = time.perf_counter()
@@ -809,21 +875,38 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                                 self.transfer.wait_event(self.arena_last_use)
                             self.arena_layer = None
                             loaded = self._ensure_arena_experts(
-                                job.layer, counts, keys, force_dense=job.force_dense, verify=job.verify
+                                job.layer,
+                                counts,
+                                keys,
+                                force_dense=job.force_dense,
+                                verify=job.verify,
                             )
                             self.arena_layer = job.layer
                         elif self.arena_last_use is not None:
                             self.transfer.wait_event(self.arena_last_use)
                             loaded = self._ensure_arena_experts(
-                                job.layer, counts, keys, force_dense=job.force_dense, verify=job.verify
+                                job.layer,
+                                counts,
+                                keys,
+                                force_dense=job.force_dense,
+                                verify=job.verify,
                             )
                         else:
                             loaded = self._ensure_arena_experts(
-                                job.layer, counts, keys, force_dense=job.force_dense, verify=job.verify
+                                job.layer,
+                                counts,
+                                keys,
+                                force_dense=job.force_dense,
+                                verify=job.verify,
                             )
                         if loaded:
                             self.arena_loads += 1
-                        seed = not job.verify and self.prefill_seed_cache and bool(keys) and all(key < 0 for key in keys)
+                        seed = (
+                            not job.verify
+                            and self.prefill_seed_cache
+                            and bool(keys)
+                            and all(key < 0 for key in keys)
+                        )
                         if not job.verify and (self.warm_decode_cache or seed):
                             self._warm_from_arena(job.layer, counts[:-1])
                             if seed:
@@ -833,7 +916,9 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                                 with torch.cuda.stream(self.transfer):
                                     self.device_states[job.layer]["frequency"].zero_()
                         self.prefill_h2d_bytes += self.transferred_bytes - bytes_before
-                        self.prefill_host_dispatch_seconds += time.perf_counter() - started
+                        self.prefill_host_dispatch_seconds += (
+                            time.perf_counter() - started
+                        )
                         # Metadata (route/plan kernels) ran on the metadata
                         # stream; nothing else needs to move for full reads.
                         self._finish_job(job)
@@ -854,10 +939,7 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                                 values[4 + 3 * capacity : 4 + 3 * capacity + active],
                             )
                         active_slots = values[
-                            4
-                            + 2 * capacity : 4
-                            + 2 * capacity
-                            + active
+                            4 + 2 * capacity : 4 + 2 * capacity + active
                         ]
                         for index in range(misses):
                             expert, slot = values[4 + 2 * index : 6 + 2 * index]
@@ -975,15 +1057,28 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             self.adaptive_metadata.nbytes() if hasattr(self, "adaptive_metadata") else 0
         )
         result["migration_scratch_bytes"] = sum(
-            t.numel() * t.element_size() for t in getattr(self, "migration_scratch", {}).values()
+            t.numel() * t.element_size()
+            for t in getattr(self, "migration_scratch", {}).values()
         )
         result["resident_alpha_bytes"] = sum(
             tensor.numel() * tensor.element_size()
             for tables in self.alpha_tables.values()
             for tensor in tables.values()
         )
-        result["packed_scratch_bytes"] = self.packed_transport.scratch.numel() if self.packed_transport is not None else 0
-        result["packed_descriptor_bytes"] = sum(t.numel() * t.element_size() for pages in self.packed_transport.tables.values() for t in pages) if self.packed_transport is not None else 0
+        result["packed_scratch_bytes"] = (
+            self.packed_transport.scratch.numel()
+            if self.packed_transport is not None
+            else 0
+        )
+        result["packed_descriptor_bytes"] = (
+            sum(
+                t.numel() * t.element_size()
+                for pages in self.packed_transport.tables.values()
+                for t in pages
+            )
+            if self.packed_transport is not None
+            else 0
+        )
         # Each outstanding decode job owns one pinned transfer plan.
         result["max_pending_plan_bytes"] = (
             self.jobs.maxsize
@@ -1059,8 +1154,8 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                         cache_route(topk_ids, state["lookup"], scratch, state["counts"])
                         if self.prefill_reuse_cache or self.prefill_seed_cache:
                             source = self._prefill_plan(state)
-                            source[:state["counts"].numel()].copy_(state["counts"])
-                            source[state["counts"].numel():].copy_(state["keys"])
+                            source[: state["counts"].numel()].copy_(state["counts"])
+                            source[state["counts"].numel() :].copy_(state["keys"])
                         else:
                             source = state["counts"]
                         plan = self._host_plan(source)
@@ -1070,12 +1165,22 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                 else:
                     with torch.cuda.stream(self.metadata_stream):
                         remapped = torch.empty_like(topk_ids)
-                        if (self.fused_decode_plan and topk_ids.shape[0] == 1
-                                and 0 < topk_ids.shape[1] <= 32):
+                        if (
+                            self.fused_decode_plan
+                            and topk_ids.shape[0] == 1
+                            and 0 < topk_ids.shape[1] <= 32
+                        ):
                             cache_decode_plan(
-                                topk_ids, remapped, state["counts"], state["lookup"],
-                                state["keys"], state["frequency"], state["ages"],
-                                state["generation"], state["clock"], state["plan"],
+                                topk_ids,
+                                remapped,
+                                state["counts"],
+                                state["lookup"],
+                                state["keys"],
+                                state["frequency"],
+                                state["ages"],
+                                state["generation"],
+                                state["clock"],
+                                state["plan"],
                                 policy=int(self.cache_policy == "slru"),
                                 protected_fraction=self.cache_protected_fraction,
                             )
@@ -1109,7 +1214,13 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                     remapped.record_stream(compute)
                 compute.wait_event(planned)
                 job = TransferJob(
-                    layer_id, arena, plan, planned, computed, launched, sample,
+                    layer_id,
+                    arena,
+                    plan,
+                    planned,
+                    computed,
+                    launched,
+                    sample,
                     force_dense=force_dense,
                     verify=execution_phase == "verify",
                 )

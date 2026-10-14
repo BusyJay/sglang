@@ -12,6 +12,7 @@ import os
 
 import torch
 
+from sglang.srt.layers.moe.qwen38_cache_capacity import resolve_cache_slots
 from sglang.srt.layers.quantization.qwen38_nvfp4_cache import (
     Qwen38CachedModelOptConfig,
 )
@@ -22,8 +23,8 @@ from sglang.srt.model_loader.loader import (
     _initialize_model,
 )
 from sglang.srt.model_loader.qwen38_nvfp4_common import (
-    filtered_safetensors_weights_iterator,
     cached_checkpoint_weight_files,
+    filtered_safetensors_weights_iterator,
     resolve_cached_checkpoint,
     validate_cached_checkpoint_revision,
     validate_qwen38_model_config,
@@ -33,7 +34,6 @@ from sglang.srt.model_loader.qwen38_nvfp4_pack.format import (
     load_manifest,
 )
 from sglang.srt.model_loader.utils import set_default_torch_dtype
-from sglang.srt.layers.moe.qwen38_cache_capacity import resolve_cache_slots
 
 
 class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
@@ -43,10 +43,21 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
         super().__init__(load_config)
         config = dict(load_config.model_loader_extra_config or {})
         from sglang.srt.layers.moe.qwen38_packed_transport import validate_packed_config
-        validate_packed_config(config.get("packed_decode", "direct"), config.get("packed_prefill", "direct"),
-                               config.get("packed_min_bytes", 4096), config.get("packed_max_bytes", 64 << 20),
-                               config.get("packed_min_copies", 2))
-        if any(config.get(k, "direct") != "direct" for k in ("packed_decode", "packed_prefill")) and config.get("runtime_mode", "sync") != "threaded":
+
+        validate_packed_config(
+            config.get("packed_decode", "direct"),
+            config.get("packed_prefill", "direct"),
+            config.get("packed_min_bytes", 4096),
+            config.get("packed_max_bytes", 64 << 20),
+            config.get("packed_min_copies", 2),
+        )
+        if (
+            any(
+                config.get(k, "direct") != "direct"
+                for k in ("packed_decode", "packed_prefill")
+            )
+            and config.get("runtime_mode", "sync") != "threaded"
+        ):
             raise ValueError("packed transfer requires threaded runtime")
         unexpected = set(config) - {
             "manifest_path",
@@ -76,7 +87,11 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             "resident_alphas",
             "prefill_copy_mode",
             "fused_decode_plan",
-            "packed_decode", "packed_prefill", "packed_min_bytes", "packed_max_bytes", "packed_min_copies",
+            "packed_decode",
+            "packed_prefill",
+            "packed_min_bytes",
+            "packed_max_bytes",
+            "packed_min_copies",
         }
         if unexpected:
             raise ValueError(
@@ -115,9 +130,15 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             and config.get("runtime_mode", "sync") != "threaded"
         ):
             raise ValueError("prefill_copy_mode requires threaded mode")
-        if config.get("adaptive_cache", False) and config.get("runtime_mode", "sync") != "threaded":
+        if (
+            config.get("adaptive_cache", False)
+            and config.get("runtime_mode", "sync") != "threaded"
+        ):
             raise ValueError("adaptive_cache requires runtime_mode=threaded")
-        if type(config.get("adaptive_cache_window", 512)) is not int or config.get("adaptive_cache_window", 512) < 16:
+        if (
+            type(config.get("adaptive_cache_window", 512)) is not int
+            or config.get("adaptive_cache_window", 512) < 16
+        ):
             raise ValueError("adaptive_cache_window must be an integer >= 16")
         if (
             type(config.get("adaptive_cache_interval", 4096)) is not int
@@ -144,7 +165,9 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             config.get("runtime_mode", "sync") not in ("device", "threaded")
             or not config.get("prefill_arena", True)
         ):
-            raise ValueError("decode warmup requires device/threaded mode and prefill arena")
+            raise ValueError(
+                "decode warmup requires device/threaded mode and prefill arena"
+            )
         if config.get("runtime_mode", "sync") not in (
             "sync",
             "async",
@@ -162,7 +185,9 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             sglang_commit=config.get("sglang_commit"),
         )
         self.initial_layer_slots = resolve_cache_slots(
-            config, self.manifest.num_layers, self.manifest.num_experts,
+            config,
+            self.manifest.num_layers,
+            self.manifest.num_experts,
             minimum=10,
         )
 
@@ -210,9 +235,13 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
         remote_vision = bool(getattr(hf_config, "language_only", False))
         if remote_vision:
             if not getattr(hf_config, "skip_local_encoder_init", False):
-                raise ValueError("Flash-Next EPD offload must disable local ViT initialization")
+                raise ValueError(
+                    "Flash-Next EPD offload must disable local ViT initialization"
+                )
         elif not getattr(hf_config, "language_model_only", False):
-            raise ValueError("qwen38_nvfp4_cache requires --language-model-only or remote --language-only")
+            raise ValueError(
+                "qwen38_nvfp4_cache requires --language-model-only or remote --language-only"
+            )
 
         weight_files = self._prepare_checkpoint(model_config)
 
@@ -251,12 +280,18 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             with set_default_torch_dtype(model_config.dtype):
                 with target_device:
                     memory_mark(probe, "loader.before_model_construct")
-                    model = _initialize_model(model_config, self.load_config, quant_config)
+                    model = _initialize_model(
+                        model_config, self.load_config, quant_config
+                    )
                     memory_mark(probe, "loader.after_model_construct", model=model)
                 if remote_vision and getattr(model, "visual", None) is not None:
-                    raise ValueError("Flash-Next offload worker unexpectedly allocated a local ViT")
+                    raise ValueError(
+                        "Flash-Next offload worker unexpectedly allocated a local ViT"
+                    )
                 lazy_ple = (
-                    getattr(model_config.hf_text_config, "ple_offload_backend", "pinned")
+                    getattr(
+                        model_config.hf_text_config, "ple_offload_backend", "pinned"
+                    )
                     == "lazy"
                 )
                 checkpoint_audit = {} if probe is not None else None
@@ -331,8 +366,12 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                 runtime_options["staging_buffers"] = int(
                     self.config.get("staging_buffers", 4)
                 )
-                runtime_options["adaptive_cache"] = self.config.get("adaptive_cache", False)
-                runtime_options["adaptive_cache_window"] = self.config.get("adaptive_cache_window", 512)
+                runtime_options["adaptive_cache"] = self.config.get(
+                    "adaptive_cache", False
+                )
+                runtime_options["adaptive_cache_window"] = self.config.get(
+                    "adaptive_cache_window", 512
+                )
                 for name, default in (
                     ("adaptive_cache_interval", 4096),
                     ("adaptive_cache_mode", "rebalance"),
@@ -343,8 +382,11 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                     ("resident_alphas", True),
                     ("prefill_copy_mode", "auto"),
                     ("fused_decode_plan", True),
-                    ("packed_decode", "direct"), ("packed_prefill", "direct"),
-                    ("packed_min_bytes", 4096), ("packed_max_bytes", 64 << 20), ("packed_min_copies", 2),
+                    ("packed_decode", "direct"),
+                    ("packed_prefill", "direct"),
+                    ("packed_min_bytes", 4096),
+                    ("packed_max_bytes", 64 << 20),
+                    ("packed_min_copies", 2),
                 ):
                     runtime_options[name] = self.config.get(name, default)
             if runtime_options:
@@ -352,7 +394,9 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                     self.config.get("staging_buffer_bytes", 64 << 20)
                 )
             if self.config.get("runtime_mode", "sync") in ("device", "threaded"):
-                runtime_options["warm_decode_cache"] = self.config.get("warm_decode_cache", False)
+                runtime_options["warm_decode_cache"] = self.config.get(
+                    "warm_decode_cache", False
+                )
             runtime = runtime_class(
                 pack,
                 target_device,
@@ -367,10 +411,17 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             memory_mark(probe, "loader.after_runtime_construct", model=model)
             from sglang.srt.runtime_context import get_spec
 
-            if self.config.get("adaptive_cache", False) and get_spec().speculative_algorithm is not None:
-                runtime.adaptive_min_slots = self.manifest.top_k * get_spec().speculative_num_draft_tokens
+            if (
+                self.config.get("adaptive_cache", False)
+                and get_spec().speculative_algorithm is not None
+            ):
+                runtime.adaptive_min_slots = (
+                    self.manifest.top_k * get_spec().speculative_num_draft_tokens
+                )
                 if min(runtime.layer_cache_slots) < runtime.adaptive_min_slots:
-                    raise ValueError("adaptive MTP cache must fit the full verify route bound in every layer")
+                    raise ValueError(
+                        "adaptive MTP cache must fit the full verify route bound in every layer"
+                    )
             runtime.reserve()
             memory_mark(
                 probe,

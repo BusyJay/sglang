@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """Worker lifetime/pipelining tests without CUDA or model weights."""
 
-import contextlib
 import ast
+import contextlib
 import json
 import queue
 import threading
@@ -31,36 +31,79 @@ class TestBackgroundTransport(unittest.TestCase):
         # Execute the actual statistics/logging methods without CUDA transport.
         def methods(path, class_name, names):
             source = ast.parse((REPO_ROOT / path).read_text())
-            cls = next(node for node in source.body
-                       if isinstance(node, ast.ClassDef) and node.name == class_name)
-            return [node for node in cls.body
-                    if isinstance(node, ast.FunctionDef) and node.name in names]
+            cls = next(
+                node
+                for node in source.body
+                if isinstance(node, ast.ClassDef) and node.name == class_name
+            )
+            return [
+                node
+                for node in cls.body
+                if isinstance(node, ast.FunctionDef) and node.name in names
+            ]
 
-        base = ast.ClassDef(name="StatsBase", bases=[], keywords=[], decorator_list=[],
-            body=methods("python/sglang/srt/layers/moe/qwen38_cache_runtime.py",
-                         "Qwen38SynchronousExpertRuntime", {"log_stats", "_maybe_log_stats"}))
-        threaded = ast.ClassDef(name="StatsRuntime", bases=[ast.Name(id="StatsBase", ctx=ast.Load())],
-            keywords=[], decorator_list=[], body=methods(
+        base = ast.ClassDef(
+            name="StatsBase",
+            bases=[],
+            keywords=[],
+            decorator_list=[],
+            body=methods(
+                "python/sglang/srt/layers/moe/qwen38_cache_runtime.py",
+                "Qwen38SynchronousExpertRuntime",
+                {"log_stats", "_maybe_log_stats"},
+            ),
+        )
+        threaded = ast.ClassDef(
+            name="StatsRuntime",
+            bases=[ast.Name(id="StatsBase", ctx=ast.Load())],
+            keywords=[],
+            decorator_list=[],
+            body=methods(
                 "python/sglang/srt/layers/moe/qwen38_cache_threaded.py",
-                "Qwen38ThreadedExpertRuntime", {"stats_snapshot"}))
+                "Qwen38ThreadedExpertRuntime",
+                {"stats_snapshot"},
+            ),
+        )
         logger = mock.Mock()
-        namespace = {"json": json, "logger": logger, "_DENSE_STARTUP_PREFILL_TOKENS": 512}
-        tree = ast.fix_missing_locations(ast.Module(body=[base, threaded], type_ignores=[]))
+        namespace = {
+            "json": json,
+            "logger": logger,
+            "_DENSE_STARTUP_PREFILL_TOKENS": 512,
+        }
+        tree = ast.fix_missing_locations(
+            ast.Module(body=[base, threaded], type_ignores=[])
+        )
         exec(compile(tree, "actual-cache-stats", "exec"), namespace)
-        namespace["StatsBase"].stats_snapshot = lambda self: {"run_invocations": self.run_invocations}
+        namespace["StatsBase"].stats_snapshot = lambda self: {
+            "run_invocations": self.run_invocations
+        }
         runtime = namespace["StatsRuntime"]()
         for name in (
-            "cache_protected_fraction", "host_plan_allocations", "fused_decode_plan_invocations",
-            "decode_alpha_h2d_calls_avoided", "prefill_reused_experts", "prefill_reuse_d2d_bytes",
-            "prefill_seed_runs", "prefill_h2d_bytes", "prefill_host_dispatch_seconds", "prefill_tokens_seen",
-            "adaptive_rebalances", "adaptive_sample_drops", "adaptive_migrated_experts",
-            "adaptive_evicted_experts", "adaptive_last_rebalance_seconds", "adaptive_evaluations",
-            "adaptive_analysis_seconds", "adaptive_last_evaluation",
+            "cache_protected_fraction",
+            "host_plan_allocations",
+            "fused_decode_plan_invocations",
+            "decode_alpha_h2d_calls_avoided",
+            "prefill_reused_experts",
+            "prefill_reuse_d2d_bytes",
+            "prefill_seed_runs",
+            "prefill_h2d_bytes",
+            "prefill_host_dispatch_seconds",
+            "prefill_tokens_seen",
+            "adaptive_rebalances",
+            "adaptive_sample_drops",
+            "adaptive_migrated_experts",
+            "adaptive_evicted_experts",
+            "adaptive_last_rebalance_seconds",
+            "adaptive_evaluations",
+            "adaptive_analysis_seconds",
+            "adaptive_last_evaluation",
         ):
             setattr(runtime, name, 0)
         runtime.layer_cache_slots = [9, 8]
         runtime.layer_hits = runtime.layer_misses = [0, 0]
-        runtime.packed_decode = runtime.packed_prefill = runtime.prefill_copy_mode = "direct"
+        runtime.packed_decode = runtime.packed_prefill = runtime.prefill_copy_mode = (
+            "direct"
+        )
         runtime.packed_transport = None
         runtime.cache_policy = "lfu"
         runtime.adaptive_cache_mode = "rebalance"
@@ -70,7 +113,10 @@ class TestBackgroundTransport(unittest.TestCase):
         runtime.fused_decode_plan = runtime.resident_alphas = True
         runtime.prefill_copy_stats = []
         runtime.run_invocations = runtime.stats_log_interval = 1
-        for pool, adaptive, total in ((None, False, 17), ({"weight": SimpleNamespace(shape=(17, 1))}, True, 17)):
+        for pool, adaptive, total in (
+            (None, False, 17),
+            ({"weight": SimpleNamespace(shape=(17, 1))}, True, 17),
+        ):
             with self.subTest(adaptive=adaptive):
                 runtime.cache_pool = pool
                 runtime.adaptive_cache = adaptive
@@ -79,9 +125,14 @@ class TestBackgroundTransport(unittest.TestCase):
                 self.assertEqual(runtime.stats_snapshot()["cache_slots_total"], total)
                 runtime._maybe_log_stats()
                 runtime.log_stats("final")
-                self.assertEqual([call.args[1] for call in logger.info.call_args_list], ["periodic", "final"])
+                self.assertEqual(
+                    [call.args[1] for call in logger.info.call_args_list],
+                    ["periodic", "final"],
+                )
                 for call in logger.info.call_args_list:
-                    self.assertEqual(json.loads(call.args[2])["cache_slots_total"], total)
+                    self.assertEqual(
+                        json.loads(call.args[2])["cache_slots_total"], total
+                    )
 
     @classmethod
     def setUpClass(cls):
@@ -98,7 +149,9 @@ class TestBackgroundTransport(unittest.TestCase):
             {
                 "torch": fake_torch,
                 "sglang.kernels.ops.moe.qwen38_expert_cache": SimpleNamespace(
-                    cache_plan=None, cache_route=None, cache_scatter=None,
+                    cache_plan=None,
+                    cache_route=None,
+                    cache_scatter=None,
                     cache_alpha_scatter=None,
                     cache_decode_plan=None,
                 ),
@@ -226,9 +279,7 @@ class TestBackgroundTransport(unittest.TestCase):
             jobs = []
             for _ in range(2):
                 runtime.capacity.acquire()
-                completed = SimpleNamespace(
-                    synchronize=lambda: completion.wait(5)
-                )
+                completed = SimpleNamespace(synchronize=lambda: completion.wait(5))
                 jobs.append(self._job(planned, completed))
                 runtime.jobs.put(jobs[-1])
             for job in jobs:
@@ -308,8 +359,7 @@ class TestBackgroundTransport(unittest.TestCase):
         runtime.arena_loads = 0
         operations = []
         runtime.transfer.wait_event = lambda event: operations.append(("wait", event))
-        runtime._ensure_arena_experts = (
-            lambda layer, counts, keys, **kwargs:
+        runtime._ensure_arena_experts = lambda layer, counts, keys, **kwargs: (
             operations.append(("fill", layer)) or True
         )
         planned = SimpleNamespace(synchronize=lambda: None)
@@ -323,7 +373,9 @@ class TestBackgroundTransport(unittest.TestCase):
             self.assertTrue(job.ready_set.wait(3))
             runtime.jobs.join()
             self.assertIsNone(job.error)
-            self.assertEqual(operations, [("wait", planned), ("wait", previous), ("fill", 1)])
+            self.assertEqual(
+                operations, [("wait", planned), ("wait", previous), ("fill", 1)]
+            )
             self.assertEqual(runtime.arena_loads, 1)
             self.assertIs(runtime.arena_last_use, computed)
         finally:
@@ -336,8 +388,13 @@ class TestBackgroundTransport(unittest.TestCase):
         runtime = self._runtime(1)
         runtime.warm_decode_cache = True
         warm_calls = []
-        runtime._warm_from_arena = lambda layer, counts: warm_calls.append((layer, counts))
-        job = self._job(SimpleNamespace(synchronize=lambda: None), SimpleNamespace(synchronize=lambda: None))
+        runtime._warm_from_arena = lambda layer, counts: warm_calls.append(
+            (layer, counts)
+        )
+        job = self._job(
+            SimpleNamespace(synchronize=lambda: None),
+            SimpleNamespace(synchronize=lambda: None),
+        )
         job.plan = SimpleNamespace(tolist=lambda: [5, 2, 0, 0])
         runtime.capacity.acquire()
         worker, reaper = self._threads(runtime)
@@ -391,11 +448,19 @@ class TestBackgroundTransport(unittest.TestCase):
         runtime.arena = {"weight": "arena"}
         loaded = []
         runtime._fill_arena_selected = lambda layer, experts: loaded.append(experts)
-        runtime._fill_arena = mock.Mock(side_effect=AssertionError("must not overwrite reuse with full H2D"))
-        with mock.patch.object(self.module, "REQUIRED_TENSORS", ("weight",)), \
-             mock.patch.object(self.module, "cache_scatter") as scatter, \
-             mock.patch.object(self.module.torch.cuda, "stream", create=True,
-                               new=lambda _: contextlib.nullcontext()):
+        runtime._fill_arena = mock.Mock(
+            side_effect=AssertionError("must not overwrite reuse with full H2D")
+        )
+        with (
+            mock.patch.object(self.module, "REQUIRED_TENSORS", ("weight",)),
+            mock.patch.object(self.module, "cache_scatter") as scatter,
+            mock.patch.object(
+                self.module.torch.cuda,
+                "stream",
+                create=True,
+                new=lambda _: contextlib.nullcontext(),
+            ),
+        ):
             self.assertTrue(runtime._ensure_arena_experts(0, [1, 1, 1, 1, 0], [2, -1]))
             scatter.assert_called_once_with("cache", "arena", "keys", "counts")
         self.assertEqual(loaded, [[0, 1, 3]])
@@ -476,15 +541,18 @@ class TestBackgroundTransport(unittest.TestCase):
         job.arena = False
         job.plan = SimpleNamespace(tolist=lambda: [0, 1, 1, 0, 2, 0, 0, 0, 0])
         runtime.capacity.acquire()
-        with mock.patch.object(
-            self.module,
-            "cache_alpha_scatter",
-            side_effect=RuntimeError("alpha write failed"),
-        ) as scatter, mock.patch.object(
-            self.module.torch.cuda,
-            "stream",
-            create=True,
-            new=lambda _: contextlib.nullcontext(),
+        with (
+            mock.patch.object(
+                self.module,
+                "cache_alpha_scatter",
+                side_effect=RuntimeError("alpha write failed"),
+            ) as scatter,
+            mock.patch.object(
+                self.module.torch.cuda,
+                "stream",
+                create=True,
+                new=lambda _: contextlib.nullcontext(),
+            ),
         ):
             worker, reaper = self._threads(runtime)
             try:
@@ -515,9 +583,11 @@ class TestBackgroundTransport(unittest.TestCase):
         runtime._fill_arena = mock.Mock()
         runtime._fill_arena_selected = mock.Mock()
         with mock.patch.object(self.module, "cache_scatter") as scatter:
-            self.assertTrue(runtime._ensure_arena_experts(
-                0, [1, 0, 0, 0, 0], [0, -1], force_dense=True
-            ))
+            self.assertTrue(
+                runtime._ensure_arena_experts(
+                    0, [1, 0, 0, 0, 0], [0, -1], force_dense=True
+                )
+            )
         runtime._fill_arena.assert_called_once_with(0)
         runtime._fill_arena_selected.assert_not_called()
         scatter.assert_not_called()
@@ -549,7 +619,10 @@ class TestBackgroundTransport(unittest.TestCase):
         runtime.prefill_seed_runs = 0
         calls = []
         runtime._warm_from_arena = lambda layer, counts: calls.append((layer, counts))
-        job = self._job(SimpleNamespace(synchronize=lambda: None), SimpleNamespace(synchronize=lambda: None))
+        job = self._job(
+            SimpleNamespace(synchronize=lambda: None),
+            SimpleNamespace(synchronize=lambda: None),
+        )
         job.plan = SimpleNamespace(tolist=lambda: [3, 2, 1, 0, -1, -1])
         runtime.capacity.acquire()
         worker, reaper = self._threads(runtime)

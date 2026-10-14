@@ -1,5 +1,5 @@
-import unittest
 import random
+import unittest
 
 from ._load_source import load_source
 

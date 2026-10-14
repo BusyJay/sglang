@@ -100,8 +100,14 @@ class TestNvfp4CachedParity(unittest.TestCase):
             with tempfile.TemporaryDirectory() as value:
                 exported = Path(value) / "layer"
                 export_runtime_layer(layer, exported)
-                report = check_exported_layer(layer, exported, mode, slots=4,
-                                              decode_graph=decode_graph, graph_width=graph_width)
+                report = check_exported_layer(
+                    layer,
+                    exported,
+                    mode,
+                    slots=4,
+                    decode_graph=decode_graph,
+                    graph_width=graph_width,
+                )
                 self.assertEqual(report["status"], "passed")
                 self.assertGreater(report["arena_loads"], 0)
             self.assertLess(torch.cuda.max_memory_allocated(), 1 << 30)

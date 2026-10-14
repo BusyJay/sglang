@@ -19,7 +19,13 @@ class TestGpuCache(unittest.TestCase):
         self.fixture.setUp()
         self.addCleanup(self.fixture.tearDown)
 
-    def _exercise(self, mode, staging_buffer_bytes=None, warm_decode_cache=False, layer_cache_slots=None):
+    def _exercise(
+        self,
+        mode,
+        staging_buffer_bytes=None,
+        warm_decode_cache=False,
+        layer_cache_slots=None,
+    ):
         from sglang.srt.layers.moe.qwen38_cache_runtime import (
             Qwen38SynchronousExpertRuntime,
         )
@@ -88,10 +94,12 @@ class TestGpuCache(unittest.TestCase):
                     }
 
                 outputs.append(runtime.run(layer_id, ids, execute))
-            expected.append({
-                name: getattr(self.fixture.resident[layer_id], name)[ids_cpu]
-                for name in REQUIRED_TENSORS
-            })
+            expected.append(
+                {
+                    name: getattr(self.fixture.resident[layer_id], name)[ids_cpu]
+                    for name in REQUIRED_TENSORS
+                }
+            )
         if hasattr(runtime, "close"):
             runtime.close()
         elif hasattr(runtime, "synchronize"):
@@ -115,62 +123,144 @@ class TestGpuCache(unittest.TestCase):
 
     def test_fused_decode_plan_matches_reference_state_and_plan(self):
         import random
+
         from sglang.kernels.ops.moe.qwen38_expert_cache import (
-            cache_route, cache_plan, cache_decode_plan,
+            cache_decode_plan,
+            cache_plan,
+            cache_route,
         )
 
         experts, slots, top_k = 512, 16, 10
         for policy in (0, 1):
             for adaptive in (False, True):
                 with self.subTest(policy=policy, adaptive=adaptive):
+
                     def fresh():
                         return {
-                            "lookup": torch.full((experts,), -1, dtype=torch.int32, device="cuda"),
-                            "keys": torch.full((slots,), -1, dtype=torch.int32, device="cuda"),
+                            "lookup": torch.full(
+                                (experts,), -1, dtype=torch.int32, device="cuda"
+                            ),
+                            "keys": torch.full(
+                                (slots,), -1, dtype=torch.int32, device="cuda"
+                            ),
                             "frequency": torch.zeros(slots, device="cuda"),
-                            "ages": torch.zeros(slots, dtype=torch.int64, device="cuda"),
-                            "generation": torch.zeros(slots, dtype=torch.int64, device="cuda"),
+                            "ages": torch.zeros(
+                                slots, dtype=torch.int64, device="cuda"
+                            ),
+                            "generation": torch.zeros(
+                                slots, dtype=torch.int64, device="cuda"
+                            ),
                             "clock": torch.zeros(1, dtype=torch.int64, device="cuda"),
-                            "counts": torch.zeros(experts + 1, dtype=torch.int32, device="cuda"),
-                            "plan": torch.full((4 + (4 if adaptive else 3) * slots,),
-                                               -77, dtype=torch.int32, device="cuda"),
+                            "counts": torch.zeros(
+                                experts + 1, dtype=torch.int32, device="cuda"
+                            ),
+                            "plan": torch.full(
+                                (4 + (4 if adaptive else 3) * slots,),
+                                -77,
+                                dtype=torch.int32,
+                                device="cuda",
+                            ),
                         }
+
                     reference, fused = fresh(), fresh()
                     rng = random.Random(17)
-                    rows = [list(range(10)), list(reversed(range(10))),
-                            [3] * top_k, [-1] * top_k, [511, 0] * 5]
+                    rows = [
+                        list(range(10)),
+                        list(reversed(range(10))),
+                        [3] * top_k,
+                        [-1] * top_k,
+                        [511, 0] * 5,
+                    ]
                     rows += [rng.sample(range(48), top_k) for _ in range(80)]
                     rows += [[-2] + [1] * 9, [512] + [-1] * 9]
                     for row in rows:
                         ids = torch.tensor([row], dtype=torch.int32, device="cuda")
-                        ref_out, fused_out = torch.empty_like(ids), torch.empty_like(ids)
-                        cache_route(ids, reference["lookup"], ref_out, reference["counts"])
-                        cache_plan(*(reference[name] for name in (
-                            "counts", "lookup", "keys", "frequency", "ages",
-                            "generation", "clock", "plan")), policy=policy)
-                        cache_route(ids, reference["lookup"], ref_out, reference["counts"])
-                        cache_decode_plan(ids, fused_out, *(fused[name] for name in (
-                            "counts", "lookup", "keys", "frequency", "ages",
-                            "generation", "clock", "plan")), policy=policy)
+                        ref_out, fused_out = (
+                            torch.empty_like(ids),
+                            torch.empty_like(ids),
+                        )
+                        cache_route(
+                            ids, reference["lookup"], ref_out, reference["counts"]
+                        )
+                        cache_plan(
+                            *(
+                                reference[name]
+                                for name in (
+                                    "counts",
+                                    "lookup",
+                                    "keys",
+                                    "frequency",
+                                    "ages",
+                                    "generation",
+                                    "clock",
+                                    "plan",
+                                )
+                            ),
+                            policy=policy,
+                        )
+                        cache_route(
+                            ids, reference["lookup"], ref_out, reference["counts"]
+                        )
+                        cache_decode_plan(
+                            ids,
+                            fused_out,
+                            *(
+                                fused[name]
+                                for name in (
+                                    "counts",
+                                    "lookup",
+                                    "keys",
+                                    "frequency",
+                                    "ages",
+                                    "generation",
+                                    "clock",
+                                    "plan",
+                                )
+                            ),
+                            policy=policy,
+                        )
                         for name in reference:
-                            self.assertTrue(torch.equal(reference[name], fused[name]),
-                                            (policy, adaptive, row, name))
+                            self.assertTrue(
+                                torch.equal(reference[name], fused[name]),
+                                (policy, adaptive, row, name),
+                            )
                         self.assertTrue(torch.equal(ref_out, fused_out), row)
 
     def test_fused_decode_overflow_preserves_policy(self):
         from sglang.kernels.ops.moe.qwen38_expert_cache import cache_decode_plan
-        from sglang.srt.layers.moe.qwen38_cache_threaded import Qwen38ThreadedExpertRuntime
-        runtime = Qwen38ThreadedExpertRuntime(self.fixture.pack, "cuda", slots_per_layer=2)
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
+
+        runtime = Qwen38ThreadedExpertRuntime(
+            self.fixture.pack, "cuda", slots_per_layer=2
+        )
         self.addCleanup(runtime.close)
         runtime.reserve()
         state = runtime.device_states[0]
-        before = {name: state[name].clone() for name in (
-            "lookup", "keys", "frequency", "ages", "generation", "clock")}
+        before = {
+            name: state[name].clone()
+            for name in ("lookup", "keys", "frequency", "ages", "generation", "clock")
+        }
         ids = torch.tensor([[0, 1, 2]], dtype=torch.int32, device="cuda")
         remapped = torch.empty_like(ids)
-        cache_decode_plan(ids, remapped, *(state[name] for name in (
-            "counts", "lookup", "keys", "frequency", "ages", "generation",
-            "clock", "plan")))
+        cache_decode_plan(
+            ids,
+            remapped,
+            *(
+                state[name]
+                for name in (
+                    "counts",
+                    "lookup",
+                    "keys",
+                    "frequency",
+                    "ages",
+                    "generation",
+                    "clock",
+                    "plan",
+                )
+            ),
+        )
         self.assertEqual(state["plan"][:4].tolist(), [0, 0, 0, 1])
         for name in before:
             self.assertTrue(torch.equal(before[name], state[name]), name)
@@ -248,16 +338,16 @@ class TestGpuCache(unittest.TestCase):
                         0,
                         ids,
                         lambda prepared: {
-                            name: prepared.tensors[name][prepared.topk_ids.long()].clone()
+                            name: prepared.tensors[name][
+                                prepared.topk_ids.long()
+                            ].clone()
                             for name in REQUIRED_TENSORS
                         },
                     )
                     runtime.synchronize()
                     for name in REQUIRED_TENSORS:
                         expected = getattr(self.fixture.resident[0], name)[ids.cpu()]
-                        self.assertTrue(
-                            torch.equal(output[name].cpu(), expected), name
-                        )
+                        self.assertTrue(torch.equal(output[name].cpu(), expected), name)
                 runtime.close()
 
     def test_alpha_scatter_updates_only_misses_and_rejects_invalid_plan(self):
@@ -282,11 +372,12 @@ class TestGpuCache(unittest.TestCase):
 
     def test_slru_planner_matches_cpu_on_evictions_and_exports_routes(self):
         import random
+
         from sglang.kernels.ops.moe.qwen38_expert_cache import cache_plan, cache_route
-        from sglang.srt.layers.moe.qwen38_expert_cache import LayerExpertCachePolicy
         from sglang.srt.layers.moe.qwen38_cache_threaded import (
             Qwen38ThreadedExpertRuntime,
         )
+        from sglang.srt.layers.moe.qwen38_expert_cache import LayerExpertCachePolicy
 
         runtime = Qwen38ThreadedExpertRuntime(
             self.fixture.pack,
@@ -378,7 +469,9 @@ class TestGpuCache(unittest.TestCase):
         from sglang.srt.model_loader.qwen38_nvfp4_pack.format import REQUIRED_TENSORS
 
         runtime = Qwen38ThreadedExpertRuntime(
-            self.fixture.pack, "cuda", slots_per_layer=2,
+            self.fixture.pack,
+            "cuda",
+            slots_per_layer=2,
         )
         self.addCleanup(runtime.close)
         runtime.reserve()
@@ -406,34 +499,54 @@ class TestGpuCache(unittest.TestCase):
             )
 
     def test_prefill_reuses_cache_across_layers_and_seeds_only_empty_layers(self):
-        from sglang.srt.layers.moe.qwen38_cache_threaded import Qwen38ThreadedExpertRuntime
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
         from sglang.srt.model_loader.qwen38_nvfp4_pack.format import REQUIRED_TENSORS
 
         for adaptive in (False, True):
             runtime = Qwen38ThreadedExpertRuntime(
-                self.fixture.pack, "cuda", slots_per_layer=2, adaptive_cache=adaptive,
-                adaptive_cache_mode="sample", cache_policy="slru",
+                self.fixture.pack,
+                "cuda",
+                slots_per_layer=2,
+                adaptive_cache=adaptive,
+                adaptive_cache_mode="sample",
+                cache_policy="slru",
             )
             self.addCleanup(runtime.close)
             runtime.reserve()
             runtime.prefill_tokens_seen = 128
-            one_expert = sum(self.fixture.pack.manifest.tensors[0][name].nbytes // 4
-                             for name in REQUIRED_TENSORS)
+            one_expert = sum(
+                self.fixture.pack.manifest.tensors[0][name].nbytes // 4
+                for name in REQUIRED_TENSORS
+            )
             streams = [torch.cuda.Stream(), torch.cuda.Stream()]
             for step in range(3):
                 for layer in (0, 1):
                     with torch.cuda.stream(streams[step % 2]):
-                        ids = torch.tensor([[0, 1], [2, 3]], dtype=torch.int32, device="cuda")
+                        ids = torch.tensor(
+                            [[0, 1], [2, 3]], dtype=torch.int32, device="cuda"
+                        )
                         before = runtime.transferred_bytes
-                        output = runtime.run(layer, ids, lambda prepared: {
-                            name: prepared.tensors[name][prepared.topk_ids.long()].clone()
-                            for name in REQUIRED_TENSORS
-                        })
+                        output = runtime.run(
+                            layer,
+                            ids,
+                            lambda prepared: {
+                                name: prepared.tensors[name][
+                                    prepared.topk_ids.long()
+                                ].clone()
+                                for name in REQUIRED_TENSORS
+                            },
+                        )
                     runtime.synchronize()
-                    self.assertEqual(runtime.transferred_bytes - before,
-                                     (4 if step == 0 else 2) * one_expert)
+                    self.assertEqual(
+                        runtime.transferred_bytes - before,
+                        (4 if step == 0 else 2) * one_expert,
+                    )
                     for name in REQUIRED_TENSORS:
-                        expected = getattr(self.fixture.resident[layer], name)[ids.cpu()]
+                        expected = getattr(self.fixture.resident[layer], name)[
+                            ids.cpu()
+                        ]
                         self.assertTrue(torch.equal(output[name].cpu(), expected), name)
             self.assertEqual(runtime.prefill_seed_runs, 2)
             self.assertEqual(runtime.prefill_reused_experts, 8)
@@ -444,7 +557,11 @@ class TestGpuCache(unittest.TestCase):
         from sglang.kernels.ops.moe.qwen38_expert_cache import cache_scatter
 
         for row_bytes in (7, 16, 1024):
-            source = torch.arange(3 * row_bytes, device="cuda").to(torch.uint8).reshape(3, row_bytes)
+            source = (
+                torch.arange(3 * row_bytes, device="cuda")
+                .to(torch.uint8)
+                .reshape(3, row_bytes)
+            )
             arena = torch.zeros((8, row_bytes), device="cuda", dtype=torch.uint8)
             keys = torch.tensor([5, -1, 2], device="cuda", dtype=torch.int32)
             counts = torch.zeros(9, device="cuda", dtype=torch.int32)
@@ -455,10 +572,16 @@ class TestGpuCache(unittest.TestCase):
             self.assertEqual(arena[0].sum().item(), 0)
 
     def test_prefill_reuse_can_be_disabled_for_old_path_comparison(self):
-        from sglang.srt.layers.moe.qwen38_cache_threaded import Qwen38ThreadedExpertRuntime
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
+
         runtime = Qwen38ThreadedExpertRuntime(
-            self.fixture.pack, "cuda", slots_per_layer=2,
-            prefill_reuse_cache=False, prefill_seed_cache=False,
+            self.fixture.pack,
+            "cuda",
+            slots_per_layer=2,
+            prefill_reuse_cache=False,
+            prefill_seed_cache=False,
         )
         self.addCleanup(runtime.close)
         runtime.reserve()
@@ -466,11 +589,20 @@ class TestGpuCache(unittest.TestCase):
             for layer in (0, 1):
                 ids = torch.tensor([[0, 1], [2, 3]], dtype=torch.int32, device="cuda")
                 before = runtime.transferred_bytes
-                output = runtime.run(layer, ids, lambda prepared:
-                                     prepared.tensors["w13_weight"][prepared.topk_ids.long()].clone())
+                output = runtime.run(
+                    layer,
+                    ids,
+                    lambda prepared: prepared.tensors["w13_weight"][
+                        prepared.topk_ids.long()
+                    ].clone(),
+                )
                 runtime.synchronize()
                 self.assertGreater(runtime.transferred_bytes, before)
-                self.assertTrue(torch.equal(output.cpu(), self.fixture.resident[layer].w13_weight[ids.cpu()]))
+                self.assertTrue(
+                    torch.equal(
+                        output.cpu(), self.fixture.resident[layer].w13_weight[ids.cpu()]
+                    )
+                )
         self.assertEqual(runtime.prefill_seed_runs, 0)
         self.assertEqual(runtime.prefill_reused_experts, 0)
 
@@ -488,22 +620,43 @@ class TestGpuCache(unittest.TestCase):
         )
         self.addCleanup(runtime.close)
         runtime.reserve()
-        pool_ptrs = {name: tensor.data_ptr() for name, tensor in runtime.cache_pool.items()}
-        metadata_ptrs = [{name: tensor.data_ptr() for name, tensor in state.items()}
-                         for state in runtime.adaptive_metadata.device]
-        scratch_ptrs = {name: tensor.data_ptr() for name, tensor in runtime.migration_scratch.items()}
+        pool_ptrs = {
+            name: tensor.data_ptr() for name, tensor in runtime.cache_pool.items()
+        }
+        metadata_ptrs = [
+            {name: tensor.data_ptr() for name, tensor in state.items()}
+            for state in runtime.adaptive_metadata.device
+        ]
+        scratch_ptrs = {
+            name: tensor.data_ptr()
+            for name, tensor in runtime.migration_scratch.items()
+        }
         for layout in ([3, 3], [2, 4], [4, 2]):
             if layout != [3, 3]:
                 runtime.adaptive_target = layout
                 runtime._maybe_rebalance()
             self.assertEqual(sum(runtime.layer_cache_slots), 6)
             self.assertEqual(
-                {name: tensor.data_ptr() for name, tensor in runtime.cache_pool.items()},
+                {
+                    name: tensor.data_ptr()
+                    for name, tensor in runtime.cache_pool.items()
+                },
                 pool_ptrs,
             )
-            self.assertEqual([{name: tensor.data_ptr() for name, tensor in state.items()}
-                              for state in runtime.adaptive_metadata.device], metadata_ptrs)
-            self.assertEqual({name: tensor.data_ptr() for name, tensor in runtime.migration_scratch.items()}, scratch_ptrs)
+            self.assertEqual(
+                [
+                    {name: tensor.data_ptr() for name, tensor in state.items()}
+                    for state in runtime.adaptive_metadata.device
+                ],
+                metadata_ptrs,
+            )
+            self.assertEqual(
+                {
+                    name: tensor.data_ptr()
+                    for name, tensor in runtime.migration_scratch.items()
+                },
+                scratch_ptrs,
+            )
             for layer in (0, 1):
                 ids = torch.tensor([[0, 1]], dtype=torch.int32, device="cuda")
                 misses_before = runtime.misses
@@ -523,24 +676,41 @@ class TestGpuCache(unittest.TestCase):
                     self.assertTrue(torch.equal(output[name].cpu(), expected), name)
 
     def test_threaded_breakable_verify_replays_after_adaptive_migration(self):
-        from sglang.srt.layers.moe.qwen38_cache_threaded import Qwen38ThreadedExpertRuntime
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
         from sglang.srt.model_executor.runner_backend_utils.breakable_cuda_graph import (
-            BreakableCUDAGraph, BreakableCUDAGraphCapture, eager_on_graph,
+            BreakableCUDAGraph,
+            BreakableCUDAGraphCapture,
+            eager_on_graph,
         )
 
         runtime = Qwen38ThreadedExpertRuntime(
-            self.fixture.pack, "cuda", slots_per_layer=3, adaptive_cache=True,
+            self.fixture.pack,
+            "cuda",
+            slots_per_layer=3,
+            adaptive_cache=True,
         )
         self.addCleanup(runtime.close)
         runtime.reserve()
         pointers = {name: pool.data_ptr() for name, pool in runtime.cache_pool.items()}
 
-        @eager_on_graph(True, capture_stub=lambda ids: torch.zeros_like(ids, dtype=torch.float32))
+        @eager_on_graph(
+            True, capture_stub=lambda ids: torch.zeros_like(ids, dtype=torch.float32)
+        )
         def experts(ids):
-            return runtime.run(0, ids, lambda prepared:
-                prepared.tensors["w13_weight"][prepared.topk_ids.long()]
-                .float().reshape(ids.numel(), -1).sum(-1).view_as(ids),
-                execution_phase="verify")
+            return runtime.run(
+                0,
+                ids,
+                lambda prepared: (
+                    prepared.tensors["w13_weight"][prepared.topk_ids.long()]
+                    .float()
+                    .reshape(ids.numel(), -1)
+                    .sum(-1)
+                    .view_as(ids)
+                ),
+                execution_phase="verify",
+            )
 
         ids = torch.tensor([[0, 1], [1, 0]], dtype=torch.int32, device="cuda")
         experts(ids)
@@ -553,14 +723,21 @@ class TestGpuCache(unittest.TestCase):
         torch.cuda.current_stream().wait_stream(stream)
         for layout, pair in (([3, 3], [0, 1]), ([2, 4], [2, 3]), ([4, 2], [0, 3])):
             runtime.adaptive_target = layout
-            ids.copy_(torch.tensor([pair, pair[::-1]], device="cuda", dtype=torch.int32))
+            ids.copy_(
+                torch.tensor([pair, pair[::-1]], device="cuda", dtype=torch.int32)
+            )
             graph.replay()
             runtime.synchronize()
             expected = self.fixture.resident[0].w13_weight[ids.cpu().long()]
-            expected = expected.float().reshape(ids.numel(), -1).sum(-1).view_as(ids.cpu())
+            expected = (
+                expected.float().reshape(ids.numel(), -1).sum(-1).view_as(ids.cpu())
+            )
             torch.testing.assert_close(output.cpu(), expected, rtol=0, atol=0)
             self.assertEqual(runtime.layer_cache_slots, layout)
-            self.assertEqual({name: pool.data_ptr() for name, pool in runtime.cache_pool.items()}, pointers)
+            self.assertEqual(
+                {name: pool.data_ptr() for name, pool in runtime.cache_pool.items()},
+                pointers,
+            )
 
     def test_threaded_adaptive_hotspot_changes_layout(self):
         from sglang.srt.layers.moe.qwen38_cache_threaded import (
@@ -568,8 +745,11 @@ class TestGpuCache(unittest.TestCase):
         )
 
         runtime = Qwen38ThreadedExpertRuntime(
-            self.fixture.pack, "cuda", slots_per_layer=3,
-            adaptive_cache=True, adaptive_cache_window=16,
+            self.fixture.pack,
+            "cuda",
+            slots_per_layer=3,
+            adaptive_cache=True,
+            adaptive_cache_window=16,
         )
         self.addCleanup(runtime.close)
         runtime.reserve()
@@ -580,8 +760,11 @@ class TestGpuCache(unittest.TestCase):
             ):
                 ids = torch.tensor([pair], dtype=torch.int32, device="cuda")
                 runtime.run(
-                    layer, ids,
-                    lambda prepared: prepared.tensors["w13_weight"][prepared.topk_ids.long()].clone(),
+                    layer,
+                    ids,
+                    lambda prepared: prepared.tensors["w13_weight"][
+                        prepared.topk_ids.long()
+                    ].clone(),
                 )
         runtime.jobs.join()
         runtime.adaptive_samples.join()
@@ -618,8 +801,11 @@ class TestGpuCache(unittest.TestCase):
         misses_before = runtime.misses
         ids = torch.tensor([[2, 3]], dtype=torch.int32, device="cuda")
         actual = runtime.run(
-            0, ids,
-            lambda prepared: prepared.tensors["w13_weight"][prepared.topk_ids.long()].clone(),
+            0,
+            ids,
+            lambda prepared: prepared.tensors["w13_weight"][
+                prepared.topk_ids.long()
+            ].clone(),
         )
         runtime.synchronize()
         self.assertEqual(runtime.misses, misses_before)
@@ -647,9 +833,12 @@ class TestGpuCache(unittest.TestCase):
         self.assertEqual(runtime.h2d_copy_calls - copies_before, 6)
         self.assertEqual(runtime.staging_batches - batches_before, 3)
         for name in REQUIRED_TENSORS:
-            self.assertTrue(torch.equal(
-                runtime.arena[name].cpu(), getattr(self.fixture.resident[0], name)
-            ), name)
+            self.assertTrue(
+                torch.equal(
+                    runtime.arena[name].cpu(), getattr(self.fixture.resident[0], name)
+                ),
+                name,
+            )
 
     def test_device_policy_slot_pipeline(self):
         self._exercise("device")
@@ -679,10 +868,14 @@ class TestGpuCache(unittest.TestCase):
         self.addCleanup(runtime.close)
 
         def execute(prepared):
-            return {name: prepared.tensors[name][prepared.topk_ids.long()].clone()
-                    for name in REQUIRED_TENSORS}
+            return {
+                name: prepared.tensors[name][prepared.topk_ids.long()].clone()
+                for name in REQUIRED_TENSORS
+            }
 
-        prefill = torch.tensor([[1, 2], [1, 2], [0, 3]], dtype=torch.int32, device="cuda")
+        prefill = torch.tensor(
+            [[1, 2], [1, 2], [0, 3]], dtype=torch.int32, device="cuda"
+        )
         runtime.run(0, prefill, execute)
         runtime.synchronize()
         transferred = runtime.transferred_bytes
@@ -699,7 +892,9 @@ class TestGpuCache(unittest.TestCase):
             self.assertEqual(runtime.transferred_bytes, transferred)
             self.assertEqual(runtime.misses, misses)
             for name in REQUIRED_TENSORS:
-                expected = getattr(self.fixture.resident[0], name)[torch.tensor([[1, 2]])]
+                expected = getattr(self.fixture.resident[0], name)[
+                    torch.tensor([[1, 2]])
+                ]
                 self.assertTrue(torch.equal(output[name].cpu(), expected), name)
         self.assertGreater(runtime.warmed_experts, 0)
 
@@ -751,34 +946,75 @@ class TestGpuCache(unittest.TestCase):
             self.assertEqual(out.cpu().tolist(), [[mapping[e] for e in routes]])
 
     def test_packed_transport_alpha_ring_and_target_migration(self):
-        from sglang.srt.layers.moe.qwen38_cache_threaded import Qwen38ThreadedExpertRuntime
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
         from sglang.srt.model_loader.qwen38_nvfp4_pack.format import REQUIRED_TENSORS
+
         for alphas in (False, True):
-            runtime = Qwen38ThreadedExpertRuntime(self.fixture.pack, "cuda", slots_per_layer=3,
-                adaptive_cache=True, adaptive_cache_mode="sample", staging_buffers=2,
-                staging_buffer_bytes=64, resident_alphas=alphas, prefill_copy_mode="sparse",
-                prefill_reuse_cache=False, packed_decode="packed", packed_prefill="packed",
-                packed_min_bytes=1, packed_max_bytes=1 << 20, packed_min_copies=2)
+            runtime = Qwen38ThreadedExpertRuntime(
+                self.fixture.pack,
+                "cuda",
+                slots_per_layer=3,
+                adaptive_cache=True,
+                adaptive_cache_mode="sample",
+                staging_buffers=2,
+                staging_buffer_bytes=64,
+                resident_alphas=alphas,
+                prefill_copy_mode="sparse",
+                prefill_reuse_cache=False,
+                packed_decode="packed",
+                packed_prefill="packed",
+                packed_min_bytes=1,
+                packed_max_bytes=1 << 20,
+                packed_min_copies=2,
+            )
             try:
                 runtime.reserve()
                 streams = [torch.cuda.Stream(), torch.cuda.Stream()]
-                runtime.prefill_tokens_seen = 128  # explicitly test sparse, not startup dense
+                runtime.prefill_tokens_seen = (
+                    128  # explicitly test sparse, not startup dense
+                )
                 for step in range(24):
                     if step == 12:
                         with runtime.adaptive_lock:
                             runtime.adaptive_target = [2, 4]
                     layer = step % 2
-                    cpu_ids = torch.tensor([[0, 2], [0, 2]] if step % 3 == 0 else [[step % 4, (step + 1) % 4]])
+                    cpu_ids = torch.tensor(
+                        [[0, 2], [0, 2]]
+                        if step % 3 == 0
+                        else [[step % 4, (step + 1) % 4]]
+                    )
                     with torch.cuda.stream(streams[step % 2]):
                         ids = cpu_ids.to("cuda", dtype=torch.int32)
-                        actual = runtime.run(layer, ids, lambda prepared: {
-                            name: prepared.tensors[name][prepared.topk_ids.long()].clone() for name in REQUIRED_TENSORS})
+                        actual = runtime.run(
+                            layer,
+                            ids,
+                            lambda prepared: {
+                                name: prepared.tensors[name][
+                                    prepared.topk_ids.long()
+                                ].clone()
+                                for name in REQUIRED_TENSORS
+                            },
+                        )
                     runtime.synchronize()
                     for name in REQUIRED_TENSORS:
-                        self.assertTrue(torch.equal(actual[name].cpu(), getattr(self.fixture.resident[layer], name)[cpu_ids]), name)
-                self.assertGreater(runtime.packed_transport.counters["scatter_calls"], 0)
-                self.assertGreater(runtime.packed_transport.counters["prefill_experts"], 0)
-                self.assertGreaterEqual(runtime.packed_transport.counters["target_refreshes"], 2)
+                        self.assertTrue(
+                            torch.equal(
+                                actual[name].cpu(),
+                                getattr(self.fixture.resident[layer], name)[cpu_ids],
+                            ),
+                            name,
+                        )
+                self.assertGreater(
+                    runtime.packed_transport.counters["scatter_calls"], 0
+                )
+                self.assertGreater(
+                    runtime.packed_transport.counters["prefill_experts"], 0
+                )
+                self.assertGreaterEqual(
+                    runtime.packed_transport.counters["target_refreshes"], 2
+                )
                 self.assertEqual(runtime.layer_cache_slots, [2, 4])
             finally:
                 runtime.close()
