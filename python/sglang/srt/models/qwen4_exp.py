@@ -1202,7 +1202,9 @@ class Qwen4ExpPLELayer(nn.Module):
             if track is not None:
                 track_indices, _ = track
                 conv_state[track_indices] = next_state.to(dtype=conv_state.dtype)
-            return F.silu(conv_output)
+            # conv1d owns this output; neither x nor recurrent state aliases it.
+            # Preserve autograd behavior outside the inference path.
+            return F.silu(conv_output, inplace=not torch.is_grad_enabled())
 
         state = conv_state.index_select(0, batch.state_indices).to(dtype=x.dtype)
         padded_seq = x.new_zeros(
@@ -1273,7 +1275,10 @@ class Qwen4ExpPLELayer(nn.Module):
                     dtype=conv_state.dtype
                 )
 
-        return F.silu(conv_output[batch.req_indices, batch.token_offsets])
+        # Advanced indexing owns the selected output. State/intermediate-cache
+        # updates above read conv_input, so activation cannot alter their data.
+        selected_output = conv_output[batch.req_indices, batch.token_offsets]
+        return F.silu(selected_output, inplace=not torch.is_grad_enabled())
 
     def forward_idle(self, forward_batch: ForwardBatch) -> None:
         if self._prefetch_state is not None:
