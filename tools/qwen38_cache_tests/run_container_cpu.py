@@ -24,11 +24,44 @@ def main():
         "sglang.srt.model_loader.qwen38_nvfp4_pack.parity",
         "sglang.srt.layers.quantization.qwen38_nvfp4_cache",
         "sglang.srt.model_loader.qwen38_nvfp4_cache_loader",
+        "sglang.srt.model_loader.qwen38_mtp_loader",
         "sglang.srt.models.qwen4_exp",
+        "sglang.srt.models.qwen4_exp_mtp",
     ]
     for module in modules:
         importlib.import_module(module)
         print(f"Imported {module}", flush=True)
+
+    # AST fixtures bypass ServerArgs metadata. Exercise the actual declaration
+    # gate as well, so opt-in defaults are publishable on real launch records.
+    from sglang.srt.arg_groups.overrides import (
+        resolution_result,
+        validate_declarations,
+    )
+    from sglang.srt.arg_groups.qwen38_cache_hook import handle_qwen38_nvfp4_cache
+    from sglang.srt.server_args import ServerArgs
+
+    for steps in (1, 2, 3):
+        args = ServerArgs(
+            model_path="dummy",
+            load_format="qwen38_nvfp4_cache",
+            language_model_only=True,
+            moe_a2a_backend="none",
+            speculative_algorithm="NEXTN",
+            speculative_draft_load_format="qwen38_mtp",
+            speculative_num_steps=steps,
+            model_loader_extra_config={
+                "runtime_mode": "threaded",
+                "cache_slots_total": 5040,
+                "adaptive_cache": True,
+            },
+        )
+        handle_qwen38_nvfp4_cache(args)
+        validate_declarations(args, args._resolved_overrides)
+        assert resolution_result(args, "speculative_num_draft_tokens") == steps + 1
+        assert resolution_result(args, "mamba_ssm_dtype") == "bfloat16"
+        assert resolution_result(args, "speculative_draft_kv_cache_dtype") == "bfloat16"
+    print("Real MTP ServerArgs declarations passed for steps 1/2/3.", flush=True)
     import torch
     from sglang.srt.layers.moe.moe_runner.base import MoeRunnerConfig
     from sglang.srt.layers.moe.qwen38_cache_runtime import PreparedExperts

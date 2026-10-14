@@ -30,7 +30,7 @@ class Schedule(msgspec.Struct):
     ] = None
     max_running_requests: A[
         Optional[int],
-        "The maximum number of running requests.",
+        Arg(help="The maximum number of running requests.", resolvable=True),
     ] = None
     max_queued_requests: A[
         Optional[int],

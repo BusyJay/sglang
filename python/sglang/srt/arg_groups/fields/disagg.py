@@ -130,10 +130,13 @@ class Disagg(msgspec.Struct):
     ] = False
     language_model_only: A[
         bool,
-        "Skip the multimodal encoder entirely: its weights are never loaded and the "
-        "tower is never built, freeing that GPU memory for KV cache. Multimodal "
-        "requests are rejected. Unlike --language-only this is a standalone mode, "
-        "not part of encoder/decoder disaggregation.",
+        Arg(
+            help="Skip the multimodal encoder entirely: its weights are never loaded and the "
+            "tower is never built, freeing that GPU memory for KV cache. Multimodal "
+            "requests are rejected. Unlike --language-only this is a standalone mode, "
+            "not part of encoder/decoder disaggregation.",
+            resolvable=True,
+        ),
     ] = False
     encoder_transfer_backend: A[
         str,
