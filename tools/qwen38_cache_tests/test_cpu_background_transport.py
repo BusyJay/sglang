@@ -2,13 +2,15 @@
 """Worker lifetime/pipelining tests without CUDA or model weights."""
 
 import contextlib
+import ast
+import json
 import queue
 import threading
 import unittest
 from types import SimpleNamespace
 from unittest import mock
 
-from ._load_source import load_source
+from ._load_source import REPO_ROOT, load_source
 
 
 class FakeCudaEvent:
@@ -25,6 +27,63 @@ class FakeCudaEvent:
 
 
 class TestBackgroundTransport(unittest.TestCase):
+    def test_stats_logging_with_fixed_cache_and_adaptive_pool(self):
+        # Execute the actual statistics/logging methods without CUDA transport.
+        def methods(path, class_name, names):
+            source = ast.parse((REPO_ROOT / path).read_text())
+            cls = next(node for node in source.body
+                       if isinstance(node, ast.ClassDef) and node.name == class_name)
+            return [node for node in cls.body
+                    if isinstance(node, ast.FunctionDef) and node.name in names]
+
+        base = ast.ClassDef(name="StatsBase", bases=[], keywords=[], decorator_list=[],
+            body=methods("python/sglang/srt/layers/moe/qwen38_cache_runtime.py",
+                         "Qwen38SynchronousExpertRuntime", {"log_stats", "_maybe_log_stats"}))
+        threaded = ast.ClassDef(name="StatsRuntime", bases=[ast.Name(id="StatsBase", ctx=ast.Load())],
+            keywords=[], decorator_list=[], body=methods(
+                "python/sglang/srt/layers/moe/qwen38_cache_threaded.py",
+                "Qwen38ThreadedExpertRuntime", {"stats_snapshot"}))
+        logger = mock.Mock()
+        namespace = {"json": json, "logger": logger, "_DENSE_STARTUP_PREFILL_TOKENS": 512}
+        tree = ast.fix_missing_locations(ast.Module(body=[base, threaded], type_ignores=[]))
+        exec(compile(tree, "actual-cache-stats", "exec"), namespace)
+        namespace["StatsBase"].stats_snapshot = lambda self: {"run_invocations": self.run_invocations}
+        runtime = namespace["StatsRuntime"]()
+        for name in (
+            "cache_protected_fraction", "host_plan_allocations", "fused_decode_plan_invocations",
+            "decode_alpha_h2d_calls_avoided", "prefill_reused_experts", "prefill_reuse_d2d_bytes",
+            "prefill_seed_runs", "prefill_h2d_bytes", "prefill_host_dispatch_seconds", "prefill_tokens_seen",
+            "adaptive_rebalances", "adaptive_sample_drops", "adaptive_migrated_experts",
+            "adaptive_evicted_experts", "adaptive_last_rebalance_seconds", "adaptive_evaluations",
+            "adaptive_analysis_seconds", "adaptive_last_evaluation",
+        ):
+            setattr(runtime, name, 0)
+        runtime.layer_cache_slots = [9, 8]
+        runtime.layer_hits = runtime.layer_misses = [0, 0]
+        runtime.packed_decode = runtime.packed_prefill = runtime.prefill_copy_mode = "direct"
+        runtime.packed_transport = None
+        runtime.cache_policy = "lfu"
+        runtime.adaptive_cache_mode = "rebalance"
+        runtime.adaptive_cache_window = 16
+        runtime.adaptive_cache_interval = 0
+        runtime.prefill_reuse_cache = runtime.prefill_seed_cache = True
+        runtime.fused_decode_plan = runtime.resident_alphas = True
+        runtime.prefill_copy_stats = []
+        runtime.run_invocations = runtime.stats_log_interval = 1
+        for pool, adaptive, total in ((None, False, 17), ({"weight": SimpleNamespace(shape=(17, 1))}, True, 17)):
+            with self.subTest(adaptive=adaptive):
+                runtime.cache_pool = pool
+                runtime.adaptive_cache = adaptive
+                runtime._last_logged_runs = 0
+                logger.reset_mock()
+                self.assertEqual(runtime.stats_snapshot()["cache_slots_total"], total)
+                runtime._maybe_log_stats()
+                runtime.log_stats("final")
+                self.assertEqual([call.args[1] for call in logger.info.call_args_list], ["periodic", "final"])
+                for call in logger.info.call_args_list:
+                    self.assertEqual(json.loads(call.args[2])["cache_slots_total"], total)
+
+
     @classmethod
     def setUpClass(cls):
         # Import against lightweight stand-ins so the worker protocol can run
