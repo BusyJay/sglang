@@ -176,6 +176,38 @@ class TestBackgroundTransport(unittest.TestCase):
         plan = SimpleNamespace(tolist=lambda: [0, 0, 0, 0])
         return self.module.TransferJob(0, True, plan, planned, completed, launched)
 
+    def test_synchronize_drains_jobs_before_device_waits(self):
+        runtime = self._runtime(1)
+        runtime.jobs.put(object())
+        entered = threading.Event()
+        device_sync = mock.Mock()
+        join = runtime.jobs.join
+
+        def wait_for_retirement():
+            entered.set()
+            join()
+
+        with (
+            mock.patch.object(runtime.jobs, "join", side_effect=wait_for_retirement),
+            mock.patch.object(
+                self.module,
+                "super",
+                return_value=SimpleNamespace(synchronize=device_sync),
+                create=True,
+            ),
+        ):
+            waiter = threading.Thread(target=runtime.synchronize)
+            waiter.start()
+            try:
+                self.assertTrue(entered.wait(3))
+                device_sync.assert_not_called()
+            finally:
+                runtime.jobs.get_nowait()
+                runtime.jobs.task_done()
+                waiter.join(3)
+            self.assertFalse(waiter.is_alive())
+            device_sync.assert_called_once_with()
+
     def _threads(self, runtime):
         worker = threading.Thread(target=runtime._work)
         reaper = threading.Thread(target=runtime._retire)

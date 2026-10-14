@@ -939,6 +939,12 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                     self.jobs.task_done()
                     self.retired.task_done()
 
+    def synchronize(self):
+        # CUDA completion alone does not drain the retirement thread. Its
+        # event synchronization must finish before a caller starts graph capture.
+        self.jobs.join()
+        super().synchronize()
+
     def close(self):
         if self.closed:
             return
