@@ -50,3 +50,53 @@ class TestCacheBuffers(unittest.TestCase):
             self.assertTrue((state["keys"] == -1).all())
             self.assertTrue((state["lookup"] == -1).all())
             self.assertEqual(state["clock"].item(), 0)
+
+    def test_swiglu_grows_only_at_high_water_mark(self):
+        torch = self.torch
+        calls = []
+
+        def materialize(config, capacity, device):
+            calls.append(capacity)
+            return tuple(
+                torch.full((capacity,), v, device=device) for v in (1.0, 0.0, 7.0)
+            )
+
+        with mock.patch.dict(
+            "sys.modules",
+            {
+                "sglang.srt.layers.moe.moe_runner.flashinfer_cutlass": SimpleNamespace(
+                    materialize_swiglu_params_for_cutlass=materialize
+                ),
+            },
+        ):
+            buffers = self.buffers.GrowableSwigluBuffers(None, torch.device("cpu"), 512)
+            first = buffers.get(105)
+            self.assertEqual(calls, [105])
+            smaller = buffers.get(80)
+            self.assertEqual(smaller[0].data_ptr(), first[0].data_ptr())
+            grown = buffers.get(106)
+            self.assertEqual(calls, [105, 210])
+            for capacity in (107, 128, 80, 210):
+                view = buffers.get(capacity)
+                self.assertEqual(view[0].data_ptr(), grown[0].data_ptr())
+                self.assertEqual(view[0].numel(), capacity)
+                self.assertTrue((view[2] == 7).all())
+            buffers.get(512)
+            self.assertEqual(calls, [105, 210, 512])
+
+    def test_swiglu_without_clamp_allocates_no_tensor(self):
+        materialize = mock.Mock(return_value=(None, None, None))
+        with mock.patch.dict(
+            "sys.modules",
+            {
+                "sglang.srt.layers.moe.moe_runner.flashinfer_cutlass": SimpleNamespace(
+                    materialize_swiglu_params_for_cutlass=materialize
+                ),
+            },
+        ):
+            buffers = self.buffers.GrowableSwigluBuffers(
+                None, self.torch.device("cpu"), 512
+            )
+            self.assertEqual(buffers.get(80), (None, None, None))
+            self.assertEqual(buffers.get(40), (None, None, None))
+            materialize.assert_called_once()
