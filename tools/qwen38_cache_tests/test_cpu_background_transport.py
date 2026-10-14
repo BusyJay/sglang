@@ -104,6 +104,17 @@ class TestBackgroundTransport(unittest.TestCase):
         runtime._migrate_pool.assert_not_called()
 
 
+    def test_verify_arena_is_sparse_even_with_dense_prefill_policy(self):
+        runtime = self._runtime(1)
+        runtime.arena_residents = set()
+        runtime.prefill_copy_mode = "dense"
+        runtime._fill_arena = mock.Mock()
+        runtime._fill_arena_selected = mock.Mock()
+        self.assertTrue(runtime._ensure_arena_experts(0, [1, 0, 1, 0], verify=True))
+        runtime._fill_arena.assert_not_called()
+        runtime._fill_arena_selected.assert_called_once_with(0, [0, 2])
+
+
     @classmethod
     def setUpClass(cls):
         # Import against lightweight stand-ins so the worker protocol can run

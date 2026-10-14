@@ -674,6 +674,7 @@ class ForwardFlags:
         # defer_moe_finalize: next layer's fused collective absorbs the finalize.
         "fuse_mlp_allreduce": False,
         "mlp_reduce_scatter": False,
+        "qwen38_execution_phase": None,
         "flashinfer_trtllm_bypass": False,
         "defer_moe_finalize": False,
         # Attention runs on a DP-local token batch. The MLP runs after the DP
@@ -694,6 +695,7 @@ class ForwardFlags:
             "is_extend_in_batch",
             "fuse_mlp_allreduce",
             "mlp_reduce_scatter",
+            "qwen38_execution_phase",
             "flashinfer_trtllm_bypass",
             "defer_moe_finalize",
             "lora_batch_layout",

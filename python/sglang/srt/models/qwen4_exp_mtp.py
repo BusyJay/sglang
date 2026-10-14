@@ -14,6 +14,7 @@ from sglang.srt.eplb.expert_distribution import get_global_expert_distribution_r
 from sglang.srt.layers.layernorm import GemmaRMSNorm
 from sglang.srt.layers.logits_processor import LogitsProcessor
 from sglang.srt.layers.quantization.base_config import QuantizationConfig
+from sglang.srt.layers.utils import PPMissingLayer
 from sglang.srt.layers.vocab_parallel_embedding import ParallelLMHead
 from sglang.srt.model_executor.forward_batch_info import ForwardBatch
 from sglang.srt.models.qwen3_5_mtp import Qwen3_5ForCausalLMMTP, _mtp_quant_config
@@ -22,6 +23,11 @@ from sglang.srt.runtime_context import get_model, get_parallel
 from sglang.srt.utils import add_prefix, is_npu
 
 logger = logging.getLogger(__name__)
+
+
+class _SharedEmbeddingMtpModel(Qwen4ExpModel):
+    def _build_embed_tokens(self, config):
+        return PPMissingLayer()
 
 
 class Qwen4ExpForCausalLMMTP(Qwen3_5ForCausalLMMTP):
@@ -54,20 +60,54 @@ class Qwen4ExpForCausalLMMTP(Qwen3_5ForCausalLMMTP):
         self.hc_count = config.hc_count
         self._mtp_input_fusion = self._init_mtp_input_fusion(config)
 
-        self.model = Qwen4ExpModel(
+        self._deferred_shared_modules = get_model().load_format == "qwen38_mtp"
+        model_cls = (
+            _SharedEmbeddingMtpModel if self._deferred_shared_modules else Qwen4ExpModel
+        )
+        self.model = model_cls(
             config,
             quant_config,
             prefix=add_prefix("mtp", prefix),
             is_nextn=True,
         )
-        self.lm_head = ParallelLMHead(
-            config.vocab_size,
-            config.hidden_size,
-            quant_config=quant_config,
-            prefix=add_prefix("model.shared_head.head", prefix),
-            use_attn_tp_group=get_parallel().enable_dp_lm_head,
+        self.lm_head = (
+            PPMissingLayer()
+            if self._deferred_shared_modules
+            else ParallelLMHead(
+                config.vocab_size,
+                config.hidden_size,
+                quant_config=quant_config,
+                prefix=add_prefix("model.shared_head.head", prefix),
+                use_attn_tp_group=get_parallel().enable_dp_lm_head,
+            )
         )
         self.logits_processor = LogitsProcessor(config)
+
+    def bind_qwen38_target_modules(self, target):
+        if not self._deferred_shared_modules:
+            raise RuntimeError("target module binding requires qwen38_mtp")
+        embed, head = target.model.embed_tokens, target.lm_head
+        parameter = next(self.fc_hidden.parameters())
+        if (
+            embed.weight.device != parameter.device
+            or head.weight.device != parameter.device
+        ):
+            raise ValueError("qwen38 MTP supports only same-device module sharing")
+        self.model.embed_tokens = embed
+        self.lm_head = head
+        self._shared_modules_bound = True
+
+    def set_embed_and_head(self, embed, head):
+        if not self._deferred_shared_modules:
+            return super().set_embed_and_head(embed, head)
+        # The worker's later sharing step must not mutate an aliased target module.
+        if not getattr(self, "_shared_modules_bound", False):
+            raise RuntimeError("qwen38 MTP target modules have not been bound")
+        if (
+            embed is not self.model.embed_tokens.weight
+            or head is not self.lm_head.weight
+        ):
+            raise ValueError("qwen38 MTP requires the complete target vocabulary")
 
     def _init_pre_fc_norms(self, config: PretrainedConfig) -> None:
         self.pre_fc_norm_embedding = GemmaRMSNorm(
@@ -195,6 +235,10 @@ class Qwen4ExpForCausalLMMTP(Qwen3_5ForCausalLMMTP):
         input_embeds: Optional[torch.Tensor] = None,
         **kwargs,
     ):
+        if self._deferred_shared_modules and not getattr(
+            self, "_shared_modules_bound", False
+        ):
+            raise RuntimeError("qwen38 MTP target modules have not been bound")
         with self._npu_quant_context():
             input_embeds = self._prepare_input_embeds(
                 input_ids, forward_batch, input_embeds

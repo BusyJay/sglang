@@ -218,7 +218,13 @@ def main():
     parser.add_argument("--startup-timeout", type=int, default=3600)
     parser.add_argument("--request-timeout", type=int, default=7200)
     parser.add_argument("--cache-stats-log-interval", type=int, default=0)
+    parser.add_argument("--mtp-steps", type=int, choices=[1, 2, 3],
+                        help="opt-in same-card eager MTP; verify width is steps + 1")
     args = parser.parse_args()
+    if args.mtp_steps and (args.runtime_mode != "threaded" or args.encoder_urls):
+        parser.error("MTP requires threaded and pure text")
+    if args.mtp_steps and (args.decode_graph or args.adaptive_cache):
+        parser.error("MTP graph/adaptive require separate compatibility patches")
     if args.total_slots is not None and args.layer_cache_slots:
         parser.error("--total-slots cannot be combined with --layer-cache-slots")
     if args.total_slots is not None and not 480 <= args.total_slots <= 24576:
@@ -361,6 +367,12 @@ def main():
         parser.error("file PLE backend requires --ple-dir")
     if args.revision:
         command += ["--revision", args.revision]
+    if args.mtp_steps:
+        command += ["--speculative-algorithm", "NEXTN",
+                    "--speculative-draft-load-format", "qwen38_mtp",
+                    "--speculative-num-steps", str(args.mtp_steps),
+                    "--speculative-eagle-topk", "1",
+                    "--speculative-num-draft-tokens", str(args.mtp_steps + 1)]
     if args.offload_startup_warmup:
         command += ["--warmups", "qwen38_offload"]
     if args.cache_dir:

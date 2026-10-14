@@ -126,3 +126,5 @@ parameters now fail startup. See `flash-next-plan/REMOTE_VIT_OFFLOAD.md` for
 encoder memory/cache settings and checkpoint format limitations.
 
 专家缓存总预算可用 `cache_slots_total` 指定；canary 对应 `--total-slots`。105×48 等价于 5040。该字段与每层容量选项互斥，旧选项继续兼容。
+
+同卡 MTP（默认关闭）配置见 [MTP.md](MTP.md)。

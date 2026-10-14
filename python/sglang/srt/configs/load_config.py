@@ -25,6 +25,7 @@ class LoadFormat(str, enum.Enum):
     GGUF = "gguf"
     EXPERT_PACK = "expert_pack"
     QWEN38_NVFP4_CACHE = "qwen38_nvfp4_cache"
+    QWEN38_MTP = "qwen38_mtp"
     BITSANDBYTES = "bitsandbytes"
     MISTRAL = "mistral"
     LAYERED = "layered"
