@@ -1248,6 +1248,20 @@ class DecodeCudaGraphRunner(BaseCudaGraphRunner):
                     "on_after_cuda_graph_warmup",
                     None,
                 )
+                expert_runtime = getattr(
+                    self.model_runner.model, "qwen38_expert_runtime", None
+                )
+                if expert_runtime is not None:
+                    attn_warmup_hook = post_warmup_hook
+
+                    def post_warmup_hook():
+                        if attn_warmup_hook is not None:
+                            attn_warmup_hook()
+                        # Global CUDA capture also observes background threads.
+                        # Drain host retirement after every eager warmup before
+                        # beginning the first captured GPU segment.
+                        expert_runtime.synchronize()
+
                 maybe_flashinfer_autotune_speculative_draft(
                     self,
                     run_once,
