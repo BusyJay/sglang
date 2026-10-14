@@ -672,6 +672,20 @@ class SchedulerMetricsReporter:
         self.spec_num_block_accept_tokens = 0
         self.spec_num_cap_tokens = 0
 
+    def _prefill_report_latency(self, batch):
+        """Measure this batch, rather than the cadence of delayed result logs.
+
+        Result processing already waits for its copy_done event. Do not add a
+        device synchronization just for logging. Per-batch wall spans can overlap
+        under the overlap scheduler; they must not be summed as engine busy time.
+        """
+        if batch is None:
+            return 0.0
+        start = batch.launch_ts
+        if batch.forward_mode.is_split_prefill() and batch.split_prefill_start:
+            _, start = batch.split_prefill_start
+        return max(0.0, time.monotonic() - start) if start is not None else 0.0
+
     def report_prefill_stats(
         self,
         batch: Optional[ScheduleBatch],
@@ -686,7 +700,7 @@ class SchedulerMetricsReporter:
             return
 
         now = time.perf_counter()
-        gap_latency = now - self.last_prefill_stats_tic
+        gap_latency = self._prefill_report_latency(batch)
         self.last_prefill_stats_tic = now
         self.last_input_throughput = (
             (prefill_stats.log_input_tokens + prefill_stats.log_replay_tokens)
@@ -741,9 +755,9 @@ class SchedulerMetricsReporter:
         if self.enable_mfu_metrics and gap_latency > 0:
             # Prefer the SoL suffix when it carries content: it scores FLOPs against
             # each forward's actual GPU span (device timer). The wall-clock est.
-            # TFLOPS below divides FLOPs by gap_latency -- the inter-log interval on
-            # the async scheduler loop, which is decoupled from this forward's
-            # execution -- so it disagrees with the SoL. Omit it when SoL is present.
+            # TFLOPS below uses launch-to-result wall time, which includes host
+            # work/queueing and can overlap adjacent forwards. Prefer the device
+            # span when available; the two measurements have different scopes.
             sol_suffix = self._prefill_sol_suffix(batch, gap_latency)
             if sol_suffix:
                 msg += sol_suffix
