@@ -717,6 +717,10 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             cache_policy=self.cache_policy,
             cache_protected_fraction=self.cache_protected_fraction,
             layer_cache_slots=list(self.layer_cache_slots),
+            cache_slots_total=(
+                next(iter(self.cache_pool.values())).shape[0]
+                if self.cache_pool is not None else sum(self.layer_cache_slots)
+            ),
             layer_hits=list(self.layer_hits),
             layer_misses=list(self.layer_misses),
             adaptive_cache_mode=self.adaptive_cache_mode,
