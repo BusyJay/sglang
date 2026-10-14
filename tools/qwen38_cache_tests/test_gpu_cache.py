@@ -491,6 +491,7 @@ class TestGpuCache(unittest.TestCase):
         pool_ptrs = {name: tensor.data_ptr() for name, tensor in runtime.cache_pool.items()}
         metadata_ptrs = [{name: tensor.data_ptr() for name, tensor in state.items()}
                          for state in runtime.adaptive_metadata.device]
+        scratch_ptrs = {name: tensor.data_ptr() for name, tensor in runtime.migration_scratch.items()}
         for layout in ([3, 3], [2, 4], [4, 2]):
             if layout != [3, 3]:
                 runtime.adaptive_target = layout
@@ -502,6 +503,7 @@ class TestGpuCache(unittest.TestCase):
             )
             self.assertEqual([{name: tensor.data_ptr() for name, tensor in state.items()}
                               for state in runtime.adaptive_metadata.device], metadata_ptrs)
+            self.assertEqual({name: tensor.data_ptr() for name, tensor in runtime.migration_scratch.items()}, scratch_ptrs)
             for layer in (0, 1):
                 ids = torch.tensor([[0, 1]], dtype=torch.int32, device="cuda")
                 misses_before = runtime.misses
