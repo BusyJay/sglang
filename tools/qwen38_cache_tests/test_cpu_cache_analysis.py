@@ -3,9 +3,9 @@ import subprocess
 import sys
 import unittest
 
+from . import test_cpu_background_transport as transport
 from ._load_source import REPO_ROOT
 from .replay_cache import minimum_slots
-from . import test_cpu_background_transport as transport
 
 
 class TestCacheAnalysis(unittest.TestCase):
@@ -71,15 +71,39 @@ class TestCacheAnalysis(unittest.TestCase):
         runtime.adaptive_steps = [0, 0]
         runtime.sampling_verify = True
         for width in (2, 3, 4):
-            self.assertEqual(runtime._sample_position(0, SimpleNamespace(shape=(width, 10))), (0, width - 2))
+            self.assertEqual(
+                runtime._sample_position(0, SimpleNamespace(shape=(width, 10))),
+                (0, width - 2),
+            )
 
     def test_analysis_verify_union_respects_minimum_and_reserved_budget(self):
-        worker = REPO_ROOT / "python/sglang/srt/layers/moe/qwen38_cache_analysis_worker.py"
-        request = dict(current=[4, 4], budget=12, min_slots=4, num_experts=16, top_k=2,
-                       policy="lfu", protected_fraction=0.5,
-                       routes=[[[step % 8, (step + 1) % 8, (step + 2) % 8, (step + 3) % 8] for step in range(32)], [[12, 13, 14, 15]] * 32])
-        reply = subprocess.run([sys.executable, str(worker)], input=json.dumps(request) + "\n",
-                               text=True, capture_output=True, check=True, timeout=20)
+        worker = (
+            REPO_ROOT / "python/sglang/srt/layers/moe/qwen38_cache_analysis_worker.py"
+        )
+        request = dict(
+            current=[4, 4],
+            budget=12,
+            min_slots=4,
+            num_experts=16,
+            top_k=2,
+            policy="lfu",
+            protected_fraction=0.5,
+            routes=[
+                [
+                    [step % 8, (step + 1) % 8, (step + 2) % 8, (step + 3) % 8]
+                    for step in range(32)
+                ],
+                [[12, 13, 14, 15]] * 32,
+            ],
+        )
+        reply = subprocess.run(
+            [sys.executable, str(worker)],
+            input=json.dumps(request) + "\n",
+            text=True,
+            capture_output=True,
+            check=True,
+            timeout=20,
+        )
         result = json.loads(reply.stdout)
         self.assertIsNotNone(result["target"])
         self.assertEqual(sum(result["target"]), 12)

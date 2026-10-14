@@ -61,6 +61,7 @@ def main():
         assert context.config_bag("spec").speculative_draft_kv_cache_dtype == "bfloat16"
     print("Real MTP ServerArgs projection passed for steps 1/2/3.", flush=True)
     import torch
+
     from sglang.srt.layers.moe.moe_runner.base import MoeRunnerConfig
     from sglang.srt.layers.moe.qwen38_cache_runtime import PreparedExperts
     from sglang.srt.layers.moe.token_dispatcher.standard import (
@@ -96,9 +97,9 @@ def main():
     layer = torch.nn.Module()
     layer.layer_id = 0
     method.create_weights(layer, 512, 2560, 640, torch.bfloat16)
-    assert not list(
-        layer.parameters()
-    ), "cached MoE allocated resident expert parameters"
+    assert not list(layer.parameters()), (
+        "cached MoE allocated resident expert parameters"
+    )
     method.create_moe_runner(
         layer,
         MoeRunnerConfig(

@@ -17,8 +17,8 @@ from dataclasses import dataclass
 
 import torch
 
-from sglang.srt.layers.moe.qwen38_expert_cache import LayerExpertCachePolicy
 from sglang.srt.layers.moe.qwen38_cache_capacity import normalize_layer_slots
+from sglang.srt.layers.moe.qwen38_expert_cache import LayerExpertCachePolicy
 from sglang.srt.model_loader.qwen38_nvfp4_pack.format import (
     LAYER_TENSORS,
     REQUIRED_TENSORS,
@@ -55,8 +55,10 @@ class Qwen38SynchronousExpertRuntime:
         if self.device.type == "cuda" and self.device.index is None:
             self.device = torch.device("cuda", torch.cuda.current_device())
         self.layer_cache_slots = normalize_layer_slots(
-            slots_per_layer, layer_cache_slots,
-            self.manifest.num_layers, self.manifest.num_experts,
+            slots_per_layer,
+            layer_cache_slots,
+            self.manifest.num_layers,
+            self.manifest.num_experts,
         )
         self.slots_per_layer = slots_per_layer
         self.max_layer_slots = max(self.layer_cache_slots)
@@ -93,7 +95,9 @@ class Qwen38SynchronousExpertRuntime:
         )
         if staging_buffer_bytes < 0:
             raise ValueError("staging_buffer_bytes must be non-negative")
-        staging_bytes = max(largest, staging_buffer_bytes) if staging_buffer_bytes else largest
+        staging_bytes = (
+            max(largest, staging_buffer_bytes) if staging_buffer_bytes else largest
+        )
         self.staging = torch.empty(
             staging_bytes,
             dtype=torch.uint8,
@@ -137,10 +141,15 @@ class Qwen38SynchronousExpertRuntime:
             # Explicit profiling mode: synchronizes route IDs to CPU and writes
             # ordered JSONL. Disabled by default; never use for latency results.
             with open(self.route_trace_path, "a", encoding="utf-8") as trace:
-                trace.write(json.dumps({
-                    "layer": layer_id,
-                    "routes": topk_ids.detach().cpu().tolist(),
-                }) + "\n")
+                trace.write(
+                    json.dumps(
+                        {
+                            "layer": layer_id,
+                            "routes": topk_ids.detach().cpu().tolist(),
+                        }
+                    )
+                    + "\n"
+                )
             self.route_trace_events += 1
         self._maybe_log_stats()
 

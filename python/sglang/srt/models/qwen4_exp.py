@@ -60,6 +60,9 @@ from sglang.srt.model_executor.forward_context import (
     get_req_to_token_pool,
 )
 from sglang.srt.model_executor.runner import get_is_capture_mode
+from sglang.srt.model_executor.runner_backend_utils.breakable_cuda_graph import (
+    eager_on_graph,
+)
 from sglang.srt.model_loader.weight_utils import default_weight_loader
 from sglang.srt.models.qwen3_5 import (
     Qwen3_5AttentionDecoderLayer,
@@ -68,9 +71,6 @@ from sglang.srt.models.qwen3_5 import (
     Qwen3_5LinearDecoderLayer,
 )
 from sglang.srt.models.qwen3_vl import Qwen3VLForConditionalGeneration
-from sglang.srt.model_executor.runner_backend_utils.breakable_cuda_graph import (
-    eager_on_graph,
-)
 from sglang.srt.models.qwen4_exp_ple_lazy import PleCheckpointShard, PleRowCache
 from sglang.srt.models.qwen4_exp_ple_table import (
     allocate_ple_host_table,
@@ -2029,7 +2029,9 @@ class Qwen4ExpForConditionalGeneration(Qwen3VLForConditionalGeneration):
             "mrope_section" in rope_config and not self.language_model_only
         )
         self.deepstack_visual_indexes = (
-            [] if self.language_model_only else config.vision_config.deepstack_visual_indexes
+            []
+            if self.language_model_only
+            else config.vision_config.deepstack_visual_indexes
         )
 
     def get_embed_and_head(self):

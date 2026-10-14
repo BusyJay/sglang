@@ -124,7 +124,11 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
 
     @eager_on_graph(True, capture_stub=_capture_expert_output)
     def _run_experts(
-        self, hidden_states, topk_weights, topk_ids, router_logits,
+        self,
+        hidden_states,
+        topk_weights,
+        topk_ids,
+        router_logits,
         hidden_states_pre_quant=None,
         execution_phase=None,
     ):
@@ -200,7 +204,9 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
             # Python forward scopes have exited at replay. Keep the phase in
             # the eager break's captured arguments alongside its tensor inputs.
             options["execution_phase"] = execution_phase
-        return self.runtime.run(self.layer_id, topk_ids, execute, **options).hidden_states
+        return self.runtime.run(
+            self.layer_id, topk_ids, execute, **options
+        ).hidden_states
 
 
 class Qwen38CachedModelOptConfig(QuantizationConfig):
@@ -261,10 +267,10 @@ class Qwen38CachedModelOptConfig(QuantizationConfig):
         if self.gdn_value_heads is not None and re.search(
             r"(?:^|\.)layers\.\d+\.linear_attn\.in_proj_(?:qkvz|ba)$", prefix
         ):
-            from sglang.srt.layers.quantization.unquant import UnquantizedLinearMethod
             from sglang.srt.layers.quantization.qwen38_gdn_preallocated import (
                 Qwen38PreallocatedGdnLinearMethod,
             )
+            from sglang.srt.layers.quantization.unquant import UnquantizedLinearMethod
 
             key, projection = prefix.rsplit(".", 1)
             other = "in_proj_ba" if projection == "in_proj_qkvz" else "in_proj_qkvz"

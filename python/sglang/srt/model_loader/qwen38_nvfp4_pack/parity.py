@@ -10,7 +10,13 @@ from pathlib import Path
 
 
 def check_exported_layer(
-    layer, exported, mode="sync", *, slots=56, rtol=0.02, atol=0.02,
+    layer,
+    exported,
+    mode="sync",
+    *,
+    slots=56,
+    rtol=0.02,
+    atol=0.02,
     decode_graph=False,
     graph_width=1,
 ):
@@ -172,12 +178,15 @@ def check_exported_layer(
                     ).hidden_states
                     if decode_graph and tokens == graph_width:
                         from sglang.srt.model_executor.runner_backend_utils.breakable_cuda_graph import (
-                            BreakableCUDAGraph, BreakableCUDAGraphCapture,
+                            BreakableCUDAGraph,
+                            BreakableCUDAGraphCapture,
                         )
 
                         if graph is None:
                             static_hidden, static_weights, static_ids = (
-                                hidden.clone(), weights.clone(), ids.clone()
+                                hidden.clone(),
+                                weights.clone(),
+                                ids.clone(),
                             )
                             static_topk = StandardTopKOutput(
                                 static_weights, static_ids, topk.router_logits
@@ -186,8 +195,12 @@ def check_exported_layer(
                             stream.wait_stream(torch.cuda.current_stream())
                             with torch.cuda.stream(stream):
                                 for _ in range(2):
-                                    cached.apply(layer, StandardDispatchOutput(
-                                        static_hidden, None, static_topk))
+                                    cached.apply(
+                                        layer,
+                                        StandardDispatchOutput(
+                                            static_hidden, None, static_topk
+                                        ),
+                                    )
                             stream.synchronize()
                             graph = BreakableCUDAGraph()
                             capture_runs = runtime.run_invocations
@@ -196,16 +209,26 @@ def check_exported_layer(
                                 # not just an eager callback in an empty graph.
                                 graph_hidden = static_hidden * 1.0
                                 graph_topk = StandardTopKOutput(
-                                    static_weights * 1.0, static_ids + 0,
+                                    static_weights * 1.0,
+                                    static_ids + 0,
                                     static_topk.router_logits,
                                 )
-                                graph_output = cached._run_experts(
-                                    graph_hidden, graph_topk.topk_weights,
-                                    graph_topk.topk_ids, graph_topk.router_logits,
-                                    execution_phase="verify" if graph_width > 1 else "decode",
-                                ) * 1.0
+                                graph_output = (
+                                    cached._run_experts(
+                                        graph_hidden,
+                                        graph_topk.topk_weights,
+                                        graph_topk.topk_ids,
+                                        graph_topk.router_logits,
+                                        execution_phase="verify"
+                                        if graph_width > 1
+                                        else "decode",
+                                    )
+                                    * 1.0
+                                )
                             if runtime.run_invocations != capture_runs:
-                                raise AssertionError("capture enqueued host transport using stale routes")
+                                raise AssertionError(
+                                    "capture enqueued host transport using stale routes"
+                                )
                             torch.cuda.current_stream().wait_stream(stream)
                         static_hidden.copy_(hidden)
                         static_weights.copy_(weights)
@@ -213,7 +236,9 @@ def check_exported_layer(
                         before = runtime.run_invocations
                         graph.replay()
                         if runtime.run_invocations != before + 1:
-                            raise AssertionError("replay did not enqueue fresh host transport")
+                            raise AssertionError(
+                                "replay did not enqueue fresh host transport"
+                            )
                         actual = graph_output
                     else:
                         actual = cached.apply(
