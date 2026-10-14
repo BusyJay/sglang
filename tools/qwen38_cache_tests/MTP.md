@@ -2,6 +2,10 @@
 
 默认不启用。首版支持 SM120、纯文本、单请求、TP/DP/EP/PP=1、threaded 专家缓存、NEXTN，以及可选 breakable decode graph 和 adaptive cache。target pack 格式不变，draft 只读取 checkpoint 索引的 `mtp.*`，保留 FP8/BF16 混合精度；加载后共享 target 的完整 embedding/head 模块。
 
+本分支的逐项 patch 审查、5090 数值测试和真实 checkpoint 短请求验收见
+[2026-10-14 验收记录](MTP_PATCH_REVIEW_20261014.md)。这些结果覆盖 eager/fixed、
+graph/fixed、graph/adaptive 和 steps=1/2/3；长上下文及正式性能对照仍需另测。
+
 在现有 target 启动命令上添加：
 
 ```bash
