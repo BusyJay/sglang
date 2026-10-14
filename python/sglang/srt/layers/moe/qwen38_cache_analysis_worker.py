@@ -35,6 +35,7 @@ def main():
             window=len(routes[0]) - warmup,
             policy=request["policy"],
             protected_fraction=request["protected_fraction"],
+            budget=request.get("budget"),
         )
         target = None
         for token in range(len(routes[0])):

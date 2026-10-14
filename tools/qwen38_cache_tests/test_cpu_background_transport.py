@@ -84,6 +84,26 @@ class TestBackgroundTransport(unittest.TestCase):
                     self.assertEqual(json.loads(call.args[2])["cache_slots_total"], total)
 
 
+    def test_adaptive_rejects_invalid_layout_before_migration(self):
+        runtime = self._runtime(1)
+        runtime.adaptive_lock = threading.Lock()
+        runtime.manifest = SimpleNamespace(num_layers=2, num_experts=8, top_k=4)
+        runtime.layer_cache_slots = [4, 4]
+        runtime.adaptive_min_slots = 4
+        runtime.cache_pool = {"weight": SimpleNamespace(shape=(8, 1))}
+        runtime._migrate_pool = mock.Mock()
+        for target in ([3, 5], [4, 5], [4], [4, True]):
+            runtime.adaptive_target = target
+            with self.assertRaises(ValueError):
+                runtime._maybe_rebalance()
+        runtime._migrate_pool.assert_not_called()
+        runtime.manifest.top_k = 2
+        runtime.adaptive_target = [3, 3]
+        with self.assertRaises(ValueError):
+            runtime._maybe_rebalance()
+        runtime._migrate_pool.assert_not_called()
+
+
     @classmethod
     def setUpClass(cls):
         # Import against lightweight stand-ins so the worker protocol can run
