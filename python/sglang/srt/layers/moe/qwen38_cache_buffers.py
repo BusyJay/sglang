@@ -76,3 +76,37 @@ class AdaptiveMetadataBuffers:
         return sum(
             t.numel() * t.element_size() for b in self.device for t in b.values()
         )
+
+
+class GrowableSwigluBuffers:
+    """Keep one set of parameter arrays, growing only at a new high water mark."""
+
+    def __init__(self, config, device, maximum):
+        self.config = config
+        self.device = device
+        self.maximum = maximum
+        self.capacity = 0
+        self.buffers = None
+
+    def get(self, required):
+        from sglang.srt.layers.moe.moe_runner.flashinfer_cutlass import (
+            materialize_swiglu_params_for_cutlass,
+        )
+
+        if not 0 < required <= self.maximum:
+            raise ValueError("invalid SwiGLU expert capacity")
+        if self.buffers is None or required > self.capacity:
+            capacity = min(self.maximum, max(required, self.capacity * 2))
+            self.buffers = materialize_swiglu_params_for_cutlass(
+                self.config, capacity, self.device
+            )
+            self.capacity = capacity
+        # The caller uses these views on its compute stream. Protect storage
+        # against allocator reuse if a later call grows from another stream.
+        if self.device.type == "cuda":
+            for tensor in self.buffers:
+                if tensor is not None:
+                    tensor.record_stream(torch.cuda.current_stream(self.device))
+        return tuple(
+            tensor[:required] if tensor is not None else None for tensor in self.buffers
+        )

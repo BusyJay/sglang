@@ -167,7 +167,7 @@ class TestEagerBreakReplay(unittest.TestCase):
             method = module.Qwen38CachedNvFp4MoeMethod(None, "fixture")
             method.runtime = SimpleNamespace(run=transport)
             method.runners[2] = runner
-            method.swiglu_params[2] = (None, None, None)
+            method.swiglu_buffers = SimpleNamespace(get=lambda _: (None, None, None))
             hidden, ids = Tensor(10), Tensor(0)
             token = self.graph._current_capture_var.set(capture)
             try:

@@ -42,7 +42,7 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
         self.moe_runner_config = None
         self.runtime = None
         self.runners = {}
-        self.swiglu_params = {}
+        self.swiglu_buffers = None
 
     def create_weights(
         self,
@@ -82,6 +82,13 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
 
     def bind_runtime(self, runtime) -> None:
         self.runtime = runtime
+        from sglang.srt.layers.moe.qwen38_cache_buffers import GrowableSwigluBuffers
+
+        self.swiglu_buffers = GrowableSwigluBuffers(
+            self.moe_runner_config, runtime.device, runtime.manifest.num_experts
+        )
+        # Seed at the current layer capacity before KV and graph allocation.
+        self.swiglu_buffers.get(runtime.slots_for_layer(self.layer_id))
 
     def apply(self, layer, dispatch_output):
         from sglang.srt.layers.moe.token_dispatcher.standard import StandardCombineInput
@@ -127,7 +134,6 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
         from sglang.srt.layers.moe.moe_runner import MoeRunner
         from sglang.srt.layers.moe.moe_runner.flashinfer_cutlass import (
             FlashInferCutlassMoeQuantInfo,
-            materialize_swiglu_params_for_cutlass,
         )
         from sglang.srt.layers.moe.token_dispatcher.standard import (
             StandardDispatchOutput,
@@ -153,11 +159,8 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
                 self.runners[capacity] = MoeRunner(
                     MoeRunnerBackend.FLASHINFER_CUTLASS, config
                 )
-                self.swiglu_params[capacity] = materialize_swiglu_params_for_cutlass(
-                    config, capacity, self.runtime.device
-                )
             tensors = prepared.tensors
-            swiglu_alpha, swiglu_beta, swiglu_limit = self.swiglu_params[capacity]
+            swiglu_alpha, swiglu_beta, swiglu_limit = self.swiglu_buffers.get(capacity)
             quant_info = FlashInferCutlassMoeQuantInfo(
                 quant_type="fp4",
                 w13_weight=tensors["w13_weight"],
