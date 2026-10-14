@@ -37,7 +37,6 @@ class Spec(msgspec.Struct):
         Arg(
             help="The path of the draft model weights. This can be a local folder or a Hugging Face repo ID.",
             aliases=["--speculative-draft-model"],
-            resolvable=True,
         ),
     ] = None
     speculative_boundary_reduction: A[
@@ -46,10 +45,7 @@ class Spec(msgspec.Struct):
     ] = "rs+rsv"
     speculative_draft_model_revision: A[
         Optional[str],
-        Arg(
-            help="The specific draft model version to use. It can be a branch name, a tag name, or a commit id. If unspecified, will use the default version.",
-            resolvable=True,
-        ),
+        "The specific draft model version to use. It can be a branch name, a tag name, or a commit id. If unspecified, will use the default version.",
     ] = None
     speculative_draft_load_format: A[
         Optional[str],
@@ -60,24 +56,15 @@ class Spec(msgspec.Struct):
     ] = None
     speculative_num_steps: A[
         Optional[int],
-        Arg(
-            help="The number of steps sampled from draft model in Speculative Decoding.",
-            resolvable=True,
-        ),
+        "The number of steps sampled from draft model in Speculative Decoding.",
     ] = None
     speculative_eagle_topk: A[
         Optional[int],
-        Arg(
-            help="The number of tokens sampled from the draft model in eagle2 each step.",
-            resolvable=True,
-        ),
+        "The number of tokens sampled from the draft model in eagle2 each step.",
     ] = None
     speculative_num_draft_tokens: A[
         Optional[int],
-        Arg(
-            help="The number of tokens sampled from the draft model in Speculative Decoding.",
-            resolvable=True,
-        ),
+        "The number of tokens sampled from the draft model in Speculative Decoding.",
     ] = None
     speculative_dflash_block_size: A[
         Optional[int],
