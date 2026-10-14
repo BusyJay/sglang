@@ -12,6 +12,20 @@ capacity = load_source("sglang.srt.layers.moe.qwen38_cache_capacity",
 
 
 class TestCapacity(unittest.TestCase):
+    def test_total_budget_is_exact_and_legacy_compatible(self):
+        for total in (480, 3840, 3841, 5040, 24576):
+            layout = capacity.resolve_cache_slots({"cache_slots_total": total}, 48, 512)
+            self.assertEqual(sum(layout), total)
+            self.assertLessEqual(max(layout) - min(layout), 1)
+        self.assertEqual(capacity.resolve_cache_slots({"cache_slots_per_layer": 105}, 48, 512), [105] * 48)
+
+    def test_invalid_total_budgets_and_ambiguous_configs(self):
+        for total in (False, 479, 24577, 3840.0, "3840"):
+            with self.assertRaises(ValueError):
+                capacity.resolve_cache_slots({"cache_slots_total": total}, 48, 512)
+        for key, value in (("cache_slots_per_layer", 80), ("layer_cache_slots", [80] * 48)):
+            with self.assertRaisesRegex(ValueError, "cannot be combined"):
+                capacity.resolve_cache_slots({"cache_slots_total": 3840, key: value}, 48, 512)
     def test_defaults_and_explicit_layout(self):
         self.assertEqual(capacity.normalize_layer_slots(2, None, 3, 4), [2, 2, 2])
         self.assertEqual(capacity.normalize_layer_slots(2, [1, 4, 2], 3, 4), [1, 4, 2])
