@@ -267,8 +267,9 @@ def main():
                 if time.monotonic() - started > args.timeout:
                     raise TimeoutError("startup timeout")
                 try:
-                    request(url + "/ready", timeout=2)
-                    break
+                    with urllib.request.urlopen(url + "/ready", timeout=2) as response:
+                        if response.status == 200:
+                            break
                 except (OSError, TimeoutError):
                     time.sleep(1)
             report["server_info"] = request(url + "/server_info")
