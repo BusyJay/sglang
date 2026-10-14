@@ -248,6 +248,15 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                 )
             self.transfer.wait_stream(torch.cuda.current_stream(self.device))
             self._assign_pool_views(self.layer_cache_slots)
+            from sglang.srt.layers.moe.qwen38_cache_buffers import AdaptiveMetadataBuffers
+
+            # Every legal future layout fits without growing policy buffers.
+            minimum = getattr(self, "adaptive_min_slots", self.manifest.top_k)
+            maximum = min(self.manifest.num_experts,
+                          budget - (self.manifest.num_layers - 1) * minimum)
+            self.adaptive_metadata = AdaptiveMetadataBuffers(
+                self.manifest.num_layers, self.manifest.num_experts, maximum, self.device
+            )
             self.adaptive_samples = queue.Queue(maxsize=4096)
         super().reserve()
         memory_mark(probe, "runtime.after_base_reserve")
@@ -276,10 +285,6 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         if self.adaptive_cache:
             # Extra plan tail exports compact original expert IDs. No second
             # histogram D2H, memset or routing kernel is needed for sampling.
-            for state in self.device_states.values():
-                state["plan"] = torch.empty(
-                    4 + 4 * state["keys"].numel(), dtype=torch.int32, device=self.device
-                )
             self.metadata_stream.wait_stream(torch.cuda.current_stream(self.device))
             if self.adaptive_cache_mode != "sample":
                 self.adaptive_process = subprocess.Popen(
@@ -312,6 +317,16 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                 target=self._analyze_routes, name="qwen38-cache-adaptive", daemon=True
             )
             self.adaptive_worker.start()
+
+    def _state(self, layer_id):
+        if not hasattr(self, "adaptive_metadata"):
+            return super()._state(layer_id)
+        if layer_id not in self.device_states:
+            slots = self.slots_for_layer(layer_id)
+            self.device_states[layer_id] = self.adaptive_metadata.reset(layer_id, slots)
+            self.slot_ready[layer_id] = [None] * slots
+            self.slot_last_use[layer_id] = [None] * slots
+        return self.device_states[layer_id]
 
     def _host_range(self, kind):
         return self.profiler.host_range(kind) if self.profiler is not None else contextlib.nullcontext()
@@ -428,26 +443,8 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
 
     def _restore_device_policy(self, retained):
         for layer, records in retained.items():
-            if not records:
-                continue
             state = self.device_states[layer]
-            experts = torch.tensor(
-                [record[0] for record in records], dtype=torch.int64,
-                device=self.device,
-            )
-            slots = torch.arange(len(records), dtype=torch.int32, device=self.device)
-            state["lookup"][experts] = slots
-            state["keys"][:len(records)].copy_(experts.to(torch.int32))
-            state["frequency"][:len(records)].copy_(torch.tensor(
-                [record[1] for record in records], dtype=torch.float32,
-                device=self.device,
-            ))
-            state["ages"][:len(records)].copy_(torch.tensor(
-                [record[2] for record in records], dtype=torch.int64,
-                device=self.device,
-            ))
-            state["generation"][:len(records)].fill_(1)
-            state["clock"].fill_(max(record[2] for record in records))
+            self.adaptive_metadata.restore(layer, state, records)
 
     def _fill_arena_selected(self, layer, experts):
         """Copy contiguous runs of routed experts into their original IDs."""
@@ -666,10 +663,7 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                     self.warm_ready.clear()
                     self.layer_computed.clear()
                     for layer in range(self.manifest.num_layers):
-                        state = self._state(layer)
-                        state["plan"] = torch.empty(
-                            4 + 4 * target[layer], dtype=torch.int32, device=self.device
-                        )
+                        self._state(layer)
                     self._restore_device_policy(retained)
                     if self.cache_policy == "slru":
                         for layer, state in self.device_states.items():
@@ -959,6 +953,9 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
 
     def memory_budget(self):
         result = super().memory_budget()
+        result["adaptive_metadata_bytes"] = (
+            self.adaptive_metadata.nbytes() if hasattr(self, "adaptive_metadata") else 0
+        )
         result["resident_alpha_bytes"] = sum(
             tensor.numel() * tensor.element_size()
             for tables in self.alpha_tables.values()
