@@ -6,8 +6,18 @@ from __future__ import annotations
 from sglang.srt.layers.moe.qwen38_expert_cache import LayerExpertCachePolicy
 
 
-def allocate_slots(curves, budget):
-    """Minimize observed misses over candidate capacities and a slot budget."""
+def allocate_slots(curves, budget, *, max_capacity=None):
+    """Optimize measured candidates, then distribute every remaining slot.
+
+    Extra slots can fall between sampled capacities. The returned cost is the
+    sampled layout's estimate; it does not invent measured gains for those slots.
+    """
+    if type(budget) is not int or budget < 0 or not curves:
+        raise ValueError("invalid expert-cache slot budget")
+    if max_capacity is None:
+        max_capacity = max(max(curve) for curve in curves)
+    if budget > len(curves) * max_capacity:
+        raise ValueError("slot budget exceeds total expert capacity")
     states = {0: (0, ())}
     for curve in curves:
         next_states = {}
@@ -22,8 +32,19 @@ def allocate_slots(curves, budget):
         states = next_states
     if not states:
         raise ValueError("slot budget cannot cover minimum per-layer capacity")
-    used = min(states, key=lambda total: (states[total][0], total, states[total][1]))
-    return list(states[used][1]), states[used][0]
+    used = min(states, key=lambda total: (states[total][0], -total, states[total][1]))
+    predicted = states[used][0]
+    layout = list(states[used][1])
+    # Prefer smaller layers, with layer index breaking ties deterministically.
+    # This also handles budgets that are not multiples of the candidate step.
+    while used < budget:
+        layer = min(
+            (layer for layer, slots in enumerate(layout) if slots < max_capacity),
+            key=lambda layer: (layout[layer], layer),
+        )
+        layout[layer] += 1
+        used += 1
+    return layout, predicted
 
 
 def relocate_slots(moves, move, save, restore):
@@ -61,7 +82,7 @@ def relocate_slots(moves, move, save, restore):
 class AdaptiveLayerAllocator:
     """Track candidate LFU policies without delaying the GPU transfer worker.
 
-    The caller feeds one-token decode active sets in layer order. A proposal is
+    The caller feeds decode active sets in layer order. A proposal is
     made only after every layer has a complete observation window. Shadow caches
     persist between windows so cost estimates reflect steady-state behavior.
     """
@@ -79,9 +100,18 @@ class AdaptiveLayerAllocator:
         payback_windows=8,
         policy="lfu",
         protected_fraction=0.7,
+        budget=None,
     ):
         self.num_layers = len(initial_slots)
-        self.budget = sum(initial_slots)
+        self.num_experts = num_experts
+        self.policy = policy
+        self.protected_fraction = protected_fraction
+        self.budget = sum(initial_slots) if budget is None else budget
+        if (
+            type(self.budget) is not int
+            or not sum(initial_slots) <= self.budget <= self.num_layers * num_experts
+        ):
+            raise ValueError("adaptive budget must cover the current layout")
         self.current = list(initial_slots)
         if candidates is None:
             baseline = min(initial_slots)
@@ -132,7 +162,9 @@ class AdaptiveLayerAllocator:
         baseline = sum(
             curve[capacity] for curve, capacity in zip(self.misses, self.current)
         )
-        proposed, predicted = allocate_slots(self.misses, self.budget)
+        proposed, predicted = allocate_slots(
+            self.misses, self.budget, max_capacity=self.num_experts
+        )
         cold_refill = sum(max(0, old - new) for old, new in zip(self.current, proposed))
         self.last_evaluation = {
             "baseline_misses": baseline,
@@ -159,6 +191,27 @@ class AdaptiveLayerAllocator:
         return None
 
     def applied(self, layout):
+        if len(layout) != self.num_layers or sum(layout) != self.budget:
+            raise ValueError("adaptive layout must use the entire slot budget")
+        if not set(layout) <= set(self.candidates):
+            # Residual slots need not match the coarse candidate grid. Include
+            # their actual capacities in the next window's measured baseline.
+            # Restart all shadow policies together to avoid unequal cold starts.
+            self.candidates = tuple(sorted(set(self.candidates) | set(layout)))
+            self.policies = [
+                {
+                    c: LayerExpertCachePolicy(
+                        self.num_experts,
+                        c,
+                        policy=self.policy,
+                        protected_fraction=self.protected_fraction,
+                    )
+                    for c in self.candidates
+                }
+                for _ in layout
+            ]
+            self.seen = [0] * self.num_layers
+            self.misses = [{c: 0 for c in self.candidates} for _ in layout]
         self.current = list(layout)
         if self.pending == layout:
             self.pending = None

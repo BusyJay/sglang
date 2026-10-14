@@ -602,6 +602,7 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                     current=current,
                     num_experts=self.manifest.num_experts,
                     top_k=self.manifest.top_k,
+                    budget=next(iter(self.cache_pool.values())).shape[0],
                     policy=self.cache_policy,
                     protected_fraction=self.cache_protected_fraction,
                 )
@@ -642,6 +643,12 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             self.adaptive_target = None
             if target is None or target == self.layer_cache_slots:
                 return
+            minimum = self.manifest.top_k
+            if len(target) != self.manifest.num_layers or any(
+                type(slots) is not int or not minimum <= slots <= self.manifest.num_experts
+                for slots in target
+            ) or sum(target) != next(iter(self.cache_pool.values())).shape[0]:
+                raise ValueError("invalid adaptive layout or incomplete slot budget")
             with self.lock:
                 try:
                     started = time.perf_counter()
