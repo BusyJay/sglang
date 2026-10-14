@@ -60,6 +60,7 @@ python3 tools/qwen38_cache_tests/full_model_canary.py \
   --checkpoint /models/Qwen3.8-Flash-Next-NVFP4 \
   --manifest /packs/manifest.json \
   --runtime-mode threaded --total-slots 3840 --adaptive-cache \
+  --mamba-ssm-dtype bfloat16 \
   --mtp-steps 1 --decode-graph \
   --context-length 32768 --contexts 8192 32768 --chunk 4096 \
   --output /results/mtp-2
