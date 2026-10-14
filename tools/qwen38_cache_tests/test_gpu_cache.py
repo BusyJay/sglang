@@ -522,6 +522,46 @@ class TestGpuCache(unittest.TestCase):
                     expected = getattr(self.fixture.resident[layer], name)[ids.cpu()]
                     self.assertTrue(torch.equal(output[name].cpu(), expected), name)
 
+    def test_threaded_breakable_verify_replays_after_adaptive_migration(self):
+        from sglang.srt.layers.moe.qwen38_cache_threaded import Qwen38ThreadedExpertRuntime
+        from sglang.srt.model_executor.runner_backend_utils.breakable_cuda_graph import (
+            BreakableCUDAGraph, BreakableCUDAGraphCapture, eager_on_graph,
+        )
+
+        runtime = Qwen38ThreadedExpertRuntime(
+            self.fixture.pack, "cuda", slots_per_layer=3, adaptive_cache=True,
+        )
+        self.addCleanup(runtime.close)
+        runtime.reserve()
+        pointers = {name: pool.data_ptr() for name, pool in runtime.cache_pool.items()}
+
+        @eager_on_graph(True, capture_stub=lambda ids: torch.zeros_like(ids, dtype=torch.float32))
+        def experts(ids):
+            return runtime.run(0, ids, lambda prepared:
+                prepared.tensors["w13_weight"][prepared.topk_ids.long()]
+                .float().reshape(ids.numel(), -1).sum(-1).view_as(ids),
+                execution_phase="verify")
+
+        ids = torch.tensor([[0, 1], [1, 0]], dtype=torch.int32, device="cuda")
+        experts(ids)
+        runtime.synchronize()
+        stream = torch.cuda.Stream()
+        stream.wait_stream(torch.cuda.current_stream())
+        graph = BreakableCUDAGraph()
+        with BreakableCUDAGraphCapture(graph, stream=stream):
+            output = experts(ids + 0) * 1.0
+        torch.cuda.current_stream().wait_stream(stream)
+        for layout, pair in (([3, 3], [0, 1]), ([2, 4], [2, 3]), ([4, 2], [0, 3])):
+            runtime.adaptive_target = layout
+            ids.copy_(torch.tensor([pair, pair[::-1]], device="cuda", dtype=torch.int32))
+            graph.replay()
+            runtime.synchronize()
+            expected = self.fixture.resident[0].w13_weight[ids.cpu().long()]
+            expected = expected.float().reshape(ids.numel(), -1).sum(-1).view_as(ids.cpu())
+            torch.testing.assert_close(output.cpu(), expected, rtol=0, atol=0)
+            self.assertEqual(runtime.layer_cache_slots, layout)
+            self.assertEqual({name: pool.data_ptr() for name, pool in runtime.cache_pool.items()}, pointers)
+
     def test_threaded_adaptive_hotspot_changes_layout(self):
         from sglang.srt.layers.moe.qwen38_cache_threaded import (
             Qwen38ThreadedExpertRuntime,

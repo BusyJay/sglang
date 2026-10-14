@@ -83,38 +83,6 @@ class TestBackgroundTransport(unittest.TestCase):
                 for call in logger.info.call_args_list:
                     self.assertEqual(json.loads(call.args[2])["cache_slots_total"], total)
 
-
-    def test_adaptive_rejects_invalid_layout_before_migration(self):
-        runtime = self._runtime(1)
-        runtime.adaptive_lock = threading.Lock()
-        runtime.manifest = SimpleNamespace(num_layers=2, num_experts=8, top_k=4)
-        runtime.layer_cache_slots = [4, 4]
-        runtime.adaptive_min_slots = 4
-        runtime.cache_pool = {"weight": SimpleNamespace(shape=(8, 1))}
-        runtime._migrate_pool = mock.Mock()
-        for target in ([3, 5], [4, 5], [4], [4, True]):
-            runtime.adaptive_target = target
-            with self.assertRaises(ValueError):
-                runtime._maybe_rebalance()
-        runtime._migrate_pool.assert_not_called()
-        runtime.manifest.top_k = 2
-        runtime.adaptive_target = [3, 3]
-        with self.assertRaises(ValueError):
-            runtime._maybe_rebalance()
-        runtime._migrate_pool.assert_not_called()
-
-
-    def test_verify_arena_is_sparse_even_with_dense_prefill_policy(self):
-        runtime = self._runtime(1)
-        runtime.arena_residents = set()
-        runtime.prefill_copy_mode = "dense"
-        runtime._fill_arena = mock.Mock()
-        runtime._fill_arena_selected = mock.Mock()
-        self.assertTrue(runtime._ensure_arena_experts(0, [1, 0, 1, 0], verify=True))
-        runtime._fill_arena.assert_not_called()
-        runtime._fill_arena_selected.assert_called_once_with(0, [0, 2])
-
-
     @classmethod
     def setUpClass(cls):
         # Import against lightweight stand-ins so the worker protocol can run
@@ -275,6 +243,25 @@ class TestBackgroundTransport(unittest.TestCase):
             reaper.join(3)
         self.assertFalse(worker.is_alive())
         self.assertFalse(reaper.is_alive())
+
+    def test_adaptive_rejects_invalid_layout_before_migration(self):
+        runtime = self._runtime(1)
+        runtime.adaptive_lock = threading.Lock()
+        runtime.manifest = SimpleNamespace(num_layers=2, num_experts=8, top_k=2)
+        runtime.layer_cache_slots = [4, 4]
+        runtime.adaptive_min_slots = 4
+        runtime.cache_pool = {"weight": SimpleNamespace(shape=(8, 1))}
+        runtime._migrate_pool = mock.Mock()
+        for target in ([3, 5], [4, 5], [4], [4, True]):
+            runtime.adaptive_target = target
+            with self.assertRaises(ValueError):
+                runtime._maybe_rebalance()
+        runtime._migrate_pool.assert_not_called()
+        runtime.adaptive_min_slots = 2
+        runtime.adaptive_target = [3, 3]
+        with self.assertRaises(ValueError):
+            runtime._maybe_rebalance()
+        runtime._migrate_pool.assert_not_called()
 
     def test_poisoned_runtime_rejects_new_work(self):
         runtime = self._runtime(1)
@@ -502,6 +489,16 @@ class TestBackgroundTransport(unittest.TestCase):
         runtime._fill_arena.assert_called_once_with(0)
         runtime._fill_arena_selected.assert_not_called()
         scatter.assert_not_called()
+
+    def test_verify_arena_is_sparse_even_with_dense_prefill_policy(self):
+        runtime = self._runtime(1)
+        runtime.arena_residents = set()
+        runtime.prefill_copy_mode = "dense"
+        runtime._fill_arena = mock.Mock()
+        runtime._fill_arena_selected = mock.Mock()
+        self.assertTrue(runtime._ensure_arena_experts(0, [1, 0, 1, 0], verify=True))
+        runtime._fill_arena.assert_not_called()
+        runtime._fill_arena_selected.assert_called_once_with(0, [0, 2])
 
     def test_startup_prefill_counts_each_chunk_once(self):
         runtime = self._runtime(1)

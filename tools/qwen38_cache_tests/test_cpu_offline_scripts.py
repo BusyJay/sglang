@@ -62,7 +62,7 @@ class TestOfflineScripts(unittest.TestCase):
                 "--manifest", str(manifest), "--output", root, "--revision", "fixture",
                 "--cache-dir", root, "--contexts", "8", "--offload-startup-warmup",
                 "--decode-graph", "--runtime-mode", "threaded"] + remote_flags +
-                ([] if remote else ["--total-slots", "3840", "--adaptive-cache"])), \
+                ([] if remote else ["--mtp-steps", "1", "--total-slots", "3840", "--adaptive-cache"])), \
                 mock.patch.object(common_module, "resolve_cached_checkpoint", return_value=Path(root)) as resolve, \
                 mock.patch.object(common_module, "cached_checkpoint_weight_files"), \
                 mock.patch.object(canary.subprocess, "Popen", return_value=process) as launch, \
@@ -80,6 +80,7 @@ class TestOfflineScripts(unittest.TestCase):
             self.assertIn("--cuda-graph-backend-decode=breakable", args)
             self.assertIn("--cuda-graph-backend-prefill=disabled", args)
             if not remote:
+                self.assertEqual(args[args.index("--speculative-draft-load-format") + 1], "qwen38_mtp")
                 extra = json.loads(args[args.index("--model-loader-extra-config") + 1])
                 self.assertEqual(extra["cache_slots_total"], 3840)
                 self.assertNotIn("cache_slots_per_layer", extra)

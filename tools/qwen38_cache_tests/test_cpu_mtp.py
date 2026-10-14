@@ -290,3 +290,16 @@ class TestMtpConfig(unittest.TestCase):
         ):
             with self.subTest(values=values), self.assertRaises(ValueError):
                 self.hook.handle_qwen38_nvfp4_cache(self.args(**values))
+
+    def test_mtp_adaptive_total_budget(self):
+        for steps in (1, 2, 3):
+            args = self.args(
+                speculative_num_steps=steps,
+                model_loader_extra_config={
+                    "runtime_mode": "threaded",
+                    "adaptive_cache": True,
+                    "cache_slots_total": 3841,
+                },
+            )
+            self.hook.handle_qwen38_nvfp4_cache(args)
+            self.assertTrue(args.model_loader_extra_config["adaptive_cache"])

@@ -365,6 +365,12 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                 **runtime_options,
             )
             memory_mark(probe, "loader.after_runtime_construct", model=model)
+            from sglang.srt.runtime_context import get_spec
+
+            if self.config.get("adaptive_cache", False) and get_spec().speculative_algorithm is not None:
+                runtime.adaptive_min_slots = self.manifest.top_k * get_spec().speculative_num_draft_tokens
+                if min(runtime.layer_cache_slots) < runtime.adaptive_min_slots:
+                    raise ValueError("adaptive MTP cache must fit the full verify route bound in every layer")
             runtime.reserve()
             memory_mark(
                 probe,

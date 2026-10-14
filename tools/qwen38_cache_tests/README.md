@@ -125,6 +125,6 @@ language tensor materialization and whole-shard GPU staging. Missing visual
 parameters now fail startup. See `flash-next-plan/REMOTE_VIT_OFFLOAD.md` for
 encoder memory/cache settings and checkpoint format limitations.
 
-专家缓存总预算可用 `cache_slots_total` 指定；canary 对应 `--total-slots`。105×48 等价于 5040。该字段与每层容量选项互斥，旧选项继续兼容。
+同卡 MTP（默认关闭）的配置与验收入口见 [MTP.md](MTP.md)。
 
-同卡 MTP（默认关闭）配置见 [MTP.md](MTP.md)。
+专家缓存总预算可用 `cache_slots_total` 指定；canary 对应 `--total-slots`。原 105 slots/层等价于总预算 5040。该字段与每层容量选项互斥，adaptive 在总预算内分配层容量。

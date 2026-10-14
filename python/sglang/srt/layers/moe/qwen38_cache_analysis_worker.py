@@ -31,7 +31,7 @@ def main():
         allocator = adaptive.AdaptiveLayerAllocator(
             request["current"],
             request["num_experts"],
-            min_slots=request["top_k"],
+            min_slots=request.get("min_slots", request["top_k"]),
             window=len(routes[0]) - warmup,
             policy=request["policy"],
             protected_fraction=request["protected_fraction"],
