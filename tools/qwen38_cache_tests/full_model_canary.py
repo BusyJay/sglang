@@ -223,8 +223,6 @@ def main():
     args = parser.parse_args()
     if args.mtp_steps and (args.runtime_mode != "threaded" or args.encoder_urls):
         parser.error("MTP requires threaded and pure text")
-    if args.mtp_steps and args.adaptive_cache:
-        parser.error("MTP adaptive requires the separate compatibility patch")
     if args.total_slots is not None and args.layer_cache_slots:
         parser.error("--total-slots cannot be combined with --layer-cache-slots")
     if args.total_slots is not None and not 480 <= args.total_slots <= 24576:

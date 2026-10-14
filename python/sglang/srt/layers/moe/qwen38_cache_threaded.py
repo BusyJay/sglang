@@ -390,7 +390,7 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
     def _sample_position(self, layer, topk_ids):
         if not self.adaptive_cache:
             return None
-        if topk_ids.shape[0] != 1:
+        if topk_ids.shape[0] != 1 and not getattr(self, "sampling_verify", False):
             # Do not join decode observations across unobserved prefill/batches.
             period = self.adaptive_cache_window + self.adaptive_cache_interval
             self.adaptive_steps[layer] = (
@@ -603,6 +603,7 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                     current=current,
                     num_experts=self.manifest.num_experts,
                     top_k=self.manifest.top_k,
+                    min_slots=getattr(self, "adaptive_min_slots", self.manifest.top_k),
                     budget=next(iter(self.cache_pool.values())).shape[0],
                     policy=self.cache_policy,
                     protected_fraction=self.cache_protected_fraction,
@@ -644,12 +645,12 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             self.adaptive_target = None
             if target is None or target == self.layer_cache_slots:
                 return
-            minimum = self.manifest.top_k
+            minimum = getattr(self, "adaptive_min_slots", self.manifest.top_k)
             if len(target) != self.manifest.num_layers or any(
                 type(slots) is not int or not minimum <= slots <= self.manifest.num_experts
                 for slots in target
             ) or sum(target) != next(iter(self.cache_pool.values())).shape[0]:
-                raise ValueError("invalid adaptive layout or incomplete slot budget")
+                raise ValueError("invalid adaptive layout or incomplete verify active-set capacity")
             with self.lock:
                 try:
                     started = time.perf_counter()
@@ -1026,6 +1027,7 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                 layer_id, arena, topk_ids.shape[0]
             )
             self._record_invocation(arena, topk_ids, layer_id)
+            self.sampling_verify = execution_phase == "verify"
             if arena and self.arena is None:
                 raise ValueError("route bound exceeds cache; enable prefill arena")
             self.capacity.acquire()  # bounded producer backpressure, not a per-layer CUDA wait

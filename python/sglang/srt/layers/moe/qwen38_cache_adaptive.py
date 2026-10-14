@@ -82,7 +82,7 @@ def relocate_slots(moves, move, save, restore):
 class AdaptiveLayerAllocator:
     """Track candidate LFU policies without delaying the GPU transfer worker.
 
-    The caller feeds decode active sets in layer order. A proposal is
+    The caller feeds decode or whole verify-round active sets in layer order. A proposal is
     made only after every layer has a complete observation window. Shadow caches
     persist between windows so cost estimates reflect steady-state behavior.
     """

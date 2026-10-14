@@ -159,7 +159,12 @@ def _configure_mtp(server_args, cfg, errors, remote_vision):
     if cfg.speculative_moe_runner_backend not in (None, "auto", "triton"):
         errors.append("qwen38 MTP requires the Triton block-FP8 draft MoE runner")
     if extra.get("adaptive_cache", False):
-        errors.append("qwen38 MTP adaptive cache requires the separate compatibility patch")
+        from sglang.srt.layers.moe.qwen38_cache_capacity import resolve_cache_slots
+
+        try:
+            resolve_cache_slots(extra, 48, 512, minimum=10 * (steps + 1))
+        except ValueError as error:
+            errors.append(str(error))
     if errors:
         return
     declare_resolution(
