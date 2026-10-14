@@ -4,7 +4,9 @@
 
 本分支的逐项 patch 审查、5090 数值测试和真实 checkpoint 短请求验收见
 [2026-10-14 验收记录](MTP_PATCH_REVIEW_20261014.md)。这些结果覆盖 eager/fixed、
-graph/fixed、graph/adaptive 和 steps=1/2/3；长上下文及正式性能对照仍需另测。
+graph/fixed、graph/adaptive 和 steps=1/2/3。
+后续的 0.92 容量检查及相同配置的 warmed 吞吐对照见
+[2026-10-14 吞吐记录](MTP_THROUGHPUT_20261014.md)；长上下文及完整部署负载仍需另测。
 
 在现有 target 启动命令上添加：
 
