@@ -12,11 +12,14 @@ from pathlib import Path
 def check_exported_layer(
     layer, exported, mode="sync", *, slots=56, rtol=0.02, atol=0.02,
     decode_graph=False,
+    graph_width=1,
 ):
     import torch
 
     if decode_graph and mode != "threaded":
         raise ValueError("decode graph parity requires threaded mode")
+    if graph_width not in (1, 2, 3, 4):
+        raise ValueError("graph width must be 1/2/3/4")
 
     from sglang.srt.layers.moe.qwen38_cache_runtime import (
         Qwen38SynchronousExpertRuntime,
@@ -119,6 +122,12 @@ def check_exported_layer(
                         config.top_k, capacity + config.top_k, config.top_k
                     )
                 ]
+            if decode_graph and graph_width > 1:
+                cases += [
+                    ("verify_miss", graph_width, 0),
+                    ("verify_shift", graph_width, config.top_k),
+                    ("verify_revisit", graph_width, 0),
+                ]
             if decode_graph:
                 cases += [
                     ("decode_after_arena", 1, layer.num_experts - config.top_k),
@@ -161,7 +170,7 @@ def check_exported_layer(
                     resident = layer.quant_method.apply(
                         layer, StandardDispatchOutput(hidden.clone(), None, topk)
                     ).hidden_states
-                    if decode_graph and tokens == 1:
+                    if decode_graph and tokens == graph_width:
                         from sglang.srt.model_executor.runner_backend_utils.breakable_cuda_graph import (
                             BreakableCUDAGraph, BreakableCUDAGraphCapture,
                         )
@@ -190,8 +199,11 @@ def check_exported_layer(
                                     static_weights * 1.0, static_ids + 0,
                                     static_topk.router_logits,
                                 )
-                                graph_output = cached.apply(layer, StandardDispatchOutput(
-                                    graph_hidden, None, graph_topk)).hidden_states * 1.0
+                                graph_output = cached._run_experts(
+                                    graph_hidden, graph_topk.topk_weights,
+                                    graph_topk.topk_ids, graph_topk.router_logits,
+                                    execution_phase="verify" if graph_width > 1 else "decode",
+                                ) * 1.0
                             if runtime.run_invocations != capture_runs:
                                 raise AssertionError("capture enqueued host transport using stale routes")
                             torch.cuda.current_stream().wait_stream(stream)
@@ -228,6 +240,7 @@ def check_exported_layer(
                     "status": "passed",
                     "runtime_mode": mode,
                     "decode_graph": decode_graph,
+                    "graph_width": graph_width,
                     "rtol": rtol,
                     "atol": atol,
                     "cases": reports,

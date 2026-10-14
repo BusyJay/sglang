@@ -26,8 +26,6 @@ def resolve_qwen38_cuda_graph(server_args: Any) -> None:
         )
     if graph.decode.backend == Backend.DISABLED:
         return
-    if getattr(cfg, "speculative_algorithm", None) is not None:
-        raise ValueError("qwen38 MTP graph requires the separate compatibility patch")
     if graph.decode.backend != Backend.BREAKABLE:
         raise ValueError(
             "qwen38 offload decode graph requires backend=breakable, not full/tc_piecewise"

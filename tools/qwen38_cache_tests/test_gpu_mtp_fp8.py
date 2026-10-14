@@ -119,3 +119,50 @@ class TestMtpFp8Parity(unittest.TestCase):
                 # Includes dynamic activation FP8 quantization in the runtime.
                 relative_error = (actual.float() - reference).norm() / reference.norm()
                 self.assertLess(relative_error.item(), 0.08, f"verify width={width}")
+                from sglang.srt.model_executor.runner_backend_utils.breakable_cuda_graph import (
+                    BreakableCUDAGraph,
+                    BreakableCUDAGraphCapture,
+                )
+
+                static_hidden, static_weights, static_ids = (
+                    hidden.clone(),
+                    weights.clone(),
+                    ids.clone(),
+                )
+                stream = torch.cuda.Stream()
+                stream.wait_stream(torch.cuda.current_stream())
+                with torch.cuda.stream(stream):
+                    for _ in range(2):
+                        layer(
+                            static_hidden,
+                            StandardTopKOutput(static_weights, static_ids, None),
+                        )
+                stream.synchronize()
+                graph = BreakableCUDAGraph()
+                with BreakableCUDAGraphCapture(graph, stream=stream):
+                    graph_output = layer(
+                        static_hidden * 1.0,
+                        StandardTopKOutput(static_weights * 1.0, static_ids + 0, None),
+                    )
+                torch.cuda.current_stream().wait_stream(stream)
+                for _ in range(3):
+                    static_hidden.copy_(torch.randn_like(hidden))
+                    static_weights.copy_(
+                        torch.softmax(torch.randn_like(weights), dim=-1)
+                    )
+                    static_ids.copy_(
+                        torch.stack(
+                            [
+                                torch.randperm(10, dtype=torch.int32)
+                                for _ in range(width)
+                            ]
+                        )
+                    )
+                    expected = layer(
+                        static_hidden,
+                        StandardTopKOutput(static_weights, static_ids, None),
+                    )
+                    graph.replay()
+                    torch.testing.assert_close(
+                        graph_output, expected, rtol=0.02, atol=0.02
+                    )
