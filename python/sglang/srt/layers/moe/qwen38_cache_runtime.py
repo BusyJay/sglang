@@ -149,6 +149,7 @@ class Qwen38SynchronousExpertRuntime:
         return {
             "slots_per_layer": self.slots_per_layer,
             "layer_cache_slots": self.layer_cache_slots,
+            "cache_slots_total": sum(self.layer_cache_slots),
             "route_trace_events": self.route_trace_events,
             "prefill_arena": self.prefill_arena,
             "run_invocations": self.run_invocations,

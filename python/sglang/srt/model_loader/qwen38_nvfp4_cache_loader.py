@@ -33,7 +33,7 @@ from sglang.srt.model_loader.qwen38_nvfp4_pack.format import (
     load_manifest,
 )
 from sglang.srt.model_loader.utils import set_default_torch_dtype
-from sglang.srt.layers.moe.qwen38_cache_capacity import normalize_layer_slots
+from sglang.srt.layers.moe.qwen38_cache_capacity import resolve_cache_slots
 
 
 class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
@@ -53,6 +53,7 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             "checkpoint_revision",
             "sglang_commit",
             "cache_slots_per_layer",
+            "cache_slots_total",
             "prefill_arena",
             "runtime_mode",
             "stats_log_interval",
@@ -160,12 +161,9 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             checkpoint_revision=config.get("checkpoint_revision"),
             sglang_commit=config.get("sglang_commit"),
         )
-        slots = int(config.get("cache_slots_per_layer", 56))
-        if not 10 <= slots <= 512:
-            raise ValueError("cache_slots_per_layer must be between top-k=10 and 512")
-        normalize_layer_slots(
-            slots, config.get("layer_cache_slots"), self.manifest.num_layers,
-            self.manifest.num_experts, minimum=10,
+        self.initial_layer_slots = resolve_cache_slots(
+            config, self.manifest.num_layers, self.manifest.num_experts,
+            minimum=10,
         )
 
     def download_model(self, model_config) -> None:
@@ -358,10 +356,10 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             runtime = runtime_class(
                 pack,
                 target_device,
-                slots_per_layer=int(self.config.get("cache_slots_per_layer", 56)),
+                slots_per_layer=self.initial_layer_slots[0],
                 prefill_arena=self.config.get("prefill_arena", True),
                 stats_log_interval=int(self.config.get("stats_log_interval", 0)),
-                layer_cache_slots=self.config.get("layer_cache_slots"),
+                layer_cache_slots=self.initial_layer_slots,
                 route_trace_path=self.config.get("route_trace_path"),
                 route_trace_limit=self.config.get("route_trace_limit", 10000),
                 **runtime_options,
@@ -396,6 +394,7 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
         model.qwen38_cache_config = {
             "slots_per_layer": runtime.slots_per_layer,
             "layer_cache_slots": runtime.layer_cache_slots,
+            "cache_slots_total": sum(runtime.layer_cache_slots),
             "prefill_arena": runtime.prefill_arena,
         }
         return model.eval()

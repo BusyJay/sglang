@@ -147,7 +147,11 @@ def main():
         choices=["sync", "async", "device", "threaded"],
         default="sync",
     )
-    parser.add_argument("--slots", type=int, default=56)
+    slot_options = parser.add_mutually_exclusive_group()
+    slot_options.add_argument("--slots", type=int, default=None,
+                              help="legacy capacity per layer (default 56)")
+    slot_options.add_argument("--total-slots", type=int,
+                              help="total expert cache slots across all 48 layers")
     parser.add_argument("--contexts", nargs="+", type=int, default=[8192, 32768])
     parser.add_argument("--context-length", type=int, default=225280)
     parser.add_argument("--chunk", type=int, default=8192)
@@ -215,6 +219,10 @@ def main():
     parser.add_argument("--request-timeout", type=int, default=7200)
     parser.add_argument("--cache-stats-log-interval", type=int, default=0)
     args = parser.parse_args()
+    if args.total_slots is not None and args.layer_cache_slots:
+        parser.error("--total-slots cannot be combined with --layer-cache-slots")
+    if args.total_slots is not None and not 480 <= args.total_slots <= 24576:
+        parser.error("--total-slots must be in [480, 24576]")
     if args.image and not args.encoder_urls:
         parser.error("--image requires --encoder-urls (ViT is not loaded locally)")
     if args.image_answer_pattern and not args.image:
@@ -240,7 +248,7 @@ def main():
     if min(
         args.startup_timeout,
         args.request_timeout,
-        args.slots,
+        args.slots if args.slots is not None else 56,
         args.chunk,
         args.context_max_new_tokens,
     ) <= 0:
@@ -282,10 +290,13 @@ def main():
         raise ValueError("empty tokenizer fixture")
     extra = {
         "manifest_path": str(manifest),
-        "cache_slots_per_layer": args.slots,
         "prefill_arena": True,
         "runtime_mode": args.runtime_mode,
     }
+    if args.total_slots is not None:
+        extra["cache_slots_total"] = args.total_slots
+    else:
+        extra["cache_slots_per_layer"] = args.slots if args.slots is not None else 56
     if args.cache_stats_log_interval:
         extra["stats_log_interval"] = args.cache_stats_log_interval
     if args.runtime_mode != "sync":
