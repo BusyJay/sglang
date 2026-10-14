@@ -1559,6 +1559,29 @@ class DecodeCudaGraphRunner(BaseCudaGraphRunner):
         """Optional eager tail executed after graph replay and inside its timer."""
         return output
 
+    def cuda_graph_output_rows(self, output):
+        if self.model_runner.is_draft_worker:
+            # Specialized draft runners return step/request-shaped tuples or
+            # select the last token per request; retain their existing contract.
+            return None
+        if self.capture_forward_mode != ForwardMode.TARGET_VERIFY:
+            return None
+        rows = [
+            tensor.shape[0]
+            for tensor in (
+                getattr(output, "next_token_logits", None),
+                getattr(output, "full_logits", None),
+                getattr(output, "hidden_states", None),
+            )
+            if tensor is not None
+        ]
+        return max(rows) if rows else None
+
+    def cuda_graph_output_capacity_rows(self, output):
+        if self.cuda_graph_output_rows(output) is None:
+            return None
+        return self.max_num_token
+
     def get_spec_info(self, num_tokens: int):
         spec_info = None
         if (

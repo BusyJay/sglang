@@ -70,6 +70,11 @@ class TestDecodeGraphConfig(unittest.TestCase):
         self.hook.resolve_qwen38_cuda_graph(self.args("disabled",
             model_loader_extra_config={"runtime_mode": "sync"}))
 
+    def test_mtp_keeps_request_batch_one_graph(self):
+        args = self.args(speculative_algorithm="NEXTN")
+        self.hook.resolve_qwen38_cuda_graph(args)
+        self.assertEqual(args.cuda_graph_config.decode.bs, [1])
+        self.assertEqual(args.cuda_graph_config.decode.max_bs, 1)
 
 
 class Tensor:
@@ -190,6 +195,23 @@ class TestEagerBreakReplay(unittest.TestCase):
 
 
 class TestBreakableBackendOutputBuffer(unittest.TestCase):
+    def test_verify_keeps_all_logits_and_hc_rows(self):
+        import ast
+        from ._load_source import REPO_ROOT
+
+        source = ast.parse((REPO_ROOT / "python/sglang/srt/model_executor/runner/decode_cuda_graph_runner.py").read_text())
+        cls = next(n for n in source.body if isinstance(n, ast.ClassDef) and n.name == "DecodeCudaGraphRunner")
+        methods = [n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name in ("cuda_graph_output_rows", "cuda_graph_output_capacity_rows")]
+        namespace = {"ForwardMode": SimpleNamespace(TARGET_VERIFY="verify")}
+        exec(compile(ast.Module(body=methods, type_ignores=[]), "output-rows", "exec"), namespace)
+        runner = SimpleNamespace(model_runner=SimpleNamespace(is_draft_worker=False), capture_forward_mode="verify", max_num_token=4)
+        runner.cuda_graph_output_rows = lambda output: namespace["cuda_graph_output_rows"](runner, output)
+        for width in (2, 3, 4):
+            output = SimpleNamespace(next_token_logits=SimpleNamespace(shape=(width, 248320)), hidden_states=SimpleNamespace(shape=(width, 10240)))
+            self.assertEqual(runner.cuda_graph_output_rows(output), width)
+            self.assertEqual(namespace["cuda_graph_output_capacity_rows"](runner, output), 4)
+        runner.model_runner.is_draft_worker = True
+        self.assertIsNone(runner.cuda_graph_output_rows(output))
 
     def test_logits_processor_output_buffer_roundtrip(self):
         try:

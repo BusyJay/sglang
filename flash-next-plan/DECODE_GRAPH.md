@@ -10,7 +10,7 @@ The aim is to reduce the launch overhead outside routed MoE without freezing the
 expert mapping or changing the existing worker protocol. Speedup is unmeasured.
 
 Current supported configuration: threaded runtime, TP/DP/EP/PP=1, one running
-request, decode capture batch size 1, no speculation/torch.compile, eager prefill.
+request, decode capture batch size 1, no torch.compile, eager prefill. Same-card NEXTN with 2/3/4-token verify and adaptive cache is also supported; see `tools/qwen38_cache_tests/MTP.md`.
 Existing slot count/layout and optional decode-cache seeding are unchanged.
 PLE's UVA gather kernel stays inside captured GPU segments; file-prefetch advice
 is skipped during capture as before. No model weights are downloaded.

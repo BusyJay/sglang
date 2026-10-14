@@ -15,3 +15,10 @@ python3 -m unittest tools.qwen38_cache_tests.test_cpu_mtp
 python3 -m unittest tools.qwen38_cache_tests.test_gpu_mtp_fp8
 ```
 GPU parity、真实模型状态提交、显存与速度尚待 5090 验收；不承诺提升。
+
+应用 graph patch 后，可保留 breakable decode bs=1、max_bs=1，prefill disabled。target 捕获完整 verify token 行，draft 使用专门 runner；主专家 route/plan/H2D/CUTLASS 仍通过 eager break。暂不包含 MTP adaptive。
+```bash
+--cuda-graph-backend-prefill=disabled --cuda-graph-backend-decode=breakable \
+--cuda-graph-bs-decode 1 --cuda-graph-max-bs-decode 1
+```
+原 bs1 decode graph 0.10 GiB 的显存预算需要重新测量。
