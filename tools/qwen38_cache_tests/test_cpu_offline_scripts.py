@@ -61,7 +61,8 @@ class TestOfflineScripts(unittest.TestCase):
             }), mock.patch("sys.argv", ["canary", "--checkpoint", "nvidia/test-model",
                 "--manifest", str(manifest), "--output", root, "--revision", "fixture",
                 "--cache-dir", root, "--contexts", "8", "--offload-startup-warmup",
-                "--decode-graph", "--runtime-mode", "threaded"] + remote_flags +
+                "--decode-graph", "--runtime-mode", "threaded",
+                "--mamba-ssm-dtype", "bfloat16"] + remote_flags +
                 ([] if remote else ["--mtp-steps", "1", "--total-slots", "3840", "--adaptive-cache"])), \
                 mock.patch.object(common_module, "resolve_cached_checkpoint", return_value=Path(root)) as resolve, \
                 mock.patch.object(common_module, "cached_checkpoint_weight_files"), \
@@ -79,6 +80,7 @@ class TestOfflineScripts(unittest.TestCase):
                 self.assertEqual(args[args.index(flag) + 1], expected)
             self.assertIn("--cuda-graph-backend-decode=breakable", args)
             self.assertIn("--cuda-graph-backend-prefill=disabled", args)
+            self.assertEqual(args[args.index("--mamba-ssm-dtype") + 1], "bfloat16")
             if not remote:
                 self.assertEqual(args[args.index("--speculative-draft-load-format") + 1], "qwen38_mtp")
                 extra = json.loads(args[args.index("--model-loader-extra-config") + 1])

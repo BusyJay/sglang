@@ -207,6 +207,10 @@ def main():
     # default so auto-sizing still applies when callers want it.
     parser.add_argument("--mem-fraction-static", type=float)
     parser.add_argument("--max-mamba-cache-size", type=int)
+    parser.add_argument(
+        "--mamba-ssm-dtype", choices=["float32", "bfloat16", "float16"],
+        help="set the same GDN state precision for target-only and MTP comparisons",
+    )
     parser.add_argument("--mamba-full-memory-ratio", type=float)
     parser.add_argument(
         "--probe",
@@ -379,6 +383,8 @@ def main():
         command += ["--mem-fraction-static", str(args.mem_fraction_static)]
     if args.max_mamba_cache_size is not None:
         command += ["--max-mamba-cache-size", str(args.max_mamba_cache_size)]
+    if args.mamba_ssm_dtype is not None:
+        command += ["--mamba-ssm-dtype", args.mamba_ssm_dtype]
     if args.mamba_full_memory_ratio is not None:
         command += ["--mamba-full-memory-ratio", str(args.mamba_full_memory_ratio)]
     command += ["--ple-offload-backend", args.ple_backend]
