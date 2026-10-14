@@ -257,6 +257,9 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             self.adaptive_metadata = AdaptiveMetadataBuffers(
                 self.manifest.num_layers, self.manifest.num_experts, maximum, self.device
             )
+            self.migration_scratch = {
+                name: torch.empty_like(pool[0]) for name, pool in self.cache_pool.items()
+            }
             self.adaptive_samples = queue.Queue(maxsize=4096)
         super().reserve()
         memory_mark(probe, "runtime.after_base_reserve")
@@ -430,8 +433,8 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             for new_slot, old_slot in enumerate(selected):
                 moves[old_offsets[layer] + old_slot] = new_offsets[layer] + new_slot
         with torch.cuda.stream(torch.cuda.current_stream(self.device)):
-            for pool in self.cache_pool.values():
-                scratch = torch.empty_like(pool[0])
+            for name, pool in self.cache_pool.items():
+                scratch = self.migration_scratch[name]
                 relocate_slots(
                     moves,
                     lambda src, dst: pool[dst].copy_(pool[src]),
@@ -955,6 +958,9 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         result = super().memory_budget()
         result["adaptive_metadata_bytes"] = (
             self.adaptive_metadata.nbytes() if hasattr(self, "adaptive_metadata") else 0
+        )
+        result["migration_scratch_bytes"] = sum(
+            t.numel() * t.element_size() for t in getattr(self, "migration_scratch", {}).values()
         )
         result["resident_alpha_bytes"] = sum(
             tensor.numel() * tensor.element_size()
