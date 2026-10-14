@@ -1601,7 +1601,18 @@ class Qwen4ExpLayerExtensionMixin:
             hidden_states = attn_tp_chunks[get_parallel().attn_tp_rank].contiguous()
 
         use_reduce_scatterv = use_dp_moe_gather and should_use_dp_reduce_scatterv()
-        with get_forward().scoped(mlp_reduce_scatter=use_reduce_scatterv):
+        phase = (
+            "verify"
+            if forward_batch.forward_mode.is_target_verify()
+            else (
+                "prefill"
+                if forward_batch.forward_mode.is_extend_without_speculative()
+                else "decode"
+            )
+        )
+        with get_forward().scoped(
+            mlp_reduce_scatter=use_reduce_scatterv, qwen38_execution_phase=phase
+        ):
             hidden_states = self.mlp(hidden_states, forward_batch)
 
         if use_dp_moe_gather:

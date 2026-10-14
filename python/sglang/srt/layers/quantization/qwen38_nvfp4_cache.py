@@ -18,7 +18,7 @@ from sglang.srt.model_executor.runner_backend_utils.breakable_cuda_graph import 
 )
 
 
-def _capture_expert_output(_method, hidden_states, *_route_inputs):
+def _capture_expert_output(_method, hidden_states, *_route_inputs, **_options):
     # Upstream segments have only been recorded, not replayed: their route IDs
     # are not valid yet. Do not enqueue a host transfer from capture-time data.
     # Warmup initializes CUTLASS; replay always runs the real expert boundary.
@@ -113,13 +113,20 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
             topk.topk_ids,
             topk.router_logits,
             dispatch_output.hidden_states_pre_quant,
+            execution_phase=self._execution_phase(),
         )
         return StandardCombineInput(hidden_states=hidden_states)
+
+    def _execution_phase(self):
+        from sglang.srt.runtime_context import get_forward
+
+        return get_forward().qwen38_execution_phase
 
     @eager_on_graph(True, capture_stub=_capture_expert_output)
     def _run_experts(
         self, hidden_states, topk_weights, topk_ids, router_logits,
         hidden_states_pre_quant=None,
+        execution_phase=None,
     ):
         """Replay host transport for every token, never capture a transfer job.
 
@@ -188,7 +195,12 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
 
         # Return a plain tensor, so eager_on_graph copies fresh output into the
         # fixed bridge consumed by the next GPU segment on every replay.
-        return self.runtime.run(self.layer_id, topk_ids, execute).hidden_states
+        options = {}
+        if getattr(self.runtime, "supports_execution_phase", False):
+            # Python forward scopes have exited at replay. Keep the phase in
+            # the eager break's captured arguments alongside its tensor inputs.
+            options["execution_phase"] = execution_phase
+        return self.runtime.run(self.layer_id, topk_ids, execute, **options).hidden_states
 
 
 class Qwen38CachedModelOptConfig(QuantizationConfig):

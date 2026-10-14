@@ -213,6 +213,20 @@ class EagleDraftWorker(EagleDraftWorkerBase):
 
         # Alias for better readability
         self.draft_runner = self.draft_worker.model_runner
+        if get_spec().speculative_draft_load_format == "qwen38_mtp":
+            self.draft_runner.model.bind_qwen38_target_modules(
+                target_worker.model_runner.model
+            )
+            from sglang.srt.layers.moe.qwen38_startup_memory import (
+                get_startup_memory_probe,
+                memory_mark,
+            )
+
+            memory_mark(
+                get_startup_memory_probe(self.draft_runner.device),
+                "mtp.after_bind",
+                model=self.draft_runner.model,
+            )
         self._init_dsa_index_share_state()
         # Eager draft-extend seed buffer (graph paths use their own static ones).
         self.dsa_extend_topk_buf: Optional[torch.Tensor] = None

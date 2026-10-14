@@ -365,6 +365,7 @@ class ExecMamba(msgspec.Struct):
         Arg(
             help="The data type of the SSM states in mamba cache. If not set, will be read from model config (mamba_ssm_dtype).",
             choices=["float32", "bfloat16", "float16"],
+            resolvable=True,
         ),
     ] = None
     mamba_max_states_per_path: A[

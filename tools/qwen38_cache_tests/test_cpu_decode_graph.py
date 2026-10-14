@@ -71,6 +71,7 @@ class TestDecodeGraphConfig(unittest.TestCase):
             model_loader_extra_config={"runtime_mode": "sync"}))
 
 
+
 class Tensor:
     def __init__(self, value):
         self.value = value
@@ -139,7 +140,9 @@ class TestEagerBreakReplay(unittest.TestCase):
         runner = SimpleNamespace(run=lambda batch, _quant: SimpleNamespace(
             hidden_states=Tensor(batch.hidden_states.value + batch.topk_output.topk_ids.value)))
 
-        def transport(_layer, ids, execute):
+        phases = []
+        def transport(_layer, ids, execute, *, execution_phase=None):
+            phases.append(execution_phase)
             calls.append(ids.value)
             # Different global routes yield different slot mappings each replay.
             return execute(SimpleNamespace(num_experts=2,
@@ -165,14 +168,14 @@ class TestEagerBreakReplay(unittest.TestCase):
             module = load_source("qwen38_quant_break_test",
                 "python/sglang/srt/layers/quantization/qwen38_nvfp4_cache.py")
             method = module.Qwen38CachedNvFp4MoeMethod(None, "fixture")
-            method.runtime = SimpleNamespace(run=transport)
+            method.runtime = SimpleNamespace(run=transport, supports_execution_phase=True)
             method.runners[2] = runner
             method.swiglu_buffers = SimpleNamespace(get=lambda _: (None, None, None))
             hidden, ids = Tensor(10), Tensor(0)
             token = self.graph._current_capture_var.set(capture)
             try:
                 with mock.patch.object(self.graph, "_weak_ref_if_tensor", side_effect=lambda x: x):
-                    output = method._run_experts(hidden, None, ids, None)
+                    output = method._run_experts(hidden, None, ids, None, execution_phase="verify")
             finally:
                 self.graph._current_capture_var.reset(token)
             self.assertEqual(calls, [])
@@ -183,9 +186,11 @@ class TestEagerBreakReplay(unittest.TestCase):
                 breaks[0]()
                 self.assertEqual(output.value, hidden.value + route % 2)
             self.assertEqual(calls, [3, 2, 1, 0])
+            self.assertEqual(phases, ["verify"] * 4)
 
 
 class TestBreakableBackendOutputBuffer(unittest.TestCase):
+
     def test_logits_processor_output_buffer_roundtrip(self):
         try:
             import torch

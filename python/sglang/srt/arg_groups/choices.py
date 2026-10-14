@@ -18,6 +18,7 @@ LOAD_FORMAT_CHOICES = [
     # Qwen3.8-Flash-Next NVFP4 routed experts are stored in a host runtime
     # pack and staged into a bounded per-layer GPU cache.
     "qwen38_nvfp4_cache",
+    "qwen38_mtp",
     "bitsandbytes",
     "mistral",
     "layered",

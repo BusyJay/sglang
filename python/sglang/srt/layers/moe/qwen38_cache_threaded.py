@@ -82,6 +82,7 @@ class TransferJob:
     launched: threading.Event
     sample: tuple[int, int] | None = None  # observation cycle, offset within window
     force_dense: bool = False
+    verify: bool = False
     ready: object = None  # CUDA event recorded on the transfer stream by worker
     error: BaseException | None = None  # set instead of ready when transport fails
     ready_set: threading.Event = field(
@@ -486,7 +487,7 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                 source.release()
             raise
 
-    def _ensure_arena_experts(self, layer, counts, keys=None, *, force_dense=False):
+    def _ensure_arena_experts(self, layer, counts, keys=None, *, force_dense=False, verify=False):
         stats = self.prefill_copy_stats[layer]
         if self.arena_layer != layer:
             self.arena_residents = set()
@@ -523,10 +524,10 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         )
         # Decide before launching scatter; a fragmented, nearly full layer is
         # cheaper to replace than to merge with the decode cache.
-        dense = self.prefill_copy_mode == "dense" or (
+        dense = not verify and (self.prefill_copy_mode == "dense" or (
             self.prefill_copy_mode == "auto"
             and _prefer_dense_prefill(host_missing, self.manifest.num_experts)
-        )
+        ))
         if dense:
             self._fill_arena(layer)
             self.arena_residents = None
@@ -807,22 +808,22 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                                 self.transfer.wait_event(self.arena_last_use)
                             self.arena_layer = None
                             loaded = self._ensure_arena_experts(
-                                job.layer, counts, keys, force_dense=job.force_dense
+                                job.layer, counts, keys, force_dense=job.force_dense, verify=job.verify
                             )
                             self.arena_layer = job.layer
                         elif self.arena_last_use is not None:
                             self.transfer.wait_event(self.arena_last_use)
                             loaded = self._ensure_arena_experts(
-                                job.layer, counts, keys, force_dense=job.force_dense
+                                job.layer, counts, keys, force_dense=job.force_dense, verify=job.verify
                             )
                         else:
                             loaded = self._ensure_arena_experts(
-                                job.layer, counts, keys, force_dense=job.force_dense
+                                job.layer, counts, keys, force_dense=job.force_dense, verify=job.verify
                             )
                         if loaded:
                             self.arena_loads += 1
-                        seed = self.prefill_seed_cache and bool(keys) and all(key < 0 for key in keys)
-                        if self.warm_decode_cache or seed:
+                        seed = not job.verify and self.prefill_seed_cache and bool(keys) and all(key < 0 for key in keys)
+                        if not job.verify and (self.warm_decode_cache or seed):
                             self._warm_from_arena(job.layer, counts[:-1])
                             if seed:
                                 self.prefill_seed_runs += 1
@@ -998,7 +999,9 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             self.prefill_tokens_seen += tokens
         return self.prefill_dense_current
 
-    def run(self, layer_id, topk_ids, execute):
+    supports_execution_phase = True
+
+    def run(self, layer_id, topk_ids, execute, *, execution_phase=None):
         if self.adaptive_cache and self.adaptive_target is not None:
             self._maybe_rebalance()
         with self.lock, torch.no_grad(), torch.cuda.device(self.device):
@@ -1019,7 +1022,7 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                 raise ValueError("top-k differs from the pack")
             capacity = self.slots_for_layer(layer_id)
             arena = topk_ids.numel() > capacity
-            force_dense = self._dense_startup_prefill(
+            force_dense = execution_phase != "verify" and self._dense_startup_prefill(
                 layer_id, arena, topk_ids.shape[0]
             )
             self._record_invocation(arena, topk_ids, layer_id)
@@ -1100,6 +1103,7 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                 job = TransferJob(
                     layer_id, arena, plan, planned, computed, launched, sample,
                     force_dense=force_dense,
+                    verify=execution_phase == "verify",
                 )
                 self.jobs.put_nowait(job)
                 queued = True

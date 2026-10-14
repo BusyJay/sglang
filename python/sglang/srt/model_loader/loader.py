@@ -4392,6 +4392,11 @@ def get_model_loader(
     # This format must own model construction before the generic ModelOpt
     # selection below. Otherwise a serialized modelopt_mixed checkpoint would
     # instantiate all routed-expert parameters and defeat bounded offload.
+    if load_config.load_format == LoadFormat.QWEN38_MTP:
+        from sglang.srt.model_loader.qwen38_mtp_loader import Qwen38MtpModelLoader
+
+        return Qwen38MtpModelLoader(load_config)
+
     if load_config.load_format == LoadFormat.QWEN38_NVFP4_CACHE:
         from sglang.srt.model_loader.qwen38_nvfp4_cache_loader import (
             Qwen38NvFp4CacheModelLoader,
