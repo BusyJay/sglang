@@ -102,7 +102,10 @@ def main():
     )
     prepared = PreparedExperts(tensors, remapped, 56, False)
     runtime = SimpleNamespace(
-        device=torch.device("cpu"), run=lambda layer_id, ids, execute: execute(prepared)
+        device=torch.device("cpu"),
+        manifest=manifest,
+        slots_for_layer=lambda layer_id: 2,
+        run=lambda layer_id, ids, execute: execute(prepared),
     )
     method.bind_runtime(runtime)
     runner = mock.Mock()
