@@ -32,13 +32,10 @@ def main():
         importlib.import_module(module)
         print(f"Imported {module}", flush=True)
 
-    # AST fixtures bypass ServerArgs metadata. Exercise the actual declaration
-    # gate as well, so opt-in defaults are publishable on real launch records.
-    from sglang.srt.arg_groups.overrides import (
-        resolution_result,
-        validate_declarations,
-    )
+    # AST fixtures bypass the record-to-runtime projection. Check real config
+    # bags so launch defaults cannot disappear between declaration and forward.
     from sglang.srt.arg_groups.qwen38_cache_hook import handle_qwen38_nvfp4_cache
+    from sglang.srt.runtime_context import ParallelContext, RuntimeContext
     from sglang.srt.server_args import ServerArgs
 
     for steps in (1, 2, 3):
@@ -57,11 +54,12 @@ def main():
             },
         )
         handle_qwen38_nvfp4_cache(args)
-        validate_declarations(args, args._resolved_overrides)
-        assert resolution_result(args, "speculative_num_draft_tokens") == steps + 1
-        assert resolution_result(args, "mamba_ssm_dtype") == "bfloat16"
-        assert resolution_result(args, "speculative_draft_kv_cache_dtype") == "bfloat16"
-    print("Real MTP ServerArgs declarations passed for steps 1/2/3.", flush=True)
+        context = RuntimeContext(ParallelContext())
+        context.set_server_args(args)
+        assert context.config_bag("spec").speculative_num_draft_tokens == steps + 1
+        assert context.config_bag("exec").mamba.mamba_ssm_dtype == "bfloat16"
+        assert context.config_bag("spec").speculative_draft_kv_cache_dtype == "bfloat16"
+    print("Real MTP ServerArgs projection passed for steps 1/2/3.", flush=True)
     import torch
     from sglang.srt.layers.moe.moe_runner.base import MoeRunnerConfig
     from sglang.srt.layers.moe.qwen38_cache_runtime import PreparedExperts
