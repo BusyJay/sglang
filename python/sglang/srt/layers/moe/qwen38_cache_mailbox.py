@@ -9,6 +9,7 @@ Per-layer mailboxes and the shared payload are reused after prior GPU readers.
 """
 
 import collections
+import mmap
 import sysconfig
 import threading
 import time
@@ -36,7 +37,8 @@ def _poll_module():
 class DecodeMissMailbox:
     def __init__(self, runtime):
         try:
-            self._initialize(runtime)
+            with torch.device("cpu"):
+                self._initialize(runtime)
         except BaseException:
             if hasattr(self, "stopping"):
                 self.stopping.set()
@@ -49,6 +51,8 @@ class DecodeMissMailbox:
                     _module().mailbox_unregister(self.pack_view)
             if hasattr(self, "pack_view"):
                 del self.pack_view
+            if hasattr(self, "pack_mapping"):
+                self.pack_mapping.close()
             raise
 
     def _initialize(self, runtime):
@@ -103,9 +107,13 @@ class DecodeMissMailbox:
             )
             for layer in range(layers)
         }
-        # Zero-copy view, retained until all device readers have drained.
-        # CUDA registration pins the existing file pages, not a second payload.
-        self.pack_view = torch.frombuffer(runtime.pack._mapping, dtype=torch.uint8)
+        # GeForce lacks read-only host registration. A private writable mapping
+        # keeps checkpoint files immutable; CUDA may materialize COW pages when
+        # pinning, so account for a pack-sized host memory cost.
+        self.pack_mapping = mmap.mmap(
+            runtime.pack._stream.fileno(), 0, access=mmap.ACCESS_COPY
+        )
+        self.pack_view = torch.frombuffer(self.pack_mapping, dtype=torch.uint8)
         with torch.cuda.device(runtime.device):
             self.pack_address = _module().mailbox_register(self.pack_view)
         self.payload_address = self.pack_address
@@ -386,3 +394,4 @@ class DecodeMissMailbox:
         with torch.cuda.device(self.runtime.device):
             _module().mailbox_unregister(self.pack_view)
         del self.pack_view
+        self.pack_mapping.close()

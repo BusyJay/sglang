@@ -57,7 +57,7 @@ __global__ void mailbox_fill_kernel(
 }
 }  // namespace
 
-// Register the existing file mapping; never allocate/copy a host payload.
+// Register the private writable file mapping; the checkpoint remains immutable.
 struct Qwen38MailboxRegister {
   static int64_t run(TensorView bytes) {
     TVM_FFI_ICHECK_EQ(bytes.device().device_type, kDLCPU);
@@ -65,7 +65,7 @@ struct Qwen38MailboxRegister {
     CHECK_CONTIGUOUS(bytes);
     CHECK_INPUT_TYPE(bytes, dl_uint8);
     TVM_FFI_ICHECK_GT(bytes.size(0), 0);
-    unsigned int flags = cudaHostRegisterMapped | cudaHostRegisterReadOnly;
+    unsigned int flags = cudaHostRegisterMapped;
     auto status = cudaHostRegister(bytes.data_ptr(), bytes.size(0), flags);
     TVM_FFI_ICHECK_EQ(status, cudaSuccess) << "register expert mmap: " << cudaGetErrorString(status);
     void* mapped = nullptr;
