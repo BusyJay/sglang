@@ -1,7 +1,7 @@
 # Mailbox direct mmap transport
 
 单 token mailbox decode 的 miss 从注册的 expert-pack 内存读入 GPU cache slot，
-删除 mailbox Python payload staging；all-hit 保留无需 CPU 确认的路径。
+删除 mailbox Python payload staging；hit 和 miss 均无需 CPU 确认。
 prefill、warm-up、adaptive sampling 继续使用原 transport，但与 mailbox 读取
 同一份源映射。NVFP4 专家计算、router 权重和累加顺序保持原样。
 
@@ -24,6 +24,26 @@ mailbox 关闭先排空 GPU reader，再 unregister 并释放 tensor view；映�
 控制缓冲区显式使用 CPU 默认设备。若升级映射时仍有导出 view，明确报错并
 保留旧映射，避免悬空引用。
 
+## GPU 直接执行，取消 ready 往返（2026-10-16）
+
+planner、alpha scatter、fill 和专家计算按同一 compute stream 执行。
+fill 直接读取 GPU plan 与固定源地址，不再等待 CPU `ready`，也不再向
+host 发布 miss plan。删除只做统计与确认的 mailbox worker、poller 初始化、
+host heads/plans/ready 缓冲区和 epoch。普通 prefill/sampling transport 的
+worker 保留。
+
+每层 GPU 计数器累计 hits、all-hit calls、misses、miss calls；读取统计或
+同步时等待各层完成，再将增量加入原有计数。多次同层 plan 可以连续排队，
+不会因 CPU 未及时读取而漏计；重复 snapshot 不会重复累加。
+cache slot 的前序 reader event、队列背压、迁移前排空、非法 plan 的 GPU trap、
+映射 failure flag 和 completion watchdog 保留。GPU 不再有等待 host ready
+的循环，超时仍通过 completion watchdog 检测。
+
+这项修改仍注册完整源映射，因此不会消除约 128 MiB 的疑似 GPU 映射页表成本。
+它也没有新增 GEMV/搬运并发；GEMV 与 fill 的重叠是另一个待分析的改动。
+
+验证和交接见 [MAILBOX_NO_READY_20261016.md](MAILBOX_NO_READY_20261016.md)。
+
 ## 验证
 
 ```bash
@@ -32,7 +52,7 @@ python3 tools/qwen38_cache_tests/run_cpu.py
 python3 tools/qwen38_cache_tests/run_gpu.py --require-sm120 --output /tmp/mailbox-gpu.json
 ```
 
-235 项 CPU、48 项 GPU 测试通过。覆盖 required tensors、resident alpha、单/多
+此前单份映射版本的 235 项 CPU、48 项 GPU 测试通过。覆盖 required tensors、resident alpha、单/多
 miss、重复 expert、跨 stream、缓存迁移、sampling、失败路径和对齐/非对齐尾块。
 新增用例验证同一个源映射、公开视图只读、原文件不变、旧 view 冲突处理，以及
 mailbox unregister 后 pack 仍可读取并最终关闭映射。

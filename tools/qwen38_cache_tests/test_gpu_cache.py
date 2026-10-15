@@ -161,6 +161,15 @@ class TestGpuCache(unittest.TestCase):
                             torch.equal(value.cpu(), reference), (layer, pair, name)
                         )
                 self.assertFalse(hasattr(runtime.miss_mailbox, "payload"))
+                self.assertFalse(hasattr(runtime.miss_mailbox, "worker"))
+                # No CPU reader acknowledges plans between these queued fills.
+                active = sum(len(set(pair)) for _, pair, _ in results)
+                self.assertEqual(runtime.hits + runtime.misses, active)
+                before = (runtime.hits, runtime.misses, runtime.transferred_bytes)
+                runtime.miss_mailbox.flush_stats()
+                self.assertEqual(
+                    (runtime.hits, runtime.misses, runtime.transferred_bytes), before
+                )
             finally:
                 runtime.close()
         # Closing the runtime must release the frombuffer view so pack.close works.
@@ -226,7 +235,7 @@ class TestGpuCache(unittest.TestCase):
             )
         )
 
-    def test_device_gate_timeout_fails_before_stale_weights_in_subprocess(self):
+    def test_device_gate_failure_flag_traps_before_fill_in_subprocess(self):
         import os
         import subprocess
         import sys
@@ -235,7 +244,7 @@ class TestGpuCache(unittest.TestCase):
         # The failure check deliberately invalidates the child's CUDA context.
         # Keep the parent context usable for the remaining parity tests.
         source = textwrap.dedent("""
-            import os, time, torch
+            import os, torch
             from tools.qwen38_cache_tests.test_cpu_runtime import TestSynchronousRuntime
             from sglang.srt.layers.moe.qwen38_cache_threaded import Qwen38ThreadedExpertRuntime
             TestSynchronousRuntime.setUpClass()
@@ -249,14 +258,15 @@ class TestGpuCache(unittest.TestCase):
                       for pair in [(0, 1), (2, 3)]]
             runtime.run(0, routes[0], lambda prepared: None)
             runtime.synchronize()
-            stage = runtime.miss_mailbox.stage
-            def delayed_stage(*args, **kwargs):
-                time.sleep(0.3)
-                return stage(*args, **kwargs)
-            runtime.miss_mailbox.stage = delayed_stage
-            os.environ['QWEN38_READY_TIMEOUT_SECONDS'] = '0.05'
+            from sglang.kernels.ops.moe.qwen38_expert_cache import _module
+            mailbox = runtime.miss_mailbox
+            mailbox._abort(TimeoutError('injected completion timeout'))
+            plan = torch.tensor([0, 1, 1, 0, 0, 0], dtype=torch.int32, device='cuda')
             try:
-                runtime.run(0, routes[1], lambda prepared: None)
+                _module().mailbox_fill(
+                    plan, mailbox.layouts[0],
+                    runtime.manifest.top_k, mailbox.failed_address,
+                )
                 torch.cuda.synchronize()
             except torch.AcceleratorError:
                 os._exit(0 if runtime.poisoned else 2)
@@ -291,8 +301,6 @@ class TestGpuCache(unittest.TestCase):
 
         runtime.run(0, ids, execute)
         runtime.synchronize()
-        heads = runtime.miss_mailbox.heads.clone()
-        host_ready = runtime.miss_mailbox.ready.clone()
         plans = runtime.host_plan_allocations
         with (
             mock.patch.object(
@@ -314,8 +322,8 @@ class TestGpuCache(unittest.TestCase):
                 self.fixture.resident[0].w13_weight[torch.tensor([[0, 1]])],
             )
         )
-        self.assertTrue(torch.equal(runtime.miss_mailbox.heads, heads))
-        self.assertTrue(torch.equal(runtime.miss_mailbox.ready, host_ready))
+        self.assertFalse(hasattr(runtime.miss_mailbox, "heads"))
+        self.assertFalse(hasattr(runtime.miss_mailbox, "ready"))
         self.assertEqual(runtime.host_plan_allocations, plans)
         self.assertEqual(runtime.jobs.unfinished_tasks, 0)
         self.assertEqual(runtime.decode_device_gate_hits, 32)

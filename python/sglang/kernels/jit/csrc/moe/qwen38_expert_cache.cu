@@ -8,30 +8,21 @@ __global__ void mailbox_fill_kernel(
     const int32_t* plan,
     const int64_t* layout,
     int tensors,
-    const uint8_t* payload,
-    int64_t expert_bytes,
-    const volatile int32_t* failed,
-    const volatile int64_t* ready,
-    int64_t epoch,
-    unsigned long long timeout_ns) {
+    const volatile int32_t* failed) {
+  // The planner and fill run on the same stream. Immutable registered source
+  // addresses need no CPU publication or acknowledgement before they are read.
+  if (plan[0] || plan[3]) {
+    if (threadIdx.x == 0) asm volatile("trap;");
+    return;
+  }
   int miss = blockIdx.x;
   if (miss >= plan[1]) return;
-  if (threadIdx.x == 0) {
-    unsigned long long start, now;
-    asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(start));
-    int64_t target = epoch * (gridDim.x + 1) + miss + 1;
-    while (*ready < target) {
-      asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(now));
-      if (timeout_ns && now - start > timeout_ns) asm volatile("trap;");
-      __nanosleep(256);
-    }
-    if (*failed) asm volatile("trap;");
-    __threadfence_system();
-  }
+  // Keep all-hit fills entirely on device. Only one thread per miss block
+  // reads the mapped failure flag; the barrier guards every source read.
+  if (threadIdx.x == 0 && *failed) asm volatile("trap;");
   __syncthreads();
   int slot = plan[5 + 2 * miss];
   int expert = plan[4 + 2 * miss];
-  int64_t offset = static_cast<int64_t>(miss) * expert_bytes;
   for (int tensor = 0; tensor < tensors; ++tensor) {
     int64_t bytes = layout[3 * tensor + 1];
     auto* destination = reinterpret_cast<uint8_t*>(layout[3 * tensor]) + slot * bytes;
@@ -52,7 +43,6 @@ __global__ void mailbox_fill_kernel(
       for (; i < bytes; i += stride)
         destination[i] = reinterpret_cast<const volatile uint8_t*>(source)[i];
     }
-    offset += bytes;
   }
 }
 }  // namespace
@@ -87,37 +77,23 @@ struct Qwen38MailboxFill {
   static void
   run(TensorView plan,
       TensorView layout,
-      int64_t payload,
-      int64_t expert_bytes,
       int64_t top_k,
-      int64_t failed,
-      int64_t ready,
-      int64_t epoch,
-      int64_t timeout_ns) {
+      int64_t failed) {
     CHECK_INPUT_AND_TYPE(plan, dl_int32);
     CHECK_INPUT_AND_TYPE(layout, dl_int64);
     CHECK_DIM(1, plan);
     CHECK_DIM(2, layout);
     CHECK_DEVICE(plan, layout);
     TVM_FFI_ICHECK_EQ(layout.size(1), 3);
-    TVM_FFI_ICHECK_GT(payload, 0);
     TVM_FFI_ICHECK_GT(failed, 0);
-    TVM_FFI_ICHECK_GT(ready, 0);
-    TVM_FFI_ICHECK_GE(epoch, 0);
-    TVM_FFI_ICHECK_GE(timeout_ns, 0);
-    TVM_FFI_ICHECK_GT(expert_bytes, 0);
+    TVM_FFI_ICHECK_GE(plan.size(0), 4);
     TVM_FFI_ICHECK_GT(top_k, 0);
     TVM_FFI_ICHECK_LE(top_k, 32);
     mailbox_fill_kernel<<<dim3(top_k, 8), 256, 0, get_stream(plan.device())>>>(
         static_cast<const int32_t*>(plan.data_ptr()),
         static_cast<const int64_t*>(layout.data_ptr()),
         layout.size(0),
-        reinterpret_cast<const uint8_t*>(payload),
-        expert_bytes,
-        reinterpret_cast<const volatile int32_t*>(failed),
-        reinterpret_cast<const volatile int64_t*>(ready),
-        epoch,
-        timeout_ns);
+        reinterpret_cast<const volatile int32_t*>(failed));
     TVM_FFI_ICHECK_EQ(cudaGetLastError(), cudaSuccess);
   }
 };
@@ -429,10 +405,7 @@ __global__ void decode_plan_kernel(
     int policy,
     int protected_slots,
     bool export_routes,
-    volatile int32_t* host_head,
-    volatile int32_t* host_plan,
-    int64_t* hit_stats,
-    int epoch) {
+    int64_t* hit_stats) {
   __shared__ int32_t histogram[513];
   __shared__ int32_t active_ids[32];
   __shared__ int active_count;
@@ -514,25 +487,20 @@ __global__ void decode_plan_kernel(
     int expert = ids[threadIdx.x];
     output[threadIdx.x] = (expert >= 0 && expert < experts) ? lookup[expert] : -1;
   }
-  if (host_head) {
+  if (hit_stats) {
     __syncthreads();
     if (plan[0] || plan[3]) {
       if (threadIdx.x == 0) asm volatile("trap;");
       return;
     }
-    if (plan[1] == 0) {
-      if (threadIdx.x == 0) {
-        hit_stats[0] += plan[2];
-        hit_stats[1] += 1;
-      }
-    } else {
-      // Only misses cross PCIe. Each layer has one mailbox, reused only
-      // after its previous compute completed (including the transport wait).
-      for (int i = threadIdx.x; i < 4 + 3 * slots; i += blockDim.x)
-        host_plan[i] = plan[i];
-      __threadfence_system();
-      __syncthreads();
-      if (threadIdx.x == 0) *host_head = epoch;
+    if (threadIdx.x == 0) {
+      // Prior readers and updates are ordered by the caller's stream/events.
+      // Accumulate every plan on device; a host snapshot cannot lose misses
+      // when several invocations of the same layer are already queued.
+      hit_stats[0] += plan[2] - plan[1];
+      hit_stats[1] += plan[1] == 0;
+      hit_stats[2] += plan[1];
+      hit_stats[3] += plan[1] != 0;
     }
   }
 }
@@ -639,9 +607,6 @@ struct Qwen38CacheDecodePlan {
         decay,
         policy,
         protected_fraction,
-        0,
-        0,
-        0,
         0);
   }
   static void run_mailbox(
@@ -658,11 +623,7 @@ struct Qwen38CacheDecodePlan {
       double decay,
       int64_t policy,
       double protected_fraction,
-      int64_t host_head,
-      int64_t host_plan,
-      int64_t hit_stats,
-      int64_t epoch) {
-    TVM_FFI_ICHECK(!host_head || (host_plan && hit_stats && epoch > 0 && epoch < INT32_MAX));
+      int64_t hit_stats) {
     CHECK_INPUT_AND_TYPE(ids, dl_int32);
     CHECK_INPUT_AND_TYPE(output, dl_int32);
     CHECK_DIM(2, ids);
@@ -731,10 +692,7 @@ struct Qwen38CacheDecodePlan {
         static_cast<int>(policy),
         static_cast<int>(slots * protected_fraction),
         plan.size(0) == 4 + 4 * slots,
-        reinterpret_cast<volatile int32_t*>(host_head),
-        reinterpret_cast<volatile int32_t*>(host_plan),
-        reinterpret_cast<int64_t*>(hit_stats),
-        epoch);
+        reinterpret_cast<int64_t*>(hit_stats));
     auto status = cudaGetLastError();
     TVM_FFI_ICHECK_EQ(status, cudaSuccess) << cudaGetErrorString(status);
   }

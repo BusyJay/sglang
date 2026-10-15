@@ -8,10 +8,11 @@ import torch
 @unittest.skipUnless(torch.cuda.is_available(), "CUDA unavailable")
 class TestMailboxRegistration(unittest.TestCase):
     def test_single_source_and_cpu_controls_with_cuda_default(self):
-        from .test_cpu_runtime import TestSynchronousRuntime
         from sglang.srt.layers.moe.qwen38_cache_threaded import (
             Qwen38ThreadedExpertRuntime,
         )
+
+        from .test_cpu_runtime import TestSynchronousRuntime
 
         TestSynchronousRuntime.setUpClass()
         fixture = TestSynchronousRuntime()
@@ -27,7 +28,7 @@ class TestMailboxRegistration(unittest.TestCase):
         try:
             self.assertIs(mapping, fixture.pack._mapping)
             self.assertIs(mapping, fixture.pack.cuda_source_mapping())
-            self.assertEqual(runtime.miss_mailbox.heads.device.type, "cpu")
+            self.assertEqual(runtime.miss_mailbox.failed.device.type, "cpu")
             self.assertEqual(runtime.miss_mailbox.pack_view.device.type, "cpu")
             view = fixture.pack.expert_tensor_bytes(0, 0, "w13_weight")
             try:
