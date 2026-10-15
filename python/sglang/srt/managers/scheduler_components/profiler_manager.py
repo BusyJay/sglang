@@ -273,6 +273,10 @@ class SchedulerProfilerManager:
 
         if "CUDA_PROFILER" in activities:
             if get_device().gpu_id == get_device().base_gpu_id:
+                # The cudart profiler bindings hold the GIL. Drain queued work
+                # first with PyTorch's GIL-releasing synchronize, so host-driven
+                # GPU waits (e.g. expert offload staging) can finish.
+                torch.cuda.synchronize()
                 torch.cuda.cudart().cudaProfilerStart()
             self.profile_in_progress = True
 
@@ -386,6 +390,9 @@ class SchedulerProfilerManager:
 
         if "CUDA_PROFILER" in self.profiler_activities:
             if get_device().gpu_id == get_device().base_gpu_id:
+                # Nsight/CUPTI may synchronize inside cudaProfilerStop while
+                # its binding holds the GIL, starving Python transfer workers.
+                torch.cuda.synchronize()
                 torch.cuda.cudart().cudaProfilerStop()
 
         merge_message = self._merge_profile_traces()
