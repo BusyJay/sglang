@@ -2,8 +2,8 @@
 """Miss-only GPU to host mailboxes for the threaded expert cache.
 
 The decode planner releases hits entirely on device. Misses publish their
-plan into mapped pinned memory. A native CPU poll releases the GIL and stages
-only CPU bytes; a pre-enqueued bounded GPU wait/copy then fills device slots.
+plan into mapped pinned memory. The fill reads registered immutable mmap
+bytes directly; the CPU worker only publishes metadata and counters.
 No background CUDA submission is needed, even during synchronous host reads.
 Per-layer mailboxes and the shared payload are reused after prior GPU readers.
 """
@@ -35,6 +35,23 @@ def _poll_module():
 
 class DecodeMissMailbox:
     def __init__(self, runtime):
+        try:
+            self._initialize(runtime)
+        except BaseException:
+            if hasattr(self, "stopping"):
+                self.stopping.set()
+            for name in ("worker", "watchdog"):
+                worker = getattr(self, name, None)
+                if worker is not None and worker.is_alive():
+                    worker.join()
+            if hasattr(self, "pack_address"):
+                with torch.cuda.device(runtime.device):
+                    _module().mailbox_unregister(self.pack_view)
+            if hasattr(self, "pack_view"):
+                del self.pack_view
+            raise
+
+    def _initialize(self, runtime):
         from cuda.bindings import driver
 
         from sglang.srt.utils.cuda_vmm_utils import check_drv
@@ -86,17 +103,12 @@ class DecodeMissMailbox:
             )
             for layer in range(layers)
         }
-        self.payload = torch.empty(
-            max(map(sum, self.sizes.values())) * runtime.manifest.top_k,
-            dtype=torch.uint8,
-            pin_memory=True,
-        )
-        self.payload_address = int(
-            check_drv(
-                driver.cuMemHostGetDevicePointer(self.payload.data_ptr(), 0),
-                "qwen38 mailbox payload",
-            )
-        )
+        # Zero-copy view, retained until all device readers have drained.
+        # CUDA registration pins the existing file pages, not a second payload.
+        self.pack_view = torch.frombuffer(runtime.pack._mapping, dtype=torch.uint8)
+        with torch.cuda.device(runtime.device):
+            self.pack_address = _module().mailbox_register(self.pack_view)
+        self.payload_address = self.pack_address
         self.refresh_targets()
         self.last_computed = None
         # Reuse completion events instead of allocating/destroying them in
@@ -242,7 +254,11 @@ class DecodeMissMailbox:
         self.layouts = {
             layer: torch.tensor(
                 [
-                    [r.caches[layer][name].data_ptr(), size]
+                    [
+                        r.caches[layer][name].data_ptr(),
+                        size,
+                        self.pack_address + r.manifest.tensors[layer][name].offset,
+                    ]
                     for name, size in zip(r.decode_copy_names, self.sizes[layer])
                 ],
                 dtype=torch.int64,
@@ -266,46 +282,31 @@ class DecodeMissMailbox:
                 self.plans,
                 self.ready,
                 self.failed,
-                self.payload,
+                self.pack_view,
             )
         )
 
-    def stage(self, layer, values, misses, epoch):
+    def _record_misses(self, layer, values, misses):
         r = self.runtime
-        host = memoryview(self.payload.numpy()).cast("B")
-        offset = 0
-        try:
-            for index in range(misses):
-                expert = values[4 + 2 * index]
-                for name in r.decode_copy_names:
-                    source = r.pack.expert_tensor_bytes(layer, expert, name)
-                    try:
-                        host[offset : offset + len(source)] = source
-                        offset += len(source)
-                    finally:
-                        source.release()
-                # Publish one complete expert at a time, overlapping staging
-                # the next expert with GPU reads of this expert.
-                if index == misses - 1:
-                    # Commit statistics before the final release, so explicit
-                    # GPU synchronization also observes completed host counters.
-                    r.transferred_bytes += offset
-                    r.decode_device_gate_copy_calls += 1
-                    r.decode_device_gate_copy_bytes += offset
-                    if r.resident_alphas:
-                        r.decode_alpha_h2d_calls_avoided += 2 * misses
-                    r.misses += misses
-                    r.hits += values[2] - misses
-                    r.layer_misses[layer] += misses
-                    r.layer_hits[layer] += values[2] - misses
-                self.ready[layer] = epoch * (r.manifest.top_k + 1) + index + 1
-        finally:
-            host.release()
+        size = sum(self.sizes[layer]) * misses
+        r.transferred_bytes += size
+        r.decode_device_gate_copy_calls += 1
+        r.decode_device_gate_copy_bytes += size
+        if r.resident_alphas:
+            r.decode_alpha_h2d_calls_avoided += 2 * misses
+        r.misses += misses
+        r.hits += values[2] - misses
+        r.layer_misses[layer] += misses
+        r.layer_hits[layer] += values[2] - misses
+
+    def stage(self, layer, values, misses, epoch):
+        # Immutable source addresses are precomputed; publish metadata only.
+        self._record_misses(layer, values, misses)
+        self.ready[layer] = epoch * (self.runtime.manifest.top_k + 1) + misses
 
     def _work(self):
         r = self.runtime
-        # CPU-only: CUDA API calls here can deadlock against pageable D2H on
-        # the main thread. The foreground already queued the device byte copy.
+        # CPU-only: publishes metadata and counters; never submits CUDA work.
         try:
             while not self.stopping.is_set():
                 layer = self.poll(self.heads, self.seen)
@@ -381,3 +382,7 @@ class DecodeMissMailbox:
         self.stopping.set()
         self.worker.join()
         self.watchdog.join()
+        # runtime.close() drains compute before stopping mailbox threads.
+        with torch.cuda.device(self.runtime.device):
+            _module().mailbox_unregister(self.pack_view)
+        del self.pack_view

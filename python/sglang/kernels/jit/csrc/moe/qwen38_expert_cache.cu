@@ -30,11 +30,13 @@ __global__ void mailbox_fill_kernel(
   }
   __syncthreads();
   int slot = plan[5 + 2 * miss];
+  int expert = plan[4 + 2 * miss];
   int64_t offset = static_cast<int64_t>(miss) * expert_bytes;
   for (int tensor = 0; tensor < tensors; ++tensor) {
-    int64_t bytes = layout[2 * tensor + 1];
-    auto* destination = reinterpret_cast<uint8_t*>(layout[2 * tensor]) + slot * bytes;
-    const uint8_t* source = payload + offset;
+    int64_t bytes = layout[3 * tensor + 1];
+    auto* destination = reinterpret_cast<uint8_t*>(layout[3 * tensor]) + slot * bytes;
+    const uint8_t* source = reinterpret_cast<const uint8_t*>(layout[3 * tensor + 2]) +
+        static_cast<int64_t>(expert) * bytes;
     int64_t i = static_cast<int64_t>(blockIdx.y) * blockDim.x + threadIdx.x;
     int64_t stride = static_cast<int64_t>(blockDim.x) * gridDim.y;
     if ((reinterpret_cast<uintptr_t>(source) | reinterpret_cast<uintptr_t>(destination) | bytes) % 16 == 0) {
@@ -55,6 +57,32 @@ __global__ void mailbox_fill_kernel(
 }
 }  // namespace
 
+// Register the existing file mapping; never allocate/copy a host payload.
+struct Qwen38MailboxRegister {
+  static int64_t run(TensorView bytes) {
+    TVM_FFI_ICHECK_EQ(bytes.device().device_type, kDLCPU);
+    TVM_FFI_ICHECK_EQ(bytes.ndim(), 1);
+    CHECK_CONTIGUOUS(bytes);
+    CHECK_INPUT_TYPE(bytes, dl_uint8);
+    TVM_FFI_ICHECK_GT(bytes.size(0), 0);
+    unsigned int flags = cudaHostRegisterMapped | cudaHostRegisterReadOnly;
+    auto status = cudaHostRegister(bytes.data_ptr(), bytes.size(0), flags);
+    TVM_FFI_ICHECK_EQ(status, cudaSuccess) << "register expert mmap: " << cudaGetErrorString(status);
+    void* mapped = nullptr;
+    status = cudaHostGetDevicePointer(&mapped, bytes.data_ptr(), 0);
+    if (status != cudaSuccess) cudaHostUnregister(bytes.data_ptr());
+    TVM_FFI_ICHECK_EQ(status, cudaSuccess) << cudaGetErrorString(status);
+    return reinterpret_cast<int64_t>(mapped);
+  }
+};
+struct Qwen38MailboxUnregister {
+  static void run(TensorView bytes) {
+    TVM_FFI_ICHECK_EQ(bytes.device().device_type, kDLCPU);
+    auto status = cudaHostUnregister(bytes.data_ptr());
+    TVM_FFI_ICHECK_EQ(status, cudaSuccess) << cudaGetErrorString(status);
+  }
+};
+
 struct Qwen38MailboxFill {
   static void
   run(TensorView plan,
@@ -71,7 +99,7 @@ struct Qwen38MailboxFill {
     CHECK_DIM(1, plan);
     CHECK_DIM(2, layout);
     CHECK_DEVICE(plan, layout);
-    TVM_FFI_ICHECK_EQ(layout.size(1), 2);
+    TVM_FFI_ICHECK_EQ(layout.size(1), 3);
     TVM_FFI_ICHECK_GT(payload, 0);
     TVM_FFI_ICHECK_GT(failed, 0);
     TVM_FFI_ICHECK_GT(ready, 0);

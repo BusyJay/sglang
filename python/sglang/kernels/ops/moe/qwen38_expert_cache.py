@@ -19,6 +19,8 @@ def _module():
             ("decode_plan", "Qwen38CacheDecodePlan::run"),
             ("decode_plan_mailbox", "Qwen38CacheDecodePlan::run_mailbox"),
             ("packed_scatter", "Qwen38PackedScatter::run"),
+            ("mailbox_register", "Qwen38MailboxRegister::run"),
+            ("mailbox_unregister", "Qwen38MailboxUnregister::run"),
             ("mailbox_fill", "Qwen38MailboxFill::run"),
         ],
     )
