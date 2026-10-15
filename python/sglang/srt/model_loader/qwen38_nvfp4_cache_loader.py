@@ -87,6 +87,8 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             "resident_alphas",
             "prefill_copy_mode",
             "fused_decode_plan",
+            "decode_hit_fast_path",
+            "decode_device_gate",
             "packed_decode",
             "packed_prefill",
             "packed_min_bytes",
@@ -177,6 +179,10 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             raise ValueError("runtime_mode must be sync, async, device or threaded")
         if type(config.get("preallocate_gdn_proj", False)) is not bool:
             raise ValueError("preallocate_gdn_proj must be a JSON boolean")
+        if type(config.get("decode_hit_fast_path", True)) is not bool:
+            raise ValueError("decode_hit_fast_path must be a JSON boolean")
+        if type(config.get("decode_device_gate", True)) is not bool:
+            raise ValueError("decode_device_gate must be a JSON boolean")
         self.config = config
         self.manifest = load_manifest(manifest_path)
         self.manifest.validate_cutlass_layout()
@@ -382,6 +388,8 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                     ("resident_alphas", True),
                     ("prefill_copy_mode", "auto"),
                     ("fused_decode_plan", True),
+                    ("decode_hit_fast_path", True),
+                    ("decode_device_gate", True),
                     ("packed_decode", "direct"),
                     ("packed_prefill", "direct"),
                     ("packed_min_bytes", 4096),

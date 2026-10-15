@@ -1,15 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 """Main-thread asynchronous expert cache with a background mmap/H2D worker.
 
-CPU transport remains, but plan/event waits run on the worker. Slot readiness
-is expressed with CUDA events only: the worker records a per-job ready event on
-the transfer stream after dispatching copies and notifies the caller through a
-lightweight flag; the compute stream then waits on that event before MoE reads.
-A bounded queue may apply host backpressure when the producer outruns transport.
-Startup and explicit synchronize/close wait intentionally. Full CUDA Graph
-capture is not supported; breakable decode graphs run this runtime eagerly at
-each MoE boundary. Raw driver stream memory operations are deliberately avoided so
-every CUDA state transition goes through PyTorch's own locking.
+Single-token all-hit decode can bypass the worker. The device path
+uses miss-only mapped host mailboxes: hits remain on GPU, misses are filled by
+an independent CPU worker. Native polling releases the GIL; a bounded GPU wait/copy
+handles only misses after CPU staging. Sampling and prefill use
+the established event-based transport. Full CUDA Graph capture is unsupported.
 """
 
 from __future__ import annotations
@@ -67,7 +63,7 @@ def _ready_timeout_seconds() -> float | None:
         parsed = float(value)
     except ValueError:
         raise ValueError("QWEN38_READY_TIMEOUT_SECONDS must be a number") from None
-    if parsed <= 0:
+    if parsed < 0:
         raise ValueError("QWEN38_READY_TIMEOUT_SECONDS must be positive or zero")
     return parsed
 
@@ -88,6 +84,7 @@ class TransferJob:
     ready_set: threading.Event = field(
         default_factory=threading.Event
     )  # notification: exactly one of ready/error
+    plan_values: list[int] | None = None  # already synchronized on the caller
 
 
 class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
@@ -108,6 +105,8 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         resident_alphas=True,
         prefill_copy_mode="auto",
         fused_decode_plan=True,
+        decode_hit_fast_path=True,
+        decode_device_gate=True,
         packed_decode="direct",
         packed_prefill="direct",
         packed_min_bytes=4096,
@@ -173,6 +172,19 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             raise ValueError("fused_decode_plan must be a boolean")
         self.fused_decode_plan = fused_decode_plan
         self.fused_decode_plan_invocations = 0
+        if type(decode_hit_fast_path) is not bool:
+            raise ValueError("decode_hit_fast_path must be a boolean")
+        self.decode_hit_fast_path = decode_hit_fast_path
+        self.decode_hit_fast_path_invocations = 0
+        if type(decode_device_gate) is not bool:
+            raise ValueError("decode_device_gate must be a boolean")
+        self.decode_device_gate = decode_device_gate
+        self.decode_device_gate_invocations = 0
+        self.decode_device_gate_hits = 0
+        self.decode_device_gate_copy_calls = 0
+        self.decode_device_gate_copy_bytes = 0
+        self.gate_warmed_layers = set()
+        self.miss_mailbox = None
         self.alpha_tables = {}
         self.decode_alpha_h2d_calls_avoided = 0
         self.prefill_copy_stats = [
@@ -340,6 +352,10 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         )
         self.reaper.start()
         self.worker.start()
+        if self.decode_device_gate:
+            from sglang.srt.layers.moe.qwen38_cache_mailbox import DecodeMissMailbox
+
+            self.miss_mailbox = DecodeMissMailbox(self)
         if self.adaptive_cache:
             self.adaptive_worker = threading.Thread(
                 target=self._analyze_routes, name="qwen38-cache-adaptive", daemon=True
@@ -717,6 +733,8 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                     old = self.layer_cache_slots
                     retained, migrated, evicted = self._migrate_pool(target)
                     self._assign_pool_views(target)
+                    if self.miss_mailbox is not None:
+                        self.miss_mailbox.refresh_targets()
                     if self.packed_transport is not None:
                         self.packed_transport.refresh_targets()
                     self.layer_cache_slots = list(target)
@@ -749,6 +767,8 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                     self.poisoned = True
                     raise
                 self.adaptive_rebalances += 1
+                # A different runner capacity may allocate/load new kernels.
+                self.gate_warmed_layers.clear()
                 self.adaptive_migrated_experts += migrated
                 self.adaptive_evicted_experts += evicted
                 self.adaptive_last_rebalance_seconds = time.perf_counter() - started
@@ -763,6 +783,8 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                 )
 
     def stats_snapshot(self):
+        if getattr(self, "miss_mailbox", None) is not None:
+            self.miss_mailbox.flush_stats()
         result = super().stats_snapshot()
         result["packed_decode"] = self.packed_decode
         result["packed_prefill"] = self.packed_prefill
@@ -803,6 +825,13 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             prefill_seed_cache=self.prefill_seed_cache,
             fused_decode_plan=self.fused_decode_plan,
             fused_decode_plan_invocations=self.fused_decode_plan_invocations,
+            decode_hit_fast_path=self.decode_hit_fast_path,
+            decode_hit_fast_path_invocations=self.decode_hit_fast_path_invocations,
+            decode_device_gate=self.decode_device_gate,
+            decode_device_gate_invocations=self.decode_device_gate_invocations,
+            decode_device_gate_hits=self.decode_device_gate_hits,
+            decode_device_gate_copy_calls=self.decode_device_gate_copy_calls,
+            decode_device_gate_copy_bytes=self.decode_device_gate_copy_bytes,
             resident_alphas=self.resident_alphas,
             decode_alpha_h2d_calls_avoided=self.decode_alpha_h2d_calls_avoided,
             prefill_copy_mode=self.prefill_copy_mode,
@@ -858,7 +887,8 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                     self.jobs.task_done()
                     return
                 try:
-                    job.planned.synchronize()
+                    if job.plan_values is None:
+                        job.planned.synchronize()
                     self.transfer.wait_event(job.planned)  # policy/allocation order
                     if self.worker_error is not None:
                         raise RuntimeError("previous transfer failed")
@@ -925,7 +955,11 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                         self.arena_last_use = job.computed
                     else:
                         capacity = self.slots_for_layer(job.layer)
-                        values = job.plan.tolist()
+                        values = (
+                            job.plan_values
+                            if job.plan_values is not None
+                            else job.plan.tolist()
+                        )
                         status, misses, active, arena = values[:4]
                         if status or arena:
                             raise ValueError(
@@ -1025,6 +1059,8 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         # CUDA completion alone does not drain the retirement thread. Its
         # event synchronization must finish before a caller starts graph capture.
         self.jobs.join()
+        if self.miss_mailbox is not None:
+            self.miss_mailbox.synchronize()
         super().synchronize()
 
     def close(self):
@@ -1034,6 +1070,8 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             self.synchronize()
         finally:
             self.closed = True
+            if self.miss_mailbox is not None:
+                self.miss_mailbox.close()
             if self.worker is not None:
                 self.jobs.put(None)
                 self.worker.join()
@@ -1088,6 +1126,12 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             )
             * 4
         )
+        result["decode_device_gate_bytes"] = (
+            self.miss_mailbox.device_bytes if self.miss_mailbox is not None else 0
+        )
+        result["decode_mailbox_pinned_bytes"] = (
+            self.miss_mailbox.pinned_bytes if self.miss_mailbox is not None else 0
+        )
         return result
 
     def _dense_startup_prefill(self, layer_id, arena, tokens):
@@ -1131,14 +1175,31 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             self.sampling_verify = execution_phase == "verify"
             if arena and self.arena is None:
                 raise ValueError("route bound exceeds cache; enable prefill arena")
+            sample = self._sample_position(layer_id, topk_ids)
+            if (
+                self.miss_mailbox is not None
+                and layer_id in self.gate_warmed_layers
+                and self.fused_decode_plan
+                and not arena
+                and topk_ids.shape[0] == 1
+                and 0 < topk_ids.shape[1] <= 32
+                and sample is None
+            ):
+                return self.miss_mailbox.run(
+                    layer_id, topk_ids, execute, _ready_timeout_seconds()
+                )
+            if self.miss_mailbox is not None:
+                # Drain native readers before changing transport mode, sampling,
+                # or running prefill. This also serializes the staging and H2D workers.
+                self.miss_mailbox.synchronize()
             self.capacity.acquire()  # bounded producer backpressure, not a per-layer CUDA wait
             queued = False
+            fast_hit = False
             launched = threading.Event()
             compute = torch.cuda.current_stream(self.device)
             planned = torch.cuda.Event()
             computed = torch.cuda.Event()
             plan = None
-            sample = self._sample_position(layer_id, topk_ids)
             previous = self.layer_computed.get(layer_id)
             try:
                 if previous is not None:
@@ -1213,6 +1274,50 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                     topk_ids.record_stream(self.metadata_stream)
                     remapped.record_stream(compute)
                 compute.wait_event(planned)
+                plan_values = None
+                if self.decode_hit_fast_path and not arena and topk_ids.shape[0] == 1:
+                    # Replace the worker's plan wait with the caller's wait.
+                    # The bounded D2H remains, but all-hit decode needs no queue
+                    # handoff, worker wakeup or retirement job.
+                    planned.synchronize()
+                    plan_values = plan.tolist()
+                    if (
+                        plan_values[0] == 0
+                        and plan_values[1] == 0
+                        and plan_values[3] == 0
+                    ):
+                        fast_hit = True
+                        active = plan_values[2]
+                        for slot in plan_values[
+                            4 + 2 * capacity : 4 + 2 * capacity + active
+                        ]:
+                            self.slot_last_use[layer_id][slot] = computed
+                        self.hits += active
+                        self.layer_hits[layer_id] += active
+                        if sample is not None and self.adaptive_cache:
+                            try:
+                                self.adaptive_samples.put_nowait(
+                                    (
+                                        layer_id,
+                                        *sample,
+                                        plan_values[
+                                            4 + 3 * capacity : 4 + 3 * capacity + active
+                                        ],
+                                    )
+                                )
+                            except queue.Full:
+                                self.adaptive_sample_drops += 1
+                        self.decode_hit_fast_path_invocations += 1
+                        prepared = PreparedExperts(
+                            {**self.caches[layer_id], **self.layer_scales[layer_id]},
+                            remapped,
+                            capacity,
+                            False,
+                        )
+                        result = execute(prepared)
+                        if self.decode_device_gate:
+                            self.gate_warmed_layers.add(layer_id)
+                        return result
                 job = TransferJob(
                     layer_id,
                     arena,
@@ -1223,10 +1328,11 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                     sample,
                     force_dense=force_dense,
                     verify=execution_phase == "verify",
+                    plan_values=plan_values,
                 )
+                timeout = _ready_timeout_seconds()
                 self.jobs.put_nowait(job)
                 queued = True
-                timeout = _ready_timeout_seconds()
                 # Includes plan completion, host staging, and ring backpressure;
                 # the final H2Ds need only be enqueued, not completed.
                 if timeout == 0:
@@ -1254,9 +1360,11 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                     arena,
                 )
                 result = execute(prepared)
+                if self.decode_device_gate and not arena and topk_ids.shape[0] == 1:
+                    self.gate_warmed_layers.add(layer_id)
                 return result
             except BaseException:
-                if not queued:
+                if not queued and not fast_hit:
                     if plan is not None:
                         # A failed copy/launch must finish before reusing its host buffer.
                         self.metadata_stream.synchronize()
@@ -1264,7 +1372,12 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                     self.capacity.release()
                 raise
             finally:
-                if queued:
+                if queued or fast_hit:
                     computed.record(compute)
                     self.layer_computed[layer_id] = computed
                     launched.set()
+                if fast_hit:
+                    # D2H completed before inline execution; GPU readers do not
+                    # use this pinned plan. Preserve computed for future writers.
+                    self.host_plans[plan.numel()].put(plan)
+                    self.capacity.release()

@@ -17,7 +17,9 @@ def _module():
             ("scatter", "Qwen38CacheScatter::run"),
             ("alpha_scatter", "Qwen38CacheAlphaScatter::run"),
             ("decode_plan", "Qwen38CacheDecodePlan::run"),
+            ("decode_plan_mailbox", "Qwen38CacheDecodePlan::run_mailbox"),
             ("packed_scatter", "Qwen38PackedScatter::run"),
+            ("mailbox_fill", "Qwen38MailboxFill::run"),
         ],
     )
 
@@ -33,18 +35,47 @@ def cache_alpha_scatter(g1, g2, slot_g1, slot_g2, plan):
     _module().alpha_scatter(g1, g2, slot_g1, slot_g2, plan)
 
 
-def cache_decode_plan(ids, remapped, counts, lookup, keys, frequency, ages,
-                      generation, clock, plan, decay=0.95, policy=0,
-                      protected_fraction=0.7):
+def cache_decode_plan(
+    ids,
+    remapped,
+    counts,
+    lookup,
+    keys,
+    frequency,
+    ages,
+    generation,
+    clock,
+    plan,
+    decay=0.95,
+    policy=0,
+    protected_fraction=0.7,
+):
     """Fuse one-token histogram, policy and remap with the reference policy."""
-    _module().decode_plan(ids, remapped, counts, lookup, keys, frequency, ages,
-                          generation, clock, plan, decay, policy, protected_fraction)
+    _module().decode_plan(
+        ids,
+        remapped,
+        counts,
+        lookup,
+        keys,
+        frequency,
+        ages,
+        generation,
+        clock,
+        plan,
+        decay,
+        policy,
+        protected_fraction,
+    )
 
 
 def cache_scatter(cache, arena, keys, counts):
     """Scatter routed resident rows without allocating gathered expert weights."""
-    _module().scatter(cache.view(torch.uint8).reshape(cache.shape[0], -1),
-                      arena.view(torch.uint8).reshape(arena.shape[0], -1), keys, counts)
+    _module().scatter(
+        cache.view(torch.uint8).reshape(cache.shape[0], -1),
+        arena.view(torch.uint8).reshape(arena.shape[0], -1),
+        keys,
+        counts,
+    )
 
 
 def cache_plan(

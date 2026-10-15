@@ -25,6 +25,7 @@ class TestGpuCache(unittest.TestCase):
         staging_buffer_bytes=None,
         warm_decode_cache=False,
         layer_cache_slots=None,
+        decode_device_gate=None,
     ):
         from sglang.srt.layers.moe.qwen38_cache_runtime import (
             Qwen38SynchronousExpertRuntime,
@@ -56,6 +57,8 @@ class TestGpuCache(unittest.TestCase):
             options["warm_decode_cache"] = True
         if layer_cache_slots is not None:
             options["layer_cache_slots"] = layer_cache_slots
+        if decode_device_gate is not None:
+            options["decode_device_gate"] = decode_device_gate
         allocated_before = torch.cuda.memory_allocated()
         torch.cuda.reset_peak_memory_stats()
         runtime = runtime_class(self.fixture.pack, "cuda", slots_per_layer=2, **options)
@@ -120,6 +123,294 @@ class TestGpuCache(unittest.TestCase):
 
     def test_threaded_pipeline(self):
         self._exercise("threaded")
+
+    def test_device_gate_pipeline_preserves_cross_stream_and_prefill_readers(self):
+        self._exercise("threaded", decode_device_gate=True)
+
+    def test_device_gate_warm_cache_and_heterogeneous_capacity(self):
+        self._exercise(
+            "threaded",
+            decode_device_gate=True,
+            warm_decode_cache=True,
+            layer_cache_slots=[2, 3],
+        )
+
+    def test_device_gate_rewarms_after_adaptive_migration(self):
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
+
+        runtime = Qwen38ThreadedExpertRuntime(
+            self.fixture.pack,
+            "cuda",
+            slots_per_layer=3,
+            adaptive_cache=True,
+            adaptive_cache_mode="sample",
+            decode_device_gate=True,
+        )
+        runtime.reserve()
+        self.addCleanup(runtime.close)
+        # Exercise the native path outside adaptive observation windows.
+        runtime.adaptive_steps[0] = runtime.adaptive_cache_window
+
+        def execute(prepared):
+            return prepared.tensors["w13_weight"][prepared.topk_ids.long()].clone()
+
+        ids = torch.tensor([[0, 1]], dtype=torch.int32, device="cuda")
+        runtime.run(0, ids, execute)
+        runtime.run(0, ids, execute)
+        runtime.synchronize()
+        self.assertEqual(runtime.decode_device_gate_invocations, 1)
+        runtime.adaptive_target = [4, 2]
+        runtime._maybe_rebalance()
+        self.assertFalse(runtime.gate_warmed_layers)
+        runtime.run(0, ids, execute)
+        self.assertEqual(runtime.decode_device_gate_invocations, 1)
+        output = runtime.run(0, ids, execute)
+        runtime.synchronize()
+        self.assertEqual(runtime.decode_device_gate_invocations, 2)
+        self.assertTrue(
+            torch.equal(
+                output.cpu(),
+                self.fixture.resident[0].w13_weight[torch.tensor([[0, 1]])],
+            )
+        )
+
+    def test_device_gate_timeout_fails_before_stale_weights_in_subprocess(self):
+        import os
+        import subprocess
+        import sys
+        import textwrap
+
+        # The failure check deliberately invalidates the child's CUDA context.
+        # Keep the parent context usable for the remaining parity tests.
+        source = textwrap.dedent("""
+            import os, time, torch
+            from tools.qwen38_cache_tests.test_cpu_runtime import TestSynchronousRuntime
+            from sglang.srt.layers.moe.qwen38_cache_threaded import Qwen38ThreadedExpertRuntime
+            TestSynchronousRuntime.setUpClass()
+            fixture = TestSynchronousRuntime()
+            fixture.setUp()
+            runtime = Qwen38ThreadedExpertRuntime(
+                fixture.pack, 'cuda', slots_per_layer=2, decode_device_gate=True
+            )
+            runtime.reserve()
+            routes = [torch.tensor([pair], dtype=torch.int32, device='cuda')
+                      for pair in [(0, 1), (2, 3)]]
+            runtime.run(0, routes[0], lambda prepared: None)
+            runtime.synchronize()
+            stage = runtime.miss_mailbox.stage
+            def delayed_stage(*args, **kwargs):
+                time.sleep(0.3)
+                return stage(*args, **kwargs)
+            runtime.miss_mailbox.stage = delayed_stage
+            os.environ['QWEN38_READY_TIMEOUT_SECONDS'] = '0.05'
+            try:
+                runtime.run(0, routes[1], lambda prepared: None)
+                torch.cuda.synchronize()
+            except torch.AcceleratorError:
+                os._exit(0 if runtime.poisoned else 2)
+            os._exit(3)
+        """)
+        child = subprocess.run(
+            [sys.executable, "-c", source],
+            env=os.environ.copy(),
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        self.assertEqual(child.returncode, 0, child.stdout + child.stderr)
+
+    def test_device_gate_all_hit_skips_d2h_jobs_and_worker(self):
+        from unittest import mock
+
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
+
+        runtime = Qwen38ThreadedExpertRuntime(
+            self.fixture.pack, "cuda", slots_per_layer=2
+        )
+        self.assertTrue(runtime.decode_device_gate)
+        runtime.reserve()
+        self.addCleanup(runtime.close)
+        ids = torch.tensor([[0, 1]], dtype=torch.int32, device="cuda")
+
+        def execute(prepared):
+            return prepared.tensors["w13_weight"][prepared.topk_ids.long()].clone()
+
+        runtime.run(0, ids, execute)
+        runtime.synchronize()
+        heads = runtime.miss_mailbox.heads.clone()
+        host_ready = runtime.miss_mailbox.ready.clone()
+        plans = runtime.host_plan_allocations
+        with (
+            mock.patch.object(
+                runtime, "_host_plan", side_effect=AssertionError("all-hit D2H")
+            ),
+            mock.patch.object(
+                runtime.jobs, "put_nowait", side_effect=AssertionError("all-hit job")
+            ),
+            mock.patch.object(
+                runtime, "_fill", side_effect=AssertionError("all-hit fill")
+            ),
+        ):
+            for _ in range(32):
+                output = runtime.run(0, ids, execute)
+            runtime.synchronize()
+        self.assertTrue(
+            torch.equal(
+                output.cpu(),
+                self.fixture.resident[0].w13_weight[torch.tensor([[0, 1]])],
+            )
+        )
+        self.assertTrue(torch.equal(runtime.miss_mailbox.heads, heads))
+        self.assertTrue(torch.equal(runtime.miss_mailbox.ready, host_ready))
+        self.assertEqual(runtime.host_plan_allocations, plans)
+        self.assertEqual(runtime.jobs.unfinished_tasks, 0)
+        self.assertEqual(runtime.decode_device_gate_hits, 32)
+        self.assertEqual(runtime.hits, 64)
+
+    def test_miss_mailbox_sampling_and_slru_preserve_queued_readers(self):
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
+
+        for policy in ("lfu", "slru"):
+            runtime = Qwen38ThreadedExpertRuntime(
+                self.fixture.pack,
+                "cuda",
+                slots_per_layer=2,
+                max_pending=8,
+                decode_device_gate=True,
+                adaptive_cache=True,
+                adaptive_cache_mode="sample",
+                adaptive_cache_window=16,
+                adaptive_cache_interval=16,
+                cache_policy=policy,
+            )
+            runtime.reserve()
+            try:
+                routes = [
+                    torch.tensor([pair], dtype=torch.int32, device="cuda")
+                    for pair in ((0, 1), (2, 3))
+                ]
+                streams = [torch.cuda.Stream(), torch.cuda.Stream()]
+                outputs = []
+                for i in range(128):
+                    route = (i // 2) % 2
+                    with torch.cuda.stream(streams[i % 2]):
+                        output = runtime.run(
+                            0,
+                            routes[route],
+                            lambda prepared: prepared.tensors["w13_weight"][
+                                prepared.topk_ids.long()
+                            ].clone(),
+                        )
+                    outputs.append((route, output))
+                runtime.synchronize()
+                for route, output in outputs:
+                    self.assertTrue(
+                        torch.equal(
+                            output.cpu(),
+                            self.fixture.resident[0].w13_weight[
+                                routes[route].cpu().long()
+                            ],
+                        )
+                    )
+                self.assertEqual(runtime.hits + runtime.misses, 256)
+                self.assertEqual(runtime.decode_device_gate_invocations, 64)
+                self.assertGreater(runtime.decode_device_gate_hits, 0)
+                self.assertEqual(runtime.jobs.unfinished_tasks, 0)
+            finally:
+                runtime.close()
+
+    def test_all_hit_decode_skips_transport_and_preserves_cross_stream_readers(self):
+        from unittest import mock
+
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
+        from sglang.srt.model_loader.qwen38_nvfp4_pack.format import REQUIRED_TENSORS
+
+        for enabled in (False, True):
+            runtime = Qwen38ThreadedExpertRuntime(
+                self.fixture.pack,
+                "cuda",
+                slots_per_layer=2,
+                decode_hit_fast_path=enabled,
+                decode_device_gate=False,
+                max_pending=1,
+            )
+            runtime.reserve()
+            try:
+
+                def execute(prepared):
+                    # Keep a reader in flight when the next stream evicts it.
+                    torch.cuda._sleep(100000)
+                    return {
+                        name: prepared.tensors[name][prepared.topk_ids.long()].clone()
+                        for name in REQUIRED_TENSORS
+                    }
+
+                streams = [torch.cuda.Stream(), torch.cuda.Stream()]
+                outputs = []
+                with mock.patch.object(
+                    runtime.jobs, "put_nowait", wraps=runtime.jobs.put_nowait
+                ) as submit:
+                    for index, pair in enumerate(
+                        ((0, 1), (0, 1), (2, 3), (2, 3), (0, 1))
+                    ):
+                        with torch.cuda.stream(streams[index % 2]):
+                            ids = torch.tensor([pair], dtype=torch.int32, device="cuda")
+                            outputs.append((pair, runtime.run(0, ids, execute)))
+                    runtime.synchronize()
+                    torch.cuda.synchronize()
+                    self.assertEqual(submit.call_count, 3 if enabled else 5)
+                for pair, output in outputs:
+                    for name in REQUIRED_TENSORS:
+                        expected = getattr(self.fixture.resident[0], name)[
+                            torch.tensor([pair])
+                        ]
+                        self.assertTrue(torch.equal(output[name].cpu(), expected), name)
+                self.assertEqual(runtime.hits, 4)
+                self.assertEqual(runtime.misses, 6)
+                self.assertEqual(
+                    runtime.decode_hit_fast_path_invocations, 2 if enabled else 0
+                )
+                self.assertEqual(runtime.jobs.unfinished_tasks, 0)
+            finally:
+                runtime.close()
+
+    def test_all_hit_execute_failure_releases_plan_and_queue_capacity(self):
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
+
+        runtime = Qwen38ThreadedExpertRuntime(
+            self.fixture.pack,
+            "cuda",
+            slots_per_layer=2,
+            max_pending=1,
+            decode_device_gate=False,
+        )
+        runtime.reserve()
+        self.addCleanup(runtime.close)
+        ids = torch.tensor([[0, 1]], dtype=torch.int32, device="cuda")
+        runtime.run(0, ids, lambda prepared: None)
+        runtime.synchronize()
+
+        def fail(prepared):
+            raise RuntimeError("test execute failure")
+
+        with self.assertRaisesRegex(RuntimeError, "test execute failure"):
+            runtime.run(0, ids, fail)
+        self.assertTrue(runtime.capacity.acquire(blocking=False))
+        runtime.capacity.release()
+        self.assertEqual(runtime.jobs.unfinished_tasks, 0)
+        self.assertTrue(all(pool.qsize() > 0 for pool in runtime.host_plans.values()))
+        runtime.run(0, ids, lambda prepared: None)
+        self.assertEqual(runtime.decode_hit_fast_path_invocations, 2)
 
     def test_fused_decode_plan_matches_reference_state_and_plan(self):
         import random
