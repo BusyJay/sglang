@@ -57,7 +57,7 @@ __global__ void mailbox_fill_kernel(
 }
 }  // namespace
 
-// Register the private writable file mapping; the checkpoint remains immutable.
+// Register the pack's single private source mapping; all transports share it.
 struct Qwen38MailboxRegister {
   static int64_t run(TensorView bytes) {
     TVM_FFI_ICHECK_EQ(bytes.device().device_type, kDLCPU);

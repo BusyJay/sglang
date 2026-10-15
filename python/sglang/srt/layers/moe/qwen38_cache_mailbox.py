@@ -9,7 +9,6 @@ Per-layer mailboxes and the shared payload are reused after prior GPU readers.
 """
 
 import collections
-import mmap
 import sysconfig
 import threading
 import time
@@ -51,8 +50,6 @@ class DecodeMissMailbox:
                     _module().mailbox_unregister(self.pack_view)
             if hasattr(self, "pack_view"):
                 del self.pack_view
-            if hasattr(self, "pack_mapping"):
-                self.pack_mapping.close()
             raise
 
     def _initialize(self, runtime):
@@ -107,15 +104,13 @@ class DecodeMissMailbox:
             )
             for layer in range(layers)
         }
-        # GeForce lacks read-only host registration. A private writable mapping
-        # keeps checkpoint files immutable; CUDA may materialize COW pages when
-        # pinning, so account for a pack-sized host memory cost.
-        self.pack_mapping = mmap.mmap(
-            runtime.pack._stream.fileno(), 0, access=mmap.ACCESS_COPY
-        )
+        # Every transport shares the pack's one private source mapping. CUDA
+        # materializes COW pages once; no second read-only mapping is retained.
+        self.pack_mapping = runtime.pack.cuda_source_mapping()
         self.pack_view = torch.frombuffer(self.pack_mapping, dtype=torch.uint8)
         with torch.cuda.device(runtime.device):
             self.pack_address = _module().mailbox_register(self.pack_view)
+        runtime.pack.discard_source_file_cache()
         self.payload_address = self.pack_address
         self.refresh_targets()
         self.last_computed = None
@@ -394,4 +389,3 @@ class DecodeMissMailbox:
         with torch.cuda.device(self.runtime.device):
             _module().mailbox_unregister(self.pack_view)
         del self.pack_view
-        self.pack_mapping.close()

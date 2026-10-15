@@ -91,6 +91,44 @@ class TestPackFormat(unittest.TestCase):
                 self.assertIsNone(pack._prefetch_error)
                 self.assertEqual(bytes(pack.tensor_bytes(0, "w13_weight")), bytes(range(8)))
 
+    def test_cuda_source_replaces_mapping_and_preserves_read_only_views(self):
+        with tempfile.TemporaryDirectory() as value:
+            manifest = load_manifest(make_pack(Path(value)))
+            original = manifest.payload_path.read_bytes()
+            with Qwen38ExpertPack(manifest) as pack:
+                old = pack._mapping
+                shared = pack.cuda_source_mapping()
+                self.assertTrue(old.closed)
+                self.assertIs(shared, pack._mapping)
+                self.assertIs(shared, pack.cuda_source_mapping())
+                for view in (
+                    pack.tensor_bytes(0, "w13_weight"),
+                    pack.expert_tensor_bytes(0, 1, "w13_weight"),
+                ):
+                    try:
+                        self.assertTrue(view.readonly)
+                        with self.assertRaises(TypeError):
+                            view[0] = 9
+                    finally:
+                        view.release()
+                self.assertEqual(manifest.payload_path.read_bytes(), original)
+
+    def test_cuda_source_promotion_keeps_existing_views_valid_on_failure(self):
+        with tempfile.TemporaryDirectory() as value:
+            manifest = load_manifest(make_pack(Path(value)))
+            with Qwen38ExpertPack(manifest) as pack:
+                old = pack._mapping
+                view = pack.tensor_bytes(0, "w13_weight")
+                try:
+                    with self.assertRaises(BufferError):
+                        pack.cuda_source_mapping()
+                    self.assertIs(pack._mapping, old)
+                    self.assertFalse(old.closed)
+                    self.assertEqual(bytes(view), bytes(range(8)))
+                finally:
+                    view.release()
+                self.assertIs(pack.cuda_source_mapping(), pack._mapping)
+
     def test_overlap_is_rejected(self):
         with tempfile.TemporaryDirectory() as value:
             with self.assertRaisesRegex(ValueError, "overlap"):

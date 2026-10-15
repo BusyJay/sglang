@@ -312,12 +312,13 @@ def load_manifest(path: str | Path) -> Qwen38ExpertPackManifest:
 
 
 class Qwen38ExpertPack:
-    """Read-only mmap view. No full pinned-memory copy is created."""
+    """Read-only byte views over one file mapping, also shared by CUDA readers."""
 
     def __init__(self, manifest: Qwen38ExpertPackManifest):
         self.manifest = manifest
         self._stream = manifest.payload_path.open("rb", buffering=0)
         self._mapping = mmap.mmap(self._stream.fileno(), 0, access=mmap.ACCESS_READ)
+        self._cuda_source_private = False
         self._prefetch_thread = None
         self._prefetch_stop = threading.Event()
         self._prefetch_error = None
@@ -360,9 +361,42 @@ class Qwen38ExpertPack:
         if self._prefetch_thread is not None:
             self._prefetch_thread.join()
 
+    def cuda_source_mapping(self) -> mmap.mmap:
+        """Promote at startup to the single CUDA-registerable source mapping.
+
+        GeForce cannot register CPU-read-only pages. All transports therefore
+        share one private writable mapping; CUDA registration materializes its
+        COW pages. Application byte views stay read-only and writes cannot reach
+        the file. The pack owns the mapping beyond each mailbox's registration.
+        Existing exported views must have been released before promotion.
+        """
+        if not self._cuda_source_private:
+            self.wait_prefetch()
+            mapping = mmap.mmap(self._stream.fileno(), 0, access=mmap.ACCESS_COPY)
+            try:
+                self._mapping.close()
+            except BaseException:
+                mapping.close()
+                raise
+            self._mapping = mapping
+            self._cuda_source_private = True
+        return self._mapping
+
+    def discard_source_file_cache(self) -> None:
+        """Release redundant prefetch pages after CUDA materializes private pages."""
+        if self._cuda_source_private and hasattr(os, "posix_fadvise"):
+            try:
+                os.posix_fadvise(
+                    self._stream.fileno(), 0, 0, os.POSIX_FADV_DONTNEED
+                )
+            except OSError as exc:
+                logger.warning("Could not discard expert-pack file cache: %s", exc)
+
     def tensor_bytes(self, layer: int, name: str) -> memoryview:
         record = self.manifest.tensors[layer][name]
-        return memoryview(self._mapping)[record.offset : record.offset + record.nbytes]
+        return memoryview(self._mapping)[
+            record.offset : record.offset + record.nbytes
+        ].toreadonly()
 
     def expert_tensor_bytes(self, layer: int, expert: int, name: str) -> memoryview:
         if not 0 <= expert < self.manifest.num_experts:
@@ -372,7 +406,7 @@ class Qwen38ExpertPack:
         record = self.manifest.tensors[layer][name]
         expert_nbytes = record.nbytes // self.manifest.num_experts
         start = record.offset + expert * expert_nbytes
-        return memoryview(self._mapping)[start : start + expert_nbytes]
+        return memoryview(self._mapping)[start : start + expert_nbytes].toreadonly()
 
     def layer_tensors(
         self, layer: int
