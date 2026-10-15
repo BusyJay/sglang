@@ -115,6 +115,56 @@ class TestGpuCache(unittest.TestCase):
         self.assertEqual(runtime.arena["w13_weight"].data_ptr(), pointers[1])
         self.assertLess(torch.cuda.max_memory_allocated() - allocated_before, 512 << 20)
 
+    def test_mailbox_transport_all_tensors_single_multi_duplicate_and_streams(self):
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
+        from sglang.srt.model_loader.qwen38_nvfp4_pack.format import REQUIRED_TENSORS
+
+        for resident_alphas in (False, True):
+            runtime = Qwen38ThreadedExpertRuntime(
+                self.fixture.pack,
+                "cuda",
+                slots_per_layer=2,
+                decode_device_gate=True,
+                resident_alphas=resident_alphas,
+            )
+            runtime.reserve()
+            try:
+                streams = [torch.cuda.Stream(), torch.cuda.Stream()]
+                # Warm path, one miss, two misses, repeated ID, all hit.
+                routes = [(0, 1), (0, 2), (1, 3), (2, 2), (2, 2), (0, 1)]
+                results = []
+                for step in range(48):
+                    pair = routes[step % len(routes)]
+                    layer = (step // len(routes)) % 2
+                    with torch.cuda.stream(streams[step % 2]):
+                        ids = torch.tensor([pair], dtype=torch.int32, device="cuda")
+                        actual = runtime.run(
+                            layer,
+                            ids,
+                            lambda prepared: {
+                                name: prepared.tensors[name][
+                                    prepared.topk_ids.long()
+                                ].clone()
+                                for name in REQUIRED_TENSORS
+                            },
+                        )
+                    results.append((layer, pair, actual))
+                runtime.synchronize()
+                for layer, pair, actual in results:
+                    for name, value in actual.items():
+                        reference = getattr(self.fixture.resident[layer], name)[
+                            torch.tensor([pair])
+                        ]
+                        self.assertTrue(
+                            torch.equal(value.cpu(), reference), (layer, pair, name)
+                        )
+                self.assertFalse(hasattr(runtime.miss_mailbox, "payload"))
+            finally:
+                runtime.close()
+        # Closing the runtime must release the frombuffer view so pack.close works.
+
     def test_sync_transfer_cache_arena(self):
         self._exercise("sync")
 
