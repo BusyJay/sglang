@@ -405,7 +405,8 @@ __global__ void decode_plan_kernel(
     int policy,
     int protected_slots,
     bool export_routes,
-    int64_t* hit_stats) {
+    int64_t* hit_stats,
+    int32_t* sample) {
   __shared__ int32_t histogram[513];
   __shared__ int32_t active_ids[32];
   __shared__ int active_count;
@@ -487,7 +488,7 @@ __global__ void decode_plan_kernel(
     int expert = ids[threadIdx.x];
     output[threadIdx.x] = (expert >= 0 && expert < experts) ? lookup[expert] : -1;
   }
-  if (hit_stats) {
+  if (hit_stats || sample) {
     __syncthreads();
     if (plan[0] || plan[3]) {
       if (threadIdx.x == 0) asm volatile("trap;");
@@ -497,10 +498,18 @@ __global__ void decode_plan_kernel(
       // Prior readers and updates are ordered by the caller's stream/events.
       // Accumulate every plan on device; a host snapshot cannot lose misses
       // when several invocations of the same layer are already queued.
-      hit_stats[0] += plan[2] - plan[1];
-      hit_stats[1] += plan[1] == 0;
-      hit_stats[2] += plan[1];
-      hit_stats[3] += plan[1] != 0;
+      if (hit_stats) {
+        hit_stats[0] += plan[2] - plan[1];
+        hit_stats[1] += plan[1] == 0;
+        hit_stats[2] += plan[1];
+        hit_stats[3] += plan[1] != 0;
+      }
+      if (sample) {
+        // Original expert IDs, sorted and unique, including hits. Never emit
+        // remapped cache slots or stale padding from the reusable plan tail.
+        sample[0] = active_count;
+        for (int i = 0; i < active_count; ++i) sample[1 + i] = active_ids[i];
+      }
     }
   }
 }
@@ -607,6 +616,7 @@ struct Qwen38CacheDecodePlan {
         decay,
         policy,
         protected_fraction,
+        0,
         0);
   }
   static void run_mailbox(
@@ -623,7 +633,8 @@ struct Qwen38CacheDecodePlan {
       double decay,
       int64_t policy,
       double protected_fraction,
-      int64_t hit_stats) {
+      int64_t hit_stats,
+      int64_t sample) {
     CHECK_INPUT_AND_TYPE(ids, dl_int32);
     CHECK_INPUT_AND_TYPE(output, dl_int32);
     CHECK_DIM(2, ids);
@@ -692,7 +703,8 @@ struct Qwen38CacheDecodePlan {
         static_cast<int>(policy),
         static_cast<int>(slots * protected_fraction),
         plan.size(0) == 4 + 4 * slots,
-        reinterpret_cast<int64_t*>(hit_stats));
+        reinterpret_cast<int64_t*>(hit_stats),
+        reinterpret_cast<int32_t*>(sample));
     auto status = cudaGetLastError();
     TVM_FFI_ICHECK_EQ(status, cudaSuccess) << cudaGetErrorString(status);
   }

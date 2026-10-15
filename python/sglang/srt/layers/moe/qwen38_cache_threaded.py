@@ -67,6 +67,18 @@ def _ready_timeout_seconds() -> float | None:
     return parsed
 
 
+def _sample_rows(item):
+    """Expand a GPU batch without changing the analyzer's ordered route input."""
+    if len(item) == 4:
+        yield item
+    else:
+        layer, cycle, first, end, rows = item
+        if end - first != len(rows):
+            raise ValueError("incomplete route sample batch")
+        for index, active in enumerate(rows, first):
+            yield layer, cycle, index, active
+
+
 @dataclass
 class TransferJob:
     layer: int
@@ -84,6 +96,7 @@ class TransferJob:
         default_factory=threading.Event
     )  # notification: exactly one of ready/error
     plan_values: list[int] | None = None  # already synchronized on the caller
+    sample_published: object = None  # optional observer handoff at transport changes
 
 
 class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
@@ -221,6 +234,7 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         self.adaptive_lock = threading.Lock()
         self.adaptive_rebalances = 0
         self.adaptive_sample_drops = 0
+        self.sample_publication = None
         self.adaptive_migrated_experts = 0
         self.adaptive_evicted_experts = 0
         self.adaptive_last_rebalance_seconds = 0.0
@@ -644,63 +658,70 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                 self.adaptive_samples.task_done()
                 return
             try:
-                layer, sample_cycle, index, active = item
-                if cycle != sample_cycle:
-                    cycle = sample_cycle
-                    routes = [[] for _ in range(self.manifest.num_layers)]
-                if routes is None:
-                    continue
-                if len(routes[layer]) != index:
-                    # Never replay a sequence with dropped samples as contiguous.
-                    routes = None
-                    continue
-                routes[layer].append(active)
-                if min(map(len, routes)) < self.adaptive_cache_window:
-                    continue
-                if self.adaptive_cache_mode == "sample":
-                    routes = None
-                    continue
-                with self.adaptive_lock:
-                    current = list(self.layer_cache_slots)
-                request = dict(
-                    routes=routes,
-                    current=current,
-                    num_experts=self.manifest.num_experts,
-                    top_k=self.manifest.top_k,
-                    min_slots=getattr(self, "adaptive_min_slots", self.manifest.top_k),
-                    budget=next(iter(self.cache_pool.values())).shape[0],
-                    policy=self.cache_policy,
-                    protected_fraction=self.cache_protected_fraction,
-                )
-                self.adaptive_process.stdin.write(json.dumps(request) + "\n")
-                self.adaptive_process.stdin.flush()
-                deadline = time.monotonic() + 120
-                while not select.select([self.adaptive_process.stdout], [], [], 1)[0]:
-                    if self.analysis_stopping.is_set():
-                        return
-                    if time.monotonic() >= deadline:
-                        raise TimeoutError("adaptive cache analysis timed out")
-                reply = json.loads(self.adaptive_process.stdout.readline())
-                routes = None
-                self.adaptive_evaluations += 1
-                self.adaptive_analysis_seconds += reply["seconds"]
-                self.adaptive_last_evaluation = reply["evaluation"]
-                logger.info(
-                    "Qwen38 adaptive cache evaluation: %s; analysis=%.3fs",
-                    reply["evaluation"],
-                    reply["seconds"],
-                )
-                if (
-                    reply["target"] is not None
-                    and self.adaptive_cache_mode == "rebalance"
-                ):
+                for layer, sample_cycle, index, active in _sample_rows(item):
+                    if cycle != sample_cycle:
+                        cycle = sample_cycle
+                        routes = [[] for _ in range(self.manifest.num_layers)]
+                    if routes is None:
+                        continue
+                    if len(routes[layer]) != index:
+                        # Never replay a sequence with dropped samples as contiguous.
+                        routes = None
+                        continue
+                    routes[layer].append(active)
+                    if min(map(len, routes)) < self.adaptive_cache_window:
+                        continue
+                    if self.adaptive_cache_mode == "sample":
+                        routes = None
+                        continue
                     with self.adaptive_lock:
-                        self.adaptive_target = reply["target"]
+                        current = list(self.layer_cache_slots)
+                    request = dict(
+                        routes=routes,
+                        current=current,
+                        num_experts=self.manifest.num_experts,
+                        top_k=self.manifest.top_k,
+                        min_slots=getattr(
+                            self, "adaptive_min_slots", self.manifest.top_k
+                        ),
+                        budget=next(iter(self.cache_pool.values())).shape[0],
+                        policy=self.cache_policy,
+                        protected_fraction=self.cache_protected_fraction,
+                    )
+                    self.adaptive_process.stdin.write(json.dumps(request) + "\n")
+                    self.adaptive_process.stdin.flush()
+                    deadline = time.monotonic() + 120
+                    while not select.select([self.adaptive_process.stdout], [], [], 1)[
+                        0
+                    ]:
+                        if self.analysis_stopping.is_set():
+                            return
+                        if time.monotonic() >= deadline:
+                            raise TimeoutError("adaptive cache analysis timed out")
+                    reply = json.loads(self.adaptive_process.stdout.readline())
+                    routes = None
+                    self.adaptive_evaluations += 1
+                    self.adaptive_analysis_seconds += reply["seconds"]
+                    self.adaptive_last_evaluation = reply["evaluation"]
+                    logger.info(
+                        "Qwen38 adaptive cache evaluation: %s; analysis=%.3fs",
+                        reply["evaluation"],
+                        reply["seconds"],
+                    )
+                    if (
+                        reply["target"] is not None
+                        and self.adaptive_cache_mode == "rebalance"
+                    ):
+                        with self.adaptive_lock:
+                            self.adaptive_target = reply["target"]
             except BaseException:
                 logger.exception("Disabling adaptive expert-cache analysis")
                 self.adaptive_cache = False
                 return
             finally:
+                release = getattr(item, "release", None)
+                if release is not None:
+                    release()
                 self.adaptive_samples.task_done()
 
     def _maybe_rebalance(self):
@@ -885,6 +906,7 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                 if job is None:
                     self.jobs.task_done()
                     return
+                sample_published = getattr(job, "sample_published", None)
                 try:
                     if job.plan_values is None:
                         job.planned.synchronize()
@@ -1029,6 +1051,8 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                         self._fail_job(job, error)
                         job = None
                 finally:
+                    if sample_published is not None:
+                        sample_published.set()
                     if job is not None:
                         self.capacity.release()
                         self.jobs.task_done()
@@ -1151,6 +1175,15 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             self._maybe_rebalance()
         with self.lock, torch.no_grad(), torch.cuda.device(self.device):
             self._raise_error()
+            publication = getattr(self, "sample_publication", None)
+            if publication is not None:
+                # Legacy verify can signal weight readiness before emitting
+                # its route. Order observer messages across transport changes.
+                if not publication.wait(_ready_timeout_seconds() or None):
+                    self.poisoned = True
+                    raise RuntimeError("legacy route sample publication timed out")
+                self.sample_publication = None
+                self._raise_error()
             if torch.cuda.is_current_stream_capturing():
                 raise RuntimeError(
                     "threaded host transport cannot be captured in CUDA Graph"
@@ -1177,19 +1210,20 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             sample = self._sample_position(layer_id, topk_ids)
             if (
                 self.miss_mailbox is not None
-                and layer_id in self.gate_warmed_layers
+                and (layer_id in self.gate_warmed_layers or sample is not None)
                 and self.fused_decode_plan
                 and not arena
                 and topk_ids.shape[0] == 1
                 and 0 < topk_ids.shape[1] <= 32
-                and sample is None
             ):
-                return self.miss_mailbox.run(
-                    layer_id, topk_ids, execute, _ready_timeout_seconds()
+                result = self.miss_mailbox.run(
+                    layer_id, topk_ids, execute, _ready_timeout_seconds(), sample=sample
                 )
+                self.gate_warmed_layers.add(layer_id)
+                return result
             if self.miss_mailbox is not None:
-                # Drain native readers before changing transport mode, sampling,
-                # or running prefill. This also serializes the staging and H2D workers.
+                # Drain readers and hand off partial route samples before
+                # entering prefill, multi-token verify, or another legacy path.
                 self.miss_mailbox.synchronize()
             self.capacity.acquire()  # bounded producer backpressure, not a per-layer CUDA wait
             queued = False
@@ -1329,6 +1363,8 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                     verify=execution_phase == "verify",
                     plan_values=plan_values,
                 )
+                if sample is not None:
+                    job.sample_published = self.sample_publication = threading.Event()
                 timeout = _ready_timeout_seconds()
                 self.jobs.put_nowait(job)
                 queued = True

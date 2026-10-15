@@ -2,8 +2,9 @@
 
 单 token mailbox decode 的 miss 从注册的 expert-pack 内存读入 GPU cache slot，
 删除 mailbox Python payload staging；hit 和 miss 均无需 CPU 确认。
-prefill、warm-up、adaptive sampling 继续使用原 transport，但与 mailbox 读取
-同一份源映射。NVFP4 专家计算、router 权重和累加顺序保持原样。
+单 token decode 的 adaptive sampling 同样使用 GPU 直接填充，route 在独立
+缓冲区采集后批量交给 CPU。prefill、warm-up、多 token verify 保留原 transport，
+与 mailbox 读取同一份源映射。NVFP4 专家计算、router 权重和累加顺序保持原样。
 
 ## 单份主机源权重
 
@@ -44,6 +45,19 @@ cache slot 的前序 reader event、队列背压、迁移前排空、非法 plan
 
 验证和交接见 [MAILBOX_NO_READY_20261016.md](MAILBOX_NO_READY_20261016.md)。
 
+## Decode sampling 直接填充（2026-10-16）
+
+sampling 不再要求回退到 CPU plan/staging；GPU planner 记录原始、排序去重后的
+expert ID，权重继续由既有 fill kernel 搬进显存 cache。窗口完成后按层异步 D2H，
+CPU 分析输入的 layer/cycle/index/active IDs 和缺口拒绝规则保持不变。
+切回旧 transport 时交接部分窗口，保留 prefill 边界和 verify 的观察顺序。
+
+双缓冲在 KV 预算之前预分配。48 层、512 步、top-k 10 时，GPU 和 pinned host
+各增加约 2.06 MiB；分析队列的批量样本也受每层双 bank credit 约束。
+这不保证 context 容量固定，实际分配与 allocator 预留以启动日志为准。
+
+当前改动与验证见 [MAILBOX_DECODE_SAMPLING_20261016.md](MAILBOX_DECODE_SAMPLING_20261016.md)。
+
 ## 验证
 
 ```bash
@@ -60,5 +74,5 @@ mailbox unregister 后 pack 仍可读取并最终关闭映射。
 当前单份映射的测量与部署见
 [MAILBOX_SINGLE_MAPPING_20261015.md](MAILBOX_SINGLE_MAPPING_20261015.md)。
 初版四方案对照见 [MAILBOX_DEPLOYMENT_20261015.md](MAILBOX_DEPLOYMENT_20261015.md)。
-前 512 个 decode token 的 adaptive sampling 仍绕过 mailbox，短回复不能套用
-稳定 mailbox 段的性能增益。
+历史四方案对照及单份映射 benchmark 在本次 sampling 修改前采集；当时前 512 个
+decode token 绕过 mailbox。不能将那些测量视为本次 sampling 改动的吞吐结果。
