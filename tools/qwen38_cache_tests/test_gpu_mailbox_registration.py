@@ -7,7 +7,7 @@ import torch
 
 @unittest.skipUnless(torch.cuda.is_available(), "CUDA unavailable")
 class TestMailboxRegistration(unittest.TestCase):
-    def test_private_mapping_and_cpu_controls_with_cuda_default(self):
+    def test_single_source_and_cpu_controls_with_cuda_default(self):
         from .test_cpu_runtime import TestSynchronousRuntime
         from sglang.srt.layers.moe.qwen38_cache_threaded import (
             Qwen38ThreadedExpertRuntime,
@@ -25,12 +25,29 @@ class TestMailboxRegistration(unittest.TestCase):
             runtime.reserve()
         mapping = runtime.miss_mailbox.pack_mapping
         try:
+            self.assertIs(mapping, fixture.pack._mapping)
+            self.assertIs(mapping, fixture.pack.cuda_source_mapping())
             self.assertEqual(runtime.miss_mailbox.heads.device.type, "cpu")
             self.assertEqual(runtime.miss_mailbox.pack_view.device.type, "cpu")
-            mapping[0] ^= 1
-            self.assertNotEqual(mapping[:], original)
+            view = fixture.pack.expert_tensor_bytes(0, 0, "w13_weight")
+            try:
+                self.assertTrue(view.readonly)
+                with self.assertRaises(TypeError):
+                    view[0] = 1
+            finally:
+                view.release()
+            ids = torch.tensor([[0, 1]], dtype=torch.int32, device="cuda")
+            runtime.run(0, ids, lambda prepared: prepared.tensors["w13_weight"].clone())
+            runtime.synchronize()
             self.assertEqual(fixture.pack._mapping[:], original)
+            mapping[0] ^= 1
+            self.assertEqual(fixture.pack._mapping[0], original[0] ^ 1)
             self.assertEqual(fixture.pack.manifest.payload_path.read_bytes(), original)
+            mapping[0] = original[0]
         finally:
             runtime.close()
+        # The reader still owns the only mapping after mailbox unregister.
+        self.assertFalse(mapping.closed)
+        self.assertEqual(mapping[:], original)
+        fixture.pack.close()
         self.assertTrue(mapping.closed)
