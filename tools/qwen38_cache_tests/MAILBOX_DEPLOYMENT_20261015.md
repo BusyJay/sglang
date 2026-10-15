@@ -1,5 +1,8 @@
 # Mailbox 优化与部署记录（2026-10-15）
 
+> 本文记录初版双映射部署；随后已修复为单份主机源权重。当前实现与内存结果见
+> [MAILBOX_SINGLE_MAPPING_20261015.md](MAILBOX_SINGLE_MAPPING_20261015.md)。下文初版额外内存数据保留作为历史对照。
+
 采用 `01-direct-mmap.patch`，并修复 RTX 5090 D 上的 CUDA host registration
 兼容性与默认设备问题。没有叠加其余三个互斥 patch。方案 1 在本轮负载中
 吞吐最高，并保留 all-hit 无需 CPU 确认的路径及原有 NVFP4 计算方式。
