@@ -95,7 +95,7 @@ class AdaptiveLayerAllocator:
         min_slots=1,
         candidates=None,
         window=512,
-        min_gain=0.05,
+        min_gain=0.03,
         cooldown_windows=2,
         payback_windows=8,
         policy="lfu",
