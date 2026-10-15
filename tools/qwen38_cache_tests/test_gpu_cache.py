@@ -377,7 +377,7 @@ class TestGpuCache(unittest.TestCase):
                         )
                     )
                 self.assertEqual(runtime.hits + runtime.misses, 256)
-                self.assertEqual(runtime.decode_device_gate_invocations, 64)
+                self.assertEqual(runtime.decode_device_gate_invocations, 128)
                 self.assertGreater(runtime.decode_device_gate_hits, 0)
                 self.assertEqual(runtime.jobs.unfinished_tasks, 0)
             finally:

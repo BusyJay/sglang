@@ -9,6 +9,76 @@ from .replay_cache import minimum_slots
 
 
 class TestCacheAnalysis(unittest.TestCase):
+    def test_gpu_sample_batches_keep_original_analysis_protocol_and_gaps(self):
+        import io
+        import queue
+        import threading
+        from types import SimpleNamespace
+        from unittest import mock
+
+        transport.TestBackgroundTransport.setUpClass()
+        runtime = transport.TestBackgroundTransport()._runtime(1)
+        runtime.analysis_stopping = threading.Event()
+        runtime.adaptive_samples = queue.Queue()
+        runtime.adaptive_lock = threading.Lock()
+        runtime.manifest = SimpleNamespace(num_layers=2, num_experts=8, top_k=2)
+        runtime.layer_cache_slots = [2, 2]
+        runtime.cache_pool = {"weight": SimpleNamespace(shape=(4, 1))}
+        runtime.adaptive_cache = True
+        runtime.adaptive_cache_window = 3
+        runtime.adaptive_cache_mode = "observe"
+        runtime.cache_protected_fraction = 0.7
+        runtime.adaptive_evaluations = 0
+        runtime.adaptive_analysis_seconds = 0
+        runtime.adaptive_process = SimpleNamespace(
+            stdin=io.StringIO(),
+            stdout=io.StringIO(
+                json.dumps(dict(seconds=0.1, evaluation={}, target=None)) + "\n"
+            ),
+        )
+        # Cycle 0 has a gap and must not be analyzed. Cycle 1 mixes GPU batches
+        # and the legacy verify observer, maintaining the original step indices.
+        batches = []
+
+        class Batch(tuple):
+            pass
+
+        for item in [
+            (0, 0, 1, 3, [[2], [3]]),
+            (1, 0, 0, 3, [[4], [4], [5]]),
+            (0, 1, 0, 2, [[1], [2]]),
+            (0, 1, 2, [3]),
+            (1, 1, 0, 3, [[4], [4], [5]]),
+            None,
+        ]:
+            if item is not None and len(item) == 5:
+                item = Batch(item)
+                item.release = mock.Mock()
+                batches.append(item)
+            runtime.adaptive_samples.put(item)
+        with mock.patch.object(
+            transport.TestBackgroundTransport.module.select,
+            "select",
+            return_value=([1], [], []),
+        ):
+            runtime._analyze_routes()
+        requests = runtime.adaptive_process.stdin.getvalue().splitlines()
+        self.assertEqual(len(requests), 1)
+        self.assertEqual(
+            json.loads(requests[0])["routes"], [[[1], [2], [3]], [[4], [4], [5]]]
+        )
+        self.assertEqual(runtime.adaptive_evaluations, 1)
+        self.assertTrue(runtime.adaptive_cache)
+        self.assertEqual(runtime.adaptive_samples.unfinished_tasks, 0)
+        for batch in batches:
+            batch.release.assert_called_once_with()
+        with self.assertRaises(ValueError):
+            list(
+                transport.TestBackgroundTransport.module._sample_rows(
+                    (0, 2, 0, 2, [[1]])
+                )
+            )
+
     def test_minimum_slots_with_nonconcave_curves(self):
         curves = [{1: 10, 2: 9, 3: 1}, {1: 8, 2: 1, 3: 0}]
         self.assertEqual(

@@ -26,6 +26,9 @@ class DecodeMissMailbox:
             with torch.device("cpu"):
                 self._initialize(runtime)
         except BaseException:
+            sampler = getattr(self, "sampler", None)
+            if sampler is not None:
+                sampler.close()
             if hasattr(self, "stopping"):
                 self.stopping.set()
             watchdog = getattr(self, "watchdog", None)
@@ -99,8 +102,13 @@ class DecodeMissMailbox:
             target=self._watch, name="qwen38-mailbox-watchdog", daemon=True
         )
         self.watchdog.start()
+        self.sampler = None
+        if runtime.adaptive_cache and runtime.fused_decode_plan:
+            from sglang.srt.layers.moe.qwen38_cache_sampling import DeviceRouteSampler
 
-    def run(self, layer, ids, execute, timeout):
+            self.sampler = DeviceRouteSampler(runtime, self._abort)
+
+    def run(self, layer, ids, execute, timeout, sample=None):
         r = self.runtime
         compute = torch.cuda.current_stream(r.device)
         previous = r.layer_computed.get(layer)
@@ -130,6 +138,11 @@ class DecodeMissMailbox:
                 raise RuntimeError("decode completion event pool exhausted")
         state = r.device_states[layer]
         remapped = torch.empty_like(ids)
+        capture = (
+            self.sampler.begin(layer, sample, compute)
+            if self.sampler is not None
+            else 0
+        )
         _module().decode_plan_mailbox(
             ids,
             remapped,
@@ -145,8 +158,11 @@ class DecodeMissMailbox:
             int(r.cache_policy == "slru"),
             r.cache_protected_fraction,
             self.hit_stats.data_ptr() + self.hit_stats.stride(0) * 8 * layer,
+            capture,
         )
         self.native_active = True
+        if capture:
+            self.sampler.commit(layer, sample, compute)
         r.fused_decode_plan_invocations += 1
         r.decode_device_gate_invocations += 1
         if r.resident_alphas:
@@ -210,13 +226,15 @@ class DecodeMissMailbox:
 
     @property
     def device_bytes(self):
-        return self.hit_stats.nbytes + sum(
-            table.nbytes for table in self.layouts.values()
+        return (
+            (self.sampler.device_bytes if self.sampler is not None else 0)
+            + self.hit_stats.nbytes
+            + sum(table.nbytes for table in self.layouts.values())
         )
 
     @property
     def pinned_bytes(self):
-        return sum(
+        return (self.sampler.pinned_bytes if self.sampler is not None else 0) + sum(
             tensor.nbytes
             for tensor in (
                 self.failed,
@@ -258,6 +276,8 @@ class DecodeMissMailbox:
             return
         for event in list(self.runtime.layer_computed.values()):
             event.synchronize()
+        if self.sampler is not None:
+            self.sampler.synchronize()
         self.flush_stats()
         with self.lock:
             self.pending.clear()
@@ -289,6 +309,8 @@ class DecodeMissMailbox:
         self.observed = values
 
     def close(self):
+        if self.sampler is not None:
+            self.sampler.close()
         self.stopping.set()
         self.watchdog.join()
         # runtime.close() drains compute before stopping mailbox threads.
