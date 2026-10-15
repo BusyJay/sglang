@@ -1,10 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """Main-thread asynchronous expert cache with a background mmap/H2D worker.
 
-Single-token all-hit decode can bypass the worker. The device path
-uses miss-only mapped host mailboxes: hits remain on GPU, misses are filled by
-an independent CPU worker. Native polling releases the GIL; a bounded GPU wait/copy
-handles only misses after CPU staging. Sampling and prefill use
+Single-token decode can bypass the worker. The device planner and direct
+mapped-source fill run on the compute stream without a CPU acknowledgement;
+hit/miss statistics accumulate on device until a snapshot. Sampling and prefill use
 the established event-based transport. Full CUDA Graph capture is unsupported.
 """
 

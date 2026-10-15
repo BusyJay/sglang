@@ -8,8 +8,9 @@ import torch
 @unittest.skipUnless(torch.cuda.is_available(), "CUDA unavailable")
 class TestMailboxBytes(unittest.TestCase):
     def test_direct_sources_and_tail_bytes(self):
-        from sglang.kernels.ops.moe.qwen38_expert_cache import _module
         from cuda.bindings import driver
+
+        from sglang.kernels.ops.moe.qwen38_expert_cache import _module
         from sglang.srt.utils.cuda_vmm_utils import check_drv
 
         def address(tensor):
@@ -38,25 +39,18 @@ class TestMailboxBytes(unittest.TestCase):
                 device="cuda",
             )
             failed = torch.zeros(1, dtype=torch.int32, pin_memory=True)
-            ready = torch.zeros(1, dtype=torch.int64, pin_memory=True)
-            epoch, top_k = 7, 2
+            top_k = 2
             for pairs in (((3, 0),), ((1, 2), (3, 0))):
                 cpu_plan = torch.zeros(4 + 3 * 4, dtype=torch.int32, pin_memory=True)
                 cpu_plan[:4] = torch.tensor([0, len(pairs), len(pairs), 0])
                 for m, (expert, slot) in enumerate(pairs):
                     cpu_plan[4 + 2 * m : 6 + 2 * m] = torch.tensor([expert, slot])
                 plan = cpu_plan.to("cuda")
-                ready[0] = epoch * (top_k + 1) + len(pairs)
                 _module().mailbox_fill(
                     plan,
                     layout,
-                    address(sources[0]),
-                    sum(sizes),
                     top_k,
                     address(failed),
-                    address(ready),
-                    epoch,
-                    1000000000,
                 )
                 torch.cuda.synchronize()
                 for expert, slot in pairs:

@@ -1,36 +1,23 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Miss-only GPU to host mailboxes for the threaded expert cache.
+"""GPU-planned direct fills for the threaded expert cache.
 
-The decode planner releases hits entirely on device. Misses publish their
-plan into mapped pinned memory. The fill reads registered immutable mmap
-bytes directly; the CPU worker only publishes metadata and counters.
-No background CUDA submission is needed, even during synchronous host reads.
-Per-layer mailboxes and the shared payload are reused after prior GPU readers.
+The planner and fill run on the same stream without CPU acknowledgement.
+Both hits and misses accumulate device counters, collected at stats snapshots.
+Registered immutable mmap bytes are read directly into GPU cache slots.
+Prior GPU readers finish before a layer's plan or cache slots are reused.
 """
 
 import collections
-import sysconfig
 import threading
 import time
 
 import torch
 
-from sglang.kernels.jit.utils import cache_once, load_jit
 from sglang.kernels.ops.moe.qwen38_expert_cache import (
     _module,
     cache_alpha_scatter,
 )
 from sglang.srt.layers.moe.qwen38_cache_runtime import PreparedExperts
-
-
-@cache_once
-def _poll_module():
-    return load_jit(
-        "qwen38_mailbox",
-        cpp_files=["moe/qwen38_mailbox.cc"],
-        cpp_wrappers=[("poll", "Qwen38MailboxPoll::run")],
-        extra_include_paths=[sysconfig.get_path("include")],
-    )
 
 
 class DecodeMissMailbox:
@@ -41,10 +28,9 @@ class DecodeMissMailbox:
         except BaseException:
             if hasattr(self, "stopping"):
                 self.stopping.set()
-            for name in ("worker", "watchdog"):
-                worker = getattr(self, name, None)
-                if worker is not None and worker.is_alive():
-                    worker.join()
+            watchdog = getattr(self, "watchdog", None)
+            if watchdog is not None and watchdog.is_alive():
+                watchdog.join()
             if hasattr(self, "pack_address"):
                 with torch.cuda.device(runtime.device):
                     _module().mailbox_unregister(self.pack_view)
@@ -58,38 +44,13 @@ class DecodeMissMailbox:
         from sglang.srt.utils.cuda_vmm_utils import check_drv
 
         self.runtime = runtime
-        self.poll = _poll_module().poll
         layers, experts = runtime.manifest.num_layers, runtime.manifest.num_experts
-        self.heads = torch.zeros(layers, dtype=torch.int32, pin_memory=True)
-        self.plans = torch.empty(
-            (layers, 4 + 3 * experts), dtype=torch.int32, pin_memory=True
-        )
-        self.seen = torch.zeros(layers, dtype=torch.int32)
-        self.ready = torch.zeros(layers, dtype=torch.int64, pin_memory=True)
-        self.ready_address = int(
-            check_drv(
-                driver.cuMemHostGetDevicePointer(self.ready.data_ptr(), 0),
-                "qwen38 mailbox readiness",
-            )
-        )
+        # hits, all-hit calls, misses, miss calls; one row per layer.
         self.hit_stats = torch.zeros(
-            (layers, 2), dtype=torch.int64, device=runtime.device
+            (layers, 4), dtype=torch.int64, device=runtime.device
         )
-        self.observed = [[0, 0] for _ in range(layers)]
-        self.epochs = [0] * layers
+        self.observed = [[0, 0, 0, 0] for _ in range(layers)]
         self.native_active = False
-        self.head_address = int(
-            check_drv(
-                driver.cuMemHostGetDevicePointer(self.heads.data_ptr(), 0),
-                "qwen38 mailbox heads",
-            )
-        )
-        self.plan_address = int(
-            check_drv(
-                driver.cuMemHostGetDevicePointer(self.plans.data_ptr(), 0),
-                "qwen38 mailbox plans",
-            )
-        )
         self.failed = torch.zeros(1, dtype=torch.int32, pin_memory=True)
         self.failed_address = int(
             check_drv(
@@ -111,7 +72,6 @@ class DecodeMissMailbox:
         with torch.cuda.device(runtime.device):
             self.pack_address = _module().mailbox_register(self.pack_view)
         runtime.pack.discard_source_file_cache()
-        self.payload_address = self.pack_address
         self.refresh_targets()
         self.last_computed = None
         # Reuse completion events instead of allocating/destroying them in
@@ -123,30 +83,21 @@ class DecodeMissMailbox:
             event.record(torch.cuda.current_stream(runtime.device))
         self.available = collections.deque(self.events)
         self.retained_external = {}
-        # Preload every kernel/driver operation before parking a stream.
+        # Preload the fill kernel before serving frames.
         warm_plan = torch.zeros(4, dtype=torch.int32, device=runtime.device)
         _module().mailbox_fill(
             warm_plan,
             self.layouts[0],
-            self.payload_address,
-            sum(self.sizes[0]),
             runtime.manifest.top_k,
             self.failed_address,
-            self.ready_address,
-            0,
-            0,
         )
         torch.cuda.current_stream(runtime.device).synchronize()
         self.pending = collections.deque()
         self.lock = threading.Lock()
         self.stopping = threading.Event()
-        self.worker = threading.Thread(
-            target=self._work, name="qwen38-miss-mailbox", daemon=True
-        )
         self.watchdog = threading.Thread(
             target=self._watch, name="qwen38-mailbox-watchdog", daemon=True
         )
-        self.worker.start()
         self.watchdog.start()
 
     def run(self, layer, ids, execute, timeout):
@@ -177,10 +128,6 @@ class DecodeMissMailbox:
                 self.available.append(computed)
             else:
                 raise RuntimeError("decode completion event pool exhausted")
-        self.epochs[layer] += 1
-        epoch = self.epochs[layer]
-        if epoch >= 0x7FFFFFFF:
-            raise RuntimeError("decode mailbox sequence exhausted; recreate runtime")
         state = r.device_states[layer]
         remapped = torch.empty_like(ids)
         _module().decode_plan_mailbox(
@@ -197,10 +144,7 @@ class DecodeMissMailbox:
             0.95,
             int(r.cache_policy == "slru"),
             r.cache_protected_fraction,
-            self.head_address + 4 * layer,
-            self.plan_address + self.plans.stride(0) * 4 * layer,
-            self.hit_stats.data_ptr() + 16 * layer,
-            epoch,
+            self.hit_stats.data_ptr() + self.hit_stats.stride(0) * 8 * layer,
         )
         self.native_active = True
         r.fused_decode_plan_invocations += 1
@@ -217,13 +161,8 @@ class DecodeMissMailbox:
         _module().mailbox_fill(
             state["plan"],
             self.layouts[layer],
-            self.payload_address,
-            sum(self.sizes[layer]),
             r.manifest.top_k,
             self.failed_address,
-            self.ready_address + 8 * layer,
-            epoch,
-            int((timeout + 0.1) * 1e9) if timeout else 0,
         )
         try:
             return execute(
@@ -247,10 +186,9 @@ class DecodeMissMailbox:
         r = self.runtime
         r.worker_error = error
         r.poisoned = True
-        # The already-enqueued device fill checks failure before any reads.
-        # No CUDA submission is needed to release a parked stream on failure.
+        # Queued fills check this mapped flag before reading expert sources.
+        # The watchdog never submits CUDA work.
         self.failed[0] = 1
-        self.ready.fill_(0x7FFFFFFFFFFFFFFF)
 
     def refresh_targets(self):
         r = self.runtime
@@ -281,50 +219,10 @@ class DecodeMissMailbox:
         return sum(
             tensor.nbytes
             for tensor in (
-                self.heads,
-                self.plans,
-                self.ready,
                 self.failed,
                 self.pack_view,
             )
         )
-
-    def _record_misses(self, layer, values, misses):
-        r = self.runtime
-        size = sum(self.sizes[layer]) * misses
-        r.transferred_bytes += size
-        r.decode_device_gate_copy_calls += 1
-        r.decode_device_gate_copy_bytes += size
-        if r.resident_alphas:
-            r.decode_alpha_h2d_calls_avoided += 2 * misses
-        r.misses += misses
-        r.hits += values[2] - misses
-        r.layer_misses[layer] += misses
-        r.layer_hits[layer] += values[2] - misses
-
-    def stage(self, layer, values, misses, epoch):
-        # Immutable source addresses are precomputed; publish metadata only.
-        self._record_misses(layer, values, misses)
-        self.ready[layer] = epoch * (self.runtime.manifest.top_k + 1) + misses
-
-    def _work(self):
-        r = self.runtime
-        # CPU-only: publishes metadata and counters; never submits CUDA work.
-        try:
-            while not self.stopping.is_set():
-                layer = self.poll(self.heads, self.seen)
-                if layer < 0:
-                    continue
-                epoch = int(self.heads[layer])
-                capacity = r.slots_for_layer(layer)
-                values = self.plans[layer, : 4 + 3 * capacity].tolist()
-                status, misses, active, arena = values[:4]
-                if status or arena or not 0 < misses <= active <= capacity:
-                    raise ValueError("invalid miss mailbox plan")
-                self.stage(layer, values, misses, epoch)
-                self.seen[layer] = epoch
-        except BaseException as error:
-            self._abort(error)
 
     def _watch(self):
         with torch.cuda.device(self.runtime.device):
@@ -341,7 +239,7 @@ class DecodeMissMailbox:
                     if expired:
                         self._abort(
                             TimeoutError(
-                                f"expert transfer worker timed out at layer {layer}"
+                                f"expert cache GPU completion timed out at layer {layer}"
                             )
                         )
                         return
@@ -373,17 +271,25 @@ class DecodeMissMailbox:
             compute.wait_event(event)
         values = self.hit_stats.cpu().tolist()
         r = self.runtime
-        for layer, ((hits, calls), (old_hits, old_calls)) in enumerate(
-            zip(values, self.observed)
-        ):
-            r.hits += hits - old_hits
-            r.layer_hits[layer] += hits - old_hits
-            r.decode_device_gate_hits += calls - old_calls
+        for layer, (current, previous) in enumerate(zip(values, self.observed)):
+            hits, calls, misses, miss_calls = (
+                value - old for value, old in zip(current, previous)
+            )
+            size = sum(self.sizes[layer]) * misses
+            r.hits += hits
+            r.layer_hits[layer] += hits
+            r.decode_device_gate_hits += calls
+            r.misses += misses
+            r.layer_misses[layer] += misses
+            r.transferred_bytes += size
+            r.decode_device_gate_copy_calls += miss_calls
+            r.decode_device_gate_copy_bytes += size
+            if r.resident_alphas:
+                r.decode_alpha_h2d_calls_avoided += 2 * misses
         self.observed = values
 
     def close(self):
         self.stopping.set()
-        self.worker.join()
         self.watchdog.join()
         # runtime.close() drains compute before stopping mailbox threads.
         with torch.cuda.device(self.runtime.device):
