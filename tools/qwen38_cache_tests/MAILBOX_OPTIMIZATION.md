@@ -38,3 +38,22 @@ and observation phase across baseline and experiment. Run alternate A/B orders
 without profiling. Record client TPOT p50/p95, tok/s, host locked memory and
 startup time. Nsight should show mailbox_fill_kernel reading the mmap (plus staged multi-miss payloads for experiment 4),
 and host payload staging disappears for mailbox calls.
+
+
+## RTX 5090 D compatibility (2026-10-15)
+
+The delivered read-only host registration returns CUDA 801 on this machine.
+The mailbox now owns an `ACCESS_COPY` private writable mapping and registers it
+without `cudaHostRegisterReadOnly`. The checkpoint and the pack reader's original
+read-only mapping remain unchanged. CUDA pinning can materialize private COW
+pages: budget another pack-sized host allocation, in addition to existing cache
+and HiCache memory. Closing drains readers, unregisters, releases the tensor
+view, and closes the private mapping, including initialization failure cleanup.
+Control allocations are initialized with an explicit CPU default device so
+model loading under a CUDA default device also works.
+
+GPU regression and CPU regression passed in the local CUDA 13.0 production image.
+Full-model performance measurements and raw logs are recorded in the main
+checkout's `results/mailbox-optimization-20261015/`. Use the final deployment
+report for the chosen implementation and measured tradeoffs. GPU regression
+success alone does not imply a throughput improvement.
