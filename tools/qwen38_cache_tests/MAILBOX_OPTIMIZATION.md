@@ -1,59 +1,33 @@
-# Mailbox experiment 1: Direct mmap reads
+# Mailbox direct mmap transport
 
-Mailbox fill reads immutable registered expert-pack tensor addresses directly. The CPU worker publishes counters/readiness only; no Python payload staging allocation or copy remains.
+单 token mailbox decode 的 miss 直接从注册的私有 expert-pack mmap 读入 cache slot，
+删除 mailbox Python payload staging；all-hit 保留无需 CPU 确认的路径。
+prefill、warm-up、adaptive sampling 继续使用原普通 transport。NVFP4 专家计算、
+router 权重和累加顺序保持原样，不采用分组 pipeline。
 
-This patch is independent and targets the mailbox baseline from review head
-`44ed74ebd519621b821fbaec34f6faf0890c44f1`. Apply only one experiment per checkout;
-experiment 3 already includes experiment 1.
+RTX 5090 D 的只读 host registration 返回 CUDA 801。本实现使用独立的
+`mmap.ACCESS_COPY` 私有可写映射，并以 `cudaHostRegisterMapped` 注册；应用只读
+这些源字节，原文件及 pack reader 的只读映射不变。CUDA pinning 可能物化整份
+pack 的私有页，需为 pack 大小的额外主机内存预留预算。注册失败明确报错。
+关闭先排空 GPU reader，再 unregister、释放 frombuffer view 并关闭私有映射；
+初始化异常同样执行清理。所有初始化控制分配在 CPU 默认设备上下文中完成。
 
-The mailbox retains a zero-copy torch.frombuffer view of the read-only pack mmap
-and registers the entire mapping once with cudaHostRegisterMapped |
-cudaHostRegisterReadOnly. Registration pins file pages and can be expensive at
-startup or fail if host memory/driver support is insufficient. No staging
-fallback silently substitutes for registration failure. Memory accounting includes
-the registered mapping. Shutdown drains GPU readers, unregisters, and drops the
-view before the caller closes the pack. Only one live mailbox may register a
-particular mapping at a time. Migration refreshes tensor destinations after drain.
+## 验证
 
-Scope is single-token eager MoE mailbox decode outside adaptive sampling windows.
-Ordinary prefill, warm-up, and sampling transport continue to use their existing
-staging buffers. Experiments 1/2/3 remove Python staging from the mailbox path.
-
-Run from the repository root on a GPU machine with the existing SGLang environment:
+在对应 GPU 环境中运行：
 
 ```bash
-PYTHONPATH="$PWD/python" python3 -m unittest tools.qwen38_cache_tests.test_gpu_mailbox_bytes -v
-PYTHONPATH="$PWD/python" python3 -m unittest tools.qwen38_cache_tests.test_gpu_cache -v
-PYTHONPATH="$PWD/python" python3 tools/qwen38_cache_tests/run_gpu.py --require-sm120 --output /tmp/mailbox-opt1-gpu.json
+export PYTHONPATH="$PWD/python${PYTHONPATH:+:$PYTHONPATH}"
+python3 tools/qwen38_cache_tests/run_cpu.py
+python3 tools/qwen38_cache_tests/run_gpu.py --require-sm120 --output /tmp/mailbox-gpu.json
 ```
 
-The new byte test covers 1/2 misses, distant expert/slot IDs, large aligned tensors
-with multiple tiles and partial tiles, and unaligned byte tails. Runtime tests
-cover every required tensor, resident and nonresident alphas, duplicates, all hits,
-and cross-stream slot reuse. Existing tests cover sampling/migration and failure.
-CUDA runtime execution and performance must be validated on the GPU machine.
+GPU 回归覆盖 required tensors、resident alpha 开关、单/多 miss、重复 expert、
+跨 stream、缓存迁移、sampling、失败路径，以及对齐和非对齐尾块字节。
+`test_gpu_mailbox_registration.py` 额外验证 CUDA 默认设备上下文、原文件不变与
+私有映射关闭。已在 RTX 5090 D / CUDA 13.0 生产镜像中运行。
 
-For throughput, retain identical prompts, routes, cache budget, output length,
-and observation phase across baseline and experiment. Run alternate A/B orders
-without profiling. Record client TPOT p50/p95, tok/s, host locked memory and
-startup time. Nsight should show mailbox_fill_kernel reading the mmap (plus staged multi-miss payloads for experiment 4),
-and host payload staging disappears for mailbox calls.
-
-
-## RTX 5090 D compatibility (2026-10-15)
-
-The delivered read-only host registration returns CUDA 801 on this machine.
-The mailbox now owns an `ACCESS_COPY` private writable mapping and registers it
-without `cudaHostRegisterReadOnly`. The checkpoint and the pack reader's original
-read-only mapping remain unchanged. CUDA pinning can materialize private COW
-pages: budget another pack-sized host allocation, in addition to existing cache
-and HiCache memory. Closing drains readers, unregisters, releases the tensor
-view, and closes the private mapping, including initialization failure cleanup.
-Control allocations are initialized with an explicit CPU default device so
-model loading under a CUDA default device also works.
-
-GPU regression and CPU regression passed in the local CUDA 13.0 production image.
-Full-model performance measurements and raw logs are recorded in the main
-checkout's `results/mailbox-optimization-20261015/`. Use the final deployment
-report for the chosen implementation and measured tradeoffs. GPU regression
-success alone does not imply a throughput improvement.
+真实模型测量、与三个互斥方案的对照、内存与启动成本、部署及回滚说明见
+[MAILBOX_DEPLOYMENT_20261015.md](MAILBOX_DEPLOYMENT_20261015.md)。
+前 512 个 decode token 的 adaptive sampling 会绕过 mailbox，短回复不能套用
+稳定 mailbox 段的性能增益。
