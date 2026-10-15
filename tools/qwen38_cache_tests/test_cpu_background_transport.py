@@ -82,6 +82,11 @@ class TestBackgroundTransport(unittest.TestCase):
             "cache_protected_fraction",
             "host_plan_allocations",
             "fused_decode_plan_invocations",
+            "decode_hit_fast_path_invocations",
+            "decode_device_gate_invocations",
+            "decode_device_gate_hits",
+            "decode_device_gate_copy_calls",
+            "decode_device_gate_copy_bytes",
             "decode_alpha_h2d_calls_avoided",
             "prefill_reused_experts",
             "prefill_reuse_d2d_bytes",
@@ -111,6 +116,8 @@ class TestBackgroundTransport(unittest.TestCase):
         runtime.adaptive_cache_interval = 0
         runtime.prefill_reuse_cache = runtime.prefill_seed_cache = True
         runtime.fused_decode_plan = runtime.resident_alphas = True
+        runtime.decode_hit_fast_path = True
+        runtime.decode_device_gate = False
         runtime.prefill_copy_stats = []
         runtime.run_invocations = runtime.stats_log_interval = 1
         for pool, adaptive, total in (
@@ -179,6 +186,7 @@ class TestBackgroundTransport(unittest.TestCase):
             self.module.Qwen38ThreadedExpertRuntime
         )
         runtime.device = "fake"
+        runtime.miss_mailbox = None
         runtime.jobs = queue.Queue(maxsize=permits)
         runtime.retired = queue.Queue()
         runtime.capacity = threading.BoundedSemaphore(permits)
