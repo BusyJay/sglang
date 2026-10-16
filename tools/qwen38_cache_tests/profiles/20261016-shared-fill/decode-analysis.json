@@ -1,0 +1,633 @@
+{
+  "file": "capture.sqlite",
+  "recorded_plan_calls": 6144,
+  "complete_frame_intervals": 127,
+  "start_ns": 29569418,
+  "end_ns": 2326936945,
+  "span_ms": 2297.367527,
+  "ms_per_frame": 18.089508086614174,
+  "kernel_union_ms": 2111.650019,
+  "copy_union_ms": 6.61107,
+  "overlap_ms": 0.670592,
+  "no_kernel_or_copy_ms": 179.77703,
+  "copies": {
+    "1": {
+      "calls": 508,
+      "bytes": 18415,
+      "sum_ms": 0.3845439999999987
+    },
+    "8": {
+      "calls": 7239,
+      "bytes": 413555688,
+      "sum_ms": 6.134045999999542
+    },
+    "2": {
+      "calls": 254,
+      "bytes": 16764,
+      "sum_ms": 0.10105600000000024
+    }
+  },
+  "main_semaphore_wait_calls": 171,
+  "main_semaphore_wait_ms": 31.580873,
+  "kernels": [
+    {
+      "name": "kernel",
+      "calls": 32385,
+      "sum_ms": 698.4695479999999,
+      "mean_us": 21.56768713910761,
+      "max_us": 812.352
+    },
+    {
+      "name": "mailbox_fill_kernel",
+      "calls": 6096,
+      "sum_ms": 696.774385,
+      "mean_us": 114.30026000656169,
+      "max_us": 786.304
+    },
+    {
+      "name": "decode_plan_kernel",
+      "calls": 6096,
+      "sum_ms": 177.464954,
+      "mean_us": 29.111705052493438,
+      "max_us": 127.872
+    },
+    {
+      "name": "device_kernel",
+      "calls": 12192,
+      "sum_ms": 165.706427,
+      "mean_us": 13.591406414041995,
+      "max_us": 20.288
+    },
+    {
+      "name": "_hc_mix_persistent_kernel",
+      "calls": 12319,
+      "sum_ms": 164.186772,
+      "mean_us": 13.327930189138728,
+      "max_us": 16.32
+    },
+    {
+      "name": "finalizeMoeRoutingKernel",
+      "calls": 6096,
+      "sum_ms": 36.91935,
+      "mean_us": 6.056323818897638,
+      "max_us": 6.976
+    },
+    {
+      "name": "fused_recurrent_gated_delta_ru_4...",
+      "calls": 4572,
+      "sum_ms": 24.976442,
+      "mean_us": 5.462913823272091,
+      "max_us": 10.176
+    },
+    {
+      "name": "kernel_mha",
+      "calls": 1524,
+      "sum_ms": 24.828821,
+      "mean_us": 16.291877296587927,
+      "max_us": 24.48
+    },
+    {
+      "name": "_router_triton_kernel",
+      "calls": 6096,
+      "sum_ms": 19.413849000000003,
+      "mean_us": 3.184686515748032,
+      "max_us": 4.064
+    },
+    {
+      "name": "expandInputRowsKernel",
+      "calls": 6096,
+      "sum_ms": 17.049424,
+      "mean_us": 2.796821522309711,
+      "max_us": 3.424
+    },
+    {
+      "name": "hc_combine_gate_kernel",
+      "calls": 12192,
+      "sum_ms": 16.239131,
+      "mean_us": 1.3319497211286089,
+      "max_us": 2.592
+    },
+    {
+      "name": "doActivationKernel",
+      "calls": 6096,
+      "sum_ms": 15.748611,
+      "mean_us": 2.583433562992126,
+      "max_us": 3.04
+    },
+    {
+      "name": "grouped_gemma_rmsnorm_kernel",
+      "calls": 12700,
+      "sum_ms": 14.368536,
+      "mean_us": 1.1313807874015749,
+      "max_us": 1.504
+    },
+    {
+      "name": "computeStridesTmaWarpSpecializedKernel",
+      "calls": 6096,
+      "sum_ms": 13.084835000000002,
+      "mean_us": 2.1464624343832024,
+      "max_us": 4.351
+    },
+    {
+      "name": "hc_combine_apply_kernel",
+      "calls": 12192,
+      "sum_ms": 11.728378000000001,
+      "mean_us": 0.9619732611548557,
+      "max_us": 1.28
+    },
+    {
+      "name": "vectorized_elementwise_kernel",
+      "calls": 12065,
+      "sum_ms": 10.648701,
+      "mean_us": 0.882610940737671,
+      "max_us": 28.512
+    },
+    {
+      "name": "act_and_mul_kernel",
+      "calls": 6096,
+      "sum_ms": 9.571838,
+      "mean_us": 1.5701833989501313,
+      "max_us": 19.776
+    },
+    {
+      "name": "fast_topk_kernel",
+      "calls": 1524,
+      "sum_ms": 8.618238,
+      "mean_us": 5.655011811023622,
+      "max_us": 6.912
+    },
+    {
+      "name": "alpha_scatter_kernel",
+      "calls": 6096,
+      "sum_ms": 8.307934,
+      "mean_us": 1.362850065616798,
+      "max_us": 2.048
+    },
+    {
+      "name": "blockExpertPrefixSumKernel",
+      "calls": 6096,
+      "sum_ms": 8.301868,
+      "mean_us": 1.3618549868766405,
+      "max_us": 2.336
+    },
+    {
+      "name": "_fused_gate_sigmoid_mul_add_ke_5...",
+      "calls": 6096,
+      "sum_ms": 8.00334,
+      "mean_us": 1.3128838582677165,
+      "max_us": 1.856
+    },
+    {
+      "name": "kernel_kernel",
+      "calls": 1524,
+      "sum_ms": 7.761694,
+      "mean_us": 5.092975065616798,
+      "max_us": 5.632
+    },
+    {
+      "name": "_fused_qkvzba_causal_conv1d_up_3...",
+      "calls": 4572,
+      "sum_ms": 7.434234,
+      "mean_us": 1.6260354330708662,
+      "max_us": 7.712
+    },
+    {
+      "name": "globalExpertPrefixSumKernel",
+      "calls": 6096,
+      "sum_ms": 6.261372000000001,
+      "mean_us": 1.0271279527559056,
+      "max_us": 1.536
+    },
+    {
+      "name": "cunn_SoftMaxForward",
+      "calls": 127,
+      "sum_ms": 6.006045,
+      "mean_us": 47.29169291338583,
+      "max_us": 48.192
+    },
+    {
+      "name": "mergeExpertPrefixSumKernel",
+      "calls": 6096,
+      "sum_ms": 5.930673,
+      "mean_us": 0.9728794291338583,
+      "max_us": 1.76
+    },
+    {
+      "name": "_compact_kv",
+      "calls": 1524,
+      "sum_ms": 5.450239000000001,
+      "mean_us": 3.5762723097112863,
+      "max_us": 3.968
+    },
+    {
+      "name": "qsa_index_k_compress_kernel",
+      "calls": 1524,
+      "sum_ms": 5.415198,
+      "mean_us": 3.5532795275590554,
+      "max_us": 4.16
+    },
+    {
+      "name": "_layer_norm_fwd_1pass_kernel",
+      "calls": 4572,
+      "sum_ms": 5.144191,
+      "mean_us": 1.1251511373578302,
+      "max_us": 1.568
+    },
+    {
+      "name": "qsa_index_q_prep_kernel",
+      "calls": 1524,
+      "sum_ms": 4.549821,
+      "mean_us": 2.985446850393701,
+      "max_us": 4.128
+    },
+    {
+      "name": "index_elementwise_kernel",
+      "calls": 1270,
+      "sum_ms": 3.302656,
+      "mean_us": 2.600516535433071,
+      "max_us": 21.728
+    },
+    {
+      "name": "_fused_qk_rmsnorm_rope_gate_ke_6...",
+      "calls": 1524,
+      "sum_ms": 3.141949,
+      "mean_us": 2.061646325459318,
+      "max_us": 2.944
+    },
+    {
+      "name": "TopKTopPSamplingFromProbKernel",
+      "calls": 127,
+      "sum_ms": 2.526237,
+      "mean_us": 19.89162992125984,
+      "max_us": 68.032
+    },
+    {
+      "name": "_expand_qsa_block_indices_kern_7...",
+      "calls": 1524,
+      "sum_ms": 2.091392,
+      "mean_us": 1.372304461942257,
+      "max_us": 2.432
+    },
+    {
+      "name": "store_kvcache_kernel",
+      "calls": 1524,
+      "sum_ms": 1.864543,
+      "mean_us": 1.2234534120734908,
+      "max_us": 1.728
+    },
+    {
+      "name": "_qsa_graph_row_metadata_kernel",
+      "calls": 127,
+      "sum_ms": 1.7258879999999999,
+      "mean_us": 13.589669291338582,
+      "max_us": 14.016
+    },
+    {
+      "name": "_fa2_valid_counts",
+      "calls": 1524,
+      "sum_ms": 1.539742,
+      "mean_us": 1.0103293963254594,
+      "max_us": 1.504
+    },
+    {
+      "name": "_fused_sigmoid_mul_kernel",
+      "calls": 1524,
+      "sum_ms": 1.2555520000000002,
+      "mean_us": 0.8238530183727035,
+      "max_us": 1.568
+    },
+    {
+      "name": "_scatter_gather_elementwise_kernel",
+      "calls": 254,
+      "sum_ms": 0.928064,
+      "mean_us": 3.653795275590551,
+      "max_us": 14.24
+    },
+    {
+      "name": "unrolled_elementwise_kernel",
+      "calls": 508,
+      "sum_ms": 0.854942,
+      "mean_us": 1.682956692913386,
+      "max_us": 10.176
+    },
+    {
+      "name": "_gather_ple_embedding_from_pin_2...",
+      "calls": 127,
+      "sum_ms": 0.728672,
+      "mean_us": 5.737574803149607,
+      "max_us": 11.68
+    },
+    {
+      "name": "elementwise_kernel",
+      "calls": 381,
+      "sum_ms": 0.540736,
+      "mean_us": 1.419254593175853,
+      "max_us": 2.112
+    },
+    {
+      "name": "indexSelectSmallIndex",
+      "calls": 254,
+      "sum_ms": 0.38076800000000005,
+      "mean_us": 1.4990866141732284,
+      "max_us": 2.08
+    },
+    {
+      "name": "alloc_decode_kernel",
+      "calls": 127,
+      "sum_ms": 0.32844799999999996,
+      "mean_us": 2.586204724409449,
+      "max_us": 16.864
+    },
+    {
+      "name": "conv_depthwise2d_forward_kernel_generic",
+      "calls": 127,
+      "sum_ms": 0.26592,
+      "mean_us": 2.0938582677165356,
+      "max_us": 2.432
+    },
+    {
+      "name": "reduce_kernel",
+      "calls": 127,
+      "sum_ms": 0.23376000000000002,
+      "mean_us": 1.8406299212598427,
+      "max_us": 2.08
+    },
+    {
+      "name": "_qwen4_short_conv_state_kernel",
+      "calls": 127,
+      "sum_ms": 0.215584,
+      "mean_us": 1.697511811023622,
+      "max_us": 1.92
+    },
+    {
+      "name": "triton_poi_fused_copy__div_lt__9...",
+      "calls": 127,
+      "sum_ms": 0.20566399999999999,
+      "mean_us": 1.6194015748031496,
+      "max_us": 1.984
+    },
+    {
+      "name": "_qwen4_ngram_hash_kernel",
+      "calls": 127,
+      "sum_ms": 0.161888,
+      "mean_us": 1.2747086614173229,
+      "max_us": 1.408
+    },
+    {
+      "name": "_small_copy_kernel",
+      "calls": 127,
+      "sum_ms": 0.130176,
+      "mean_us": 1.025007874015748,
+      "max_us": 1.248
+    },
+    {
+      "name": "_qsa_graph_layout_kernel",
+      "calls": 127,
+      "sum_ms": 0.12495999999999999,
+      "mean_us": 0.9839370078740157,
+      "max_us": 1.088
+    },
+    {
+      "name": "_fused_replay_state_indices_ke_1...",
+      "calls": 127,
+      "sum_ms": 0.124544,
+      "mean_us": 0.9806614173228346,
+      "max_us": 1.12
+    },
+    {
+      "name": "clamp_position_kernel",
+      "calls": 127,
+      "sum_ms": 0.118304,
+      "mean_us": 0.9315275590551181,
+      "max_us": 1.088
+    },
+    {
+      "name": "CatArrayBatchedCopy_vectorized",
+      "calls": 127,
+      "sum_ms": 0.109216,
+      "mean_us": 0.8599685039370079,
+      "max_us": 0.896
+    },
+    {
+      "name": "_qwen4_gate_value_kernel",
+      "calls": 127,
+      "sum_ms": 0.10678399999999999,
+      "mean_us": 0.8408188976377952,
+      "max_us": 0.864
+    },
+    {
+      "name": "track_mamba_states_all_layers__8...",
+      "calls": 127,
+      "sum_ms": 0.105344,
+      "mean_us": 0.8294803149606299,
+      "max_us": 0.992
+    },
+    {
+      "name": "CatArrayBatchedCopy_alignedK_contig",
+      "calls": 127,
+      "sum_ms": 0.097312,
+      "mean_us": 0.7662362204724409,
+      "max_us": 0.992
+    },
+    {
+      "name": "elementwise_kernel_with_index",
+      "calls": 127,
+      "sum_ms": 0.08556799999999999,
+      "mean_us": 0.6737637795275591,
+      "max_us": 0.96
+    }
+  ],
+  "cpu_cuda": [
+    {
+      "name": "cudaMemcpyAsync_v3020",
+      "calls": 7620,
+      "sum_ms": 413.527672,
+      "mean_us": 54.26872335958006
+    },
+    {
+      "name": "cudaGraphLaunch_v10000",
+      "calls": 12446,
+      "sum_ms": 247.25845900000002,
+      "mean_us": 19.8665
+    },
+    {
+      "name": "cudaLaunchKernelExC_v11060",
+      "calls": 54991,
+      "sum_ms": 132.064598,
+      "mean_us": 2.401567492862468
+    },
+    {
+      "name": "cudaLaunchKernel_v7000",
+      "calls": 21082,
+      "sum_ms": 58.954317,
+      "mean_us": 2.7964290389906084
+    },
+    {
+      "name": "cudaEventRecordWithFlags_v11010",
+      "calls": 19304,
+      "sum_ms": 15.995569,
+      "mean_us": 0.8286142250310816
+    },
+    {
+      "name": "cudaStreamWaitEvent_v3020",
+      "calls": 24765,
+      "sum_ms": 15.608488999999999,
+      "mean_us": 0.6302640419947506
+    },
+    {
+      "name": "cudaGetDriverEntryPointByVersion_v12050",
+      "calls": 73152,
+      "sum_ms": 13.576136,
+      "mean_us": 0.1855880358705162
+    },
+    {
+      "name": "cudaEventQuery_v3020",
+      "calls": 14629,
+      "sum_ms": 11.709581,
+      "mean_us": 0.8004361883929182
+    },
+    {
+      "name": "cuTensorMapEncodeTiled",
+      "calls": 73152,
+      "sum_ms": 10.458679,
+      "mean_us": 0.1429718804680665
+    },
+    {
+      "name": "cudaStreamIsCapturing_v10000",
+      "calls": 51054,
+      "sum_ms": 10.263197,
+      "mean_us": 0.20102630548047165
+    },
+    {
+      "name": "cuLaunchKernelEx",
+      "calls": 762,
+      "sum_ms": 3.673495,
+      "mean_us": 4.820859580052494
+    },
+    {
+      "name": "cuKernelGetName",
+      "calls": 20955,
+      "sum_ms": 3.2573119999999998,
+      "mean_us": 0.15544318778334526
+    },
+    {
+      "name": "cudaStreamSynchronize_v3020",
+      "calls": 254,
+      "sum_ms": 0.6862590000000001,
+      "mean_us": 2.7018070866141732
+    },
+    {
+      "name": "cuLaunchKernel",
+      "calls": 127,
+      "sum_ms": 0.53183,
+      "mean_us": 4.187637795275591
+    },
+    {
+      "name": "cudaEventCreateWithFlags_v3020",
+      "calls": 381,
+      "sum_ms": 0.501239,
+      "mean_us": 1.3155879265091863
+    },
+    {
+      "name": "cudaEventSynchronize_v3020",
+      "calls": 254,
+      "sum_ms": 0.47252999999999995,
+      "mean_us": 1.8603543307086614
+    },
+    {
+      "name": "cudaEventDestroy_v3020",
+      "calls": 381,
+      "sum_ms": 0.36637000000000003,
+      "mean_us": 0.9616010498687664
+    },
+    {
+      "name": "cudaStreamGetCaptureInfo_v12030",
+      "calls": 381,
+      "sum_ms": 0.232798,
+      "mean_us": 0.6110183727034121
+    },
+    {
+      "name": "cudaEventRecord_v3020",
+      "calls": 127,
+      "sum_ms": 0.14869,
+      "mean_us": 1.1707874015748032
+    }
+  ],
+  "full_kernel_names": [
+    {
+      "name": "<unnamed>::mailbox_fill_kernel(const int *, const long *, int, const volatile int *)",
+      "calls": 6096,
+      "sum_ms": 696.774385
+    },
+    {
+      "name": "std::enable_if<!T7, void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, (bool)0, (bool)1, (bool)1, (bool)0, (int)7, (bool)0, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<const __nv_bfloat16>, cublasGemvTensorStridedBatched<const __nv_bfloat16>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float>>(T13)",
+      "calls": 19812,
+      "sum_ms": 381.648775
+    },
+    {
+      "name": "std::enable_if<!T7, void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, (bool)0, (bool)1, (bool)1, (bool)0, (int)6, (bool)0, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<const __nv_bfloat16>, cublasGemvTensorStridedBatched<const __nv_bfloat16>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float>>(T13)",
+      "calls": 12573,
+      "sum_ms": 316.820773
+    },
+    {
+      "name": "<unnamed>::decode_plan_kernel(const int *, int *, int *, int *, int *, float *, long *, long *, long *, int *, int, int, int, float, int, int, bool, long *, int *)",
+      "calls": 6096,
+      "sum_ms": 177.464954
+    },
+    {
+      "name": "_hc_mix_persistent_kernel",
+      "calls": 12319,
+      "sum_ms": 164.186772
+    },
+    {
+      "name": "void cutlass::device_kernel<cutlass::gemm::kernel::GemmUniversal<cutlass::gemm::GroupProblemShape<cute::tuple<long, long, long>>, cutlass::gemm::collective::CollectiveMma<cutlass::gemm::MainloopSm120ArrayTmaWarpSpecializedBlockScaled<(int)6, (int)3, cute::tuple<cute::C<(int)1>, cute::C<(int)1>, cute::C<(int)1>>, cutlass::gemm::KernelPtrArrayTmaWarpSpecializedCooperativeBlockScaledSm120<(int)3>>, cute::tuple<cute::C<(int)128>, cute::C<(int)32>, cute::C<(int)128>>, cute::tuple<cutlass::float_e2m1_t, cutlass::float_ue4m3_t>, cute::tuple<cute::tuple<long, cute::C<(int)1>, cute::C<(int)0>> *, cute::Layout<cute::tuple<cute::tuple<cute::tuple<cute::C<(int)32>, cute::C<(int)4>>, int>, cute::tuple<cute::tuple<cute::C<(int)16>, cute::C<(int)4>>, int>, cute::tuple<cute::C<(int)1>, int>>, cute::tuple<cute::tuple<cute::tuple<cute::C<(int)16>, cute::C<(int)4>>, int>, cute::tuple<cute::tuple<cute::C<(int)0>, cute::C<(int)1>>, cute::C<(int)512>>, cute::tuple<cute::C<(int)0>, int>>> *>, cute::tuple<cutlass::float_e2m1_t, cutlass::float_ue4m3_t>, cute::tuple<cute::tuple<long, cute::C<(int)1>, cute::C<(int)0>> *, cute::Layout<cute::tuple<cute::tuple<cute::tuple<cute::C<(int)32>, cute::C<(int)4>>, int>, cute::tuple<cute::tuple<cute::C<(int)16>, cute::C<(int)4>>, int>, cute::tuple<cute::C<(int)1>, int>>, cute::tuple<cute::tuple<cute::tuple<cute::C<(int)16>, cute::C<(int)4>>, int>, cute::tuple<cute::tuple<cute::C<(int)0>, cute::C<(int)1>>, cute::C<(int)512>>, cute::tuple<cute::C<(int)0>, int>>> *>, cute::TiledMMA<cute::MMA_Atom<cute::SM120::BLOCKSCALED::SM120_16x8x64_TN_VS<cutlass::float_e2m1_t, cutlass::float_e2m1_t, float, cutlass::float_ue4m3_t, (int)16>>, cute::Layout<cute::tuple<cute::C<(int)4>, cute::C<(int)2>, cute::C<(int)1>>, cute::tuple<cute::C<(int)1>, cute::C<(int)4>, cute::C<(int)0>>>, cute::tuple<cute::C<(int)128>, cute::Layout<cute::tuple<cute::C<(int)8>, cute::C<(int)2>, cute::C<(int)2>>, cute::tuple<cute::C<(int)1>, cute::C<(int)16>, cute::C<(int)8>>>, cute::C<(int)64>>>, cute::tuple<cute::SM90_TMA_LOAD, cute::SM90_TMA_LOAD>, cute::tuple<cute::ComposedLayout<cute::Swizzle<(int)2, (int)4, (int)3>, cute::smem_ptr_flag_bits<(int)4>, cute::Layout<cute::tuple<cute::C<(int)8>, cute::C<(int)128>>, cute::tuple<cute::C<(int)128>, cute::C<(int)1>>>>, cute::Layout<cute::tuple<cute::tuple<cute::tuple<cute::C<(int)32>, cute::C<(int)4>>, cute::C<(int)1>>, cute::tuple<cute::tuple<cute::C<(int)16>, cute::C<(int)4>>, cute::C<(int)1>, cute::C<(int)2>>>, cute::tuple<cute::tuple<cute::tuple<cute::C<(int)16>, cute::C<(int)4>>, cute::C<(int)512>>, cute::tuple<cute::tuple<cute::C<(int)0>, cute::C<(int)1>>, cute::C<(int)4>, cute::C<(int)512>>>>>, cute::tuple<cute::Copy_Atom<cute::SM75_U32x4_LDSM_N, cutlass::integer_subbyte<(int)4, (bool)0>>, cute::Copy_Atom<cute::UniversalCopy<cutlass::float_ue4m3_t, cutlass::float_ue4m3_t>, cutlass::float_ue4m3_t>>, cute::identity, cute::tuple<cute::SM90_TMA_LOAD, cute::SM90_TMA_LOAD>, cute::tuple<cute::ComposedLayout<cute::Swizzle<(int)2, (int)4, (int)3>, cute::smem_ptr_flag_bits<(int)4>, cute::Layout<cute::tuple<cute::C<(int)8>, cute::C<(int)128>>, cute::tuple<cute::C<(int)128>, cute::C<(int)1>>>>, cute::Layout<cute::tuple<cute::tuple<cute::tuple<cute::C<(int)32>, cute::C<(int)4>>, cute::C<(int)1>>, cute::tuple<cute::tuple<cute::C<(int)16>, cute::C<(int)4>>, cute::C<(int)1>, cute::C<(int)2>>>, cute::tuple<cute::tuple<cute::tuple<cute::C<(int)16>, cute::C<(int)4>>, cute::C<(int)512>>, cute::tuple<cute::tuple<cute::C<(int)0>, cute::C<(int)1>>, cute::C<(int)4>, cute::C<(int)512>>>>>, cute::tuple<cute::Copy_Atom<cute::SM75_U32x4_LDSM_N, cutlass::integer_subbyte<(int)4, (bool)0>>, cute::Copy_Atom<cute::UniversalCopy<cutlass::float_ue4m3_t, cutlass::float_ue4m3_t>, cutlass::float_ue4m3_t>>, cute::identity>, cutlass::epilogue::collective::CollectiveEpilogue<cutlass::epilogue::Sm90PtrArrayTmaWarpSpecialized<(int)3, (int)2, (int)4, (bool)1, (bool)0, (int)2>, cute::tuple<cute::C<(int)128>, cute::C<(int)32>, cute::C<(int)128>>, cute::tuple<cute::C<(int)64>, cute::C<(int)32>>, cutlass::bfloat16_t, cute::tuple<cute::C<(int)1>, long, cute::C<(int)0>> *, cutlass::bfloat16_t, cute::tuple<cute::C<(int)1>, long, cute::C<(int)0>> *, cutlass::epilogue::fusion::FusionCallbacks<cutlass::epilogue::Sm120PtrArrayTmaWarpSpecialized<(int)3, (int)2, (int)4, (bool)1, (bool)0, (int)2>, cutlass::epilogue::fusion::LinearCombination<cutlass::bfloat16_t, float, cutlass::bfloat16_t, float, (cutlass::FloatRoundStyle)2>, cute::tuple<cute::C<(int)128>, cute::C<(int)32>, cute::C<(int)128>>, cute::tuple<cute::C<(int)64>, cute::C<(int)32>>, >, cute::SM90_TMA_LOAD, cute::ComposedLayout<cute::Swizzle<(int)3, (int)4, (int)3>, cute::smem_ptr_flag_bits<(int)16>, cute::Layout<cute::tuple<cute::C<(int)64>, cute::C<(int)8>>, cute::tuple<cute::C<(int)1>, cute::C<(int)64>>>>, cute::SM75_U16x4_LDSM_T, cute::SM90_TMA_STORE, cute::ComposedLayout<cute::Swizzle<(int)3, (int)4, (int)3>, cute::smem_ptr_flag_bits<(int)16>, cute::Layout<cute::tuple<cute::C<(int)64>, cute::C<(int)8>>, cute::tuple<cute::C<(int)1>, cute::C<(int)64>>>>, cute::SM90_U16x4_STSM_T, cute::Copy_Atom<cute::SM90_U32x2_STSM_N, cutlass::half_t>, void>, void, void>>(T1::Params)",
+      "calls": 10795,
+      "sum_ms": 142.492095
+    },
+    {
+      "name": "void tensorrt_llm::kernels::cutlass_kernels::finalizeMoeRoutingKernel<__nv_bfloat16, __nv_bfloat16, __nv_bfloat16, (tensorrt_llm::kernels::cutlass_kernels::ScaleMode)1>(const T2 *, T1 *, const T3 *, const float *, const int *, const int *, long, long, long, int, int)",
+      "calls": 6096,
+      "sum_ms": 36.91935
+    },
+    {
+      "name": "fused_recurrent_gated_delta_rule_packed_decode_kernel",
+      "calls": 4572,
+      "sum_ms": 24.976442
+    },
+    {
+      "name": "kernel_mha(unsigned int, float, const float *, Vec<__nv_bfloat16, (unsigned int)256> *, const Vec<__nv_bfloat16, (unsigned int)256> *, const float *, KVCacheList<(bool)1>, unsigned int, float, const float *, unsigned int, unsigned int, unsigned int, unsigned int *, void *)",
+      "calls": 1524,
+      "sum_ms": 24.828821
+    },
+    {
+      "name": "_router_triton_kernel",
+      "calls": 6096,
+      "sum_ms": 19.413849000000003
+    },
+    {
+      "name": "void cutlass::device_kernel<cutlass::gemm::kernel::GemmUniversal<cutlass::gemm::GroupProblemShape<cute::tuple<long, long, long>>, cutlass::gemm::collective::CollectiveMma<cutlass::gemm::MainloopSm120ArrayTmaWarpSpecializedBlockScaled<(int)2, (int)3, cute::tuple<cute::C<(int)1>, cute::C<(int)1>, cute::C<(int)1>>, cutlass::gemm::KernelPtrArrayTmaWarpSpecializedCooperativeBlockScaledSm120<(int)3>>, cute::tuple<cute::C<(int)128>, cute::C<(int)128>, cute::C<(int)256>>, cute::tuple<cutlass::float_e2m1_t, cutlass::float_ue4m3_t>, cute::tuple<cute::tuple<long, cute::C<(int)1>, cute::C<(int)0>> *, cute::Layout<cute::tuple<cute::tuple<cute::tuple<cute::C<(int)32>, cute::C<(int)4>>, int>, cute::tuple<cute::tuple<cute::C<(int)16>, cute::C<(int)4>>, int>, cute::tuple<cute::C<(int)1>, int>>, cute::tuple<cute::tuple<cute::tuple<cute::C<(int)16>, cute::C<(int)4>>, int>, cute::tuple<cute::tuple<cute::C<(int)0>, cute::C<(int)1>>, cute::C<(int)512>>, cute::tuple<cute::C<(int)0>, int>>> *>, cute::tuple<cutlass::float_e2m1_t, cutlass::float_ue4m3_t>, cute::tuple<cute::tuple<long, cute::C<(int)1>, cute::C<(int)0>> *, cute::Layout<cute::tuple<cute::tuple<cute::tuple<cute::C<(int)32>, cute::C<(int)4>>, int>, cute::tuple<cute::tuple<cute::C<(int)16>, cute::C<(int)4>>, int>, cute::tuple<cute::C<(int)1>, int>>, cute::tuple<cute::tuple<cute::tuple<cute::C<(int)16>, cute::C<(int)4>>, int>, cute::tuple<cute::tuple<cute::C<(int)0>, cute::C<(int)1>>, cute::C<(int)512>>, cute::tuple<cute::C<(int)0>, int>>> *>, cute::TiledMMA<cute::MMA_Atom<cute::SM120::BLOCKSCALED::SM120_16x8x64_TN_VS<cutlass::float_e2m1_t, cutlass::float_e2m1_t, float, cutlass::float_ue4m3_t, (int)16>>, cute::Layout<cute::tuple<cute::C<(int)4>, cute::C<(int)2>, cute::C<(int)1>>, cute::tuple<cute::C<(int)1>, cute::C<(int)4>, cute::C<(int)0>>>, cute::tuple<cute::C<(int)128>, cute::Layout<cute::tuple<cute::C<(int)8>, cute::C<(int)2>, cute::C<(int)2>>, cute::tuple<cute::C<(int)1>, cute::C<(int)16>, cute::C<(int)8>>>, cute::C<(int)64>>>, cute::tuple<cute::SM90_TMA_LOAD, cute::SM90_TMA_LOAD>, cute::tuple<cute::ComposedLayout<cute::Swizzle<(int)3, (int)4, (int)3>, cute::smem_ptr_flag_bits<(int)4>, cute::Layout<cute::tuple<cute::C<(int)8>, cute::C<(int)256>>, cute::tuple<cute::C<(int)256>, cute::C<(int)1>>>>, cute::Layout<cute::tuple<cute::tuple<cute::tuple<cute::C<(int)32>, cute::C<(int)4>>, cute::C<(int)1>>, cute::tuple<cute::tuple<cute::C<(int)16>, cute::C<(int)4>>, cute::C<(int)1>, cute::C<(int)4>>>, cute::tuple<cute::tuple<cute::tuple<cute::C<(int)16>, cute::C<(int)4>>, cute::C<(int)512>>, cute::tuple<cute::tuple<cute::C<(int)0>, cute::C<(int)1>>, cute::C<(int)4>, cute::C<(int)512>>>>>, cute::tuple<cute::Copy_Atom<cute::SM75_U32x4_LDSM_N, cutlass::integer_subbyte<(int)4, (bool)0>>, cute::Copy_Atom<cute::UniversalCopy<cutlass::float_ue4m3_t, cutlass::float_ue4m3_t>, cutlass::float_ue4m3_t>>, cute::identity, cute::tuple<cute::SM90_TMA_LOAD, cute::SM90_TMA_LOAD>, cute::tuple<cute::ComposedLayout<cute::Swizzle<(int)3, (int)4, (int)3>, cute::smem_ptr_flag_bits<(int)4>, cute::Layout<cute::tuple<cute::C<(int)8>, cute::C<(int)256>>, cute::tuple<cute::C<(int)256>, cute::C<(int)1>>>>, cute::Layout<cute::tuple<cute::tuple<cute::tuple<cute::C<(int)32>, cute::C<(int)4>>, cute::C<(int)1>>, cute::tuple<cute::tuple<cute::C<(int)16>, cute::C<(int)4>>, cute::C<(int)1>, cute::C<(int)4>>>, cute::tuple<cute::tuple<cute::tuple<cute::C<(int)16>, cute::C<(int)4>>, cute::C<(int)512>>, cute::tuple<cute::tuple<cute::C<(int)0>, cute::C<(int)1>>, cute::C<(int)4>, cute::C<(int)512>>>>>, cute::tuple<cute::Copy_Atom<cute::SM75_U32x4_LDSM_N, cutlass::integer_subbyte<(int)4, (bool)0>>, cute::Copy_Atom<cute::UniversalCopy<cutlass::float_ue4m3_t, cutlass::float_ue4m3_t>, cutlass::float_ue4m3_t>>, cute::identity>, cutlass::epilogue::collective::CollectiveEpilogue<cutlass::epilogue::Sm90PtrArrayTmaWarpSpecialized<(int)3, (int)2, (int)4, (bool)1, (bool)0, (int)2>, cute::tuple<cute::C<(int)128>, cute::C<(int)128>, cute::C<(int)256>>, cute::tuple<cute::C<(int)64>, cute::C<(int)32>>, cutlass::bfloat16_t, cute::tuple<long, cute::C<(int)1>, cute::C<(int)0>> *, cutlass::bfloat16_t, cute::tuple<long, cute::C<(int)1>, cute::C<(int)0>> *, cutlass::epilogue::fusion::FusionCallbacks<cutlass::epilogue::Sm120PtrArrayTmaWarpSpecialized<(int)3, (int)2, (int)4, (bool)1, (bool)0, (int)2>, cutlass::epilogue::fusion::LinearCombination<cutlass::bfloat16_t, float, cutlass::bfloat16_t, float, (cutlass::FloatRoundStyle)2>, cute::tuple<cute::C<(int)128>, cute::C<(int)128>, cute::C<(int)256>>, cute::tuple<cute::C<(int)64>, cute::C<(int)32>>, >, cute::SM90_TMA_LOAD, cute::ComposedLayout<cute::Swizzle<(int)2, (int)4, (int)3>, cute::smem_ptr_flag_bits<(int)16>, cute::Layout<cute::tuple<cute::C<(int)8>, cute::C<(int)32>>, cute::tuple<cute::C<(int)32>, cute::C<(int)1>>>>, cute::SM75_U32x2_LDSM_N, cute::SM90_TMA_STORE, cute::ComposedLayout<cute::Swizzle<(int)2, (int)4, (int)3>, cute::smem_ptr_flag_bits<(int)16>, cute::Layout<cute::tuple<cute::C<(int)8>, cute::C<(int)32>>, cute::tuple<cute::C<(int)32>, cute::C<(int)1>>>>, cute::SM90_U32x2_STSM_N, cute::Copy_Atom<cute::SM90_U32x2_STSM_N, cutlass::half_t>, void>, void, void>>(T1::Params)",
+      "calls": 1016,
+      "sum_ms": 18.152412
+    },
+    {
+      "name": "void tensorrt_llm::kernels::cutlass_kernels::expandInputRowsKernel<__nv_bfloat16, __nv_fp4_e2m1, (tensorrt_llm::kernels::cutlass_kernels::TmaWarpSpecializedGroupedGemmInput::FpXBlockScalingType)1, (bool)0, (bool)0, std::integral_constant<bool, (bool)0>>(const T1 *, T2 *, const float *, float *, const int *, const int *, long, long, long, const float *, bool, const long *, unsigned char *, const unsigned char *, bool, long, const T1 *, float *, const float *, const float **)",
+      "calls": 6096,
+      "sum_ms": 17.049424
+    },
+    {
+      "name": "void sglang::hc_combine_gate_kernel<(long)4, (long)2560, (bool)1, __nv_bfloat16>(sglang::HcCombineSplitParams)",
+      "calls": 12192,
+      "sum_ms": 16.239131
+    },
+    {
+      "name": "void tensorrt_llm::kernels::cutlass_kernels::doActivationKernel<__nv_fp4_e2m1, __nv_bfloat16, __nv_bfloat16, tensorrt_llm::kernels::cutlass_kernels::GLUAdaptor<cutlass::epilogue::thread::SiLu>, (tensorrt_llm::kernels::cutlass_kernels::TmaWarpSpecializedGroupedGemmInput::FpXBlockScalingType)1, (bool)0, std::integral_constant<bool, (bool)0>>(T1 *, const T2 *, const float *, const T3 *, bool, const long *, const int *, int, long, const float *, bool, unsigned char *, float *, const float *, tensorrt_llm::kernels::cutlass_kernels::ActivationParams)",
+      "calls": 6096,
+      "sum_ms": 15.748611
+    },
+    {
+      "name": "void sglang::grouped_gemma_rmsnorm_kernel<(long)2560, (bool)1, __nv_bfloat16>(sglang::GroupedGemmaRMSNormParams)",
+      "calls": 12700,
+      "sum_ms": 14.368536
+    }
+  ]
+}
