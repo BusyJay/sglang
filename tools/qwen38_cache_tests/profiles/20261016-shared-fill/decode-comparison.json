@@ -1,0 +1,238 @@
+[
+  {
+    "profile": "mailbox-sampling-profile-20261016",
+    "steps": 127,
+    "wall_ms": 17.89028942519685,
+    "fill_ms": 5.274666692913385,
+    "gemv_ms": 5.323902811023622,
+    "overlap_ms": 0.0,
+    "overlapping_pairs": 0,
+    "overlapped_fills": 0,
+    "fill_streams": {
+      "13": 6096
+    },
+    "long_fill_count": 3902,
+    "long_fill_mean_us": 171.2510074320861,
+    "idle_ms": 1.1938387952755904,
+    "api": [
+      {
+        "name": "cudaMemcpyAsync_v3020",
+        "calls_per_step": 60.0,
+        "ms_per_step": 6.74382511023622
+      },
+      {
+        "name": "cudaGraphLaunch_v10000",
+        "calls_per_step": 50.0,
+        "ms_per_step": 1.2364975433070866
+      },
+      {
+        "name": "cudaLaunchKernelExC_v11060",
+        "calls_per_step": 433.0,
+        "ms_per_step": 0.9160145984251968
+      },
+      {
+        "name": "cudaLaunchKernel_v7000",
+        "calls_per_step": 166.00787401574803,
+        "ms_per_step": 0.39954144094488186
+      },
+      {
+        "name": "cudaGetDriverEntryPointByVersion_v12050",
+        "calls_per_step": 576.0,
+        "ms_per_step": 0.09912215748031497
+      },
+      {
+        "name": "cuTensorMapEncodeTiled",
+        "calls_per_step": 576.0,
+        "ms_per_step": 0.07407717322834645
+      },
+      {
+        "name": "cudaEventQuery_v3020",
+        "calls_per_step": 111.4724409448819,
+        "ms_per_step": 0.06981461417322835
+      },
+      {
+        "name": "cudaStreamWaitEvent_v3020",
+        "calls_per_step": 99.0,
+        "ms_per_step": 0.056996685039370075
+      },
+      {
+        "name": "cudaEventRecordWithFlags_v11010",
+        "calls_per_step": 56.0,
+        "ms_per_step": 0.04155933070866142
+      },
+      {
+        "name": "cudaStreamIsCapturing_v10000",
+        "calls_per_step": 210.0,
+        "ms_per_step": 0.040263960629921255
+      },
+      {
+        "name": "cuLaunchKernelEx",
+        "calls_per_step": 6.0,
+        "ms_per_step": 0.02385767716535433
+      },
+      {
+        "name": "cuKernelGetName",
+        "calls_per_step": 165.00787401574803,
+        "ms_per_step": 0.021008259842519684
+      }
+    ]
+  },
+  {
+    "profile": "mailbox-overlap-profile-20261016",
+    "steps": 127,
+    "wall_ms": 22.698207204724408,
+    "fill_ms": 3.472551346456693,
+    "gemv_ms": 5.412312055118111,
+    "overlap_ms": 0.4866941968503937,
+    "overlapping_pairs": 6351,
+    "overlapped_fills": 3343,
+    "fill_streams": {
+      "33": 6096
+    },
+    "long_fill_count": 3013,
+    "long_fill_mean_us": 145.432720544308,
+    "idle_ms": 8.22278925984252,
+    "api": [
+      {
+        "name": "cudaLaunchKernelExC_v11060",
+        "calls_per_step": 481.0,
+        "ms_per_step": 1.1004074488188977
+      },
+      {
+        "name": "cudaGraphLaunch_v10000",
+        "calls_per_step": 50.0,
+        "ms_per_step": 0.9537005748031496
+      },
+      {
+        "name": "cudaLaunchKernel_v7000",
+        "calls_per_step": 310.0,
+        "ms_per_step": 0.7893693070866142
+      },
+      {
+        "name": "cudaMemcpyAsync_v3020",
+        "calls_per_step": 60.0,
+        "ms_per_step": 0.4960039842519685
+      },
+      {
+        "name": "cuLaunchKernelEx",
+        "calls_per_step": 102.0,
+        "ms_per_step": 0.2605055984251969
+      },
+      {
+        "name": "cudaStreamWaitEvent_v3020",
+        "calls_per_step": 195.0,
+        "ms_per_step": 0.12862318897637795
+      },
+      {
+        "name": "cudaEventRecordWithFlags_v11010",
+        "calls_per_step": 152.0,
+        "ms_per_step": 0.11515151968503937
+      },
+      {
+        "name": "cudaGetDriverEntryPointByVersion_v12050",
+        "calls_per_step": 576.0,
+        "ms_per_step": 0.10300804724409449
+      },
+      {
+        "name": "cuTensorMapEncodeTiled",
+        "calls_per_step": 576.0,
+        "ms_per_step": 0.08557408661417322
+      },
+      {
+        "name": "cudaStreamIsCapturing_v10000",
+        "calls_per_step": 402.0,
+        "ms_per_step": 0.08256297637795275
+      },
+      {
+        "name": "cudaEventQuery_v3020",
+        "calls_per_step": 73.53543307086615,
+        "ms_per_step": 0.07328003937007875
+      },
+      {
+        "name": "cuKernelGetName",
+        "calls_per_step": 309.0,
+        "ms_per_step": 0.038158842519685036
+      }
+    ],
+    "shared_ms": 0.7714236535433071
+  },
+  {
+    "profile": "mailbox-shared-graph-profile-20261016",
+    "steps": 127,
+    "wall_ms": 18.089508086614174,
+    "fill_ms": 5.486412480314961,
+    "gemv_ms": 5.499760220472441,
+    "overlap_ms": 0.6883504488188976,
+    "overlapping_pairs": 10105,
+    "overlapped_fills": 6092,
+    "fill_streams": {
+      "33": 6096
+    },
+    "long_fill_count": 4015,
+    "long_fill_mean_us": 172.16660348692403,
+    "idle_ms": 1.4155671653543307,
+    "api": [
+      {
+        "name": "cudaMemcpyAsync_v3020",
+        "calls_per_step": 60.0,
+        "ms_per_step": 3.2561234015748033
+      },
+      {
+        "name": "cudaGraphLaunch_v10000",
+        "calls_per_step": 98.0,
+        "ms_per_step": 1.9469170000000002
+      },
+      {
+        "name": "cudaLaunchKernelExC_v11060",
+        "calls_per_step": 433.0,
+        "ms_per_step": 1.0398787244094487
+      },
+      {
+        "name": "cudaLaunchKernel_v7000",
+        "calls_per_step": 166.0,
+        "ms_per_step": 0.46420722047244095
+      },
+      {
+        "name": "cudaEventRecordWithFlags_v11010",
+        "calls_per_step": 152.0,
+        "ms_per_step": 0.1259493622047244
+      },
+      {
+        "name": "cudaStreamWaitEvent_v3020",
+        "calls_per_step": 195.0,
+        "ms_per_step": 0.12290148818897637
+      },
+      {
+        "name": "cudaGetDriverEntryPointByVersion_v12050",
+        "calls_per_step": 576.0,
+        "ms_per_step": 0.10689870866141732
+      },
+      {
+        "name": "cudaEventQuery_v3020",
+        "calls_per_step": 115.18897637795276,
+        "ms_per_step": 0.0922014251968504
+      },
+      {
+        "name": "cuTensorMapEncodeTiled",
+        "calls_per_step": 576.0,
+        "ms_per_step": 0.0823518031496063
+      },
+      {
+        "name": "cudaStreamIsCapturing_v10000",
+        "calls_per_step": 402.0,
+        "ms_per_step": 0.0808125748031496
+      },
+      {
+        "name": "cuLaunchKernelEx",
+        "calls_per_step": 6.0,
+        "ms_per_step": 0.02892515748031496
+      },
+      {
+        "name": "cuKernelGetName",
+        "calls_per_step": 165.0,
+        "ms_per_step": 0.025648125984251965
+      }
+    ],
+    "shared_ms": 0.8426948897637795
+  }
+]
