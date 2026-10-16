@@ -22,6 +22,10 @@ def _capture_expert_output(_method, hidden_states, *_route_inputs, **_options):
     # Upstream segments have only been recorded, not replayed: their route IDs
     # are not valid yet. Do not enqueue a host transfer from capture-time data.
     # Warmup initializes CUTLASS; replay always runs the real expert boundary.
+    shared_call = _options.get("shared_call")
+    if shared_call is not None:
+        # No route reads or transfers: record only the independent shared work.
+        shared_call.capture(_options["shared_input"])
     return torch.zeros_like(hidden_states)
 
 
@@ -108,6 +112,11 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
         if not hasattr(topk, "topk_ids"):
             topk = topk.to_standard()
 
+        overlap = current_fill_overlap()
+        overlap_options = {}
+        if overlap is not None:
+            call, shared_input = overlap
+            overlap_options = dict(shared_call=call, shared_input=shared_input)
         hidden_states = self._run_experts(
             dispatch_output.hidden_states,
             topk.topk_weights,
@@ -115,7 +124,7 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
             topk.router_logits,
             dispatch_output.hidden_states_pre_quant,
             execution_phase=self._execution_phase(),
-            during_fill=current_fill_overlap(),
+            **overlap_options,
         )
         return StandardCombineInput(hidden_states=hidden_states)
 
@@ -143,7 +152,8 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
         router_logits,
         hidden_states_pre_quant=None,
         execution_phase=None,
-        during_fill=None,
+        shared_call=None,
+        shared_input=None,
     ):
         """Replay host transport for every token, never capture a transfer job.
 
@@ -217,8 +227,8 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
             # Python forward scopes have exited at replay. Keep the phase in
             # the eager break's captured arguments alongside its tensor inputs.
             options["execution_phase"] = execution_phase
-        if during_fill is not None:
-            options["during_fill"] = during_fill
+        if shared_call is not None:
+            options["during_fill"] = lambda: shared_call.run(shared_input)
         return self.runtime.run(
             self.layer_id, topk_ids, execute, **options
         ).hidden_states

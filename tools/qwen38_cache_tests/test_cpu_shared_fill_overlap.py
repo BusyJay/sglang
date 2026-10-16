@@ -32,7 +32,7 @@ class TestSharedFillOverlap(unittest.TestCase):
             "sys.modules",
             {
                 "torch": SimpleNamespace(
-                    zeros_like=lambda x: Value(0),
+                    empty_like=lambda x: Value(0),
                     cuda=SimpleNamespace(stream=stream_context),
                 ),
                 "sglang.srt.model_executor.runner_backend_utils.breakable_cuda_graph": self.graph,
@@ -139,82 +139,115 @@ class TestSharedFillOverlap(unittest.TestCase):
                         self.module.can_overlap_shared(method, block, hidden, "decode")
                     )
 
-    def test_whole_moe_capture_stub_and_replay_use_fresh_inputs(self):
-        phase = SimpleNamespace(value=None)
-        calls, breaks = [], []
-
-        @contextlib.contextmanager
-        def scoped(**kw):
-            old = phase.value
-            phase.value = kw["qwen38_execution_phase"]
-            try:
-                yield
-            finally:
-                phase.value = old
-
+    def test_eager_shared_uses_fresh_inputs_and_leaves_no_callback(self):
         hidden, route = Value(10), Value(0)
+        calls = []
 
         def shared(x, apply_gate):
             self.assertFalse(apply_gate)
-            calls.append(("shared", x.value, phase.value))
+            calls.append(x.value)
             return Value(x.value * 2)
 
         def routed(x):
-            calls.append(("routed", x.value, phase.value))
-            self.module.current_fill_overlap()()
+            call, original = self.module.current_fill_overlap()
+            self.assertIs(original, x)
+            call.run(original)
             return Value(x.value * 3 + route.value)
-
-        def merge(x, weight, shared, routed):
-            routed.value += shared.value / 2
 
         block = SimpleNamespace(
             _forward_router_experts=routed,
             _forward_shared_experts=shared,
-            shared_expert_gate=SimpleNamespace(
-                weight=SimpleNamespace(squeeze=lambda: None)
-            ),
-        )
-        capture = SimpleNamespace(
-            _barrier_fn=None,
-            _end_current_segment=lambda: None,
-            _begin_new_segment=lambda: None,
-            cuda_graph=SimpleNamespace(_break_fns=breaks),
+            shared_expert_gate=None,
         )
         with mock.patch.dict(
             "sys.modules",
             {
                 "sglang.srt.models.qwen2_moe": SimpleNamespace(
-                    fused_gate_sigmoid_mul_add=merge, reduce_moe_output=lambda x: x
-                ),
-                "sglang.srt.runtime_context": SimpleNamespace(
-                    get_forward=lambda: SimpleNamespace(scoped=scoped)
+                    fused_gate_sigmoid_mul_add=None, reduce_moe_output=lambda x: x
                 ),
             },
         ):
-            token = self.graph._current_capture_var.set(capture)
-            try:
-                with mock.patch.object(
-                    self.graph, "_weak_ref_if_tensor", side_effect=lambda x: x
-                ):
-                    output = self.module.run_shared_overlap(block, hidden, "decode")
-            finally:
-                self.graph._current_capture_var.reset(token)
-            self.assertEqual(calls, [])
             for value in (1, 3, 2):
                 hidden.value, route.value = value, value + 1
-                breaks[0]()
-                self.assertEqual(output.value, 4 * value + value + 1)
+                output = self.module.run_shared_overlap(block, hidden, "decode")
+                self.assertEqual(output.value, 5 * value + value + 1)
                 self.assertIsNone(self.module.current_fill_overlap())
-                self.assertIsNone(phase.value)
-            self.assertEqual([item[0] for item in calls], ["routed", "shared"] * 3)
-            self.assertTrue(all(item[2] == "decode" for item in calls))
+        self.assertEqual(calls, [1, 3, 2])
+
+    def test_shared_graph_records_at_capture_and_only_replays_later(self):
+        block = SimpleNamespace(
+            _forward_shared_experts=mock.Mock(return_value=Value(7))
+        )
+        call = self.module.SharedExpertCall(block)
+        hidden = Value(2)
+        graph = SimpleNamespace(replay=mock.Mock())
+        cuda = SimpleNamespace(
+            CUDAGraph=mock.Mock(return_value=graph),
+            current_stream=lambda: self.compute,
+            graph=mock.Mock(return_value=contextlib.nullcontext()),
+        )
+        with mock.patch.object(self.module.torch, "cuda", cuda):
+            call.capture(hidden)
+        cuda.graph.assert_called_once_with(graph, pool=None, stream=self.compute)
+        self.assertEqual(call.output.value, 7)
+        self.assertIsNotNone(call.output)
+        graph.replay.assert_not_called()
+        for _ in range(3):
+            call.run(hidden)
+        self.assertEqual(graph.replay.call_count, 3)
+        block._forward_shared_experts.assert_called_once_with(hidden, apply_gate=False)
+        self.assertNotIn(hidden, vars(call).values())
+        with self.assertRaisesRegex(RuntimeError, "already captured"):
+            call.capture(hidden)
+
+    def test_failed_shared_capture_does_not_install_partial_graph(self):
+        block = SimpleNamespace(
+            _forward_shared_experts=mock.Mock(
+                side_effect=RuntimeError("capture failed")
+            )
+        )
+        call = self.module.SharedExpertCall(block)
+        cuda = SimpleNamespace(
+            CUDAGraph=lambda: object(),
+            current_stream=lambda: self.compute,
+            graph=lambda *a, **kw: contextlib.nullcontext(),
+        )
+        with mock.patch.object(self.module.torch, "cuda", cuda):
+            with self.assertRaisesRegex(RuntimeError, "capture failed"):
+                call.capture(Value(1))
+        self.assertIsNone(call.graph)
+        self.assertIsNone(call.output)
+
+    def test_shared_graph_reuses_outer_capture_pool(self):
+        pool = (19, 5)
+        block = SimpleNamespace(_forward_shared_experts=lambda *a, **kw: Value(1))
+        cuda = SimpleNamespace(
+            CUDAGraph=lambda: object(),
+            current_stream=lambda: self.compute,
+            graph=mock.Mock(side_effect=lambda *a, **kw: contextlib.nullcontext()),
+        )
+        with (
+            mock.patch.object(self.module.torch, "cuda", cuda),
+            mock.patch.object(
+                self.module, "get_current_capture_pool", return_value=pool
+            ),
+        ):
+            for _ in range(2):
+                self.module.SharedExpertCall(block).capture(Value(0))
+        self.assertEqual(cuda.graph.call_count, 2)
+        for call in cuda.graph.call_args_list:
+            self.assertIs(call.kwargs["pool"], pool)
 
     def test_failed_shared_callback_does_not_leak_to_later_expert_calls(self):
         def fail(*args, **kwargs):
             raise RuntimeError("shared failed")
 
+        def routed(x):
+            call, hidden = self.module.current_fill_overlap()
+            call.run(hidden)
+
         block = SimpleNamespace(
-            _forward_router_experts=lambda x: self.module.current_fill_overlap()(),
+            _forward_router_experts=routed,
             _forward_shared_experts=fail,
         )
         with mock.patch.dict(
@@ -222,11 +255,6 @@ class TestSharedFillOverlap(unittest.TestCase):
             {
                 "sglang.srt.models.qwen2_moe": SimpleNamespace(
                     fused_gate_sigmoid_mul_add=None, reduce_moe_output=None
-                ),
-                "sglang.srt.runtime_context": SimpleNamespace(
-                    get_forward=lambda: SimpleNamespace(
-                        scoped=lambda **kw: contextlib.nullcontext()
-                    )
                 ),
             },
         ):

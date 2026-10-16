@@ -66,9 +66,10 @@ stream 计算 shared expert，之后通过 event 等待 fill，再运行 routed 
 仅在 shared 与 routed 分离、非 inplace、TP=1 / A2A none 的 cached NVFP4 路径启用。
 prefill 和 verify 保留原调用；不把所有普通 GEMV 都视为独立分支。
 
-整个 decode MoE 使用同一个 eager graph 边界，避免原 breakable graph 在 expert
-边界前自动 join side stream，使并发被串行化。capture stub 不发起推理/搬运；
-replay 使用新输入计算 router/shared，并保留原 dispatcher、NVFP4 runner 和 gate/add。
+首版整个 MoE eager 边界的 profile 显示主机提交空隙抵消并发收益。本轮将
+router/topk、gate/add 恢复进原 graph segments，仅保留原 expert transport 边界；
+shared 分支在该边界录成小 graph，fill 时只提交 replay。小 graph 复用外层 capture
+pool，输出持有至合并，不增加一份 shared 输出复制。prefill/verify 仍走原路径。
 
 新增 `decode_shared_fill_overlap_invocations` 仅表示该调度路径被执行的次数，
 真实 kernel 重叠和吞吐仍需 profile。详见

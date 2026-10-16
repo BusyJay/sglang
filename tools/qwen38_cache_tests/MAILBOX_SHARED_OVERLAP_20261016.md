@@ -1,62 +1,69 @@
 # Decode shared expert / fill 并发
 
-用户要求将可独立的 GEMV 与 fill 并发。本次选择同层 shared expert 分支：
-它只读取 MLP 输入，不依赖 miss 权重。不能让整段 5.32 ms 的所有 GEMV 都并发，
-因为注意力投影等计算在当前 router 之前，或依赖当前 MoE 输出。
-prefill、verify 及其 arena、dense/sparse、缓存复用和预热策略保持原调用路径。
+仅优化单 token CUDA decode 的独立 shared expert 分支。prefill、verify、
+arena、dense/sparse、缓存复用和预热策略继续使用原路径。
 
-## 执行与依赖
+## Profile 结论与本轮修正
+
+926c764182 的整个 MoE eager 边界已在线采集：shared GEMV 与 fill 确实重叠，
+但整步从上一份的 17.890 ms 增至 22.698 ms。shared GEMV 只有约 0.771 ms/step，
+其中约 0.487 ms 与 fill 重叠；GPU 空闲反而从 1.194 增至 8.223 ms/step。
+不同输入/route/cache 条件不是严格 A/B，然而 launch 时间戳明确显示多处 GPU
+在等主机提交。原始数据与完整诊断在
+`results/mailbox-overlap-profile-20261016/ANALYSIS.md`。
+
+本轮去掉整个 MoE 的 eager 边界：router/topk、最终 gate/add 和后续算子回到
+原 breakable graph segments。仅保留 quant 方法原有 expert transport 边界。
+它的 capture stub 在前一个 segment 结束后录制 shared 小 graph；每次 runtime
+提交 fill 时只 replay 该 graph，不再由 Python 逐个提交 shared 算子。
+
+## 执行依赖与生命周期
 
 ```text
-compute: router/topk -> planner/alpha -> ready event
-                                     -> shared expert -> wait filled -> routed MoE
-                                                                        -> gate/add
-fill:                                  wait ready -> fill -> filled event
+main graph: router/topk
+compute:    planner/alpha -> ready -> shared graph replay -> wait filled -> routed MoE
+main graph: gate/add -> 后续层
+fill:                       wait ready -> fill -> filled
 ```
 
-运行条件为单 token CUDA decode、分离的 shared expert、非 inplace routed runner、
-cached NVFP4 的 threaded direct-fill runtime、TP=1 且 A2A none。
-shared/routed 使用同一输入但各自输出，保留原 dispatcher、router 权重、CUTLASS
-runner、最终 fused gate/add 和 reduction。未拆分 routed GEMM，也没有额外 expert 复制。
-冷的非 sampling decode 如仍需旧 transport，shared callback 仅串行执行一次。
+保留原 router、dispatcher、CUTLASS runner、fused gate/add 和 reduction。
+运行条件仍是单 token decode、shared/routed 分离、非 inplace、TP=1、A2A none、
+threaded direct fill。冷的非 sampling decode 如仍走旧 transport，shared 仅串行
+计算一次。未启用 graph 的 eager decode 也直接计算 shared，不在服务循环捕获图。
 
-独立 fill stream 等待 planner/alpha 的 ready event；compute 在 shared 分支后
-等待 filled event，再执行 routed GEMM。现有 reader-completion event 因此覆盖
-shared、fill 和 routed reader。异常路径同样 join 已提交的 fill，防止缓存提早复用。
-两组同步 event 跟随原 completion event pool 复用，初始化时创建/record，
-不会在每层服务调用中创建/销毁 event。
+ContextVar 只在模型 Python forward/capture 作用域内传递 `(call, original_input)`，
+正常或异常均 reset。quant 边界将 original_input 作为单独 Tensor 参数传递，
+由原 breakable wrapper 转成 weak view；不把激活藏在持久回放闭包中。
+shared graph 固定读取这个地址，因此上一段 replay 每轮写入的新激活都会生效。
+shared 输出由 call 强引用持有，供下一段 gate/add 使用；没有额外 shared 输出拷贝。
 
-模型层给 cached MoE 增加专用 eager 边界，包住 router、shared 和 routed。
-原 breakable graph 会在结束 segment 时自动 join side stream；只在旧调用处
-加 stream 无法绕过这个汇合。新的 capture stub 仅创建输出 bridge；replay
-恢复 decode phase 并计算新 route / 激活。shared callback 使用 ContextVar 作用域
-传给原 quant 方法，正常返回或异常时均恢复，不把 Tensor 闭包保存进 captured graph。
+辅助 shared graph 复用当前 breakable capture 的 allocator pool，避免每层各自
+保留独立 allocator slab。新增公开 helper `get_current_capture_pool()` 只返回
+当前 capture 的 pool；非 capture 返回 None。使用共享 pool 的辅助 graph 必须
+完成后才能开始下一段。现有 runtime computed event 在 shared replay、fill join、
+routed reader 之后记录，满足该顺序。pool 随 segment/shared graph 对象存活。
 
-## 开销与可观测性
+graph capture stub 不读取尚未 replay 的 route，不进行 cache transport，也不执行
+shared graph replay。图的录制及准备只发生在模型 graph capture 阶段。
+ready/filled、reader event 的复用与异常 join 协议沿用上一轮，不增加 host ready 等待。
 
-没有新增权重/staging 缓冲，新增一条 stream 与两组 event，均在 KV 预算前准备。
-它们仍有驱动元数据成本，不能保证 context 容量绝对不变。
+## 开销与验证
 
-router/shared 从原 graph segment 移到 eager 边界，会增加主机提交开销。
-同时两个内存访问密集 kernel 可能争用 GPU 资源。因此目前实现的是正确的并发调度，
-尚未证明吞吐获益，不能按 max(5.32, 5.27) 估计整步时间。
+仍有每层一次 shared graph launch 的主机开销，以及 graph/输出/中间结果的存储成本。
+共享 allocator pool 避免每层独立 slab，但不能保证 KV/context 容量绝对不变。
+可隐藏的 shared 计算量级约 0.77 ms/step，不能用整段 5.32 ms 普通 GEMV 估计收益。
 
-`decode_shared_fill_overlap_invocations` 应随符合条件的 decode 增长；
-它不是硬件并发时间。profile 中应看到 fill 在独立 stream，shared GEMV 位于
-其执行区间附近，routed GEMM 在 fill event 后运行。需计算 kernel 区间交集并
-比较整步耗时，同时固定输入/route、上下文、cache 布局和 sampling 阶段。
+本轮完整 252 项 CPU 测试通过，包括真实 eager decorator 的 quant capture/replay、
+新输入/route 和 phase 参数、shared callback 转发、capture pool 作用域、失败恢复、
+事件提交/join 和 decode-only 保护。真实 SGLang 导入与参数无关 runner wiring 通过。
+容器无 GPU/网络，限制 2 CPU / 4 GiB；日志在
+`results/mailbox-shared-graph-20261016/cpu-container.log`。
+CUDA kernel 没有修改，本轮未重复编译。
 
-## 验证与交接
+GPU 用例已更新为小 graph 路径，覆盖跨 stream、sampling、fresh route/activation、
+共享 capture pool，并检查 replay 不再调用 Python shared 分支；尚未执行。
+没有线上请求、重启或部署参数修改。
 
-CPU 回归包含 event 提交/汇合顺序、两类异常汇合、decode-only/inplace 保护、
-真实 breakable decorator 的 capture stub 和新输入 replay，以及 callback 作用域恢复。
-真实 SGLang CPU 容器检查还验证 quant 方法把 callback 传给 runtime 且只执行一次。
-定向 6 项和完整 248 项 CPU 测试均通过，SM120 routing JIT 扩展编译、加载通过
-（未执行 kernel）。容器无 GPU、无网络，限制为 2 CPU / 4 GiB 内存。
-
-新增 GPU 回归覆盖 shared GEMV + direct fill 的跨 stream 输出、sampling、
-breakable graph replay 的新 route/激活及 shared 分支异常后的下一次 cache reader。
-这些 GPU 用例尚未执行。没有发送线上请求、重启服务或调整部署参数。
-
-最终日志位于 `/home/jay/workspace/sglang/results/mailbox-shared-overlap-20261016/`。
-GPU 正确性、真实模型数值与在线吞吐验证由用户执行。
+下一份 profile 应检查额外 shared graph launch、shared/fill 区间交集、GPU 空闲和
+整步时间，特别验证此前 routed prefix-sum、gate/add 前的提交空隙是否收敛。
+`decode_shared_fill_overlap_invocations` 仍只是路径计数，不等于硬件重叠。

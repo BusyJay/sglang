@@ -8,7 +8,7 @@ from contextvars import ContextVar
 import torch
 
 from sglang.srt.model_executor.runner_backend_utils.breakable_cuda_graph import (
-    eager_on_graph,
+    get_current_capture_pool,
 )
 
 _during_fill = ContextVar("qwen38_shared_during_fill", default=None)
@@ -59,44 +59,69 @@ def can_overlap_shared(method, block, hidden_states, phase):
     )
 
 
-def _capture_shared_output(_block, hidden_states, _phase):
-    # Capture-time graph outputs (including router IDs) have not been replayed.
-    # The entire shared/routed boundary must execute only at warmup/replay.
-    return torch.zeros_like(hidden_states)
+class SharedExpertCall:
+    """Per-break graph state; the input crosses the break as a flat tensor arg.
+
+    No activation closure is retained by the graph replay callback. The outer
+    breakable graph pins incoming activations. Retain the shared graph's output
+    until the following segment has consumed it. Eager calls never build a graph.
+    """
+
+    def __init__(self, block):
+        self.block = block
+        self.graph = None
+        self.output = None
+
+    def capture(self, hidden_states):
+        if self.graph is not None:
+            raise RuntimeError("shared expert graph already captured")
+        graph = torch.cuda.CUDAGraph()
+        # Called by the expert capture stub AFTER the preceding segment ends.
+        # Reuse its pool rather than reserve a private allocator slab per layer.
+        # Runtime reader events join this graph before the next segment starts.
+        with torch.cuda.graph(
+            graph,
+            pool=get_current_capture_pool(),
+            stream=torch.cuda.current_stream(),
+        ):
+            result = self.block._forward_shared_experts(hidden_states, apply_gate=False)
+        self.output = result
+        self.graph = graph
+
+    def run(self, hidden_states):
+        if self.graph is None:
+            self.output = self.block._forward_shared_experts(
+                hidden_states, apply_gate=False
+            )
+        else:
+            self.graph.replay()
 
 
-@eager_on_graph(True, capture_stub=_capture_shared_output)
 def run_shared_overlap(block, hidden_states, phase):
     from sglang.srt.models.qwen2_moe import (
         fused_gate_sigmoid_mul_add,
         reduce_moe_output,
     )
-    from sglang.srt.runtime_context import get_forward
 
-    shared = []
-
-    def compute_shared():
-        if shared:
-            raise RuntimeError("shared expert callback executed more than once")
-        shared.append(block._forward_shared_experts(hidden_states, apply_gate=False))
-
-    token = _during_fill.set(compute_shared)
+    # This function stays INSIDE the ordinary graph segments. Only quant's
+    # existing expert boundary breaks capture; its stub prepares the shared
+    # graph, and its runtime callback replays it alongside fill.
+    call = SharedExpertCall(block)
+    token = _during_fill.set((call, hidden_states))
     try:
-        # Preserve standard router, dispatcher and quant-method behavior. Replay
-        # occurs after the model's original Python forward scopes have exited.
-        with get_forward().scoped(qwen38_execution_phase=phase):
-            routed = block._forward_router_experts(hidden_states)
+        routed = block._forward_router_experts(hidden_states)
     finally:
         _during_fill.reset(token)
-    if len(shared) != 1 or shared[0] is None:
+    shared = call.output
+    if shared is None:
         raise RuntimeError("direct-fill transport did not execute shared expert")
     if block.shared_expert_gate is not None:
         fused_gate_sigmoid_mul_add(
             hidden_states,
             block.shared_expert_gate.weight.squeeze(),
-            shared[0],
+            shared,
             routed,
         )
     else:
-        routed.add_(shared[0])
+        routed.add_(shared)
     return reduce_moe_output(routed)

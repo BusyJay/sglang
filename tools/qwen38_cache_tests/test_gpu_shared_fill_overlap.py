@@ -9,6 +9,11 @@ import torch.nn.functional as F
 
 @unittest.skipUnless(torch.cuda.is_available(), "CUDA unavailable")
 class TestGpuSharedFillOverlap(unittest.TestCase):
+    def setUp(self):
+        from sglang.srt.runtime_context import get_parallel
+
+        self.enterContext(get_parallel().override(tp_size=1))
+
     def _fixture(self):
         from sglang.srt.layers.moe.qwen38_cache_threaded import (
             Qwen38ThreadedExpertRuntime,
@@ -36,6 +41,12 @@ class TestGpuSharedFillOverlap(unittest.TestCase):
 
     def _block(self, runtime):
         from sglang.srt.layers.moe.qwen38_cache_overlap import current_fill_overlap
+        from sglang.srt.layers.quantization.qwen38_nvfp4_cache import (
+            _capture_expert_output,
+        )
+        from sglang.srt.model_executor.runner_backend_utils.breakable_cuda_graph import (
+            eager_on_graph,
+        )
 
         weight = (
             torch.arange(64, device="cuda", dtype=torch.float32)
@@ -47,20 +58,37 @@ class TestGpuSharedFillOverlap(unittest.TestCase):
             ids=torch.tensor([[0, 1]], dtype=torch.int32, device="cuda"),
             layer=0,
             shared_expert_gate=None,
-            _forward_shared_experts=lambda hidden, apply_gate: F.linear(hidden, weight),
+            shared_calls=0,
         )
 
-        def routed(hidden):
+        def shared(hidden, apply_gate):
+            block.shared_calls += 1
+            return F.linear(hidden, weight)
+
+        block._forward_shared_experts = shared
+
+        @eager_on_graph(True, capture_stub=_capture_expert_output)
+        def experts(_block, hidden, ids, *, shared_call, shared_input):
             return runtime.run(
                 block.layer,
-                block.ids,
+                ids,
                 lambda prepared: (
                     prepared.tensors["w13_weight"][prepared.topk_ids.long()]
                     .to(torch.bfloat16)
                     .sum(dim=1)
                 ),
                 execution_phase="decode",
-                during_fill=current_fill_overlap(),
+                during_fill=lambda: shared_call.run(shared_input),
+            )
+
+        def routed(hidden):
+            call, shared_input = current_fill_overlap()
+            return experts(
+                block,
+                hidden,
+                block.ids,
+                shared_call=call,
+                shared_input=shared_input,
             )
 
         block._forward_router_experts = routed
@@ -116,9 +144,12 @@ class TestGpuSharedFillOverlap(unittest.TestCase):
         runtime.synchronize()
         graph = BreakableCUDAGraph()
         before = runtime.run_invocations
-        with BreakableCUDAGraphCapture(graph, stream=stream):
+        with BreakableCUDAGraphCapture(
+            graph, stream=stream, pool=torch.cuda.graph_pool_handle()
+        ):
             result = run_shared_overlap(block, hidden * 1.0, "decode") * 1.0
         self.assertEqual(runtime.run_invocations, before)
+        recorded_shared_calls = block.shared_calls
         for step, pair in enumerate([(0, 1), (2, 3), (1, 3), (2, 2)]):
             hidden.fill_(step / 8)
             block.ids.copy_(torch.tensor([pair], dtype=torch.int32, device="cuda"))
@@ -133,6 +164,7 @@ class TestGpuSharedFillOverlap(unittest.TestCase):
             )
             reference.add_(F.linear(hidden, weight))
             self.assertTrue(torch.equal(result, reference))
+            self.assertEqual(block.shared_calls, recorded_shared_calls)
 
     def test_failed_shared_branch_leaves_fill_ordered_for_next_reader(self):
         fixture, runtime = self._fixture()

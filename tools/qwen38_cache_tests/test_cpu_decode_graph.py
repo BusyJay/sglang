@@ -124,6 +124,16 @@ class TestEagerBreakReplay(unittest.TestCase):
                 "python/sglang/srt/model_executor/runner_backend_utils/breakable_cuda_graph/breakable_cuda_graph.py",
             )
 
+    def test_auxiliary_graph_pool_tracks_only_active_capture(self):
+        self.assertIsNone(self.graph.get_current_capture_pool())
+        pool = (17, 3)
+        token = self.graph._current_capture_var.set(SimpleNamespace(_pool=pool))
+        try:
+            self.assertIs(self.graph.get_current_capture_pool(), pool)
+        finally:
+            self.graph._current_capture_var.reset(token)
+        self.assertIsNone(self.graph.get_current_capture_pool())
+
     def test_new_routes_inputs_and_errors_reach_host_on_every_replay(self):
         calls, breaks = [], []
         capture = SimpleNamespace(
@@ -183,8 +193,19 @@ class TestEagerBreakReplay(unittest.TestCase):
         )
 
         phases = []
+        shared_calls = []
+        shared = SimpleNamespace(
+            capture=lambda x: shared_calls.append(("capture", x.value)),
+            run=lambda x: (
+                shared_calls.append(("run", x.value)),
+                shared_output.copy_(x),
+            ),
+        )
+        shared_output = Tensor(0)
 
-        def transport(_layer, ids, execute, *, execution_phase=None):
+        def transport(_layer, ids, execute, *, execution_phase=None, during_fill=None):
+            if during_fill is not None:
+                during_fill()
             phases.append(execution_phase)
             calls.append(ids.value)
             # Different global routes yield different slot mappings each replay.
@@ -249,17 +270,26 @@ class TestEagerBreakReplay(unittest.TestCase):
                     self.graph, "_weak_ref_if_tensor", side_effect=lambda x: x
                 ):
                     output = method._run_experts(
-                        hidden, None, ids, None, execution_phase="verify"
+                        hidden,
+                        None,
+                        ids,
+                        None,
+                        execution_phase="verify",
+                        shared_call=shared,
+                        shared_input=hidden,
                     )
             finally:
                 self.graph._current_capture_var.reset(token)
             self.assertEqual(calls, [])
             self.assertEqual(output.value, 0)
+            self.assertEqual(shared_calls, [("capture", 10)])
+            self.assertEqual(shared_output.value, 0)
             for route in (3, 2, 1, 0):
                 ids.value = route
                 hidden.value += 1
                 breaks[0]()
                 self.assertEqual(output.value, hidden.value + route % 2)
+                self.assertEqual(shared_output.value, hidden.value)
             self.assertEqual(calls, [3, 2, 1, 0])
             self.assertEqual(phases, ["verify"] * 4)
 
