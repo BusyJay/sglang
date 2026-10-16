@@ -47,6 +47,7 @@ __all__ = [
     "BreakableCUDAGraph",
     "BreakableCUDAGraphCapture",
     "break_graph",
+    "get_current_capture_pool",
 ]
 
 
@@ -70,6 +71,16 @@ _current_stream_var: ContextVar[torch.Stream | None] = ContextVar(
 _forked_streams_var: ContextVar[set[torch.Stream] | None] = ContextVar(
     "forked_streams", default=None
 )
+
+
+def get_current_capture_pool():
+    """Pool for auxiliary graphs replayed in order at an active eager break.
+
+    Such graphs must finish before the next segment uses the shared pool.
+    Outside breakable capture, return None so CUDA chooses a private pool.
+    """
+    capture = _current_capture_var.get()
+    return capture._pool if capture is not None else None
 
 
 def get_current_stream(device: torch.device | None = None) -> torch.Stream:

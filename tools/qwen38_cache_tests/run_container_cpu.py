@@ -161,10 +161,13 @@ def main():
     runtime.run = transport_with_shared
     with mock.patch(
         "sglang.srt.layers.moe.qwen38_cache_overlap.current_fill_overlap",
-        return_value=lambda: shared_calls.append(True),
+        return_value=(
+            SimpleNamespace(run=lambda x: shared_calls.append(x)),
+            hidden,
+        ),
     ):
         method.apply(layer, dispatch)
-    assert shared_calls == [True], "quant boundary did not forward shared callback"
+    assert shared_calls == [hidden], "quant boundary did not forward shared callback"
     print("Real ModelOpt config, parameter-free allocation and runner wiring passed.")
     print("Container CPU tests and SGLang import checks passed.")
     return 0
