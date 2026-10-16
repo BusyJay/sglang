@@ -152,6 +152,19 @@ def main():
     assert quant_info.quant_scales[3] is tensors["w2_input_scale_quant"]
     assert result.hidden_states is hidden
     assert torch.equal(topk.topk_ids, ids), "original routing was mutated"
+    shared_calls = []
+
+    def transport_with_shared(layer_id, ids, execute, *, during_fill):
+        during_fill()
+        return execute(prepared)
+
+    runtime.run = transport_with_shared
+    with mock.patch(
+        "sglang.srt.layers.moe.qwen38_cache_overlap.current_fill_overlap",
+        return_value=lambda: shared_calls.append(True),
+    ):
+        method.apply(layer, dispatch)
+    assert shared_calls == [True], "quant boundary did not forward shared callback"
     print("Real ModelOpt config, parameter-free allocation and runner wiring passed.")
     print("Container CPU tests and SGLang import checks passed.")
     return 0

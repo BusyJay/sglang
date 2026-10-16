@@ -1613,7 +1613,14 @@ class Qwen4ExpLayerExtensionMixin:
         with get_forward().scoped(
             mlp_reduce_scatter=use_reduce_scatterv, qwen38_execution_phase=phase
         ):
-            hidden_states = self.mlp(hidden_states, forward_batch)
+            method = getattr(getattr(self.mlp, "experts", None), "quant_method", None)
+            can_overlap = getattr(method, "can_overlap_shared", None)
+            if can_overlap is not None and can_overlap(self.mlp, hidden_states, phase):
+                hidden_states = method.run_shared_overlap(
+                    self.mlp, hidden_states, phase
+                )
+            else:
+                hidden_states = self.mlp(hidden_states, forward_batch)
 
         if use_dp_moe_gather:
             hidden_states, global_hidden_states = (

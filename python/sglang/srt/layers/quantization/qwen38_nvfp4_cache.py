@@ -91,6 +91,7 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
         self.swiglu_buffers.get(runtime.slots_for_layer(self.layer_id))
 
     def apply(self, layer, dispatch_output):
+        from sglang.srt.layers.moe.qwen38_cache_overlap import current_fill_overlap
         from sglang.srt.layers.moe.token_dispatcher.standard import StandardCombineInput
 
         if self.runtime is None:
@@ -114,6 +115,7 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
             topk.router_logits,
             dispatch_output.hidden_states_pre_quant,
             execution_phase=self._execution_phase(),
+            during_fill=current_fill_overlap(),
         )
         return StandardCombineInput(hidden_states=hidden_states)
 
@@ -121,6 +123,16 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
         from sglang.srt.runtime_context import get_forward
 
         return get_forward().qwen38_execution_phase
+
+    def can_overlap_shared(self, block, hidden_states, phase):
+        from sglang.srt.layers.moe.qwen38_cache_overlap import can_overlap_shared
+
+        return can_overlap_shared(self, block, hidden_states, phase)
+
+    def run_shared_overlap(self, block, hidden_states, phase):
+        from sglang.srt.layers.moe.qwen38_cache_overlap import run_shared_overlap
+
+        return run_shared_overlap(block, hidden_states, phase)
 
     @eager_on_graph(True, capture_stub=_capture_expert_output)
     def _run_experts(
@@ -131,6 +143,7 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
         router_logits,
         hidden_states_pre_quant=None,
         execution_phase=None,
+        during_fill=None,
     ):
         """Replay host transport for every token, never capture a transfer job.
 
@@ -204,6 +217,8 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
             # Python forward scopes have exited at replay. Keep the phase in
             # the eager break's captured arguments alongside its tensor inputs.
             options["execution_phase"] = execution_phase
+        if during_fill is not None:
+            options["during_fill"] = during_fill
         return self.runtime.run(
             self.layer_id, topk_ids, execute, **options
         ).hidden_states

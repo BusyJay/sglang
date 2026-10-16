@@ -58,6 +58,22 @@ CPU 分析输入的 layer/cycle/index/active IDs 和缺口拒绝规则保持不�
 
 当前改动与验证见 [MAILBOX_DECODE_SAMPLING_20261016.md](MAILBOX_DECODE_SAMPLING_20261016.md)。
 
+## Shared GEMV 与 fill 并发（2026-10-16）
+
+符合条件的单 token decode，将本层 shared expert 与 direct fill 调度到不同
+stream：router/planner/alpha 完成后，独立 fill stream 开始搬运权重，compute
+stream 计算 shared expert，之后通过 event 等待 fill，再运行 routed experts。
+仅在 shared 与 routed 分离、非 inplace、TP=1 / A2A none 的 cached NVFP4 路径启用。
+prefill 和 verify 保留原调用；不把所有普通 GEMV 都视为独立分支。
+
+整个 decode MoE 使用同一个 eager graph 边界，避免原 breakable graph 在 expert
+边界前自动 join side stream，使并发被串行化。capture stub 不发起推理/搬运；
+replay 使用新输入计算 router/shared，并保留原 dispatcher、NVFP4 runner 和 gate/add。
+
+新增 `decode_shared_fill_overlap_invocations` 仅表示该调度路径被执行的次数，
+真实 kernel 重叠和吞吐仍需 profile。详见
+[MAILBOX_SHARED_OVERLAP_20261016.md](MAILBOX_SHARED_OVERLAP_20261016.md)。
+
 ## 验证
 
 ```bash

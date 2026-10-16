@@ -806,6 +806,9 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         if getattr(self, "miss_mailbox", None) is not None:
             self.miss_mailbox.flush_stats()
         result = super().stats_snapshot()
+        result["decode_shared_fill_overlap_invocations"] = getattr(
+            getattr(self, "miss_mailbox", None), "overlap_invocations", 0
+        )
         result["packed_decode"] = self.packed_decode
         result["packed_prefill"] = self.packed_prefill
         result["packed_transport"] = (
@@ -1169,8 +1172,11 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         return self.prefill_dense_current
 
     supports_execution_phase = True
+    supports_fill_overlap = True
 
-    def run(self, layer_id, topk_ids, execute, *, execution_phase=None):
+    def run(
+        self, layer_id, topk_ids, execute, *, execution_phase=None, during_fill=None
+    ):
         if self.adaptive_cache and self.adaptive_target is not None:
             self._maybe_rebalance()
         with self.lock, torch.no_grad(), torch.cuda.device(self.device):
@@ -1217,10 +1223,19 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                 and 0 < topk_ids.shape[1] <= 32
             ):
                 result = self.miss_mailbox.run(
-                    layer_id, topk_ids, execute, _ready_timeout_seconds(), sample=sample
+                    layer_id,
+                    topk_ids,
+                    execute,
+                    _ready_timeout_seconds(),
+                    sample=sample,
+                    during_fill=during_fill,
                 )
                 self.gate_warmed_layers.add(layer_id)
                 return result
+            if during_fill is not None:
+                # Cold non-sampling decode may still warm via the legacy path.
+                # Compute the shared branch once, with its original math.
+                during_fill()
             if self.miss_mailbox is not None:
                 # Drain readers and hand off partial route samples before
                 # entering prefill, multi-token verify, or another legacy path.

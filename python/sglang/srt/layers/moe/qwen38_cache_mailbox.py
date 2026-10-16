@@ -84,6 +84,14 @@ class DecodeMissMailbox:
         ]
         for event in self.events:
             event.record(torch.cuda.current_stream(runtime.device))
+        self.fill_stream = torch.cuda.Stream(device=runtime.device)
+        self.overlap_events = {
+            id(event): (torch.cuda.Event(), torch.cuda.Event()) for event in self.events
+        }
+        for pair in self.overlap_events.values():
+            for event in pair:
+                event.record(torch.cuda.current_stream(runtime.device))
+        self.overlap_invocations = 0
         self.available = collections.deque(self.events)
         self.retained_external = {}
         # Preload the fill kernel before serving frames.
@@ -108,7 +116,7 @@ class DecodeMissMailbox:
 
             self.sampler = DeviceRouteSampler(runtime, self._abort)
 
-    def run(self, layer, ids, execute, timeout, sample=None):
+    def run(self, layer, ids, execute, timeout, sample=None, during_fill=None):
         r = self.runtime
         compute = torch.cuda.current_stream(r.device)
         previous = r.layer_computed.get(layer)
@@ -174,13 +182,26 @@ class DecodeMissMailbox:
                 tensors["g2_alphas"],
                 state["plan"],
             )
-        _module().mailbox_fill(
-            state["plan"],
-            self.layouts[layer],
-            r.manifest.top_k,
-            self.failed_address,
-        )
         try:
+
+            def submit_fill():
+                _module().mailbox_fill(
+                    state["plan"],
+                    self.layouts[layer],
+                    r.manifest.top_k,
+                    self.failed_address,
+                )
+
+            if during_fill is None:
+                submit_fill()
+            else:
+                from sglang.srt.layers.moe.qwen38_cache_overlap import fill_with_overlap
+
+                ready, filled = self.overlap_events[id(computed)]
+                fill_with_overlap(
+                    compute, self.fill_stream, ready, filled, submit_fill, during_fill
+                )
+                self.overlap_invocations += 1
             return execute(
                 PreparedExperts(
                     {**r.caches[layer], **r.layer_scales[layer]},
