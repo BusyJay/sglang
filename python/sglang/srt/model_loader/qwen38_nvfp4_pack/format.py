@@ -456,6 +456,12 @@ class Qwen38ExpertPack:
 
     def discard_source_file_cache(self) -> None:
         """Release redundant prefetch pages after CUDA materializes private pages."""
+        discard = os.getenv("SGLANG_QWEN38_DISCARD_SOURCE_FILE_CACHE", "0")
+        if discard not in ("0", "1"):
+            raise ValueError("SGLANG_QWEN38_DISCARD_SOURCE_FILE_CACHE must be 0 or 1")
+        if discard == "0":
+            logger.info("Expert-pack file cache retained for warm restarts")
+            return
         if self._cuda_source_private and hasattr(os, "posix_fadvise"):
             try:
                 os.posix_fadvise(

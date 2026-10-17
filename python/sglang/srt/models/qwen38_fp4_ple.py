@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 
 import torch
 from torch import nn
@@ -135,13 +136,45 @@ class Qwen38Fp4PleEmbedding(Qwen4ExpPinnedHostEmbedding):
             local_rows = self.weight.shape[0]
             start = self.shard_indices.org_vocab_start_index
             valid_rows = max(0, min(start + local_rows, cursor) - start)
+            packed_cache_enabled = os.getenv("SGLANG_QWEN38_PLE_PACKED_CACHE", "1")
+            if packed_cache_enabled not in ("0", "1"):
+                raise ValueError("SGLANG_QWEN38_PLE_PACKED_CACHE must be 0 or 1")
+            packed_cache_dir = self._table_dir or envs.SGLANG_QWEN4_PLE_FILE_DIR.get()
+            cached_path = None
+            if self._backend == "pinned" and packed_cache_enabled == "1" and valid_rows == local_rows:
+                from sglang.srt.models.qwen38_ple_packed_cache import ensure_packed_ple_cache
+
+                def write_cache(view):
+                    packed = torch.frombuffer(view, dtype=torch.uint8).view(local_rows, self._row_bytes)
+                    try:
+                        copy_packed_ple_table(packed, weights, scales, valid_rows,
+                                              self.embedding_dim, row_start=start)
+                    finally:
+                        del packed
+
+                cached_path, _, _ = ensure_packed_ple_cache(
+                    packed_cache_dir, weights, scales, local_rows, self.embedding_dim,
+                    start, write_cache,
+                )
+            allocation_start = time.perf_counter()
             table = allocate_ple_host_table(
                 shape=(local_rows, self._row_bytes), dtype=torch.uint8,
                 backend=self._backend, table_dir=self._table_dir,
                 tag=f"fp4-rows{start}-{start + local_rows}",
             )
-            copy_packed_ple_table(table, weights, scales, valid_rows,
-                                  self.embedding_dim, row_start=start)
+            allocation_seconds = time.perf_counter() - allocation_start
+            copy_start = time.perf_counter()
+            if cached_path is not None:
+                from sglang.srt.models.qwen38_ple_packed_cache import read_packed_ple_cache
+
+                # NumPy exports the tensor storage; no full-table temporary copy.
+                read_packed_ple_cache(cached_path, table.numpy())
+            else:
+                copy_packed_ple_table(table, weights, scales, valid_rows,
+                                      self.embedding_dim, row_start=start)
+            logger.info("FP4 PLE host preparation: backend=%s cached=%s allocate_seconds=%.3f load_seconds=%.3f",
+                        self._backend, cached_path is not None, allocation_seconds,
+                        time.perf_counter() - copy_start)
             if valid_rows < local_rows:
                 table[valid_rows:].zero_()
             self.weight = nn.Parameter(table, requires_grad=False)
@@ -167,8 +200,6 @@ class Qwen38Fp4PleEmbedding(Qwen4ExpPinnedHostEmbedding):
         self._lazy_staging = torch.empty(
             (self._batch_rows, self._row_bytes), dtype=torch.uint8, device="cpu", pin_memory=True
         )
-
-        import os
 
         if os.getenv("SGLANG_QWEN38_PLE_DOUBLE_STAGING", "1") == "1":
             self._lazy_staging_ring = [
