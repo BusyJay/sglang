@@ -108,7 +108,10 @@ def _project(
     tl.store(Y + route * N + n, tl.where(valid, result, 0.0), mask=n < N)
 
 
-def fp4_mtp_moe(x, ids, router, w13, w2, s13, s2, g13, g2):
+def fp4_mtp_moe(
+    x, ids, router, w13, w2, s13, s2, g13, g2, *, chunk_tokens=128
+):
+    """Keep route scratch bounded during draft extend, including long prefill."""
     tokens, hidden = x.shape
     topk = ids.shape[1]
     width = w13.shape[1] // 2
@@ -116,6 +119,31 @@ def fp4_mtp_moe(x, ids, router, w13, w2, s13, s2, g13, g2):
         return torch.empty_like(x)
     if x.dtype != torch.bfloat16 or hidden % 16 or width % 16:
         raise ValueError("NVFP4 MTP requires BF16 inputs and block-aligned geometry")
+    if not isinstance(chunk_tokens, int) or chunk_tokens <= 0:
+        raise ValueError("NVFP4 MTP chunk_tokens must be a positive integer")
+    if tokens > chunk_tokens:
+        # Draft extend also sees full prefill chunks. At 8192 tokens/topk=10,
+        # the original FP32 projected buffer alone occupies 800 MiB. Keep only
+        # one small tile alive, preserving the original FP32 sum/BF16 rounding.
+        # Decode and graph-captured small inputs retain the original path below.
+        output = torch.empty_like(x)
+        for start in range(0, tokens, chunk_tokens):
+            end = min(start + chunk_tokens, tokens)
+            output[start:end].copy_(
+                fp4_mtp_moe(
+                    x[start:end],
+                    ids[start:end],
+                    router[start:end],
+                    w13,
+                    w2,
+                    s13,
+                    s2,
+                    g13,
+                    g2,
+                    chunk_tokens=chunk_tokens,
+                )
+            )
+        return output
     intermediate = torch.empty((tokens * topk, width), device=x.device, dtype=x.dtype)
     projected = torch.empty(
         (tokens * topk, hidden), device=x.device, dtype=torch.float32

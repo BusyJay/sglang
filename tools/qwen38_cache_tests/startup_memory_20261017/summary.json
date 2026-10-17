@@ -1,0 +1,42 @@
+{
+  "original": {
+    "main_weight_load_seconds": 196.59,
+    "combined_weight_load_seconds": 198.41,
+    "scheduler_seconds": 211.4,
+    "tokenizer_seconds": 220.38,
+    "max_total_num_tokens": 235456
+  },
+  "split0": {
+    "main_weight_load_seconds": 59.56,
+    "combined_weight_load_seconds": 62.34,
+    "scheduler_seconds": 81.8,
+    "tokenizer_seconds": 90.23,
+    "max_total_num_tokens": 425088
+  },
+  "split1": {
+    "main_weight_load_seconds": 124.75,
+    "combined_weight_load_seconds": 126.07,
+    "scheduler_seconds": 143.11,
+    "tokenizer_seconds": 151.54,
+    "max_total_num_tokens": 425088
+  },
+  "embedding_saved_mib": 1212.5,
+  "arena_saved_mib": 1350.0,
+  "total_saved_mib": 2562.5,
+  "active_source": "/home/jay/workspace/sglang",
+  "split_k": 1,
+  "service_comparison": {
+    "status": "SERVICE_SPEED_PASS",
+    "baseline_decode_tps": 64.76114658626084,
+    "candidate_decode_tps": 75.78924071182502,
+    "speedup": 1.1702887411184872,
+    "min_speedup": 1.05,
+    "production_ready": false,
+    "conclusion": "还需重复真实负载 A/B、人工确认 A16/MTP/PLE 配置、质量和显存 canary；脚本不自动上线"
+  },
+  "limits": [
+    "Startup runs have different file-cache residency; times are observations, not a controlled cold-cache A/B.",
+    "Service throughput compares three synthetic prompts with 192 output tokens each, not a general workload guarantee.",
+    "The file_shared experiment failed full-size CUDA registration and was removed; anonymous_thp remains active."
+  ]
+}
