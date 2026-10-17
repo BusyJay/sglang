@@ -23,12 +23,12 @@ def main():
                 "IDs": "*i32",
                 "Router": "*fp32",
                 "Y": "*bf16" if first else "*fp32",
+                "E": "i32",
             },
             constexprs={
                 "K": k,
                 "N": n,
                 "TOPK": 10,
-                "E": 512,
                 "FIRST": first,
                 "BN": 32,
                 "BK": 256,
