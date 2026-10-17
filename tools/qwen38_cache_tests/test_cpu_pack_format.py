@@ -160,6 +160,32 @@ class TestPackFormat(unittest.TestCase):
                         self.assertIs(mapping, pack.cuda_source_mapping())
                     self.assertEqual(manifest.payload_path.read_bytes(), original)
 
+    def test_shared_source_first_cpu_read_and_reopen(self):
+        with tempfile.TemporaryDirectory() as value, tempfile.TemporaryDirectory(
+            dir="/dev/shm"
+        ) as cache:
+            manifest = load_manifest(make_pack(Path(value)))
+            with mock.patch.dict(
+                os.environ,
+                {
+                    "SGLANG_QWEN38_SOURCE_MODE": "shared_thp",
+                    "SGLANG_QWEN38_SOURCE_CACHE_DIR": cache,
+                },
+            ):
+                for background in (False, True):
+                    with Qwen38ExpertPack(manifest) as pack:
+                        if background:
+                            pack.start_prefetch()
+                        view = pack.tensor_bytes(0, "w13_weight")
+                        try:
+                            self.assertTrue(view.readonly)
+                            self.assertEqual(bytes(view), bytes(range(8)))
+                        finally:
+                            view.release()
+                        self.assertEqual(pack._source_cache_hit, background)
+                        self.assertIs(pack.cuda_source_mapping(), pack._mapping)
+                        self.assertEqual(pack._mapping[:], bytes(range(96)))
+
     def test_overlap_is_rejected(self):
         with tempfile.TemporaryDirectory() as value:
             with self.assertRaisesRegex(ValueError, "overlap"):
