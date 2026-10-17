@@ -88,8 +88,9 @@ class Qwen4ExpForCausalLMMTP(Qwen3_5ForCausalLMMTP):
             raise RuntimeError("target module binding requires qwen38_mtp")
         embed, head = target.model.embed_tokens, target.lm_head
         parameter = next(self.fc_hidden.parameters())
+        embed_device = getattr(embed, "output_device", embed.weight.device)
         if (
-            embed.weight.device != parameter.device
+            embed_device != parameter.device
             or head.weight.device != parameter.device
         ):
             raise ValueError("qwen38 MTP supports only same-device module sharing")

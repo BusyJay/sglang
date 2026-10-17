@@ -109,6 +109,8 @@ class TestBackgroundTransport(unittest.TestCase):
         runtime.packed_decode = runtime.packed_prefill = runtime.prefill_copy_mode = (
             "direct"
         )
+        runtime.borrowed_arena = False
+        runtime.borrowed_restore_runs = runtime.borrowed_restore_experts = 0
         runtime.packed_transport = None
         runtime.cache_policy = "lfu"
         runtime.adaptive_cache_mode = "rebalance"
@@ -155,6 +157,10 @@ class TestBackgroundTransport(unittest.TestCase):
             "sys.modules",
             {
                 "torch": fake_torch,
+                "sglang.srt.layers.moe.qwen38_borrowed_arena": load_source(
+                    "borrowed_arena_worker_test",
+                    "python/sglang/srt/layers/moe/qwen38_borrowed_arena.py",
+                ),
                 "sglang.kernels.ops.moe.qwen38_expert_cache": SimpleNamespace(
                     cache_plan=None,
                     cache_route=None,
@@ -186,6 +192,8 @@ class TestBackgroundTransport(unittest.TestCase):
             self.module.Qwen38ThreadedExpertRuntime
         )
         runtime.device = "fake"
+        runtime.borrowed_arena = False
+        runtime.borrowed_layers = {}
         runtime.miss_mailbox = None
         runtime.jobs = queue.Queue(maxsize=permits)
         runtime.retired = queue.Queue()

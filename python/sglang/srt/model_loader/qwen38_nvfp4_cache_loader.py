@@ -8,7 +8,9 @@ allocating all 512 routed experts per layer on the GPU.
 
 from __future__ import annotations
 
+import logging
 import os
+import time
 
 import torch
 
@@ -34,6 +36,8 @@ from sglang.srt.model_loader.qwen38_nvfp4_pack.format import (
     load_manifest,
 )
 from sglang.srt.model_loader.utils import set_default_torch_dtype
+
+logger = logging.getLogger(__name__)
 
 
 class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
@@ -286,10 +290,40 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             with set_default_torch_dtype(model_config.dtype):
                 with target_device:
                     memory_mark(probe, "loader.before_model_construct")
-                    model = _initialize_model(
-                        model_config, self.load_config, quant_config
+                    text_config = model_config.hf_text_config
+                    mapped_embedding = (
+                        os.getenv("SGLANG_QWEN38_HOST_TOKEN_EMBEDDING", "1") == "1"
+                        and not getattr(text_config, "tie_word_embeddings", False)
                     )
+                    if mapped_embedding:
+                        from sglang.srt.models.qwen38_host_embedding import (
+                            find_token_embedding,
+                        )
+                        from sglang.srt.runtime_context import get_parallel
+
+                        parallel = get_parallel()
+                        mapped_embedding = (
+                            parallel.tp_size == 1 and parallel.attn_tp_size == 1
+                        )
+                    if mapped_embedding:
+                        text_config._qwen38_mapped_token_embedding = find_token_embedding(
+                            weight_files
+                        )
+                    construct_started = time.perf_counter()
+                    try:
+                        model = _initialize_model(
+                            model_config, self.load_config, quant_config
+                        )
+                    finally:
+                        if mapped_embedding:
+                            del text_config._qwen38_mapped_token_embedding
                     memory_mark(probe, "loader.after_model_construct", model=model)
+                    logger.info(
+                        "Qwen38 startup model construction: seconds=%.3f mapped_token_embedding=%s source=%s",
+                        time.perf_counter() - construct_started,
+                        mapped_embedding,
+                        __file__,
+                    )
                 if remote_vision and getattr(model, "visual", None) is not None:
                     raise ValueError(
                         "Flash-Next offload worker unexpectedly allocated a local ViT"
@@ -303,6 +337,7 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                     == "nvfp4"
                 )
                 checkpoint_audit = {} if probe is not None else None
+                weights_started = time.perf_counter()
                 weights = filtered_safetensors_weights_iterator(
                     weight_files,
                     language_model_only=True,
@@ -333,6 +368,10 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                         model, target_device, startup_memory_probe=probe
                     )
                     memory_mark(probe, "loader.after_postprocess", model=model)
+                logger.info(
+                    "Qwen38 startup checkpoint load and postprocess: seconds=%.3f",
+                    time.perf_counter() - weights_started,
+                )
         except BaseException:
             pack.close()
             raise
@@ -432,7 +471,17 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                     raise ValueError(
                         "adaptive MTP cache must fit the full verify route bound in every layer"
                     )
+            reserve_started = time.perf_counter()
             runtime.reserve()
+            budget = runtime.memory_budget()
+            logger.info(
+                "Qwen38 startup runtime reserve: seconds=%.3f decode_cache_MiB=%.2f "
+                "prefill_arena_MiB=%.2f borrowed_prefill_arena_MiB=%.2f",
+                time.perf_counter() - reserve_started,
+                budget["decode_cache_bytes"] / (1 << 20),
+                budget["prefill_arena_bytes"] / (1 << 20),
+                budget.get("borrowed_prefill_arena_bytes", 0) / (1 << 20),
+            )
             memory_mark(
                 probe,
                 "loader.after_runtime_reserve",
