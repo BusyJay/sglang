@@ -314,7 +314,13 @@ def load_manifest(path: str | Path) -> Qwen38ExpertPackManifest:
 class Qwen38ExpertPack:
     """Read-only byte views over one source mapping, also shared by CUDA readers."""
 
-    def __init__(self, manifest: Qwen38ExpertPackManifest):
+    def __init__(
+        self,
+        manifest: Qwen38ExpertPackManifest,
+        *,
+        source_mode=None,
+        allow_shared_fallback=False,
+    ):
         self.manifest = manifest
         self._stream = manifest.payload_path.open("rb", buffering=0)
         self._mapping = mmap.mmap(self._stream.fileno(), 0, access=mmap.ACCESS_READ)
@@ -322,9 +328,16 @@ class Qwen38ExpertPack:
         self._prefetch_thread = None
         self._prefetch_stop = threading.Event()
         self._prefetch_error = None
-        self._source_mode = os.getenv("SGLANG_QWEN38_SOURCE_MODE", "anonymous_thp")
+        self._source_mode = source_mode or os.getenv(
+            "SGLANG_QWEN38_SOURCE_MODE", "anonymous_thp"
+        )
+        self._allow_shared_fallback = allow_shared_fallback
         if self._source_mode not in (
-            "file_cow", "cow_prefault", "anonymous", "anonymous_thp", "shared_thp"
+            "file_cow",
+            "cow_prefault",
+            "anonymous",
+            "anonymous_thp",
+            "shared_thp",
         ):
             self._mapping.close()
             self._stream.close()
@@ -339,9 +352,12 @@ class Qwen38ExpertPack:
             self._cuda_source_private = True
         elif self._source_mode.startswith("anonymous"):
             self._mapping.close()
-            self._mapping = mmap.mmap(-1, self.manifest.payload_nbytes,
+            self._mapping = mmap.mmap(
+                -1,
+                self.manifest.payload_nbytes,
                 flags=mmap.MAP_PRIVATE | mmap.MAP_ANONYMOUS,
-                prot=mmap.PROT_READ | mmap.PROT_WRITE)
+                prot=mmap.PROT_READ | mmap.PROT_WRITE,
+            )
             if self._source_mode == "anonymous_thp":
                 self._mapping.madvise(mmap.MADV_HUGEPAGE)
             self._cuda_source_private = True
@@ -403,17 +419,45 @@ class Qwen38ExpertPack:
         ):
             if self._source_mode == "shared_thp":
                 from sglang.srt.model_loader.qwen38_nvfp4_pack.source_cache import (
+                    RESOURCE_ERRORS,
                     map_shared_source,
+                    remove_unused_source,
+                    shared_source_path,
                 )
 
-                mapping, self._source_cache_hit = map_shared_source(
-                    self._stream.fileno(),
-                    os.getenv(
-                        "SGLANG_QWEN38_SOURCE_CACHE_DIR",
-                        "/dev/shm/sglang/qwen38-experts",
-                    ),
-                    self._prefetch_stop,
-                )
+                try:
+                    mapping, self._source_cache_hit = map_shared_source(
+                        self._stream.fileno(),
+                        os.getenv(
+                            "SGLANG_QWEN38_SOURCE_CACHE_DIR",
+                            "/dev/shm/sglang/qwen38-experts",
+                        ),
+                        self._prefetch_stop,
+                    )
+                except OSError as exc:
+                    if (
+                        not self._allow_shared_fallback
+                        or exc.errno not in RESOURCE_ERRORS
+                    ):
+                        raise
+                    logger.warning(
+                        "Qwen38 shared expert source unavailable; using anonymous_thp: %s",
+                        exc,
+                    )
+                    self._source_mode = "anonymous_thp"
+                    cached = shared_source_path(
+                        os.getenv("SGLANG_QWEN38_SOURCE_CACHE_DIR", "/dev/shm/sglang/qwen38-experts"),
+                        source_fd=self._stream.fileno(),
+                    )
+                    if cached.exists():
+                        remove_unused_source(cached)
+                    mapping = mmap.mmap(
+                        -1,
+                        self.manifest.payload_nbytes,
+                        flags=mmap.MAP_PRIVATE | mmap.MAP_ANONYMOUS,
+                        prot=mmap.PROT_READ | mmap.PROT_WRITE,
+                    )
+                    mapping.madvise(mmap.MADV_HUGEPAGE)
                 try:
                     self._mapping.close()
                 except BaseException:
@@ -421,10 +465,10 @@ class Qwen38ExpertPack:
                     raise
                 self._mapping = mapping
                 self._cuda_source_private = True  # Already writable/registerable.
-            elif self._source_mode == "cow_prefault":
+            if self._source_mode == "cow_prefault":
                 # Writable population preserves file bytes, but materializes COW.
                 self._mapping.madvise(getattr(mmap, "MADV_POPULATE_WRITE", 23))
-            else:
+            elif self._source_mode != "shared_thp":
                 view = memoryview(self._mapping)
                 try:
                     offset = 0

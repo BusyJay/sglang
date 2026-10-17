@@ -1,0 +1,25 @@
+{
+  "health_wall_seconds": 49.061852964921854,
+  "server_info": {
+    "max_total_num_tokens": 230144,
+    "max_total_tokens": null,
+    "max_running_requests": 1,
+    "chunked_prefill_size": 8192,
+    "context_length": 220000,
+    "mem_fraction_static": 0.9,
+    "model_loader_extra_config": "{\"manifest_path\":\"/root/.cache/sglang/qwen38-fp4-local/b9ce18a6887e18c089fdea8509a33e63429a3300/manifest.json\",\"checkpoint_revision\":\"b9ce18a6887e18c089fdea8509a33e63429a3300\",\"sglang_commit\":\"acd9c47fed94afe9c753631e4f88df58ca3f676f+fp4-local-59db23b7bae46aa9\",\"cache_slots_total\":6340,\"prefill_arena\":true,\"runtime_mode\":\"threaded\",\"stats_log_interval\":19200,\"adaptive_cache\":true,\"preallocate_gdn_proj\":true,\"async_pack_prefetch\":true,\"packed_decode\":\"packed\",\"packed_prefill\":\"packed\"}"
+  },
+  "startup_lines": [
+    "[2026-10-18 01:14:40] Qwen38 startup model construction: seconds=1.306 mapped_token_embedding=True source=/workspace/sglang/python/sglang/srt/model_loader/qwen38_nvfp4_cache_loader.py",
+    "[2026-10-18 01:14:40] Qwen38 startup cache plan: {\"available_bytes\": 81797734400, \"budget\": 99928472580, \"cleanup\": {\"in_use\": 0, \"removed_bytes\": 0, \"removed_files\": 0}, \"expert_bytes\": 67948507140, \"ple_bytes\": 28800138240, \"ram_budget\": 138574137553, \"reserve_bytes\": 39972242227, \"reusable_bytes\": 96748645380, \"tier\": \"both\", \"tmpfs_budget\": 99928472580}",
+    "[2026-10-18 01:14:40] Qwen38 startup expert source ready: mode=shared_thp GiB=63.28 seconds=0.014 cache_hit=True",
+    "[2026-10-18 01:14:41] Qwen38 startup shared PLE ready: GiB=26.82 cache_hit=True prepare_seconds=0.000 register_seconds=0.217",
+    "[2026-10-18 01:14:41] FP4 PLE host preparation: backend=pinned cached=True allocate_seconds=0.217 load_seconds=0.000",
+    "[2026-10-18 01:14:41] Qwen38 startup checkpoint load and postprocess: seconds=1.702",
+    "[2026-10-18 01:14:42] Qwen38 startup runtime reserve: seconds=0.574 decode_cache_MiB=16716.85 prefill_arena_MiB=0.00 borrowed_prefill_arena_MiB=1350.00",
+    "[2026-10-18 01:14:44] KV Cache is allocated. dtype: torch.float8_e4m3fn, #tokens: 230144, K size: 1.32 GB, V size: 1.32 GB",
+    "[2026-10-18 01:14:44] KV Cache is allocated. dtype: torch.float8_e4m3fn, #tokens: 230144, K size: 0.11 GB, V size: 0.11 GB",
+    "[2026-10-18 01:14:49] max_total_num_tokens=230144, chunked_prefill_size=8192, max_prefill_tokens=16384, max_running_requests=1, context_len=220000, available_gpu_mem=2.10 GB",
+    "[2026-10-18 01:14:53] Engine startup timings (s): load_weight=5.33, kv_cache_allocation=0.69, scheduler_e2e=18.17, cuda_graph={prefill=0.00, decode=0.00, target_verify=1.18, draft_prefill=0.00, draft_decode=1.27, draft_extend=0.99}, tokenizer_e2e=26.60"
+  ]
+}

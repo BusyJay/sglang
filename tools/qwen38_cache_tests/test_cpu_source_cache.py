@@ -1,6 +1,7 @@
 """Shared source publication, invalidation and failure recovery on real tmpfs."""
 
 import concurrent.futures
+import gc
 import os
 import tempfile
 import threading
@@ -144,6 +145,62 @@ class TestSharedSourceCache(unittest.TestCase):
                 self.read()
         self.assertEqual(list(self.destination.glob("*.bin")), [])
         self.assertEqual(list(self.destination.glob("*.tmp")), [])
+
+    def test_directory_cleanup_preserves_matching_data_and_reuses_it(self):
+        mapping, _ = self.read()
+        mapping.close()
+        del mapping
+        gc.collect()
+        path = next(self.destination.glob("*.bin"))
+        garbage = self.destination / "arbitrary-old-container-data"
+        garbage.write_bytes(b"garbage")
+        abandoned = path.with_name(path.name + ".interrupted.tmp")
+        abandoned.write_bytes(b"unfinished")
+        report = cache.clean_cache_directory(
+            self.destination, {path.name: len(self.data)}
+        )
+        self.assertEqual(report["removed_files"], 2)
+        self.assertTrue(path.exists())
+        self.assertFalse(garbage.exists())
+        self.assertFalse(abandoned.exists())
+        with mock.patch.object(
+            cache.os, "preadv", side_effect=AssertionError("must reuse")
+        ):
+            mapping, hit = self.read()
+        try:
+            self.assertTrue(hit)
+            self.assertEqual(mapping[:], self.data)
+        finally:
+            mapping.close()
+
+    def test_cleanup_never_removes_mapped_source_then_reclaims_after_exit(self):
+        mapping, _ = self.read()
+        path = next(self.destination.glob("*.bin"))
+        report = cache.clean_cache_directory(self.destination, {})
+        self.assertEqual(report["in_use"], 1)
+        self.assertTrue(path.exists())
+        self.assertEqual(mapping[:], self.data)
+        mapping.close()
+        del mapping
+        gc.collect()
+        report = cache.clean_cache_directory(self.destination, {})
+        self.assertEqual(report["removed_files"], 1)
+        self.assertFalse(path.exists())
+
+    def test_cleanup_does_not_interrupt_active_writer(self):
+        import fcntl
+
+        self.destination.mkdir()
+        path = self.destination / "source.bin"
+        abandoned = path.with_name(path.name + ".writing.tmp")
+        abandoned.write_bytes(b"in progress")
+        with path.with_suffix(".lock").open("a+b") as writer:
+            fcntl.flock(writer, fcntl.LOCK_EX)
+            report = cache.clean_cache_directory(self.destination, {})
+            self.assertEqual(report["in_use"], 1)
+            self.assertTrue(abandoned.exists())
+        cache.clean_cache_directory(self.destination, {})
+        self.assertFalse(abandoned.exists())
 
 
 if __name__ == "__main__":

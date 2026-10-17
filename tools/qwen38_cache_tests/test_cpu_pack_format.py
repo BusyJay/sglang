@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import json
 import os
 import tempfile
@@ -185,6 +186,22 @@ class TestPackFormat(unittest.TestCase):
                         self.assertEqual(pack._source_cache_hit, background)
                         self.assertIs(pack.cuda_source_mapping(), pack._mapping)
                         self.assertEqual(pack._mapping[:], bytes(range(96)))
+
+    def test_auto_shared_source_resource_failure_loads_original_bytes(self):
+        from sglang.srt.model_loader.qwen38_nvfp4_pack import source_cache
+
+        with tempfile.TemporaryDirectory() as value:
+            manifest = load_manifest(make_pack(Path(value)))
+            with mock.patch.object(
+                source_cache,
+                "map_shared_source",
+                side_effect=OSError(errno.ENOSPC, "injected exhaustion"),
+            ):
+                with Qwen38ExpertPack(
+                    manifest, source_mode="shared_thp", allow_shared_fallback=True
+                ) as pack:
+                    self.assertEqual(pack.cuda_source_mapping()[:], bytes(range(96)))
+                    self.assertEqual(pack._source_mode, "anonymous_thp")
 
     def test_overlap_is_rejected(self):
         with tempfile.TemporaryDirectory() as value:
