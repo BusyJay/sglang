@@ -1,0 +1,30 @@
+{
+  "old_nvfp4": [
+    {
+      "model_path": "nvidia/Qwen3.8-Flash-Next-NVFP4",
+      "mem_fraction_static": 0.912,
+      "speculative_algorithm": null,
+      "speculative_num_steps": null,
+      "speculative_num_draft_tokens": null,
+      "mamba_ssm_dtype": "float32",
+      "chunked_prefill_size": 8192,
+      "max_total_tokens": null,
+      "max_running_requests": 1,
+      "ple_offload_backend": "lazy"
+    }
+  ],
+  "current_fp4": [
+    {
+      "model_path": "nvidia/Qwen3.8-Flash-Next-FP4-Local",
+      "mem_fraction_static": 0.9,
+      "speculative_algorithm": "EAGLE",
+      "speculative_num_steps": 2,
+      "speculative_num_draft_tokens": 3,
+      "mamba_ssm_dtype": "bfloat16",
+      "chunked_prefill_size": 8192,
+      "max_total_tokens": null,
+      "max_running_requests": 1,
+      "ple_offload_backend": "pinned"
+    }
+  ]
+}
