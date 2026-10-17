@@ -386,10 +386,11 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         return self.device_states[layer_id]
 
     def _host_range(self, kind):
+        from sglang.srt.layers.moe.qwen38_observation import observe
         return (
             self.profiler.host_range(kind)
             if self.profiler is not None
-            else contextlib.nullcontext()
+            else observe(kind)
         )
 
     def _gpu_range(self, kind, stream):
@@ -400,9 +401,7 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         )
 
     def _copy_batch(self, entries):
-        if self.profiler is None:
-            return super()._copy_batch(entries)
-        with self.profiler.host_range("cpu_staging_and_enqueue"):
+        with self._host_range("cpu_staging_and_enqueue"):
             return super()._copy_batch(entries)
 
     def _fill(self, layer_id, expert_id, tensors, slot_id, names=REQUIRED_TENSORS):
@@ -516,6 +515,34 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             state = self.device_states[layer]
             self.adaptive_metadata.restore(layer, state, records)
 
+    def _registered_prefill_enabled(self):
+        return (os.getenv("SGLANG_QWEN38_PREFILL_REGISTERED_DMA", "1") == "1"
+                and self.miss_mailbox is not None)
+
+    def _registered_prefill_copy(self, layer, runs):
+        from sglang.kernels.ops.moe.qwen38_expert_cache import _module
+        with self._host_range("registered_prefill_enqueue"):
+            with torch.cuda.stream(self.transfer):
+                # pack_view/arena belong to the runtime and remain alive until drain.
+                source = self.miss_mailbox.pack_view
+                for name in REQUIRED_TENSORS:
+                    record = self.manifest.tensors[layer][name]
+                    row_bytes = record.nbytes // self.manifest.num_experts
+                    for first, end in runs:
+                        begin = record.offset + first * row_bytes
+                        count = (end-first) * row_bytes
+                        target = self.arena[name][first:end].reshape(-1).view(torch.uint8)
+                        _module().registered_copy(target, source[begin:begin+count])
+                        self.transferred_bytes += count
+                        self.h2d_copy_calls += 1
+                self.ready = torch.cuda.Event()
+                self.ready.record(self.transfer)
+
+    def _fill_arena(self, layer_id):
+        if self._registered_prefill_enabled():
+            return self._registered_prefill_copy(layer_id, [(0, self.manifest.num_experts)])
+        return super()._fill_arena(layer_id)
+
     def _fill_arena_selected(self, layer, experts):
         """Copy contiguous runs of routed experts into their original IDs."""
         if not experts:
@@ -528,6 +555,8 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                 start = expert
             previous = expert
         runs.append((start, previous + 1))
+        if self._registered_prefill_enabled():
+            return self._registered_prefill_copy(layer, runs)
         if (
             self.packed_transport is not None
             and self.packed_prefill == "packed"

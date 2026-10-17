@@ -1,6 +1,7 @@
 """Inference-only Qwen4-Exp (text + VL) on the Qwen3.5 backbone."""
 
 import math
+import os
 import time
 from contextlib import nullcontext
 from typing import Any, Iterable, Optional, Set, Tuple, Union
@@ -990,6 +991,11 @@ class Qwen4ExpPinnedHostEmbedding(VocabParallelEmbedding):
             device="cpu",
             pin_memory=True,
         )
+        if os.getenv("SGLANG_QWEN38_PLE_DOUBLE_STAGING", "1") == "1":
+            self._lazy_staging_ring = [self._lazy_staging, torch.empty_like(
+                self._lazy_staging, device="cpu", pin_memory=True)]
+            self._lazy_staging_events = [None, None]
+            self._lazy_staging_index = 0
         logger.info(
             "PLE lazy ready: rows=%d, cache=%.1f MiB, staging=%.1f MiB, shards=%d; no table payload loaded",
             cursor,
@@ -1019,18 +1025,25 @@ class Qwen4ExpPinnedHostEmbedding(VocabParallelEmbedding):
         )
         # One D2H synchronization for the whole lookup, including prefill.
         lookup_start = time.monotonic()
-        ids = input_ids.reshape(-1).long().cpu().numpy()
+        from sglang.srt.layers.moe.qwen38_observation import observe
+        with observe("ple_ids_d2h", ids=input_ids.numel()):
+            ids = input_ids.reshape(-1).long().cpu().numpy()
         flat_output = output.view(-1, self.embedding_dim)
         tp_start = self.shard_indices.org_vocab_start_index
         tp_end = min(self.shard_indices.org_vocab_end_index, self._checkpoint_rows)
         for base in range(0, len(ids), self._batch_rows):
-            if self._staging_event is not None:
-                self._staging_event.synchronize()
+            ring = getattr(self, "_lazy_staging_ring", None)
+            bank = self._lazy_staging_index if ring is not None else None
+            event = self._lazy_staging_events[bank] if ring is not None else self._staging_event
+            if event is not None:
+                with observe("ple_staging_wait"):
+                    event.synchronize()
             chunk = ids[base : base + self._batch_rows]
             valid = (chunk >= tp_start) & (chunk < tp_end)
             unique, inverse = np.unique(chunk[valid], return_inverse=True)
-            staging = self._lazy_staging[: len(unique)]
-            self._lazy_cache.fill(unique.tolist(), staging)
+            staging = (ring[bank] if ring is not None else self._lazy_staging)[: len(unique)]
+            with observe("ple_cache_fill", unique_rows=len(unique)):
+                self._lazy_cache.fill(unique.tolist(), staging)
             mapped = np.full(len(chunk), -1, dtype=np.int64)
             mapped[valid] = inverse
             mapped_gpu = torch.from_numpy(mapped).to(input_ids.device)
@@ -1045,9 +1058,15 @@ class Qwen4ExpPinnedHostEmbedding(VocabParallelEmbedding):
                 BLOCK_D=self._block_d,
                 MASK_INVALID=True,
             )
-            if self._staging_event is None:
-                self._staging_event = torch.cuda.Event()
-            self._staging_event.record(torch.cuda.current_stream())
+            if ring is not None:
+                if self._lazy_staging_events[bank] is None:
+                    self._lazy_staging_events[bank] = torch.cuda.Event()
+                self._lazy_staging_events[bank].record(torch.cuda.current_stream())
+                self._lazy_staging_index = 1-bank
+            else:
+                if self._staging_event is None:
+                    self._staging_event = torch.cuda.Event()
+                self._staging_event.record(torch.cuda.current_stream())
         self._lazy_lookup_seconds += time.monotonic() - lookup_start
         now = time.monotonic()
         interval = envs.SGLANG_QWEN4_PLE_LAZY_STATS_INTERVAL_S.get()

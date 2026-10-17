@@ -1,9 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "tvm_ffi_utils.h"
 #include <algorithm>
+#include <chrono>
+#include <cstdio>
+#include <cstdlib>
 #include <cuda_runtime.h>
 
 namespace {
+// NVFP4/SM120 policy, indexed by miss count. Use three CTAs across 5-7 misses;
+// counts above this table retain eight CTAs.
+__device__ __constant__ int kMailboxCtasByMiss[11] = {8, 8, 5, 4, 4, 3, 3, 3, 2, 2, 1};
+template <bool Adaptive = false>
 __global__ void mailbox_fill_kernel(
     const int32_t* plan,
     const int64_t* layout,
@@ -17,6 +24,11 @@ __global__ void mailbox_fill_kernel(
   }
   int miss = blockIdx.x;
   if (miss >= plan[1]) return;
+  int ctas = gridDim.y;
+  if constexpr (Adaptive) {
+    ctas = plan[1] <= 10 ? kMailboxCtasByMiss[plan[1]] : 8;
+    if (blockIdx.y >= ctas) return;
+  }
   // Keep all-hit fills entirely on device. Only one thread per miss block
   // reads the mapped failure flag; the barrier guards every source read.
   if (threadIdx.x == 0 && *failed) asm volatile("trap;");
@@ -29,7 +41,7 @@ __global__ void mailbox_fill_kernel(
     const uint8_t* source = reinterpret_cast<const uint8_t*>(layout[3 * tensor + 2]) +
         static_cast<int64_t>(expert) * bytes;
     int64_t i = static_cast<int64_t>(blockIdx.y) * blockDim.x + threadIdx.x;
-    int64_t stride = static_cast<int64_t>(blockDim.x) * gridDim.y;
+    int64_t stride = static_cast<int64_t>(blockDim.x) * ctas;
     if ((reinterpret_cast<uintptr_t>(source) | reinterpret_cast<uintptr_t>(destination) | bytes) % 16 == 0) {
       for (; i < bytes / 16; i += stride) {
         uint4 value;
@@ -56,10 +68,22 @@ struct Qwen38MailboxRegister {
     CHECK_INPUT_TYPE(bytes, dl_uint8);
     TVM_FFI_ICHECK_GT(bytes.size(0), 0);
     unsigned int flags = cudaHostRegisterMapped;
+    const auto register_start = std::chrono::steady_clock::now();
     auto status = cudaHostRegister(bytes.data_ptr(), bytes.size(0), flags);
+    const auto register_end = std::chrono::steady_clock::now();
     TVM_FFI_ICHECK_EQ(status, cudaSuccess) << "register expert mmap: " << cudaGetErrorString(status);
     void* mapped = nullptr;
     status = cudaHostGetDevicePointer(&mapped, bytes.data_ptr(), 0);
+    const auto pointer_end = std::chrono::steady_clock::now();
+    const char* observation = std::getenv("SGLANG_QWEN38_OBSERVE");
+    if (!observation || observation[0] != '0') {
+      std::fprintf(stderr,
+          "Qwen38Register bytes=%lld register_ms=%.3f device_pointer_ms=%.3f status=%d\n",
+          static_cast<long long>(bytes.size(0)),
+          std::chrono::duration<double, std::milli>(register_end-register_start).count(),
+          std::chrono::duration<double, std::milli>(pointer_end-register_end).count(),
+          static_cast<int>(status));
+    }
     if (status != cudaSuccess) cudaHostUnregister(bytes.data_ptr());
     TVM_FFI_ICHECK_EQ(status, cudaSuccess) << cudaGetErrorString(status);
     return reinterpret_cast<int64_t>(mapped);
@@ -79,6 +103,11 @@ struct Qwen38MailboxFill {
       TensorView layout,
       int64_t top_k,
       int64_t failed) {
+    run_config(plan, layout, top_k, failed, 8);
+  }
+  static void run_config(TensorView plan, TensorView layout, int64_t top_k,
+                         int64_t failed, int64_t grid_y) {
+    TVM_FFI_ICHECK(grid_y >= 0 && grid_y <= 64);
     CHECK_INPUT_AND_TYPE(plan, dl_int32);
     CHECK_INPUT_AND_TYPE(layout, dl_int64);
     CHECK_DIM(1, plan);
@@ -89,11 +118,17 @@ struct Qwen38MailboxFill {
     TVM_FFI_ICHECK_GE(plan.size(0), 4);
     TVM_FFI_ICHECK_GT(top_k, 0);
     TVM_FFI_ICHECK_LE(top_k, 32);
-    mailbox_fill_kernel<<<dim3(top_k, 8), 256, 0, get_stream(plan.device())>>>(
-        static_cast<const int32_t*>(plan.data_ptr()),
-        static_cast<const int64_t*>(layout.data_ptr()),
-        layout.size(0),
-        reinterpret_cast<const volatile int32_t*>(failed));
+    if (grid_y == 0) {
+      mailbox_fill_kernel<true><<<dim3(top_k, 8), 256, 0, get_stream(plan.device())>>>(
+          static_cast<const int32_t*>(plan.data_ptr()),
+          static_cast<const int64_t*>(layout.data_ptr()), layout.size(0),
+          reinterpret_cast<const volatile int32_t*>(failed));
+    } else {
+      mailbox_fill_kernel<false><<<dim3(top_k, grid_y), 256, 0, get_stream(plan.device())>>>(
+          static_cast<const int32_t*>(plan.data_ptr()),
+          static_cast<const int64_t*>(layout.data_ptr()), layout.size(0),
+          reinterpret_cast<const volatile int32_t*>(failed));
+    }
     TVM_FFI_ICHECK_EQ(cudaGetLastError(), cudaSuccess);
   }
 };
@@ -387,6 +422,82 @@ __global__ void plan_kernel(
 
 // One token, top-k <= 32. Only the small active list is sorted, preserving
 // the original planner's ascending expert order and its LFU/SLRU tie-breaks.
+// LFU only: parallel decay/victim scan, sequential sorted expert updates.
+__device__ bool better_victim(int a, int b, const int32_t* keys,
+                              const float* frequency, const int64_t* ages) {
+  if (a < 0) return false;
+  if (b < 0) return true;
+  bool empty_a = keys[a] < 0, empty_b = keys[b] < 0;
+  if (empty_a != empty_b) return empty_a;
+  if (empty_a) return a < b;
+  if (frequency[a] != frequency[b]) return frequency[a] < frequency[b];
+  if (ages[a] != ages[b]) return ages[a] < ages[b];
+  return a < b;
+}
+
+__device__ void parallel_lfu_plan(const int32_t* counts, const int32_t* active_ids,
+    int active, int experts, int slots, int32_t* lookup, int32_t* keys,
+    float* frequency, int64_t* ages, int64_t* generation, int64_t* clock,
+    int32_t* plan, float decay, bool export_routes) {
+  __shared__ int candidates[128];
+  __shared__ int current_slot;
+  if (threadIdx.x == 0) {
+    plan[0] = counts[experts] ? 1 : 0;
+    plan[1] = plan[2] = plan[3] = 0;
+    if (active > slots) plan[3] = 1;
+  }
+  __syncthreads();
+  if (plan[0] || plan[3]) return;
+  for (int slot = threadIdx.x; slot < slots; slot += blockDim.x)
+    frequency[slot] *= decay;
+  __syncthreads();
+  for (int index = 0; index < active; ++index) {
+    int expert = active_ids[index];
+    if (threadIdx.x == 0) current_slot = lookup[expert];
+    __syncthreads();
+    if (current_slot < 0) {
+      int best = -1;
+      for (int slot = threadIdx.x; slot < slots; slot += blockDim.x) {
+        if (keys[slot] >= 0 && counts[keys[slot]]) continue;
+        if (better_victim(slot, best, keys, frequency, ages)) best = slot;
+      }
+      candidates[threadIdx.x] = best;
+      __syncthreads();
+      for (int stride = blockDim.x/2; stride; stride /= 2) {
+        if (threadIdx.x < stride &&
+            better_victim(candidates[threadIdx.x+stride], candidates[threadIdx.x],
+                          keys, frequency, ages))
+          candidates[threadIdx.x] = candidates[threadIdx.x+stride];
+        __syncthreads();
+      }
+      if (threadIdx.x == 0) {
+        current_slot = candidates[0];
+        if (current_slot < 0) plan[0] = 2;
+        else {
+          int slot = current_slot;
+          if (keys[slot] >= 0) lookup[keys[slot]] = -1;
+          keys[slot] = expert;
+          lookup[expert] = slot;
+          generation[slot] += 1;
+          frequency[slot] = 0;
+          int miss = plan[1]++;
+          plan[4+2*miss] = expert;
+          plan[5+2*miss] = slot;
+        }
+      }
+      __syncthreads();
+      if (plan[0]) return;
+    }
+    if (threadIdx.x == 0) {
+      ages[current_slot] = ++clock[0];
+      frequency[current_slot] += 1;
+      if (export_routes) plan[4+3*slots+plan[2]] = expert;
+      plan[4+2*slots+plan[2]++] = current_slot;
+    }
+    __syncthreads();
+  }
+}
+
 __global__ void decode_plan_kernel(
     const int32_t* ids,
     int32_t* output,
@@ -406,7 +517,8 @@ __global__ void decode_plan_kernel(
     int protected_slots,
     bool export_routes,
     int64_t* hit_stats,
-    int32_t* sample) {
+    int32_t* sample,
+    bool parallel_miss) {
   __shared__ int32_t histogram[513];
   __shared__ int32_t active_ids[32];
   __shared__ int active_count;
@@ -447,7 +559,7 @@ __global__ void decode_plan_kernel(
       clock[0] += active;
       plan[0] = plan[1] = plan[3] = 0;
       plan[2] = active;
-    } else {
+    } else if (!parallel_miss || policy) {
       apply_plan(
           histogram,
           lookup,
@@ -468,6 +580,10 @@ __global__ void decode_plan_kernel(
     }
   }
   __syncthreads();
+  if (!all_hit && parallel_miss && !policy) {
+    parallel_lfu_plan(histogram, active_ids, active_count, experts, slots,
+        lookup, keys, frequency, ages, generation, clock, plan, decay, export_routes);
+  }
   if (all_hit) {
     // No victim selection or lookup mutation. Keep decay and increment as
     // separate operations to match the reference LFU arithmetic exactly.
@@ -704,7 +820,97 @@ struct Qwen38CacheDecodePlan {
         static_cast<int>(slots * protected_fraction),
         plan.size(0) == 4 + 4 * slots,
         reinterpret_cast<int64_t*>(hit_stats),
-        reinterpret_cast<int32_t*>(sample));
+        reinterpret_cast<int32_t*>(sample), false);
+    auto status = cudaGetLastError();
+    TVM_FFI_ICHECK_EQ(status, cudaSuccess) << cudaGetErrorString(status);
+  }
+  static void run_parallel(
+      TensorView ids,
+      TensorView output,
+      TensorView counts,
+      TensorView lookup,
+      TensorView keys,
+      TensorView frequency,
+      TensorView ages,
+      TensorView generation,
+      TensorView clock,
+      TensorView plan,
+      double decay,
+      int64_t policy,
+      double protected_fraction,
+      int64_t hit_stats,
+      int64_t sample,
+      bool parallel_miss) {
+    CHECK_INPUT_AND_TYPE(ids, dl_int32);
+    CHECK_INPUT_AND_TYPE(output, dl_int32);
+    CHECK_DIM(2, ids);
+    CHECK_DIM(2, output);
+    CHECK_DEVICE(ids, counts);
+    CHECK_DEVICE(ids, output);
+    TVM_FFI_ICHECK_EQ(ids.size(0), 1);
+    TVM_FFI_ICHECK_GT(ids.size(1), 0);
+    TVM_FFI_ICHECK_LE(ids.size(1), 32);
+    TVM_FFI_ICHECK_EQ(output.size(0), 1);
+    TVM_FFI_ICHECK_EQ(output.size(1), ids.size(1));
+    CHECK_INPUT_AND_TYPE(counts, dl_int32);
+    CHECK_INPUT_AND_TYPE(lookup, dl_int32);
+    CHECK_INPUT_AND_TYPE(keys, dl_int32);
+    CHECK_INPUT_AND_TYPE(frequency, dl_float32);
+    CHECK_INPUT_AND_TYPE(ages, dl_int64);
+    CHECK_INPUT_AND_TYPE(generation, dl_int64);
+    CHECK_INPUT_AND_TYPE(clock, dl_int64);
+    CHECK_INPUT_AND_TYPE(plan, dl_int32);
+    CHECK_DIM(1, counts);
+    CHECK_DIM(1, lookup);
+    CHECK_DIM(1, keys);
+    CHECK_DIM(1, frequency);
+    CHECK_DIM(1, ages);
+    CHECK_DIM(1, generation);
+    CHECK_DIM(1, clock);
+    CHECK_DIM(1, plan);
+    CHECK_DEVICE(counts, lookup);
+    CHECK_DEVICE(counts, keys);
+    CHECK_DEVICE(counts, frequency);
+    CHECK_DEVICE(counts, ages);
+    CHECK_DEVICE(counts, generation);
+    CHECK_DEVICE(counts, clock);
+    CHECK_DEVICE(counts, plan);
+    int experts = lookup.size(0), slots = keys.size(0);
+    TVM_FFI_ICHECK_GT(experts, 0);
+    TVM_FFI_ICHECK_LE(experts, 512);
+    TVM_FFI_ICHECK_GT(slots, 0);
+    TVM_FFI_ICHECK_LE(slots, experts);
+    TVM_FFI_ICHECK_EQ(counts.size(0), experts + 1);
+    TVM_FFI_ICHECK_EQ(frequency.size(0), slots);
+    TVM_FFI_ICHECK_EQ(ages.size(0), slots);
+    TVM_FFI_ICHECK_EQ(generation.size(0), slots);
+    TVM_FFI_ICHECK_EQ(clock.size(0), 1);
+    TVM_FFI_ICHECK(plan.size(0) == 4 + 3 * slots || plan.size(0) == 4 + 4 * slots);
+    TVM_FFI_ICHECK(policy == 0 || policy == 1);
+    TVM_FFI_ICHECK_GE(protected_fraction, 0.0);
+    TVM_FFI_ICHECK_LT(protected_fraction, 1.0);
+    TVM_FFI_ICHECK_GT(decay, 0.0);
+    TVM_FFI_ICHECK_LE(decay, 1.0);
+    decode_plan_kernel<<<1, 128, 0, get_stream(ids.device())>>>(
+        static_cast<const int32_t*>(ids.data_ptr()),
+        static_cast<int32_t*>(output.data_ptr()),
+        static_cast<int32_t*>(counts.data_ptr()),
+        static_cast<int32_t*>(lookup.data_ptr()),
+        static_cast<int32_t*>(keys.data_ptr()),
+        static_cast<float*>(frequency.data_ptr()),
+        static_cast<int64_t*>(ages.data_ptr()),
+        static_cast<int64_t*>(generation.data_ptr()),
+        static_cast<int64_t*>(clock.data_ptr()),
+        static_cast<int32_t*>(plan.data_ptr()),
+        experts,
+        slots,
+        ids.size(1),
+        static_cast<float>(decay),
+        static_cast<int>(policy),
+        static_cast<int>(slots * protected_fraction),
+        plan.size(0) == 4 + 4 * slots,
+        reinterpret_cast<int64_t*>(hit_stats),
+        reinterpret_cast<int32_t*>(sample), parallel_miss);
     auto status = cudaGetLastError();
     TVM_FFI_ICHECK_EQ(status, cudaSuccess) << cudaGetErrorString(status);
   }
@@ -743,5 +949,20 @@ struct Qwen38PackedScatter {
     packed_scatter_kernel<<<dim3(descriptors.size(0), 16), 256, 0, get_stream(scratch.device())>>>(
         static_cast<const uint8_t*>(scratch.data_ptr()), static_cast<const int64_t*>(descriptors.data_ptr()));
     TVM_FFI_ICHECK_EQ(cudaGetLastError(), cudaSuccess);
+  }
+};
+
+// Explicit registered-host DMA: does not depend on PyTorch pinned allocator tracking.
+struct Qwen38RegisteredCopy {
+  static void run(TensorView destination, TensorView source) {
+    TVM_FFI_ICHECK_EQ(source.device().device_type, kDLCPU);
+    CHECK_INPUT_TYPE(source, dl_uint8);
+    CHECK_INPUT_AND_TYPE(destination, dl_uint8);
+    CHECK_DIM(1, source);
+    CHECK_DIM(1, destination);
+    TVM_FFI_ICHECK_EQ(source.size(0), destination.size(0));
+    auto status = cudaMemcpyAsync(destination.data_ptr(), source.data_ptr(),
+        source.size(0), cudaMemcpyHostToDevice, get_stream(destination.device()));
+    TVM_FFI_ICHECK_EQ(status, cudaSuccess) << cudaGetErrorString(status);
   }
 };

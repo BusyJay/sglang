@@ -119,6 +119,7 @@ class TestPackedLifecycle(unittest.TestCase):
         from sglang.srt.layers.moe.qwen38_cache_device import Qwen38DeviceExpertRuntime
         from sglang.srt.model_loader.qwen38_nvfp4_pack.format import REQUIRED_TENSORS
         r = Qwen38ThreadedExpertRuntime.__new__(Qwen38ThreadedExpertRuntime)
+        r.miss_mailbox = None
         r.caches, r.arena = {0: {}}, {}
         r.packed_transport = None
         with mock.patch.object(Qwen38DeviceExpertRuntime, "_fill") as direct:

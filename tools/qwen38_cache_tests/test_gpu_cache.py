@@ -1,4 +1,6 @@
+import os
 import unittest
+from unittest import mock
 
 import torch
 
@@ -678,7 +680,10 @@ class TestGpuCache(unittest.TestCase):
                     self.assertEqual(
                         runtime.memory_budget()["resident_alpha_bytes"], 64
                     )
-                self.assertGreater(runtime.h2d_copy_calls, calls_before)
+                # Native mailbox misses read the registered host source;
+                # byte parity above must not depend on host-issued DMA calls.
+                self.assertEqual(runtime.h2d_copy_calls, calls_before)
+                self.assertGreater(runtime.fused_decode_plan_invocations, 0)
                 runtime.adaptive_target = [4, 2]
                 runtime._maybe_rebalance()
                 for pair in ((2, 3), (0, 1)):
@@ -1294,6 +1299,7 @@ class TestGpuCache(unittest.TestCase):
             cache_route(ids, lookup, out, counts)
             self.assertEqual(out.cpu().tolist(), [[mapping[e] for e in routes]])
 
+    @mock.patch.dict(os.environ, {"SGLANG_QWEN38_PREFILL_REGISTERED_DMA": "0"})
     def test_packed_transport_alpha_ring_and_target_migration(self):
         from sglang.srt.layers.moe.qwen38_cache_threaded import (
             Qwen38ThreadedExpertRuntime,
