@@ -1,0 +1,92 @@
+--- deployed/python/sglang/srt/model_loader/qwen38_nvfp4_pack/parity.py
++++ worktree/python/sglang/srt/model_loader/qwen38_nvfp4_pack/parity.py
+@@ -20,6 +20,7 @@
+     decode_graph=False,
+     graph_width=1,
+     use_w4a16=False,
++    prefill_w4a16=None,
+     reference=None,
+     benchmark_iterations=0,
+     shared_overlap=False,
+@@ -115,6 +116,7 @@
+             # Conversion parity proves the serialized CUTLASS ABI. A16 has a
+             # separate BF16-activation numerical reference, not W4A4 parity.
+             cached.use_w4a16 = use_w4a16
++            cached.prefill_use_w4a16 = use_w4a16 if prefill_w4a16 is None else prefill_w4a16
+             cached.layer_id = 0
+             cached.create_moe_runner(layer, replace(config, layer_id=0))
+             cached.bind_runtime(runtime)
+@@ -167,8 +169,12 @@
+                     ("decode_revisit", 1, 0),
+                     ("decode_revisit_hit", 1, 0),
+                 ]
++            if prefill_w4a16 is not None:
++                cases.append(("prefill_single", 1, 0))
+             try:
+                 for label, tokens, offset in cases:
++                    phase = "prefill" if label.startswith("prefill") else "verify" if label.startswith("verify") else "decode"
++                    cached._execution_phase = lambda: phase
+                     ids = (
+                         (
+                             (
+@@ -202,12 +208,12 @@
+                     # Clone inputs independently, as kernels may modify workspaces.
+                     resident = (
+                         reference(hidden, ids, weights)
+-                        if reference is not None
++                        if reference is not None and cached.uses_w4a16(phase)
+                         else layer.quant_method.apply(
+                             layer, StandardDispatchOutput(hidden.clone(), None, topk)
+                         ).hidden_states
+                     )
+-                    if decode_graph and tokens == graph_width:
++                    if decode_graph and tokens == graph_width and phase != "prefill":
+                         from sglang.srt.model_executor.runner_backend_utils.breakable_cuda_graph import (
+                             BreakableCUDAGraph,
+                             BreakableCUDAGraphCapture,
+@@ -277,7 +283,7 @@
+                             weights,
+                             ids,
+                             topk.router_logits,
+-                            execution_phase="decode" if tokens == 1 else "prefill",
++                            execution_phase=phase,
+                             shared_call=shared_call,
+                             shared_input=hidden,
+                         )
+@@ -312,7 +318,7 @@
+                                 weights,
+                                 ids,
+                                 topk.router_logits,
+-                                execution_phase="verify" if tokens > 1 else "decode",
++                                execution_phase=phase,
+                             )
+                             end.record()
+                             runtime.synchronize() if hasattr(
+@@ -330,6 +336,8 @@
+                     reports.append(
+                         {
+                             "case": label,
++                            "phase": phase,
++                            "activation_mode": "w4a16" if cached.uses_w4a16(phase) else "w4a4",
+                             **timing,
+                             "tokens": tokens,
+                             "max_abs_error": (actual.float() - resident.float())
+@@ -346,6 +354,7 @@
+                     "shared_calls": shared_result.calls,
+                     "runtime_mode": mode,
+                     "activation_mode": "w4a16" if use_w4a16 else "w4a4",
++                    "prefill_activation_mode": "w4a16" if cached.prefill_use_w4a16 else "w4a4",
+                     "decode_graph": decode_graph,
+                     "graph_width": graph_width,
+                     "rtol": rtol,
+--- deployed/python/sglang/srt/layers/quantization/qwen38_cached_w4a16.py
++++ worktree/python/sglang/srt/layers/quantization/qwen38_cached_w4a16.py
+@@ -58,7 +58,7 @@
+     for kb in range(tl.cdiv(K, BK)):
+         col = kb * BK + k
+         xrow = route // TOPK if FIRST else route
+-        x = tl.load(X + xrow * K + col, mask=col < K, other=0).to(tl.float32)
++        x = tl.load(X + xrow * K + col, mask=col < K, other=0.0).to(tl.float32)
+         # Existing CUTLASS ABI stores [up, gate], plain contiguous halves.
+         logical_row = n + (N if FIRST else 0)
+         rows = 2 * N if FIRST else N

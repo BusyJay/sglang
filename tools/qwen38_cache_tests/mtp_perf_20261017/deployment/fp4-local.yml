@@ -1,0 +1,17 @@
+services:
+  llm:
+    image: swallow-sglang:service-flash-next-f712e3118c75
+    pull_policy: never
+    command:
+    - bash
+    - /prod/homelab-llm/home-jay/remote-mapping/llm/sglang-fp4-local.sh
+    volumes:
+    - /home/jay/workspace/prod/homelab-llm/models/sources/fp4-local-verify-ple-ab0963e00024:/workspace/sglang:ro
+  vit:
+    image: swallow-sglang:service-flash-next-f712e3118c75
+    pull_policy: never
+    command:
+    - bash
+    - /prod/homelab-llm/home-jay/remote-mapping/llm/sglang-vit-fp4-local.sh
+    volumes:
+    - /home/jay/workspace/prod/homelab-llm/models/sources/fp4-local-verify-ple-ab0963e00024:/workspace/sglang:ro

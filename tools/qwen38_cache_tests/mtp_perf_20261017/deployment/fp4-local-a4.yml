@@ -1,0 +1,13 @@
+services:
+  llm:
+    extends:
+      file: fp4-local.yml
+      service: llm
+    command:
+    - bash
+    - /prod/homelab-llm/home-jay/remote-mapping/llm/sglang-fp4-local.sh
+    - --decode-a4
+  vit:
+    extends:
+      file: fp4-local.yml
+      service: vit

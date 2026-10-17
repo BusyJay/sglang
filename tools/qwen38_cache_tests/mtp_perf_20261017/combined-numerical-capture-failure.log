@@ -1,0 +1,45 @@
+
+==========
+== CUDA ==
+==========
+
+CUDA Version 13.0.3
+
+Container image Copyright (c) 2016-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+This container image and its contents are governed by the NVIDIA Deep Learning Container License.
+By pulling and using the container, you accept the terms and conditions of this license:
+https://developer.nvidia.com/ngc/nvidia-deep-learning-container-license
+
+A copy of this license is made available in this container at /NGC-DL-CONTAINER-LICENSE for your convenience.
+
+[TensorRT-LLM][INFO] Set logger level to INFO
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/workspace/sglang/python/sglang/srt/model_loader/qwen38_nvfp4_pack/parity.py", line 247, in check_exported_layer
+[rank0]:     graph_hidden = static_hidden * 1.0
+[rank0]:                    ~~~~~~~~~~~~~~^~~~~
+[rank0]:   File "/opt/sglang/lib/python3.12/site-packages/torch/utils/_device.py", line 122, in __torch_function__
+[rank0]:     return func(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^
+[rank0]: RuntimeError: info.status != cudaStreamCaptureStatusInvalidated INTERNAL ASSERT FAILED at "/__w/pytorch/pytorch/c10/cuda/CUDACachingAllocator.cpp":2213, please report a bug to PyTorch. Invalid stream capture status
+
+[rank0]: During handling of the above exception, another exception occurred:
+
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/workspace/sglang/tools/qwen38_cache_tests/cached_w4a16_gpu_check.py", line 284, in <module>
+[rank0]:     main()
+[rank0]:   File "/workspace/sglang/tools/qwen38_cache_tests/cached_w4a16_gpu_check.py", line 151, in main
+[rank0]:     reports.append(check_exported_layer(
+[rank0]:                    ^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/sglang/python/sglang/srt/model_loader/qwen38_nvfp4_pack/parity.py", line 244, in check_exported_layer
+[rank0]:     with BreakableCUDAGraphCapture(graph, stream=stream):
+[rank0]:   File "/workspace/sglang/python/sglang/srt/model_executor/runner_backend_utils/breakable_cuda_graph/breakable_cuda_graph.py", line 365, in __exit__
+[rank0]:     self._end_current_segment()
+[rank0]:   File "/workspace/sglang/python/sglang/srt/model_executor/runner_backend_utils/breakable_cuda_graph/breakable_cuda_graph.py", line 429, in _end_current_segment
+[rank0]:     graph.capture_end()
+[rank0]:   File "/opt/sglang/lib/python3.12/site-packages/torch/cuda/graphs.py", line 169, in capture_end
+[rank0]:     super().capture_end()
+[rank0]: torch.AcceleratorError: CUDA error: operation failed due to a previous error during capture
+[rank0]: Search for `cudaErrorStreamCaptureInvalidated' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+[rank0]: For more detailed error information, run with CUDA_LOG_FILE=stderr
+

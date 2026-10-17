@@ -1,0 +1,168 @@
+{
+  "status": "passed",
+  "gpu": "NVIDIA GeForce RTX 5090 D",
+  "capability": [
+    12,
+    0
+  ],
+  "torch": "2.13.0+cu130",
+  "correctness": {
+    "status": "passed",
+    "mtp": [
+      {
+        "tokens": 1,
+        "max_abs_error": 0.0009506046772003174
+      },
+      {
+        "tokens": 2,
+        "max_abs_error": 0.000955045223236084
+      },
+      {
+        "tokens": 3,
+        "max_abs_error": 0.0009721517562866211
+      },
+      {
+        "tokens": 4,
+        "max_abs_error": 0.000972449779510498
+      },
+      {
+        "tokens": 17,
+        "max_abs_error": 0.0009709000587463379
+      }
+    ],
+    "ple": "exact parity"
+  },
+  "mtp": [
+    {
+      "median_ms": 0.09158399701118469,
+      "p95_ms": 0.09359999746084213,
+      "iterations": 50,
+      "peak_allocated_bytes": 1449280000,
+      "output_shape": [
+        1,
+        2560
+      ],
+      "tokens": 1,
+      "experts": 512,
+      "hidden": 2560,
+      "intermediate": 640,
+      "topk": 10
+    },
+    {
+      "median_ms": 0.15430400520563126,
+      "p95_ms": 0.15539200603961945,
+      "iterations": 50,
+      "peak_allocated_bytes": 1449420800,
+      "output_shape": [
+        2,
+        2560
+      ],
+      "tokens": 2,
+      "experts": 512,
+      "hidden": 2560,
+      "intermediate": 640,
+      "topk": 10
+    },
+    {
+      "median_ms": 0.3229599893093109,
+      "p95_ms": 0.3256640136241913,
+      "iterations": 50,
+      "peak_allocated_bytes": 1449702400,
+      "output_shape": [
+        4,
+        2560
+      ],
+      "tokens": 4,
+      "experts": 512,
+      "hidden": 2560,
+      "intermediate": 640,
+      "topk": 10
+    },
+    {
+      "median_ms": 1.1363519430160522,
+      "p95_ms": 1.1403839588165283,
+      "iterations": 50,
+      "peak_allocated_bytes": 1451393536,
+      "output_shape": [
+        16,
+        2560
+      ],
+      "tokens": 16,
+      "experts": 512,
+      "hidden": 2560,
+      "intermediate": 640,
+      "topk": 10
+    },
+    {
+      "median_ms": 4.198271989822388,
+      "p95_ms": 4.236959934234619,
+      "iterations": 50,
+      "peak_allocated_bytes": 1458157056,
+      "output_shape": [
+        64,
+        2560
+      ],
+      "tokens": 64,
+      "experts": 512,
+      "hidden": 2560,
+      "intermediate": 640,
+      "topk": 10
+    }
+  ],
+  "ple_mapped_gather": [
+    {
+      "median_ms": 0.009503999724984169,
+      "p95_ms": 0.015104000456631184,
+      "iterations": 50,
+      "peak_allocated_bytes": 33886208,
+      "output_shape": [
+        1,
+        160
+      ],
+      "lookups": 1,
+      "storage_row_bytes": 90,
+      "output_dim": 160
+    },
+    {
+      "median_ms": 0.009584000334143639,
+      "p95_ms": 0.016704000532627106,
+      "iterations": 50,
+      "peak_allocated_bytes": 33895936,
+      "output_shape": [
+        32,
+        160
+      ],
+      "lookups": 32,
+      "storage_row_bytes": 90,
+      "output_dim": 160
+    },
+    {
+      "median_ms": 0.013344000093638897,
+      "p95_ms": 0.016896000131964684,
+      "iterations": 50,
+      "peak_allocated_bytes": 34053120,
+      "output_shape": [
+        512,
+        160
+      ],
+      "lookups": 512,
+      "storage_row_bytes": 90,
+      "output_dim": 160
+    },
+    {
+      "median_ms": 0.16553600132465363,
+      "p95_ms": 0.1716800034046173,
+      "iterations": 50,
+      "peak_allocated_bytes": 36572160,
+      "output_shape": [
+        8192,
+        160
+      ],
+      "lookups": 8192,
+      "storage_row_bytes": 90,
+      "output_dim": 160
+    }
+  ],
+  "scope": "Synthetic layer microbenchmarks; excludes checkpoint I/O, expert misses, service and e2e.",
+  "timing": "CUDA events after warmup; MTP includes its per-call temporary allocations, PLE reuses output."
+}

@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+set -euo pipefail
+rootdir=$(dirname -- "$(readlink -f -- "$0")")
+source "$rootdir/sglang-env.sh"
+# Runtime tracing is opt-in. The service API can capture CPU/GPU traces at any time.
+export SGLANG_QWEN38_OBSERVE=${SGLANG_QWEN38_OBSERVE:-0}
+export SGLANG_TORCH_PROFILER_DIR=${SGLANG_TORCH_PROFILER_DIR:-/prod/homelab-llm/models/profiles}
+if [[ "${1:-}" == "--profile-start" || "${1:-}" == "--profile-stop" ]]; then
+  action=${1#--profile-}
+  shift
+  exec python3 "$rootdir/sglang-profile.py" "$action" --url "${PROFILE_URL:-http://127.0.0.1:8000}" "$@"
+fi
+decode_w4a16=1
+while (( $# )); do
+  case "$1" in
+    --decode-a4) decode_w4a16=0; shift ;;
+    --mtp)
+      [[ $# -ge 2 ]] || { echo "--mtp requires off, 1, 2 or 3" >&2; exit 2; }
+      export MTP_MODE="$2"; shift 2 ;;
+    --profile-nvtx)
+      export SGLANG_QWEN38_OBSERVE=1
+      export SGLANG_QWEN38_OBSERVE_NVTX=1
+      shift ;;
+    --print-launch-config) break ;;
+    *) echo "Unknown option: $1" >&2; exit 2 ;;
+  esac
+done
+# All FP4-Local presets share the configuration below. Only decode precision differs.
+# Explicit values override the old container environment on ordinary restart.
+export MODEL=nvidia/Qwen3.8-Flash-Next-FP4-Local
+export CHECKPOINT_DIR=nvidia/Qwen3.8-Flash-Next-FP4-Local
+export CHECKPOINT_REVISION=b9ce18a6887e18c089fdea8509a33e63429a3300
+export PACK_DIR=/root/.cache/sglang/qwen38-fp4-local/b9ce18a6887e18c089fdea8509a33e63429a3300
+export MANIFEST_PATH=/root/.cache/sglang/qwen38-fp4-local/b9ce18a6887e18c089fdea8509a33e63429a3300/manifest.json
+export PACK_SGLANG_COMMIT=acd9c47fed94afe9c753631e4f88df58ca3f676f+fp4-local-59db23b7bae46aa9
+export PACK_AUTO_BUILD=0
+export CACHE_SLOTS_TOTAL=5340
+# Match the original NVFP4 KV capacity. Keep packed-weight savings available
+# for 8192-token GDN prefill scratch instead of doubling the static KV pool.
+#export MAX_TOTAL_TOKENS=221952
+# Keep MTP enabled; verify transport is optimized in the runtime.
+export MTP_MODE=${MTP_MODE:-2}
+case "$MTP_MODE" in
+  off|none|0|1|2|3) ;;
+  *) echo "MTP_MODE must be off, 1, 2 or 3" >&2; exit 2 ;;
+esac
+# MTP retains target HC states during prefill; reserve dynamic scratch for
+# 8192-token PLE/GDN and draft-extend instead of exhausting the static budget.
+export MEM_FRACTION_STATIC=0.90
+export PLE_OFFLOAD_BACKEND=pinned
+export SGLANG_QWEN38_CACHE_W4A16="$decode_w4a16"
+# Prefill: CUTLASS W4A4; decode/verify follows CACHE_W4A16 above.
+export SGLANG_QWEN38_CACHE_PREFILL_W4A16=0
+export SGLANG_QWEN38_FP32_NORM_FUSION=1
+if [[ "$decode_w4a16" == "0" ]]; then
+  export SGLANG_LOG_FILE="$rootdir/sglang-fp4-local-a4.log"
+else
+  export SGLANG_LOG_FILE="$rootdir/sglang-fp4-local.log"
+fi
+
+# Read-only metadata for llmctl preflight; never imports SGLang or starts a server.
+if [[ "${1:-}" == "--print-launch-config" ]]; then
+  python3 -c 'import json,os; keys=("MODEL","CHECKPOINT_DIR","CHECKPOINT_REVISION","PACK_DIR","MANIFEST_PATH","PACK_SGLANG_COMMIT","SGLANG_LOG_FILE","SGLANG_QWEN38_CACHE_W4A16","SGLANG_QWEN38_CACHE_PREFILL_W4A16","CACHE_SLOTS_TOTAL","MTP_MODE","PLE_OFFLOAD_BACKEND","MEM_FRACTION_STATIC","SGLANG_QWEN38_OBSERVE","SGLANG_QWEN38_OBSERVE_NVTX","SGLANG_TORCH_PROFILER_DIR"); print(json.dumps({k:os.environ[k] for k in keys if k in os.environ}))'
+  exit 0
+fi
+
+exec bash "$rootdir/sglang-flash-next-common.sh" "$@"

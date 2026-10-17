@@ -1,0 +1,19 @@
+test_double_staging_across_streams_and_chunk_tails (tools.qwen38_cache_tests.test_gpu_ple_staging.TestPleStaging.test_double_staging_across_streams_and_chunk_tails) ... <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+<frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+/opt/sglang/lib/python3.12/site-packages/torch/jit/_script.py:365: DeprecationWarning: `torch.jit.script_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+  warnings.warn(
+ok
+test_measured_shapes_and_graph_replay (tools.qwen38_cache_tests.test_gpu_decode_gemv.TestDecodeGemv.test_measured_shapes_and_graph_replay) ... ok
+test_unmeasured_shapes_and_disable_switch_fall_back (tools.qwen38_cache_tests.test_gpu_decode_gemv.TestDecodeGemv.test_unmeasured_shapes_and_disable_switch_fall_back) ... ok
+test_failed_shared_branch_leaves_fill_ordered_for_next_reader (tools.qwen38_cache_tests.test_gpu_shared_fill_overlap.TestGpuSharedFillOverlap.test_failed_shared_branch_leaves_fill_ordered_for_next_reader) ... Qwen38Register bytes=372 register_ms=0.165 device_pointer_ms=0.002 status=0
+ok
+test_shared_fill_breakable_replay_fresh_routes_and_activations (tools.qwen38_cache_tests.test_gpu_shared_fill_overlap.TestGpuSharedFillOverlap.test_shared_fill_breakable_replay_fresh_routes_and_activations) ... Qwen38Register bytes=372 register_ms=0.125 device_pointer_ms=0.001 status=0
+ok
+test_shared_gemv_fill_cross_stream_bytes_and_sampling (tools.qwen38_cache_tests.test_gpu_shared_fill_overlap.TestGpuSharedFillOverlap.test_shared_gemv_fill_cross_stream_bytes_and_sampling) ... Qwen38Register bytes=372 register_ms=0.124 device_pointer_ms=0.001 status=0
+ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 34.661s
+
+OK
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute

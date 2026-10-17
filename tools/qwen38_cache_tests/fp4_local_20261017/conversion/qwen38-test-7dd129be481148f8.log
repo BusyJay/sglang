@@ -1,0 +1,89 @@
+[W1017 02:15:49.198182656 ProcessGroupGloo.cpp:524] Warning: Unable to resolve hostname to a (local) address. Using the loopback address as fallback. Manually set the network interface to bind to with GLOO_SOCKET_IFNAME. (function operator())
+Detected ModelOpt FP8 checkpoint. The format is experimental and subject to change.
+Qwen38Register bytes=1415581704 register_ms=11.795 device_pointer_ms=0.007 status=0
+[TensorRT-LLM][INFO] Set logger level to INFO
+Converted layer 0
+Detected ModelOpt FP8 checkpoint. The format is experimental and subject to change.
+Qwen38Register bytes=1415581704 register_ms=11.928 device_pointer_ms=0.003 status=0
+Converted layer 1
+Detected ModelOpt FP8 checkpoint. The format is experimental and subject to change.
+Qwen38Register bytes=1415581704 register_ms=11.930 device_pointer_ms=0.005 status=0
+Converted layer 2
+Detected ModelOpt FP8 checkpoint. The format is experimental and subject to change.
+Qwen38Register bytes=1415581704 register_ms=11.763 device_pointer_ms=0.002 status=0
+Converted layer 3
+Detected ModelOpt FP8 checkpoint. The format is experimental and subject to change.
+Qwen38Register bytes=1415581704 register_ms=12.361 device_pointer_ms=0.003 status=0
+Converted layer 4
+Detected ModelOpt FP8 checkpoint. The format is experimental and subject to change.
+Qwen38Register bytes=1415581704 register_ms=11.704 device_pointer_ms=0.004 status=0
+Converted layer 5
+Detected ModelOpt FP8 checkpoint. The format is experimental and subject to change.
+Qwen38Register bytes=1415581704 register_ms=11.719 device_pointer_ms=0.003 status=0
+Converted layer 6
+Detected ModelOpt FP8 checkpoint. The format is experimental and subject to change.
+Qwen38Register bytes=1415581704 register_ms=11.685 device_pointer_ms=0.003 status=0
+Converted layer 7
+Detected ModelOpt FP8 checkpoint. The format is experimental and subject to change.
+Qwen38Register bytes=1415581704 register_ms=11.751 device_pointer_ms=0.003 status=0
+Converted layer 8
+Detected ModelOpt FP8 checkpoint. The format is experimental and subject to change.
+Qwen38Register bytes=1415581704 register_ms=11.923 device_pointer_ms=0.003 status=0
+Converted layer 9
+Detected ModelOpt FP8 checkpoint. The format is experimental and subject to change.
+Qwen38Register bytes=1415581704 register_ms=11.703 device_pointer_ms=0.003 status=0
+Converted layer 10
+Detected ModelOpt FP8 checkpoint. The format is experimental and subject to change.
+Qwen38Register bytes=1415581704 register_ms=11.729 device_pointer_ms=0.002 status=0
+Converted layer 11
+Detected ModelOpt FP8 checkpoint. The format is experimental and subject to change.
+Qwen38Register bytes=1415581704 register_ms=11.776 device_pointer_ms=0.003 status=0
+Converted layer 12
+Detected ModelOpt FP8 checkpoint. The format is experimental and subject to change.
+Qwen38Register bytes=1415581704 register_ms=11.547 device_pointer_ms=0.002 status=0
+Converted layer 13
+Detected ModelOpt FP8 checkpoint. The format is experimental and subject to change.
+Qwen38Register bytes=1415581704 register_ms=11.846 device_pointer_ms=0.002 status=0
+Converted layer 14
+Detected ModelOpt FP8 checkpoint. The format is experimental and subject to change.
+Qwen38Register bytes=1415581704 register_ms=11.868 device_pointer_ms=0.004 status=0
+Converted layer 15
+Detected ModelOpt FP8 checkpoint. The format is experimental and subject to change.
+Qwen38Register bytes=1415581704 register_ms=12.096 device_pointer_ms=0.004 status=0
+Converted layer 16
+Detected ModelOpt FP8 checkpoint. The format is experimental and subject to change.
+Qwen38Register bytes=1415581704 register_ms=12.154 device_pointer_ms=0.003 status=0
+Converted layer 17
+Detected ModelOpt FP8 checkpoint. The format is experimental and subject to change.
+Qwen38Register bytes=1415581704 register_ms=11.626 device_pointer_ms=0.004 status=0
+Converted layer 18
+Detected ModelOpt FP8 checkpoint. The format is experimental and subject to change.
+[rank0]:[W1017 02:17:47.786227330 CUDACachingAllocator.cpp:3933] memory allocation failed with OOM on device 0 while trying to allocate 838860800 bytes (free: 450625536, total: 33766572032).
+[rank0]:[W1017 02:17:47.788129514 CUDACachingAllocator.cpp:3933] memory allocation failed with OOM on device 0 while trying to allocate 838860800 bytes (free: 660340736, total: 33766572032).
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "<frozen runpy>", line 198, in _run_module_as_main
+[rank0]:   File "<frozen runpy>", line 88, in _run_code
+[rank0]:   File "/workspace/sglang/python/sglang/srt/model_loader/qwen38_nvfp4_pack/convert.py", line 324, in <module>
+[rank0]:     raise SystemExit(main())
+[rank0]:                      ^^^^^^
+[rank0]:   File "/workspace/sglang/python/sglang/srt/model_loader/qwen38_nvfp4_pack/convert.py", line 277, in main
+[rank0]:     report = check_exported_layer(layer, destination, args.runtime_mode)
+[rank0]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/sglang/python/sglang/srt/model_loader/qwen38_nvfp4_pack/parity.py", line 113, in check_exported_layer
+[rank0]:     runtime.reserve()
+[rank0]:   File "/workspace/sglang/python/sglang/srt/layers/moe/qwen38_cache_threaded.py", line 311, in reserve
+[rank0]:     super().reserve()
+[rank0]:   File "/workspace/sglang/python/sglang/srt/layers/moe/qwen38_cache_device.py", line 72, in reserve
+[rank0]:     super().reserve()
+[rank0]:   File "/workspace/sglang/python/sglang/srt/layers/moe/qwen38_cache_async.py", line 52, in reserve
+[rank0]:     super().reserve()
+[rank0]:   File "/workspace/sglang/python/sglang/srt/layers/moe/qwen38_cache_runtime.py", line 222, in reserve
+[rank0]:     self.arena = self._allocate(self.manifest.num_experts)
+[rank0]:                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/sglang/python/sglang/srt/layers/moe/qwen38_cache_device.py", line 78, in _allocate
+[rank0]:     tensors = super()._allocate(capacity)
+[rank0]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/sglang/python/sglang/srt/layers/moe/qwen38_cache_runtime.py", line 235, in _allocate
+[rank0]:     tensors[name] = torch.zeros(
+[rank0]:                     ^^^^^^^^^^^^
+[rank0]: torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 800.00 MiB. GPU 0 has a total capacity of 31.45 GiB of which 629.75 MiB is free. Including non-PyTorch memory, this process has 30.06 GiB memory in use. Of the allocated memory 29.27 GiB is allocated by PyTorch, and 121.56 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://docs.pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf)

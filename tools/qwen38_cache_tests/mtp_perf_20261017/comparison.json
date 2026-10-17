@@ -1,0 +1,33 @@
+{
+  "mtp2_e2e_tokens_s": 39.51456875572679,
+  "off_e2e_tokens_s": 52.94912444569031,
+  "off_improvement": 0.3399899356871119,
+  "mtp2_reduction_vs_off": 0.25372573825546985,
+  "cases": [
+    {
+      "case": 0,
+      "mtp2_tokens_s": 40.248355302233,
+      "off_tokens_s": 55.57050152804175,
+      "mtp2_accept_length": 2.341463414634146
+    },
+    {
+      "case": 1,
+      "mtp2_tokens_s": 38.929786976305174,
+      "off_tokens_s": 52.690163259555305,
+      "mtp2_accept_length": 2.4935064935064934
+    },
+    {
+      "case": 2,
+      "mtp2_tokens_s": 39.38813212670438,
+      "off_tokens_s": 50.80235388203595,
+      "mtp2_accept_length": 2.6666666666666665
+    }
+  ],
+  "limitations": [
+    "Short synthetic prompts, 192 generated tokens each, greedy sampling. Not a replay of the original 31K-context production request.",
+    "MTP-off restores FP32 GDN state; MTP-on uses BF16. Runtime observation logging was enabled for MTP-on and disabled for MTP-off.",
+    "Separate service processes and cache/adaptive histories; no strict isolated-kernel speedup or quality claim.",
+    "The first off run overlapped profiling in case 2; excluded, archived as bench-off-overlapped-profile.json.",
+    "All final throughput cases ran without a profiler; traces are diagnostic only."
+  ]
+}

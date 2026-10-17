@@ -1,0 +1,131 @@
+[
+  {
+    "case": "text",
+    "wall_s": 0.5945531100151129,
+    "response": {
+      "id": "620b7f0c80814d69aaa13c092feea5e0",
+      "object": "chat.completion",
+      "created": 1792226083,
+      "model": "nvidia/Qwen3.8-Flash-Next-FP4-Local",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "42",
+            "reasoning_content": null,
+            "tool_calls": null
+          },
+          "logprobs": null,
+          "finish_reason": "stop",
+          "matched_stop": 248046
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 24,
+        "total_tokens": 27,
+        "completion_tokens": 3,
+        "prompt_tokens_details": null,
+        "reasoning_tokens": 0
+      },
+      "metadata": {
+        "weight_version": "default",
+        "weight_versions": [
+          {
+            "version": "default",
+            "start": 0,
+            "end": 3
+          }
+        ]
+      }
+    }
+  },
+  {
+    "case": "image",
+    "wall_s": 1.75512816401897,
+    "response": {
+      "id": "0413f3d8a3e14794b8c48a09697cab3f",
+      "object": "chat.completion",
+      "created": 1792226084,
+      "model": "nvidia/Qwen3.8-Flash-Next-FP4-Local",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "红色",
+            "reasoning_content": null,
+            "tool_calls": null
+          },
+          "logprobs": null,
+          "finish_reason": "stop",
+          "matched_stop": 248046
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 87,
+        "total_tokens": 89,
+        "completion_tokens": 2,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "image_tokens": 64
+        },
+        "reasoning_tokens": 0
+      },
+      "metadata": {
+        "weight_version": "default",
+        "weight_versions": [
+          {
+            "version": "default",
+            "start": 0,
+            "end": 2
+          }
+        ]
+      }
+    }
+  },
+  {
+    "case": "chunked-image",
+    "wall_s": 4.578034922014922,
+    "response": {
+      "id": "c3d50da44f904a7aa1fe5b43ccef1edb",
+      "object": "chat.completion",
+      "created": 1792226089,
+      "model": "nvidia/Qwen3.8-Flash-Next-FP4-Local",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "图片的主色是红色。\n\n1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20",
+            "reasoning_content": null,
+            "tool_calls": null
+          },
+          "logprobs": null,
+          "finish_reason": "stop",
+          "matched_stop": 248046
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 10093,
+        "total_tokens": 10170,
+        "completion_tokens": 77,
+        "prompt_tokens_details": {
+          "cached_tokens": 64,
+          "image_tokens": 64
+        },
+        "reasoning_tokens": 0
+      },
+      "metadata": {
+        "weight_version": "default",
+        "weight_versions": [
+          {
+            "version": "default",
+            "start": 0,
+            "end": 77
+          }
+        ]
+      }
+    }
+  }
+]
