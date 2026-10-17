@@ -1,0 +1,30 @@
+READY 0 w4a16 45.0s
+{"kind": "short", "case": 0, "decode_tokens_per_second": 87.64731212358984, "ttft_s": 0.23361518094316125, "meta_info": {"id": "e92911607744454f88c9d21c6a65fa96", "finish_reason": {"type": "length", "length": 1024}, "prompt_tokens": 15, "weight_version": "default", "num_retractions": 0, "reasoning_tokens": 0, "completion_tokens": 1024, "cached_tokens": 0, "weight_versions": [{"version": "default", "start": 0, "end": 1024}], "cached_tokens_details": null, "dp_rank": null, "e2e_latency": 11.904203581041656, "spec_accept_rate": 0.6946386946386947, "spec_accept_length": 2.386946386946387, "spec_num_correct_drafts": 596, "spec_num_proposed_drafts": 858, "spec_verify_ct": 429, "spec_correct_drafts_histogram": [89, 84, 256]}}
+Traceback (most recent call last):
+  File "/home/jay/workspace/sglang/tools/qwen38_cache_tests/mtp_w4a4_20261018/run_ab.py", line 305, in <module>
+    main()
+    ~~~~^^
+  File "/home/jay/workspace/sglang/tools/qwen38_cache_tests/mtp_w4a4_20261018/run_ab.py", line 215, in main
+    row = generate(prompt, 1024)
+  File "/home/jay/workspace/sglang/tools/qwen38_cache_tests/mtp_w4a4_20261018/run_ab.py", line 51, in generate
+    api("/flush_cache", {})
+    ~~~^^^^^^^^^^^^^^^^^^^^
+  File "/home/jay/workspace/sglang/tools/qwen38_cache_tests/mtp_w4a4_20261018/run_ab.py", line 30, in api
+    with urllib.request.urlopen(req, timeout=timeout) as response:
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/urllib/request.py", line 187, in urlopen
+    return opener.open(url, data, timeout)
+           ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/urllib/request.py", line 493, in open
+    response = meth(req, response)
+  File "/usr/lib/python3.14/urllib/request.py", line 602, in http_response
+    response = self.parent.error(
+        'http', request, response, code, msg, hdrs)
+  File "/usr/lib/python3.14/urllib/request.py", line 531, in error
+    return self._call_chain(*args)
+           ~~~~~~~~~~~~~~~~^^^^^^^
+  File "/usr/lib/python3.14/urllib/request.py", line 464, in _call_chain
+    result = func(*args)
+  File "/usr/lib/python3.14/urllib/request.py", line 611, in http_error_default
+    raise HTTPError(req.full_url, code, msg, hdrs, fp)
+urllib.error.HTTPError: HTTP Error 400: Bad Request

@@ -1,0 +1,56 @@
+{
+  "decision": "keep_w4a16_default",
+  "reason": "No sustained decode gain; KV capacity decreases 5.38%; one A4 worker had frequent recoverable allocation mapping failures.",
+  "cpu_tests_passed": 314,
+  "gpu_tests_passed": 66,
+  "gpu_tests_skipped": 0,
+  "kernel_experts": [
+    32,
+    512
+  ],
+  "all_measured_requests_completed": 20,
+  "quality_smoke_passed": 16,
+  "full_quality_evaluation": "not_run",
+  "rounds": [
+    {
+      "round": "round-0-w4a16",
+      "mode": "w4a16",
+      "max_total_num_tokens": 221248,
+      "allocator_mapping_retries": 1,
+      "fatal_cuda_errors": false,
+      "quality_passed": 4,
+      "measured_requests": 5,
+      "sampled_peak_mib": 32170
+    },
+    {
+      "round": "round-1-w4a4",
+      "mode": "w4a4",
+      "max_total_num_tokens": 209344,
+      "allocator_mapping_retries": 140,
+      "fatal_cuda_errors": false,
+      "quality_passed": 4,
+      "measured_requests": 5,
+      "sampled_peak_mib": 32186
+    },
+    {
+      "round": "round-2-w4a4",
+      "mode": "w4a4",
+      "max_total_num_tokens": 209344,
+      "allocator_mapping_retries": 1,
+      "fatal_cuda_errors": false,
+      "quality_passed": 4,
+      "measured_requests": 5,
+      "sampled_peak_mib": 32164
+    },
+    {
+      "round": "round-3-w4a16",
+      "mode": "w4a16",
+      "max_total_num_tokens": 221248,
+      "allocator_mapping_retries": 1,
+      "fatal_cuda_errors": false,
+      "quality_passed": 4,
+      "measured_requests": 5,
+      "sampled_peak_mib": 32170
+    }
+  ]
+}

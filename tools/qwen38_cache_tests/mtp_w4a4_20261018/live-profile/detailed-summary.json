@@ -1,0 +1,1260 @@
+{
+  "step[VERIFY bs=1]": {
+    "count": 40,
+    "gpu_mean_ms": 20.93455025024414,
+    "gpu_busy_union_ms_per_round": 20.34109305419922,
+    "cadence_ms": 23.80095294971955,
+    "top": [
+      {
+        "name": "void (anonymous namespace)::mailbox_fill_kernel<false>(int const*, long const*, int, int const volatile*)",
+        "calls": 1920,
+        "ms_per_round": 6.543026928710932
+      },
+      {
+        "name": "_cache_project_splitk",
+        "calls": 3840,
+        "ms_per_round": 5.8034242187499805
+      },
+      {
+        "name": "_ZN7cutlass13device_kernelIN10flashinfer4gemm53DeviceGemmMxfp8GemmSm120___nv_bfloat16_128_32_128true9Sm12xOnlyINS_4gemm6kernel13GemmUniversalIN4cute5tupleIJiiiiEEENS5_10collective13CollectiveMmaINS5_42MainloopSm120TmaWarpSpecializedBlockScaledILi4ELi3ENS9_IJNS8_1CILi1EEESF_SF_EEENS5_51KernelTmaWarpSpecializedCooperativeBlockScaledSm120ILi3EEEEENS9_IJNSE_ILi128EEENSE_ILi32EEESK_EEENS9_IJNS_12float_e4m3_tENS_13float_ue8m0_tEEEENS9_IJNS9_IJlSF_lEEENS8_6LayoutINS9_IJNS9_IJNS9_IJSL_NSE_ILi4EEEEEEiEEESU_NS9_IJSF_iEEEEEENS9_IJNS9_IJNS9_IJNSE_ILi16EEESS_EEEiEEENS9_IJNS9_IJNSE_ILi0EEESF_EEENSE_ILi512EEEEEENS9_IJS10_iEEEEEEEEEEESP_S17_NS8_8TiledMMAINS8_8MMA_AtomIJNS8_5SM12011BLOCKSCALED19SM120_16x8x32_TN_VSISN_SN_fSO_Li32EEEEEENSR_INS9_IJSS_NSE_ILi2EEESF_EEENS9_IJSF_SS_S10_EEEEENS9_IJSK_NSR_INS9_IJNSE_ILi8EEES1F_S1F_EEENS9_IJSF_SX_S1J_EEEEESL_EEEEENS9_IJNS8_13SM90_TMA_LOADES1P_EEENS9_IJNS8_14ComposedLayoutINS8_7SwizzleILi3ELi4ELi3EEENS8_18smem_ptr_flag_bitsILi8EEENSR_INS9_IJS1J_SK_EEENS9_IJSK_SF_EEEEEEENSR_INS9_IJNS9_IJST_SF_EEENS9_IJNS9_IJSL_SF_EEESS_SF_EEEEEENS9_IJNS9_IJSY_S12_EEENS9_IJS11_SF_S12_EEEEEEEEEEENS9_IJNS8_9Copy_AtomIJNS8_17SM75_U32x4_LDSM_NEhEEENS29_IJNS8_13UniversalCopyISO_SO_EESO_EEEEEENS8_8identityES1Q_S28_S2F_S2G_EENS_8epilogue10collective18CollectiveEpilogueINS2I_22Sm90TmaWarpSpecializedILi2ELi2ELi4ELb0ELb1EEEJSM_NS9_IJNSE_ILi64EEESL_EEEvNS9_IJSF_llEEENS_10bfloat16_tES2P_NS2I_6fusion15FusionCallbacksINS2I_23Sm120TmaWarpSpecializedILi2ELi2ELi4ELb0ELb1EEENS2R_17LinearCombinationIS2Q_fvfLNS_15FloatRoundStyleE2EEESM_S2O_JEEES1P_NS1R_IS1T_NS1U_ILi16EEENSR_INS9_IJS2N_S1J_EEENS9_IJSF_S2N_EEEEEEENS8_17SM75_U16x4_LDSM_TENS8_14SM90_TMA_STOREES33_NS8_17SM90_U16x4_STSM_TENS29_IJNS8_17SM90_U32x2_STSM_NENS_6half_tEEEEvEEENS5_19PersistentSchedulerEvEEEEEEvNT_6ParamsE",
+        "calls": 8160,
+        "ms_per_round": 3.3213979858398432
+      },
+      {
+        "name": "_hc_mix_persistent_kernel",
+        "calls": 3880,
+        "ms_per_round": 1.3192581359863347
+      },
+      {
+        "name": "(anonymous namespace)::decode_plan_kernel(int const*, int*, int*, int*, int*, float*, long*, long*, long*, int*, int, int, int, float, int, int, bool, long*, int*, bool)",
+        "calls": 1920,
+        "ms_per_round": 1.279775878906252
+      },
+      {
+        "name": "_ZN7cutlass13device_kernelIN10flashinfer4gemm54DeviceGemmMxfp8GemmSm120___nv_bfloat16_128_32_128false9Sm12xOnlyINS_4gemm6kernel13GemmUniversalIN4cute5tupleIJiiiiEEENS5_10collective13CollectiveMmaINS5_42MainloopSm120TmaWarpSpecializedBlockScaledILi4ELi3ENS9_IJNS8_1CILi1EEESF_SF_EEENS5_51KernelTmaWarpSpecializedCooperativeBlockScaledSm120ILi3EEEEENS9_IJNSE_ILi128EEENSE_ILi32EEESK_EEENS9_IJNS_12float_e4m3_tENS_13float_ue8m0_tEEEENS9_IJNS9_IJlSF_lEEENS8_6LayoutINS9_IJNS9_IJNS9_IJSL_NSE_ILi4EEEEEEiEEESU_NS9_IJSF_iEEEEEENS9_IJNS9_IJNS9_IJNSE_ILi16EEESS_EEEiEEENS9_IJNS9_IJNSE_ILi0EEESF_EEENSE_ILi512EEEEEENS9_IJS10_iEEEEEEEEEEESP_S17_NS8_8TiledMMAINS8_8MMA_AtomIJNS8_5SM12011BLOCKSCALED19SM120_16x8x32_TN_VSISN_SN_fSO_Li32EEEEEENSR_INS9_IJSS_NSE_ILi2EEESF_EEENS9_IJSF_SS_S10_EEEEENS9_IJSK_NSR_INS9_IJNSE_ILi8EEES1F_S1F_EEENS9_IJSF_SX_S1J_EEEEESL_EEEEENS9_IJNS8_13SM90_TMA_LOADES1P_EEENS9_IJNS8_14ComposedLayoutINS8_7SwizzleILi3ELi4ELi3EEENS8_18smem_ptr_flag_bitsILi8EEENSR_INS9_IJS1J_SK_EEENS9_IJSK_SF_EEEEEEENSR_INS9_IJNS9_IJST_SF_EEENS9_IJNS9_IJSL_SF_EEESS_SF_EEEEEENS9_IJNS9_IJSY_S12_EEENS9_IJS11_SF_S12_EEEEEEEEEEENS9_IJNS8_9Copy_AtomIJNS8_17SM75_U32x4_LDSM_NEhEEENS29_IJNS8_13UniversalCopyISO_SO_EESO_EEEEEENS8_8identityES1Q_S28_S2F_S2G_EENS_8epilogue10collective18CollectiveEpilogueINS2I_22Sm90TmaWarpSpecializedILi2ELi2ELi4ELb0ELb1EEEJSM_NS9_IJNSE_ILi64EEESL_EEEvSQ_NS_10bfloat16_tESQ_NS2I_6fusion15FusionCallbacksINS2I_23Sm120TmaWarpSpecializedILi2ELi2ELi4ELb0ELb1EEENS2Q_17LinearCombinationIS2P_fvfLNS_15FloatRoundStyleE2EEESM_S2O_JEEES1P_NS1R_INS1S_ILi2ELi4ELi3EEENS1U_ILi16EEENSR_INS9_IJS1J_SL_EEES21_EEEENS8_17SM75_U32x2_LDSM_NENS8_14SM90_TMA_STOREES32_NS8_17SM90_U32x2_STSM_NENS29_IJS35_NS_6half_tEEEEvEEENS5_19PersistentSchedulerEvEEEEEEvNT_6ParamsE",
+        "calls": 1440,
+        "ms_per_round": 1.0417925109863295
+      },
+      {
+        "name": "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8::Params)",
+        "calls": 2040,
+        "ms_per_round": 1.0095291992187476
+      },
+      {
+        "name": "fused_sigmoid_gating_delta_rule_update_kernel",
+        "calls": 1440,
+        "ms_per_round": 0.2943799499511718
+      },
+      {
+        "name": "kernel_cutlass_kernel_flashinferquantizationkernelsmxfp8_quantizeMXFP8QuantizeSwizzledKernel_object_at__tensorptrbf16gmemalign16o256025601_tensorptri8gmemalign16o256025601_tensorptri8gmem_0",
+        "calls": 5760,
+        "ms_per_round": 0.2551451416015693
+      },
+      {
+        "name": "_layer_norm_fwd_1pass_kernel",
+        "calls": 1440,
+        "ms_per_round": 0.24129202270507796
+      },
+      {
+        "name": "_norm",
+        "calls": 4000,
+        "ms_per_round": 0.20191870727539504
+      },
+      {
+        "name": "void sglang::act_and_mul_kernel<__nv_bfloat16, (sglang::ActivationKind)0, true, false, false, false>(sglang::ActivationParams)",
+        "calls": 1920,
+        "ms_per_round": 0.19136837768554749
+      },
+      {
+        "name": "kernel_mha(unsigned int, float, float const*, Vec<__nv_bfloat16, 256u>*, Vec<__nv_bfloat16, 256u> const*, float const*, KVCacheList<true>, unsigned int, float, float const*, unsigned int, unsigned int, unsigned int, unsigned int*, void*)",
+        "calls": 480,
+        "ms_per_round": 0.187259826660156
+      },
+      {
+        "name": "_router_triton_kernel",
+        "calls": 1920,
+        "ms_per_round": 0.15913824462890797
+      },
+      {
+        "name": "void sglang::hc_combine_gate_kernel<4l, 2560l, true, __nv_bfloat16>(sglang::HcCombineSplitParams)",
+        "calls": 3840,
+        "ms_per_round": 0.13600939331054515
+      }
+    ],
+    "windows": [
+      [
+        1405432145063.202,
+        1405432169425.729
+      ],
+      [
+        1405432172160.005,
+        1405432195117.1208
+      ],
+      [
+        1405432197859.941,
+        1405432228801.557
+      ],
+      [
+        1405432231540.41,
+        1405432250492.6829
+      ],
+      [
+        1405432253218.224,
+        1405432273085.923
+      ],
+      [
+        1405432275821.224,
+        1405432298196.8662
+      ],
+      [
+        1405432300895.367,
+        1405432320811.067
+      ],
+      [
+        1405432323544.639,
+        1405432349008.097
+      ],
+      [
+        1405432351724.006,
+        1405432373352.1582
+      ],
+      [
+        1405432376072.963,
+        1405432397411.098
+      ],
+      [
+        1405432400148.447,
+        1405432418314.702
+      ],
+      [
+        1405432421033.843,
+        1405432441489.736
+      ],
+      [
+        1405432444230.605,
+        1405432464259.073
+      ],
+      [
+        1405432466984.038,
+        1405432485571.414
+      ],
+      [
+        1405432488317.627,
+        1405432511025.077
+      ],
+      [
+        1405432513746.33,
+        1405432543785.927
+      ],
+      [
+        1405432546502.124,
+        1405432569198.1191
+      ],
+      [
+        1405432571925.739,
+        1405432590139.547
+      ],
+      [
+        1405432592870.496,
+        1405432611189.455
+      ],
+      [
+        1405432613908.948,
+        1405432631362.466
+      ],
+      [
+        1405432634080.167,
+        1405432651078.867
+      ],
+      [
+        1405432653811.832,
+        1405432671494.022
+      ],
+      [
+        1405432674226.251,
+        1405432696704.101
+      ],
+      [
+        1405432699442.026,
+        1405432717489.1768
+      ],
+      [
+        1405432720203.262,
+        1405432741768.278
+      ],
+      [
+        1405432744500.986,
+        1405432764743.279
+      ],
+      [
+        1405432767444.884,
+        1405432794119.0
+      ],
+      [
+        1405432796844.349,
+        1405432823479.425
+      ],
+      [
+        1405432826187.718,
+        1405432848500.928
+      ],
+      [
+        1405432851238.117,
+        1405432869184.7559
+      ],
+      [
+        1405432871911.353,
+        1405432891588.46
+      ],
+      [
+        1405432894323.536,
+        1405432912537.056
+      ],
+      [
+        1405432915243.492,
+        1405432935377.529
+      ],
+      [
+        1405432938105.95,
+        1405432960021.846
+      ],
+      [
+        1405432962748.411,
+        1405432982012.429
+      ],
+      [
+        1405432984735.698,
+        1405433002318.464
+      ],
+      [
+        1405433005052.997,
+        1405433027542.527
+      ],
+      [
+        1405433030269.668,
+        1405433050152.567
+      ],
+      [
+        1405433052874.044,
+        1405433070568.682
+      ],
+      [
+        1405433073300.367,
+        1405433088776.088
+      ]
+    ]
+  },
+  "draft": {
+    "count": 40,
+    "gpu_mean_ms": 1.1373575012207031,
+    "gpu_busy_union_ms_per_round": 1.088666552734375,
+    "cadence_ms": 23.83126277043269,
+    "top": [
+      {
+        "name": "std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, false, true, true, false, 6, false, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float> >(cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float>)",
+        "calls": 160,
+        "ms_per_round": 0.8460883178710941
+      },
+      {
+        "name": "std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, false, true, true, false, 7, false, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float> >(cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float>)",
+        "calls": 120,
+        "ms_per_round": 0.0520448974609375
+      },
+      {
+        "name": "_hc_mix_persistent_kernel",
+        "calls": 120,
+        "ms_per_round": 0.03524169311523438
+      },
+      {
+        "name": "_ZN7cutlass13device_kernelINS_4gemm6kernel13GemmUniversalINS1_17GroupProblemShapeIN4cute5tupleIJlllEEEEENS1_10collective13CollectiveMmaINS1_47MainloopSm120ArrayTmaWarpSpecializedBlockScaledILi6ELi3ENS6_IJNS5_1CILi1EEESD_SD_EEENS1_59KernelPtrArrayTmaWarpSpecializedCooperativeBlockScaledSm120ILi3EEEEENS6_IJNSC_ILi128EEENSC_ILi32EEESI_EEENS6_IJNS_12float_e2m1_tENS_13float_ue4m3_tEEEENS6_IJPNS6_IJlSD_NSC_ILi0EEEEEEPNS5_6LayoutINS6_IJNS6_IJNS6_IJSJ_NSC_ILi4EEEEEEiEEENS6_IJNS6_IJNSC_ILi16EEESS_EEEiEEENS6_IJSD_iEEEEEENS6_IJSX_NS6_IJNS6_IJSO_SD_EEENSC_ILi512EEEEEENS6_IJSO_iEEEEEEEEEEESN_S17_NS5_8TiledMMAINS5_8MMA_AtomIJNS5_5SM12011BLOCKSCALED19SM120_16x8x64_TN_VSISL_SL_fSM_Li16EEEEEENSR_INS6_IJSS_NSC_ILi2EEESD_EEENS6_IJSD_SS_SO_EEEEENS6_IJSI_NSR_INS6_IJNSC_ILi8EEES1F_S1F_EEENS6_IJSD_SV_S1J_EEEEENSC_ILi64EEEEEEEENS6_IJNS5_13SM90_TMA_LOADES1Q_EEENS6_IJNS5_14ComposedLayoutINS5_7SwizzleILi2ELi4ELi3EEENS5_18smem_ptr_flag_bitsILi4EEENSR_INS6_IJS1J_SI_EEENS6_IJSI_SD_EEEEEEENSR_INS6_IJNS6_IJST_SD_EEENS6_IJSW_SD_S1F_EEEEEENS6_IJNS6_IJSW_S11_EEENS6_IJS10_SS_S11_EEEEEEEEEEENS6_IJNS5_9Copy_AtomIJNS5_17SM75_U32x4_LDSM_NENS_15integer_subbyteILi4ELb0EEEEEENS29_IJNS5_13UniversalCopyISM_SM_EESM_EEEEEENS5_8identityES1R_S28_S2H_S2I_EENS_8epilogue10collective18CollectiveEpilogueINS2K_30Sm90PtrArrayTmaWarpSpecializedILi3ELi2ELi4ELb1ELb0ELi2EEEJSK_NS6_IJS1N_SJ_EEENS_10bfloat16_tEPNS6_IJSD_lSO_EEES2Q_S2S_NS2K_6fusion15FusionCallbacksINS2K_31Sm120PtrArrayTmaWarpSpecializedILi3ELi2ELi4ELb1ELb0ELi2EEENS2T_17LinearCombinationIS2Q_fS2Q_fLNS_15FloatRoundStyleE2EEESK_S2P_JEEES1Q_NS1S_INS1T_ILi3ELi4ELi3EEENS1V_ILi16EEENSR_INS6_IJS1N_S1J_EEENS6_IJSD_S1N_EEEEEEENS5_17SM75_U16x4_LDSM_TENS5_14SM90_TMA_STOREES36_NS5_17SM90_U16x4_STSM_TENS29_IJNS5_17SM90_U32x2_STSM_NENS_6half_tEEEEvEEEvvEEEEvNT_6ParamsE",
+        "calls": 80,
+        "ms_per_round": 0.029793743896484353
+      },
+      {
+        "name": "kernel_mha(unsigned int, float, float const*, Vec<__nv_bfloat16, 256u>*, Vec<__nv_bfloat16, 256u> const*, float const*, KVCacheList<true>, unsigned int, float, float const*, unsigned int, unsigned int, unsigned int, unsigned int*, void*)",
+        "calls": 40,
+        "ms_per_round": 0.016656109619140623
+      },
+      {
+        "name": "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8::Params)",
+        "calls": 40,
+        "ms_per_round": 0.01498719482421874
+      },
+      {
+        "name": "_qsa_graph_row_metadata_kernel",
+        "calls": 40,
+        "ms_per_round": 0.013582379150390627
+      },
+      {
+        "name": "void at::native::index_elementwise_kernel<128, 4, at::native::gpu_index_kernel<at::native::index_kernel_impl<at::native::OpaqueType<4> >(at::TensorIteratorBase&, c10::ArrayRef<long>, c10::ArrayRef<long>)::{lambda(char*, char const*, long)#1}>(at::TensorIteratorBase&, c10::ArrayRef<long>, c10::ArrayRef<long>, at::native::index_kernel_impl<at::native::OpaqueType<4> >(at::TensorIteratorBase&, c10::ArrayRef<long>, c10::ArrayRef<long>)::{lambda(char*, char const*, long)#1} const&, bool)::{lambda(int)#1}>(long, at::native::gpu_index_kernel<at::native::index_kernel_impl<at::native::OpaqueType<4> >(at::TensorIteratorBase&, c10::ArrayRef<long>, c10::ArrayRef<long>)::{lambda(char*, char const*, long)#1}>(at::TensorIteratorBase&, c10::ArrayRef<long>, c10::ArrayRef<long>, at::native::index_kernel_impl<at::native::OpaqueType<4> >(at::TensorIteratorBase&, c10::ArrayRef<long>, c10::ArrayRef<long>)::{lambda(char*, char const*, long)#1} const&, bool)::{lambda(int)#1})",
+        "calls": 80,
+        "ms_per_round": 0.009858294677734376
+      },
+      {
+        "name": "void tensorrt_llm::kernels::cutlass_kernels::finalizeMoeRoutingKernel<__nv_bfloat16, __nv_bfloat16, __nv_bfloat16, (tensorrt_llm::kernels::cutlass_kernels::ScaleMode)1>(__nv_bfloat16 const*, __nv_bfloat16*, __nv_bfloat16 const*, float const*, int const*, int const*, long, long, long, int, int)",
+        "calls": 40,
+        "ms_per_round": 0.007020825195312499
+      },
+      {
+        "name": "memcpy32_post",
+        "calls": 240,
+        "ms_per_round": 0.0047375488281249985
+      },
+      {
+        "name": "_router_triton_kernel",
+        "calls": 40,
+        "ms_per_round": 0.004436077880859374
+      },
+      {
+        "name": "_fused_gate_sigmoid_mul_add_kernel",
+        "calls": 40,
+        "ms_per_round": 0.0038265319824218754
+      },
+      {
+        "name": "_gather_ple_embedding_from_pinned_kernel",
+        "calls": 40,
+        "ms_per_round": 0.003667956542968749
+      },
+      {
+        "name": "void at::native::vectorized_elementwise_kernel<2, at::native::CUDAFunctorOnSelf_add<long>, std::array<char*, 2ul> >(int, at::native::CUDAFunctorOnSelf_add<long>, std::array<char*, 2ul>)",
+        "calls": 160,
+        "ms_per_round": 0.003604754638671874
+      },
+      {
+        "name": "_compact_kv",
+        "calls": 40,
+        "ms_per_round": 0.003496008300781249
+      }
+    ],
+    "windows": [
+      [
+        1405432142744.988,
+        1405432145032.356
+      ],
+      [
+        1405432171018.403,
+        1405432172131.783
+      ],
+      [
+        1405432196720.899,
+        1405432197828.0388
+      ],
+      [
+        1405432230404.759,
+        1405432231511.58
+      ],
+      [
+        1405432252080.461,
+        1405432253188.53
+      ],
+      [
+        1405432274685.318,
+        1405432275790.7302
+      ],
+      [
+        1405432299757.604,
+        1405432300866.409
+      ],
+      [
+        1405432322407.037,
+        1405432323512.289
+      ],
+      [
+        1405432350586.883,
+        1405432351691.752
+      ],
+      [
+        1405432374933.504,
+        1405432376042.596
+      ],
+      [
+        1405432399008.924,
+        1405432400118.8481
+      ],
+      [
+        1405432419899.216,
+        1405432421005.397
+      ],
+      [
+        1405432443094.186,
+        1405432444202.511
+      ],
+      [
+        1405432465846.211,
+        1405432466953.575
+      ],
+      [
+        1405432487172.504,
+        1405432488284.4448
+      ],
+      [
+        1405432512607.288,
+        1405432513714.428
+      ],
+      [
+        1405432545362.441,
+        1405432546469.4858
+      ],
+      [
+        1405432570788.009,
+        1405432571895.1812
+      ],
+      [
+        1405432591733.405,
+        1405432592840.514
+      ],
+      [
+        1405432612772.242,
+        1405432613879.638
+      ],
+      [
+        1405432632945.124,
+        1405432634052.233
+      ],
+      [
+        1405432652670.389,
+        1405432653779.6418
+      ],
+      [
+        1405432673088.968,
+        1405432674196.493
+      ],
+      [
+        1405432698300.999,
+        1405432699410.252
+      ],
+      [
+        1405432719065.595,
+        1405432720172.832
+      ],
+      [
+        1405432743366.199,
+        1405432744472.284
+      ],
+      [
+        1405432766305.937,
+        1405432767413.366
+      ],
+      [
+        1405432795707.098,
+        1405432796817.023
+      ],
+      [
+        1405432825049.348,
+        1405432826157.3518
+      ],
+      [
+        1405432850100.034,
+        1405432851208.4868
+      ],
+      [
+        1405432870775.094,
+        1405432871882.074
+      ],
+      [
+        1405432893184.942,
+        1405432894294.386
+      ],
+      [
+        1405432914105.346,
+        1405432915212.326
+      ],
+      [
+        1405432936966.267,
+        1405432938075.7441
+      ],
+      [
+        1405432961609.336,
+        1405432962719.005
+      ],
+      [
+        1405432983599.471,
+        1405432984704.468
+      ],
+      [
+        1405433003914.562,
+        1405433005022.983
+      ],
+      [
+        1405433029132.865,
+        1405433030240.934
+      ],
+      [
+        1405433051739.481,
+        1405433052845.982
+      ],
+      [
+        1405433072164.236,
+        1405433073271.9211
+      ]
+    ]
+  },
+  "draft_extend": {
+    "count": 40,
+    "gpu_mean_ms": 1.2183922241210936,
+    "gpu_busy_union_ms_per_round": 1.1951936218261718,
+    "cadence_ms": 23.573169815454726,
+    "top": [
+      {
+        "name": "std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, false, true, true, false, 6, false, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float> >(cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float>)",
+        "calls": 40,
+        "ms_per_round": 0.8013331665039065
+      },
+      {
+        "name": "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8::Params)",
+        "calls": 280,
+        "ms_per_round": 0.193282830810547
+      },
+      {
+        "name": "_ZN7cutlass13device_kernelINS_4gemm6kernel13GemmUniversalINS1_17GroupProblemShapeIN4cute5tupleIJlllEEEEENS1_10collective13CollectiveMmaINS1_47MainloopSm120ArrayTmaWarpSpecializedBlockScaledILi6ELi3ENS6_IJNS5_1CILi1EEESD_SD_EEENS1_59KernelPtrArrayTmaWarpSpecializedCooperativeBlockScaledSm120ILi3EEEEENS6_IJNSC_ILi128EEENSC_ILi32EEESI_EEENS6_IJNS_12float_e2m1_tENS_13float_ue4m3_tEEEENS6_IJPNS6_IJlSD_NSC_ILi0EEEEEEPNS5_6LayoutINS6_IJNS6_IJNS6_IJSJ_NSC_ILi4EEEEEEiEEENS6_IJNS6_IJNSC_ILi16EEESS_EEEiEEENS6_IJSD_iEEEEEENS6_IJSX_NS6_IJNS6_IJSO_SD_EEENSC_ILi512EEEEEENS6_IJSO_iEEEEEEEEEEESN_S17_NS5_8TiledMMAINS5_8MMA_AtomIJNS5_5SM12011BLOCKSCALED19SM120_16x8x64_TN_VSISL_SL_fSM_Li16EEEEEENSR_INS6_IJSS_NSC_ILi2EEESD_EEENS6_IJSD_SS_SO_EEEEENS6_IJSI_NSR_INS6_IJNSC_ILi8EEES1F_S1F_EEENS6_IJSD_SV_S1J_EEEEENSC_ILi64EEEEEEEENS6_IJNS5_13SM90_TMA_LOADES1Q_EEENS6_IJNS5_14ComposedLayoutINS5_7SwizzleILi2ELi4ELi3EEENS5_18smem_ptr_flag_bitsILi4EEENSR_INS6_IJS1J_SI_EEENS6_IJSI_SD_EEEEEEENSR_INS6_IJNS6_IJST_SD_EEENS6_IJSW_SD_S1F_EEEEEENS6_IJNS6_IJSW_S11_EEENS6_IJS10_SS_S11_EEEEEEEEEEENS6_IJNS5_9Copy_AtomIJNS5_17SM75_U32x4_LDSM_NENS_15integer_subbyteILi4ELb0EEEEEENS29_IJNS5_13UniversalCopyISM_SM_EESM_EEEEEENS5_8identityES1R_S28_S2H_S2I_EENS_8epilogue10collective18CollectiveEpilogueINS2K_30Sm90PtrArrayTmaWarpSpecializedILi3ELi2ELi4ELb1ELb0ELi2EEEJSK_NS6_IJS1N_SJ_EEENS_10bfloat16_tEPNS6_IJSD_lSO_EEES2Q_S2S_NS2K_6fusion15FusionCallbacksINS2K_31Sm120PtrArrayTmaWarpSpecializedILi3ELi2ELi4ELb1ELb0ELi2EEENS2T_17LinearCombinationIS2Q_fS2Q_fLNS_15FloatRoundStyleE2EEESK_S2P_JEEES1Q_NS1S_INS1T_ILi3ELi4ELi3EEENS1V_ILi16EEENSR_INS6_IJS1N_S1J_EEENS6_IJSD_S1N_EEEEEEENS5_17SM75_U16x4_LDSM_TENS5_14SM90_TMA_STOREES36_NS5_17SM90_U16x4_STSM_TENS29_IJNS5_17SM90_U32x2_STSM_NENS_6half_tEEEEvEEEvvEEEEvNT_6ParamsE",
+        "calls": 80,
+        "ms_per_round": 0.054380065917968755
+      },
+      {
+        "name": "_hc_mix_persistent_kernel",
+        "calls": 120,
+        "ms_per_round": 0.041689709472656225
+      },
+      {
+        "name": "kernel_mha(unsigned int, float, float const*, Vec<__nv_bfloat16, 256u>*, Vec<__nv_bfloat16, 256u> const*, float const*, KVCacheList<true>, unsigned int, float, float const*, unsigned int, unsigned int, unsigned int, unsigned int*, void*)",
+        "calls": 40,
+        "ms_per_round": 0.01601373291015625
+      },
+      {
+        "name": "_qsa_graph_row_metadata_kernel",
+        "calls": 40,
+        "ms_per_round": 0.014285571289062498
+      },
+      {
+        "name": "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x1_tn_align8::Params)",
+        "calls": 40,
+        "ms_per_round": 0.008300036621093751
+      },
+      {
+        "name": "void at::native::index_elementwise_kernel<128, 4, at::native::gpu_index_kernel<at::native::index_kernel_impl<at::native::OpaqueType<2> >(at::TensorIteratorBase&, c10::ArrayRef<long>, c10::ArrayRef<long>)::{lambda(char*, char const*, long)#1}>(at::TensorIteratorBase&, c10::ArrayRef<long>, c10::ArrayRef<long>, at::native::index_kernel_impl<at::native::OpaqueType<2> >(at::TensorIteratorBase&, c10::ArrayRef<long>, c10::ArrayRef<long>)::{lambda(char*, char const*, long)#1} const&, bool)::{lambda(int)#1}>(long, at::native::gpu_index_kernel<at::native::index_kernel_impl<at::native::OpaqueType<2> >(at::TensorIteratorBase&, c10::ArrayRef<long>, c10::ArrayRef<long>)::{lambda(char*, char const*, long)#1}>(at::TensorIteratorBase&, c10::ArrayRef<long>, c10::ArrayRef<long>, at::native::index_kernel_impl<at::native::OpaqueType<2> >(at::TensorIteratorBase&, c10::ArrayRef<long>, c10::ArrayRef<long>)::{lambda(char*, char const*, long)#1} const&, bool)::{lambda(int)#1})",
+        "calls": 80,
+        "ms_per_round": 0.007945715332031254
+      },
+      {
+        "name": "void tensorrt_llm::kernels::cutlass_kernels::finalizeMoeRoutingKernel<__nv_bfloat16, __nv_bfloat16, __nv_bfloat16, (tensorrt_llm::kernels::cutlass_kernels::ScaleMode)1>(__nv_bfloat16 const*, __nv_bfloat16*, __nv_bfloat16 const*, float const*, int const*, int const*, long, long, long, int, int)",
+        "calls": 40,
+        "ms_per_round": 0.0076487731933593765
+      },
+      {
+        "name": "void sglang::fast_topk_detail::fast_topk_kernel<512, true>(sglang::fast_topk_detail::FastTopKParams)",
+        "calls": 40,
+        "ms_per_round": 0.006920788574218749
+      },
+      {
+        "name": "_gather_ple_embedding_from_pinned_kernel",
+        "calls": 40,
+        "ms_per_round": 0.006662426757812499
+      },
+      {
+        "name": "_compact_kv",
+        "calls": 40,
+        "ms_per_round": 0.006557666015625001
+      },
+      {
+        "name": "kernel_kernel",
+        "calls": 40,
+        "ms_per_round": 0.005976824951171877
+      },
+      {
+        "name": "void at::native::reduce_kernel<512, 1, at::native::ReduceOp<float, at::native::ArgMaxOps<float>, unsigned int, long, 4, 4> >(at::native::ReduceOp<float, at::native::ArgMaxOps<float>, unsigned int, long, 4, 4>)",
+        "calls": 40,
+        "ms_per_round": 0.004961608886718748
+      },
+      {
+        "name": "void at::native::vectorized_elementwise_kernel<2, at::native::CUDAFunctorOnSelf_add<long>, std::array<char*, 2ul> >(int, at::native::CUDAFunctorOnSelf_add<long>, std::array<char*, 2ul>)",
+        "calls": 200,
+        "ms_per_round": 0.004465600585937498
+      }
+    ],
+    "windows": [
+      [
+        1405432169782.528,
+        1405432170998.756
+      ],
+      [
+        1405432195480.384,
+        1405432196702.341
+      ],
+      [
+        1405432229161.332,
+        1405432230384.409
+      ],
+      [
+        1405432250849.994,
+        1405432252062.063
+      ],
+      [
+        1405432273447.714,
+        1405432274665.2231
+      ],
+      [
+        1405432298520.225,
+        1405432299738.438
+      ],
+      [
+        1405432321171.386,
+        1405432322388.799
+      ],
+      [
+        1405432349341.632,
+        1405432350567.845
+      ],
+      [
+        1405432373695.453,
+        1405432374912.929
+      ],
+      [
+        1405432397767.353,
+        1405432398989.886
+      ],
+      [
+        1405432418670.125,
+        1405432419878.866
+      ],
+      [
+        1405432441847.143,
+        1405432443075.34
+      ],
+      [
+        1405432464614.72,
+        1405432465826.7249
+      ],
+      [
+        1405432485937.685,
+        1405432487153.594
+      ],
+      [
+        1405432511359.252,
+        1405432512587.001
+      ],
+      [
+        1405432544112.134,
+        1405432545343.691
+      ],
+      [
+        1405432569544.71,
+        1405432570767.915
+      ],
+      [
+        1405432590493.85,
+        1405432591714.3992
+      ],
+      [
+        1405432611544.974,
+        1405432612753.812
+      ],
+      [
+        1405432631717.697,
+        1405432632926.31
+      ],
+      [
+        1405432651436.466,
+        1405432652650.3591
+      ],
+      [
+        1405432671847.557,
+        1405432673070.346
+      ],
+      [
+        1405432697061.668,
+        1405432698282.761
+      ],
+      [
+        1405432717823.512,
+        1405432719047.101
+      ],
+      [
+        1405432742126.26,
+        1405432743347.801
+      ],
+      [
+        1405432765076.59,
+        1405432766287.571
+      ],
+      [
+        1405432794457.143,
+        1405432795688.924
+      ],
+      [
+        1405432823805.216,
+        1405432825030.374
+      ],
+      [
+        1405432848858.207,
+        1405432850079.908
+      ],
+      [
+        1405432869541.107,
+        1405432870754.488
+      ],
+      [
+        1405432891952.394,
+        1405432893166.448
+      ],
+      [
+        1405432912871.583,
+        1405432914085.252
+      ],
+      [
+        1405432935732.632,
+        1405432936947.8691
+      ],
+      [
+        1405432960362.261,
+        1405432961590.522
+      ],
+      [
+        1405432982367.532,
+        1405432983581.041
+      ],
+      [
+        1405433002677.151,
+        1405433003895.94
+      ],
+      [
+        1405433027899.806,
+        1405433029113.9229
+      ],
+      [
+        1405433050508.118,
+        1405433051719.5789
+      ],
+      [
+        1405433070934.025,
+        1405433072145.614
+      ],
+      [
+        1405433089136.151,
+        1405433090347.1958
+      ]
+    ]
+  },
+  "fill_overlap": {
+    "calls": 1920,
+    "fill_ms_per_round": 6.5430269249999995,
+    "shared_gpu_union_ms_per_round": 0.9519702026367187,
+    "overlap_ms_per_round": 0.7733295959472656,
+    "fill_not_hidden_by_shared_ms_per_round": 5.769697329052734,
+    "fill_us_percentiles": {
+      "0": 0.992,
+      "0.25": 1.44,
+      "0.5": 80.288,
+      "0.75": 182.912,
+      "0.95": 433.825,
+      "0.99": 695.905,
+      "1": 1278.339
+    },
+    "shared_event_count_distribution": {
+      "4": 1380,
+      "5": 504,
+      "3": 36
+    }
+  },
+  "layers": [
+    {
+      "layer": 0,
+      "fill_mean_us": 420.211525,
+      "slots": 144,
+      "misses_400_rounds": 2505,
+      "cache_hit_rate": 0.7734056987788331
+    },
+    {
+      "layer": 1,
+      "fill_mean_us": 404.4627,
+      "slots": 144,
+      "misses_400_rounds": 2360,
+      "cache_hit_rate": 0.7751310147689376
+    },
+    {
+      "layer": 2,
+      "fill_mean_us": 429.81555,
+      "slots": 144,
+      "misses_400_rounds": 2741,
+      "cache_hit_rate": 0.7392751831066299
+    },
+    {
+      "layer": 3,
+      "fill_mean_us": 187.658025,
+      "slots": 134,
+      "misses_400_rounds": 1077,
+      "cache_hit_rate": 0.887754038561751
+    },
+    {
+      "layer": 4,
+      "fill_mean_us": 114.685925,
+      "slots": 144,
+      "misses_400_rounds": 1005,
+      "cache_hit_rate": 0.8991267690454682
+    },
+    {
+      "layer": 5,
+      "fill_mean_us": 200.27327499999998,
+      "slots": 144,
+      "misses_400_rounds": 1339,
+      "cache_hit_rate": 0.8654947262682069
+    },
+    {
+      "layer": 6,
+      "fill_mean_us": 230.07255,
+      "slots": 144,
+      "misses_400_rounds": 1744,
+      "cache_hit_rate": 0.8233924050632911
+    },
+    {
+      "layer": 7,
+      "fill_mean_us": 337.30719999999997,
+      "slots": 144,
+      "misses_400_rounds": 2309,
+      "cache_hit_rate": 0.772085677623137
+    },
+    {
+      "layer": 8,
+      "fill_mean_us": 114.53545,
+      "slots": 144,
+      "misses_400_rounds": 849,
+      "cache_hit_rate": 0.9026264479871545
+    },
+    {
+      "layer": 9,
+      "fill_mean_us": 110.10665,
+      "slots": 128,
+      "misses_400_rounds": 754,
+      "cache_hit_rate": 0.910387449488947
+    },
+    {
+      "layer": 10,
+      "fill_mean_us": 127.60275,
+      "slots": 144,
+      "misses_400_rounds": 1144,
+      "cache_hit_rate": 0.8731144631765749
+    },
+    {
+      "layer": 11,
+      "fill_mean_us": 112.593925,
+      "slots": 144,
+      "misses_400_rounds": 799,
+      "cache_hit_rate": 0.9091322643011487
+    },
+    {
+      "layer": 12,
+      "fill_mean_us": 197.48615,
+      "slots": 144,
+      "misses_400_rounds": 1379,
+      "cache_hit_rate": 0.8632215830192422
+    },
+    {
+      "layer": 13,
+      "fill_mean_us": 100.586675,
+      "slots": 144,
+      "misses_400_rounds": 1013,
+      "cache_hit_rate": 0.8866129393328857
+    },
+    {
+      "layer": 14,
+      "fill_mean_us": 137.948275,
+      "slots": 144,
+      "misses_400_rounds": 819,
+      "cache_hit_rate": 0.9097719510851603
+    },
+    {
+      "layer": 15,
+      "fill_mean_us": 80.788925,
+      "slots": 80,
+      "misses_400_rounds": 656,
+      "cache_hit_rate": 0.9154748099471718
+    },
+    {
+      "layer": 16,
+      "fill_mean_us": 134.77715,
+      "slots": 80,
+      "misses_400_rounds": 1005,
+      "cache_hit_rate": 0.873807132094425
+    },
+    {
+      "layer": 17,
+      "fill_mean_us": 122.495575,
+      "slots": 144,
+      "misses_400_rounds": 794,
+      "cache_hit_rate": 0.9117483605646327
+    },
+    {
+      "layer": 18,
+      "fill_mean_us": 197.1669,
+      "slots": 144,
+      "misses_400_rounds": 1680,
+      "cache_hit_rate": 0.8309008555611475
+    },
+    {
+      "layer": 19,
+      "fill_mean_us": 74.0315,
+      "slots": 144,
+      "misses_400_rounds": 664,
+      "cache_hit_rate": 0.9267431597528685
+    },
+    {
+      "layer": 20,
+      "fill_mean_us": 96.502675,
+      "slots": 144,
+      "misses_400_rounds": 910,
+      "cache_hit_rate": 0.9023395578450312
+    },
+    {
+      "layer": 21,
+      "fill_mean_us": 171.351675,
+      "slots": 144,
+      "misses_400_rounds": 1201,
+      "cache_hit_rate": 0.8731918488016049
+    },
+    {
+      "layer": 22,
+      "fill_mean_us": 174.683575,
+      "slots": 144,
+      "misses_400_rounds": 1513,
+      "cache_hit_rate": 0.8542389210019268
+    },
+    {
+      "layer": 23,
+      "fill_mean_us": 117.75715,
+      "slots": 112,
+      "misses_400_rounds": 877,
+      "cache_hit_rate": 0.8994611945431618
+    },
+    {
+      "layer": 24,
+      "fill_mean_us": 108.961075,
+      "slots": 144,
+      "misses_400_rounds": 851,
+      "cache_hit_rate": 0.9045214854706608
+    },
+    {
+      "layer": 25,
+      "fill_mean_us": 82.5738,
+      "slots": 128,
+      "misses_400_rounds": 816,
+      "cache_hit_rate": 0.9050389852205284
+    },
+    {
+      "layer": 26,
+      "fill_mean_us": 109.535575,
+      "slots": 144,
+      "misses_400_rounds": 1065,
+      "cache_hit_rate": 0.8811383928571429
+    },
+    {
+      "layer": 27,
+      "fill_mean_us": 69.7921,
+      "slots": 144,
+      "misses_400_rounds": 691,
+      "cache_hit_rate": 0.9215485921889192
+    },
+    {
+      "layer": 28,
+      "fill_mean_us": 185.394775,
+      "slots": 144,
+      "misses_400_rounds": 1467,
+      "cache_hit_rate": 0.853505092869982
+    },
+    {
+      "layer": 29,
+      "fill_mean_us": 92.028175,
+      "slots": 144,
+      "misses_400_rounds": 1064,
+      "cache_hit_rate": 0.879774011299435
+    },
+    {
+      "layer": 30,
+      "fill_mean_us": 117.586675,
+      "slots": 128,
+      "misses_400_rounds": 945,
+      "cache_hit_rate": 0.893159977388355
+    },
+    {
+      "layer": 31,
+      "fill_mean_us": 75.3697,
+      "slots": 80,
+      "misses_400_rounds": 630,
+      "cache_hit_rate": 0.9172141918528253
+    },
+    {
+      "layer": 32,
+      "fill_mean_us": 89.137025,
+      "slots": 96,
+      "misses_400_rounds": 771,
+      "cache_hit_rate": 0.90220700152207
+    },
+    {
+      "layer": 33,
+      "fill_mean_us": 100.9355,
+      "slots": 144,
+      "misses_400_rounds": 849,
+      "cache_hit_rate": 0.9022677564176356
+    },
+    {
+      "layer": 34,
+      "fill_mean_us": 177.995675,
+      "slots": 144,
+      "misses_400_rounds": 1453,
+      "cache_hit_rate": 0.8509131951569875
+    },
+    {
+      "layer": 35,
+      "fill_mean_us": 61.93215,
+      "slots": 144,
+      "misses_400_rounds": 625,
+      "cache_hit_rate": 0.9278124278124278
+    },
+    {
+      "layer": 36,
+      "fill_mean_us": 86.752225,
+      "slots": 134,
+      "misses_400_rounds": 792,
+      "cache_hit_rate": 0.9080886619473134
+    },
+    {
+      "layer": 37,
+      "fill_mean_us": 109.68905,
+      "slots": 144,
+      "misses_400_rounds": 759,
+      "cache_hit_rate": 0.9154882529785102
+    },
+    {
+      "layer": 38,
+      "fill_mean_us": 91.26112499999999,
+      "slots": 144,
+      "misses_400_rounds": 776,
+      "cache_hit_rate": 0.9224155168966207
+    },
+    {
+      "layer": 39,
+      "fill_mean_us": 71.556975,
+      "slots": 96,
+      "misses_400_rounds": 659,
+      "cache_hit_rate": 0.9140135699373695
+    },
+    {
+      "layer": 40,
+      "fill_mean_us": 83.9338,
+      "slots": 96,
+      "misses_400_rounds": 858,
+      "cache_hit_rate": 0.8912271805273834
+    },
+    {
+      "layer": 41,
+      "fill_mean_us": 74.14489999999999,
+      "slots": 133,
+      "misses_400_rounds": 723,
+      "cache_hit_rate": 0.9143364928909953
+    },
+    {
+      "layer": 42,
+      "fill_mean_us": 53.435275,
+      "slots": 144,
+      "misses_400_rounds": 234,
+      "cache_hit_rate": 0.9719289827255279
+    },
+    {
+      "layer": 43,
+      "fill_mean_us": 71.54965,
+      "slots": 112,
+      "misses_400_rounds": 488,
+      "cache_hit_rate": 0.9381417163138548
+    },
+    {
+      "layer": 44,
+      "fill_mean_us": 53.791425,
+      "slots": 112,
+      "misses_400_rounds": 374,
+      "cache_hit_rate": 0.953494155682666
+    },
+    {
+      "layer": 45,
+      "fill_mean_us": 60.1585,
+      "slots": 144,
+      "misses_400_rounds": 360,
+      "cache_hit_rate": 0.9528672427336999
+    },
+    {
+      "layer": 46,
+      "fill_mean_us": 62.2034,
+      "slots": 144,
+      "misses_400_rounds": 395,
+      "cache_hit_rate": 0.9497071555895086
+    },
+    {
+      "layer": 47,
+      "fill_mean_us": 58.406625,
+      "slots": 133,
+      "misses_400_rounds": 426,
+      "cache_hit_rate": 0.947290274684484
+    }
+  ],
+  "normal_unprofiled_windows": [
+    {
+      "timestamp": "2026-10-18 02:39:25",
+      "accept_length": 1.61,
+      "token_s": 64.29,
+      "implied_round_ms": 25.042774926116035
+    },
+    {
+      "timestamp": "2026-10-18 02:39:35",
+      "accept_length": 1.7,
+      "token_s": 68.72,
+      "implied_round_ms": 24.738067520372525
+    },
+    {
+      "timestamp": "2026-10-18 02:39:45",
+      "accept_length": 1.71,
+      "token_s": 68.65,
+      "implied_round_ms": 24.90895848506919
+    },
+    {
+      "timestamp": "2026-10-18 02:39:54",
+      "accept_length": 1.45,
+      "token_s": 60.5,
+      "implied_round_ms": 23.966942148760328
+    },
+    {
+      "timestamp": "2026-10-18 02:40:04",
+      "accept_length": 1.5,
+      "token_s": 61.74,
+      "implied_round_ms": 24.295432458697764
+    },
+    {
+      "timestamp": "2026-10-18 02:40:14",
+      "accept_length": 1.58,
+      "token_s": 62.1,
+      "implied_round_ms": 25.442834138486315
+    },
+    {
+      "timestamp": "2026-10-18 02:40:25",
+      "accept_length": 1.79,
+      "token_s": 69.61,
+      "implied_round_ms": 25.714696164344204
+    },
+    {
+      "timestamp": "2026-10-18 02:40:35",
+      "accept_length": 1.81,
+      "token_s": 68.95,
+      "implied_round_ms": 26.250906453952137
+    },
+    {
+      "timestamp": "2026-10-18 02:40:45",
+      "accept_length": 1.72,
+      "token_s": 68.17,
+      "implied_round_ms": 25.23104004694147
+    },
+    {
+      "timestamp": "2026-10-18 02:40:55",
+      "accept_length": 1.62,
+      "token_s": 64.76,
+      "implied_round_ms": 25.015441630636197
+    }
+  ],
+  "adjacent_cache_stats_intervals": [
+    {
+      "start": "2026-10-18 02:39:15",
+      "end": "2026-10-18 02:39:25",
+      "rounds": 400.0,
+      "cache_hit_rate": 0.8865036895691892,
+      "misses_per_layer_round": 2.5650520833333332,
+      "MiB_per_round": 324.639404296875,
+      "average_GiB_s": 12.68122673034668
+    },
+    {
+      "start": "2026-10-18 02:39:35",
+      "end": "2026-10-18 02:39:44",
+      "rounds": 400.0,
+      "cache_hit_rate": 0.8910570725120383,
+      "misses_per_layer_round": 2.4497916666666666,
+      "MiB_per_round": 310.0517578125,
+      "average_GiB_s": 13.457107543945312
+    },
+    {
+      "start": "2026-10-18 02:39:44",
+      "end": "2026-10-18 02:39:54",
+      "rounds": 400.0,
+      "cache_hit_rate": 0.9007326167213047,
+      "misses_per_layer_round": 2.2505208333333333,
+      "MiB_per_round": 284.83154296875,
+      "average_GiB_s": 11.126232147216797
+    },
+    {
+      "start": "2026-10-18 02:39:54",
+      "end": "2026-10-18 02:40:04",
+      "rounds": 400.0,
+      "cache_hit_rate": 0.8947669863321253,
+      "misses_per_layer_round": 2.392395833333333,
+      "MiB_per_round": 302.78759765625,
+      "average_GiB_s": 11.827640533447266
+    },
+    {
+      "start": "2026-10-18 02:40:04",
+      "end": "2026-10-18 02:40:14",
+      "rounds": 400.0,
+      "cache_hit_rate": 0.8799721556975942,
+      "misses_per_layer_round": 2.712135416666667,
+      "MiB_per_round": 343.254638671875,
+      "average_GiB_s": 13.408384323120117
+    },
+    {
+      "start": "2026-10-18 02:40:14",
+      "end": "2026-10-18 02:40:24",
+      "rounds": 400.0,
+      "cache_hit_rate": 0.8758301097740164,
+      "misses_per_layer_round": 2.8036979166666662,
+      "MiB_per_round": 354.843017578125,
+      "average_GiB_s": 13.861055374145508
+    },
+    {
+      "start": "2026-10-18 02:40:24",
+      "end": "2026-10-18 02:40:35",
+      "rounds": 400.0,
+      "cache_hit_rate": 0.8668274133043958,
+      "misses_per_layer_round": 2.9657812499999996,
+      "MiB_per_round": 375.356689453125,
+      "average_GiB_s": 13.329427892511541
+    },
+    {
+      "start": "2026-10-18 02:40:35",
+      "end": "2026-10-18 02:40:45",
+      "rounds": 400.0,
+      "cache_hit_rate": 0.8839853599023993,
+      "misses_per_layer_round": 2.6002083333333332,
+      "MiB_per_round": 329.0888671875,
+      "average_GiB_s": 12.855033874511719
+    },
+    {
+      "start": "2026-10-18 02:40:45",
+      "end": "2026-10-18 02:40:55",
+      "rounds": 400.0,
+      "cache_hit_rate": 0.8858894652749918,
+      "misses_per_layer_round": 2.5629166666666667,
+      "MiB_per_round": 324.369140625,
+      "average_GiB_s": 12.670669555664062
+    }
+  ],
+  "whole_round": {
+    "rounds": 39,
+    "mean_ms": 23.80095294971955,
+    "gpu_busy_ms": 23.18835558143029,
+    "gpu_busy_fraction": 0.9742616453390165,
+    "idle_ms": 0.6125973682892628
+  },
+  "inference_intact": {
+    "restarted": false,
+    "synthetic_requests_sent": false,
+    "profile_auto_stopped": true
+  },
+  "notes": [
+    "GPU spans joined by External id; CPU annotations alone omit asynchronous tail.",
+    "Kernel sums overlap, including programmatic dependent launches; use union for busy/overlap.",
+    "Traffic counters are neighboring steady windows, not the exact 40-round trace.",
+    "Normal throughput excludes profiling/export, prefill, adaptive migration and first startup window.",
+    "No controlled historical A/B; do not attribute old-vs-new differences to MTP A4 alone."
+  ]
+}

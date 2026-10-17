@@ -1,0 +1,34 @@
+{
+  "decision": "promote_w4a4_default",
+  "initial_candidate_validation": "initial-validation.json",
+  "capacity_fix": {
+    "cause": "150 MiB of duplicated logical/swizzled scales",
+    "implementation": "per-expert swizzle into original storage, CUTLASS aliases same pointers",
+    "prepare_resident_bytes": 5120,
+    "prepare_peak_bytes": 1638400,
+    "a16_kv_tokens": 221248,
+    "a4_before_fix_kv_tokens": 209344,
+    "a4_after_fix_kv_tokens": 221248
+  },
+  "gpu_tests_passed": 66,
+  "gpu_tests_skipped": 0,
+  "cpu_tests_passed_before_default_promotion": 314,
+  "final_default_cpu_log": "capacity-fix/cpu-default-a4.log",
+  "fixed_a4_measured_requests": 5,
+  "fixed_a4_quality_smoke_passed": 4,
+  "near_context": {
+    "prompt_tokens": 218015,
+    "completion_tokens": 128,
+    "cached_tokens": 0,
+    "num_retractions": 0,
+    "health_after": 200
+  },
+  "full_quality_evaluation": "not_run",
+  "cpu_tests_passed_after_default_promotion": 314,
+  "deployed_default": {
+    "activation": "w4a4",
+    "kv_tokens": 221248,
+    "health": 200,
+    "smoke": "passed"
+  }
+}
