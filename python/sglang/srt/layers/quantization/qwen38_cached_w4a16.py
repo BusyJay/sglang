@@ -4,14 +4,16 @@
 Read packed weights and swizzled E4M3 scales in place. No resident expert
 expansion, duplicated cache layout, or activation FP4 quantization. The pack
 stores [up, gate] and alphas with activation scales folded in; undo them here.
-This conservative Triton route reduction is a measurable optional candidate,
-not a claim of tensor-core throughput equivalence to B12X/CuTe DSL.
+The optional small-verify split-K path uses compact packed loads and FP32
+partials. It requires same-GPU validation before enabling; neither route
+claims tensor-core throughput equivalence to B12X/CuTe DSL.
 """
+
+import os
 
 import torch
 import triton
 import triton.language as tl
-
 from sglang.srt.layers.quantization.qwen38_fp4_mtp import _decode
 
 
@@ -24,7 +26,9 @@ def _scale_offset(row, col, columns: tl.constexpr):
     ) * 4 + col % 4
 
 
-@triton.jit
+# Adaptive pool capacities change while the serving process stays alive. Keep
+# bounds dynamic so rebalancing does not load a new kernel for every capacity.
+@triton.jit(do_not_specialize=["E"])
 def _cache_project(
     X,
     W,
@@ -37,7 +41,7 @@ def _cache_project(
     K: tl.constexpr,
     N: tl.constexpr,
     TOPK: tl.constexpr,
-    E: tl.constexpr,
+    E,
     FIRST: tl.constexpr,
     BN: tl.constexpr = 32,
     BK: tl.constexpr = 256,
@@ -102,6 +106,194 @@ def _cache_project(
     tl.store(Y + route * N + n, tl.where(valid, result, 0.0), mask=n < N)
 
 
+@triton.jit(do_not_specialize=["E"])
+def _cache_project_splitk(
+    X,
+    W,
+    S,
+    G,
+    Q,
+    IDs,
+    Router,
+    Y,
+    K: tl.constexpr,
+    N: tl.constexpr,
+    TOPK: tl.constexpr,
+    E,
+    FIRST: tl.constexpr,
+    SPLIT_K: tl.constexpr,
+    ROUTES: tl.constexpr,
+    BN: tl.constexpr = 16,
+    BK: tl.constexpr = 256,
+):
+    route = tl.program_id(0)
+    block = tl.program_id(1)
+    split = tl.program_id(2)
+    expert = tl.load(IDs + route).to(tl.int32)
+    valid = (expert >= 0) & (expert < E)
+    safe_expert = tl.where(valid, expert, 0)
+    n = block * BN + tl.arange(0, BN)
+    k = tl.arange(0, BK)
+    acc = tl.full((BN,), 0.0, tl.float32)
+    acc_up = tl.full((BN,), 0.0, tl.float32)
+    # The CUTLASS pack folds raw activation scales into g1/g2. Undo
+    # that factor for A16; Q stores their reciprocal, in both projections.
+    global_scale = tl.load(G + safe_expert) * tl.load(Q)
+    global_up = global_scale
+    for tile in range(tl.cdiv(K, BK * SPLIT_K)):
+        col = (tile * SPLIT_K + split) * BK + k
+        xrow = route // TOPK if FIRST else route
+        x = tl.load(X + xrow * K + col, mask=col < K, other=0.0).to(tl.float32)
+        # Existing CUTLASS ABI stores [up, gate], plain contiguous halves.
+        logical_row = n + (N if FIRST else 0)
+        rows = 2 * N if FIRST else N
+        wr = safe_expert * rows + logical_row
+        packed_col = (tile * SPLIT_K + split) * (BK // 2) + tl.arange(0, BK // 2)
+        byte = tl.load(
+            W + wr[:, None] * (K // 2) + packed_col[None, :],
+            mask=(n[:, None] < N) & (packed_col[None, :] < K // 2) & valid,
+            other=0,
+        )
+        code = tl.interleave(byte & 15, byte >> 4)
+        scale_col = (tile * SPLIT_K + split) * (BK // 16) + tl.arange(0, BK // 16)
+        block_scale = tl.load(
+            S
+            + safe_expert * (tl.cdiv(rows, 128) * 128) * (tl.cdiv(K // 16, 4) * 4)
+            + _scale_offset(logical_row[:, None], scale_col[None, :], K // 16),
+            mask=(n[:, None] < N) & (scale_col[None, :] < K // 16) & valid,
+            other=0.0,
+        ).to(tl.float32)
+        scale = tl.reshape(
+            tl.broadcast_to(block_scale[:, :, None], (BN, BK // 16, 16)), (BN, BK)
+        )
+        w = _decode(code, scale, global_scale).to(tl.bfloat16).to(tl.float32)
+        acc += tl.sum(w * x[None, :], axis=1)
+        if FIRST:
+            wr_up = wr - N
+            packed_col = (tile * SPLIT_K + split) * (BK // 2) + tl.arange(0, BK // 2)
+            byte_up = tl.load(
+                W + wr_up[:, None] * (K // 2) + packed_col[None, :],
+                mask=(n[:, None] < N) & (packed_col[None, :] < K // 2) & valid,
+                other=0,
+            )
+            code_up = tl.interleave(byte_up & 15, byte_up >> 4)
+            scale_col = (tile * SPLIT_K + split) * (BK // 16) + tl.arange(0, BK // 16)
+            block_scale = tl.load(
+                S
+                + safe_expert * (tl.cdiv(rows, 128) * 128) * (tl.cdiv(K // 16, 4) * 4)
+                + _scale_offset(n[:, None], scale_col[None, :], K // 16),
+                mask=(n[:, None] < N) & (scale_col[None, :] < K // 16) & valid,
+                other=0.0,
+            ).to(tl.float32)
+            scale_up = tl.reshape(
+                tl.broadcast_to(block_scale[:, :, None], (BN, BK // 16, 16)), (BN, BK)
+            )
+            w_up = _decode(code_up, scale_up, global_up).to(tl.bfloat16).to(tl.float32)
+            acc_up += tl.sum(w_up * x[None, :], axis=1)
+    # Store FP32 partials. SwiGLU and BF16 rounding happen only after K reduction.
+    offset = (split * ROUTES + route) * (2 * N if FIRST else N) + n
+    tl.store(Y + offset, tl.where(valid, acc, 0.0), mask=n < N)
+    if FIRST:
+        tl.store(Y + offset + N, tl.where(valid, acc_up, 0.0), mask=n < N)
+
+
+@triton.jit
+def _splitk_swiglu(
+    Partial,
+    Y,
+    N: tl.constexpr,
+    ROUTES: tl.constexpr,
+    SPLIT_K: tl.constexpr,
+    BLOCK: tl.constexpr = 256,
+):
+    route = tl.program_id(0)
+    n = tl.program_id(1) * BLOCK + tl.arange(0, BLOCK)
+    split = tl.arange(0, SPLIT_K)
+    offset = (split[:, None] * ROUTES + route) * (2 * N) + n[None, :]
+    gate = tl.sum(tl.load(Partial + offset, mask=n[None, :] < N, other=0.0), 0)
+    up = tl.sum(tl.load(Partial + offset + N, mask=n[None, :] < N, other=0.0), 0)
+    value = (gate / (1.0 + tl.exp(-gate))) * up
+    tl.store(Y + route * N + n, value, mask=n < N)
+
+
+@triton.jit
+def _splitk_combine(
+    Partial,
+    Router,
+    Y,
+    N: tl.constexpr,
+    TOPK: tl.constexpr,
+    ROUTES: tl.constexpr,
+    SPLIT_K: tl.constexpr,
+    BLOCK: tl.constexpr = 128,
+):
+    token = tl.program_id(0)
+    n = tl.program_id(1) * BLOCK + tl.arange(0, BLOCK)
+    split = tl.arange(0, SPLIT_K)
+    total = tl.full((BLOCK,), 0.0, tl.float32)
+    for slot in range(TOPK):
+        route = token * TOPK + slot
+        offset = (split[:, None] * ROUTES + route) * N + n[None, :]
+        value = tl.sum(tl.load(Partial + offset, mask=n[None, :] < N, other=0.0), 0)
+        total += value * tl.load(Router + route).to(tl.float32)
+    tl.store(Y + token * N + n, total, mask=n < N)
+
+
+def _run_splitk(x, ids, router, tensors, output, split_k):
+    tokens, hidden = x.shape
+    topk = ids.shape[1]
+    routes = tokens * topk
+    width = tensors["w13_weight"].shape[1] // 2
+    capacity = tensors["w13_weight"].shape[0]
+    partial13 = torch.empty(
+        (split_k, routes, 2 * width), device=x.device, dtype=torch.float32
+    )
+    intermediate = torch.empty((routes, width), device=x.device, dtype=x.dtype)
+    partial2 = torch.empty(
+        (split_k, routes, hidden), device=x.device, dtype=torch.float32
+    )
+    for first, inp, partial, k, n, prefix in (
+        (True, x, partial13, hidden, width, "w13"),
+        (False, intermediate, partial2, width, hidden, "w2"),
+    ):
+        _cache_project_splitk[(routes, triton.cdiv(n, 16), split_k)](
+            inp,
+            tensors[prefix + "_weight"],
+            tensors[prefix + "_blockscale_swizzled"],
+            tensors["g1_alphas" if first else "g2_alphas"],
+            tensors[prefix + "_input_scale_quant"],
+            ids,
+            router,
+            partial,
+            K=k,
+            N=n,
+            TOPK=topk,
+            E=capacity,
+            FIRST=first,
+            SPLIT_K=split_k,
+            ROUTES=routes,
+            num_warps=4,
+        )
+        if first:
+            _splitk_swiglu[(routes, triton.cdiv(width, 256))](
+                partial13,
+                intermediate,
+                N=width,
+                ROUTES=routes,
+                SPLIT_K=split_k,
+            )
+    _splitk_combine[(tokens, triton.cdiv(hidden, 128))](
+        partial2,
+        router,
+        output,
+        N=hidden,
+        TOPK=topk,
+        ROUTES=routes,
+        SPLIT_K=split_k,
+    )
+    return output
+
+
 def validate_cache_tensors(tensors, hidden, width, capacity):
     """Metadata-only validation; no route read or CUDA synchronization."""
     if hidden % 16 or width % 16 or capacity <= 0:
@@ -160,7 +352,7 @@ def validate_runner_config(config):
         )
 
 
-def cached_w4a16_moe(x, ids, router, tensors, *, chunk_tokens=16):
+def cached_w4a16_moe(x, ids, router, tensors, *, chunk_tokens=16, split_k=None):
     if x.ndim != 2:
         raise ValueError("cached W4A16 requires a 2D activation")
     tokens, hidden = x.shape
@@ -181,12 +373,20 @@ def cached_w4a16_moe(x, ids, router, tensors, *, chunk_tokens=16):
         raise ValueError("cached W4A16 requires floating router weights")
     if any(tensor.device != x.device for tensor in tensors.values()):
         raise ValueError("cached W4A16 tensors must share the input device")
+    if split_k is None:
+        split_k = int(os.getenv("SGLANG_QWEN38_CACHE_W4A16_SPLIT_K", "0"))
+    if split_k not in (0, 1, 2, 4, 8):
+        raise ValueError("W4A16 split_k must be 0, 1, 2, 4 or 8")
     topk = ids.shape[1]
     if topk < 1:
         raise ValueError("cached W4A16 requires nonempty topk")
     output = torch.empty_like(x)
     if not tokens:
         return output
+    # Small verify only: bound scratch and preserve the original large-batch path.
+    # Opt-in until same-GPU parity and latency checks establish the winning split.
+    if split_k and 2 <= tokens <= 3 and tokens * topk <= 32:
+        return _run_splitk(x, ids, router, tensors, output, split_k)
     # Bounded scratch even for 8192-token prefill. Kernels stay in the runtime's
     # existing reader/event scope; output ownership is per invocation.
     routes = min(tokens, chunk_tokens) * topk
