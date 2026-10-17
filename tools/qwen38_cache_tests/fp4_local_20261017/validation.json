@@ -1,0 +1,57 @@
+{
+  "status": "passed",
+  "date": "2026-10-17",
+  "model": "nvidia/Qwen3.8-Flash-Next-FP4-Local",
+  "revision": "b9ce18a6887e18c089fdea8509a33e63429a3300",
+  "cpu_tests": 267,
+  "previous_nvfp4_gpu_tests": 6,
+  "final_ple_gpu_regression_tests": 1,
+  "mtp_payload_tensors": 4637,
+  "checks": {
+    "checkpoint": {
+      "status": "passed",
+      "artifact": "checkpoint.json",
+      "sha256": "28e6149a478c8e3b521ef73c2ec057ba37b4ef17f11488be146a6097997bdf44"
+    },
+    "kernels": {
+      "status": "passed",
+      "artifact": "kernels.json",
+      "sha256": "016b833fe50ccc99d29ccfc9698039383490b1cea2d6b56d1aec89d3b6b2af94"
+    },
+    "components": {
+      "status": "passed",
+      "artifact": "components.json",
+      "sha256": "429b76597716586c532d9f89cb23b825efd8a6f307ebf21718b6f4ca49500ef4"
+    },
+    "dense": {
+      "status": "passed",
+      "artifact": "dense.json",
+      "sha256": "b4169b1126432e94002e8aecf66bcdf0677d28cf561303ac52f0e3d843587762"
+    },
+    "cached_w4a16": {
+      "status": "passed",
+      "artifact": "cached_w4a16.json",
+      "sha256": "a206d812763622a333db1085b9c3cabc455504cc64f70bc2b821ab91d5ff9da4"
+    },
+    "microbench": {
+      "status": "passed",
+      "artifact": "microbench.json",
+      "sha256": "d2966c1b3de6d0b6b1d944e5eb076b7be1ba17099ebf63b0cf6a59500e5e1339"
+    },
+    "pack": {
+      "status": "passed",
+      "artifact": "pack.json",
+      "sha256": "e464f92d464f06b3ff2ade768a5d763eee00b51ef00b94333ade4c284dbe4a76"
+    },
+    "process-isolation": {
+      "status": "passed",
+      "artifact": "process-isolation.json",
+      "sha256": "4d8cdb343c49b2f71cc41616a9e627a0a2209bf3004c32fc61fd9bb719fc9f2e"
+    }
+  },
+  "main_experts_default": "W4A4 CUTLASS",
+  "fp32_norm_fusion_default": true,
+  "full_model_service_e2e": false,
+  "production_configuration_modified": false,
+  "language_service_restarted": false
+}

@@ -1,0 +1,64 @@
+{
+  "status": "passed",
+  "gpu": "NVIDIA GeForce RTX 5090 D",
+  "parity": [
+    {
+      "tokens": 128,
+      "skew": false,
+      "max_abs": 0.0009765625
+    },
+    {
+      "tokens": 257,
+      "skew": false,
+      "max_abs": 0.00048828125
+    },
+    {
+      "tokens": 513,
+      "skew": false,
+      "max_abs": 0.0009765625
+    },
+    {
+      "tokens": 128,
+      "skew": true,
+      "max_abs": 6.103515625e-05
+    }
+  ],
+  "measurements": [
+    {
+      "tokens": 128,
+      "tensor_core": {
+        "ms": 3.3629013697306314,
+        "scratch_bytes": 21999104
+      },
+      "simt": {
+        "ms": 9.142741521199545,
+        "scratch_bytes": 3317760
+      },
+      "speedup": 2.7187064133052106
+    },
+    {
+      "tokens": 512,
+      "tensor_core": {
+        "ms": 3.5278612772623696,
+        "scratch_bytes": 87894016
+      },
+      "simt": {
+        "ms": 36.59696960449219,
+        "scratch_bytes": 5283840
+      },
+      "speedup": 10.37369860327715
+    },
+    {
+      "tokens": 8192,
+      "tensor_core": {
+        "ms": 55.19983927408854,
+        "scratch_bytes": 127215616
+      },
+      "simt": {
+        "ms": 600.887939453125,
+        "scratch_bytes": 44605440
+      },
+      "speedup": 10.885682772905987
+    }
+  ]
+}
