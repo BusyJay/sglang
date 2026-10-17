@@ -52,11 +52,8 @@ export SGLANG_QWEN38_CACHE_W4A16="$decode_w4a16"
 # Prefill: CUTLASS W4A4; decode/verify follows CACHE_W4A16 above.
 export SGLANG_QWEN38_CACHE_PREFILL_W4A16=0
 export SGLANG_QWEN38_FP32_NORM_FUSION=1
-if [[ "$decode_w4a16" == "0" ]]; then
-  export SGLANG_LOG_FILE="$rootdir/sglang-fp4-local-a4.log"
-else
-  export SGLANG_LOG_FILE="$rootdir/sglang-fp4-local.log"
-fi
+# Both precision presets use the same launch settings and log destination.
+export SGLANG_LOG_FILE="$rootdir/sglang-fp4-local.log"
 
 # Read-only metadata for llmctl preflight; never imports SGLang or starts a server.
 if [[ "${1:-}" == "--print-launch-config" ]]; then
