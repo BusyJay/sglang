@@ -1,0 +1,248 @@
+{
+  "trace": "tools/qwen38_cache_tests/mtp_w4a4_20261018/live-profile/mtp-a4-live-1792262458.0863557-TP-0.trace.json.gz",
+  "decode_steps": 40,
+  "decode_wall_ms": 548.0974653320312,
+  "mean_step_ms": 13.702436633300781,
+  "gpu_step_window_ms": 837.3820100097656,
+  "gpu_mean_step_ms": 20.93455025024414,
+  "gpu_window_source": "matched GPU annotations",
+  "gpu_busy_ms_by_device": {
+    "0": 815.2868759765626
+  },
+  "copy_bytes_per_step": {
+    "Memcpy DtoD (Device -> Device)": 737368.3882003628
+  },
+  "top": {
+    "cpu_op": [
+      {
+        "name": "aten::empty",
+        "calls": 5760,
+        "total_ms": 13.277186767578021,
+        "ms_per_step": 0.33192966918945055
+      },
+      {
+        "name": "aten::empty_like",
+        "calls": 3840,
+        "total_ms": 13.074129150390613,
+        "ms_per_step": 0.3268532287597653
+      },
+      {
+        "name": "aten::copy_",
+        "calls": 2000,
+        "total_ms": 10.361812744140614,
+        "ms_per_step": 0.2590453186035154
+      },
+      {
+        "name": "aten::empty_strided",
+        "calls": 3840,
+        "total_ms": 9.688483642578102,
+        "ms_per_step": 0.24221209106445257
+      },
+      {
+        "name": "aten::view",
+        "calls": 3840,
+        "total_ms": 2.3497507324218887,
+        "ms_per_step": 0.058743768310547215
+      },
+      {
+        "name": "aten::slice",
+        "calls": 160,
+        "total_ms": 0.44294873046874994,
+        "ms_per_step": 0.011073718261718749
+      },
+      {
+        "name": "aten::as_strided",
+        "calls": 160,
+        "total_ms": 0.06256835937499998,
+        "ms_per_step": 0.0015642089843749996
+      }
+    ],
+    "gpu_memcpy": [
+      {
+        "name": "Memcpy DtoD (Device -> Device)",
+        "calls": 2000,
+        "total_ms": 1.6431538085937658,
+        "ms_per_step": 0.041078845214844145
+      }
+    ],
+    "cuda_runtime": [
+      {
+        "name": "cudaEventSynchronize",
+        "calls": 765,
+        "total_ms": 187.19199438476537,
+        "ms_per_step": 4.679799859619134
+      },
+      {
+        "name": "cudaGraphLaunch",
+        "calls": 3880,
+        "total_ms": 63.24050048828129,
+        "ms_per_step": 1.5810125122070322
+      },
+      {
+        "name": "cudaLaunchKernel",
+        "calls": 5760,
+        "total_ms": 12.409441894531124,
+        "ms_per_step": 0.3102360473632781
+      },
+      {
+        "name": "cudaMemcpyAsync",
+        "calls": 2000,
+        "total_ms": 6.510630371093748,
+        "ms_per_step": 0.16276575927734369
+      },
+      {
+        "name": "cudaEventQuery",
+        "calls": 22879,
+        "total_ms": 5.533376220703096,
+        "ms_per_step": 0.13833440551757742
+      },
+      {
+        "name": "cudaStreamWaitEvent",
+        "calls": 7680,
+        "total_ms": 1.9085961914062894,
+        "ms_per_step": 0.04771490478515723
+      },
+      {
+        "name": "cudaEventRecordWithFlags",
+        "calls": 5760,
+        "total_ms": 1.769279785156234,
+        "ms_per_step": 0.044231994628905855
+      },
+      {
+        "name": "cudaStreamIsCapturing",
+        "calls": 15360,
+        "total_ms": 1.7635117187499467,
+        "ms_per_step": 0.044087792968748665
+      }
+    ],
+    "kernel": [
+      {
+        "name": "void (anonymous namespace)::mailbox_fill_kernel<false>(int const*, long const*, int, int const volatile*)",
+        "calls": 1920,
+        "total_ms": 261.7210771484373,
+        "ms_per_step": 6.543026928710932
+      },
+      {
+        "name": "_cache_project_splitk",
+        "calls": 3840,
+        "total_ms": 232.13696874999923,
+        "ms_per_step": 5.8034242187499805
+      },
+      {
+        "name": "_ZN7cutlass13device_kernelIN10flashinfer4gemm53DeviceGemmMxfp8GemmSm120___nv_bfloat16_128_32_128true9Sm12xOnlyINS_4gemm6kernel13GemmUniversalIN4cute5tupleIJiiiiEEENS5_10collective13CollectiveMmaINS5_42MainloopSm120TmaWarpSpecializedBlockScaledILi4ELi3ENS9_IJNS8_1CILi1EEESF_SF_EEENS5_51KernelTmaWarpSpecializedCooperativeBlockScaledSm120ILi3EEEEENS9_IJNSE_ILi128EEENSE_ILi32EEESK_EEENS9_IJNS_12float_e4m3_tENS_13float_ue8m0_tEEEENS9_IJNS9_IJlSF_lEEENS8_6LayoutINS9_IJNS9_IJNS9_IJSL_NSE_ILi4EEEEEEiEEESU_NS9_IJSF_iEEEEEENS9_IJNS9_IJNS9_IJNSE_ILi16EEESS_EEEiEEENS9_IJNS9_IJNSE_ILi0EEESF_EEENSE_ILi512EEEEEENS9_IJS10_iEEEEEEEEEEESP_S17_NS8_8TiledMMAINS8_8MMA_AtomIJNS8_5SM12011BLOCKSCALED19SM120_16x8x32_TN_VSISN_SN_fSO_Li32EEEEEENSR_INS9_IJSS_NSE_ILi2EEESF_EEENS9_IJSF_SS_S10_EEEEENS9_IJSK_NSR_INS9_IJNSE_ILi8EEES1F_S1F_EEENS9_IJSF_SX_S1J_EEEEESL_EEEEENS9_IJNS8_13SM90_TMA_LOADES1P_EEENS9_IJNS8_14ComposedLayoutINS8_7SwizzleILi3ELi4ELi3EEENS8_18smem_ptr_flag_bitsILi8EEENSR_INS9_IJS1J_SK_EEENS9_IJSK_SF_EEEEEEENSR_INS9_IJNS9_IJST_SF_EEENS9_IJNS9_IJSL_SF_EEESS_SF_EEEEEENS9_IJNS9_IJSY_S12_EEENS9_IJS11_SF_S12_EEEEEEEEEEENS9_IJNS8_9Copy_AtomIJNS8_17SM75_U32x4_LDSM_NEhEEENS29_IJNS8_13UniversalCopyISO_SO_EESO_EEEEEENS8_8identityES1Q_S28_S2F_S2G_EENS_8epilogue10collective18CollectiveEpilogueINS2I_22Sm90TmaWarpSpecializedILi2ELi2ELi4ELb0ELb1EEEJSM_NS9_IJNSE_ILi64EEESL_EEEvNS9_IJSF_llEEENS_10bfloat16_tES2P_NS2I_6fusion15FusionCallbacksINS2I_23Sm120TmaWarpSpecializedILi2ELi2ELi4ELb0ELb1EEENS2R_17LinearCombinationIS2Q_fvfLNS_15FloatRoundStyleE2EEESM_S2O_JEEES1P_NS1R_IS1T_NS1U_ILi16EEENSR_INS9_IJS2N_S1J_EEENS9_IJSF_S2N_EEEEEEENS8_17SM75_U16x4_LDSM_TENS8_14SM90_TMA_STOREES33_NS8_17SM90_U16x4_STSM_TENS29_IJNS8_17SM90_U32x2_STSM_NENS_6half_tEEEEvEEENS5_19PersistentSchedulerEvEEEEEEvNT_6ParamsE",
+        "calls": 8160,
+        "total_ms": 132.85591943359373,
+        "ms_per_step": 3.3213979858398432
+      },
+      {
+        "name": "_hc_mix_persistent_kernel",
+        "calls": 3880,
+        "total_ms": 52.77032543945339,
+        "ms_per_step": 1.3192581359863347
+      },
+      {
+        "name": "(anonymous namespace)::decode_plan_kernel(int const*, int*, int*, int*, int*, float*, long*, long*, long*, int*, int, int, int, float, int, int, bool, long*, int*, bool)",
+        "calls": 1920,
+        "total_ms": 51.19103515625008,
+        "ms_per_step": 1.279775878906252
+      },
+      {
+        "name": "_ZN7cutlass13device_kernelIN10flashinfer4gemm54DeviceGemmMxfp8GemmSm120___nv_bfloat16_128_32_128false9Sm12xOnlyINS_4gemm6kernel13GemmUniversalIN4cute5tupleIJiiiiEEENS5_10collective13CollectiveMmaINS5_42MainloopSm120TmaWarpSpecializedBlockScaledILi4ELi3ENS9_IJNS8_1CILi1EEESF_SF_EEENS5_51KernelTmaWarpSpecializedCooperativeBlockScaledSm120ILi3EEEEENS9_IJNSE_ILi128EEENSE_ILi32EEESK_EEENS9_IJNS_12float_e4m3_tENS_13float_ue8m0_tEEEENS9_IJNS9_IJlSF_lEEENS8_6LayoutINS9_IJNS9_IJNS9_IJSL_NSE_ILi4EEEEEEiEEESU_NS9_IJSF_iEEEEEENS9_IJNS9_IJNS9_IJNSE_ILi16EEESS_EEEiEEENS9_IJNS9_IJNSE_ILi0EEESF_EEENSE_ILi512EEEEEENS9_IJS10_iEEEEEEEEEEESP_S17_NS8_8TiledMMAINS8_8MMA_AtomIJNS8_5SM12011BLOCKSCALED19SM120_16x8x32_TN_VSISN_SN_fSO_Li32EEEEEENSR_INS9_IJSS_NSE_ILi2EEESF_EEENS9_IJSF_SS_S10_EEEEENS9_IJSK_NSR_INS9_IJNSE_ILi8EEES1F_S1F_EEENS9_IJSF_SX_S1J_EEEEESL_EEEEENS9_IJNS8_13SM90_TMA_LOADES1P_EEENS9_IJNS8_14ComposedLayoutINS8_7SwizzleILi3ELi4ELi3EEENS8_18smem_ptr_flag_bitsILi8EEENSR_INS9_IJS1J_SK_EEENS9_IJSK_SF_EEEEEEENSR_INS9_IJNS9_IJST_SF_EEENS9_IJNS9_IJSL_SF_EEESS_SF_EEEEEENS9_IJNS9_IJSY_S12_EEENS9_IJS11_SF_S12_EEEEEEEEEEENS9_IJNS8_9Copy_AtomIJNS8_17SM75_U32x4_LDSM_NEhEEENS29_IJNS8_13UniversalCopyISO_SO_EESO_EEEEEENS8_8identityES1Q_S28_S2F_S2G_EENS_8epilogue10collective18CollectiveEpilogueINS2I_22Sm90TmaWarpSpecializedILi2ELi2ELi4ELb0ELb1EEEJSM_NS9_IJNSE_ILi64EEESL_EEEvSQ_NS_10bfloat16_tESQ_NS2I_6fusion15FusionCallbacksINS2I_23Sm120TmaWarpSpecializedILi2ELi2ELi4ELb0ELb1EEENS2Q_17LinearCombinationIS2P_fvfLNS_15FloatRoundStyleE2EEESM_S2O_JEEES1P_NS1R_INS1S_ILi2ELi4ELi3EEENS1U_ILi16EEENSR_INS9_IJS1J_SL_EEES21_EEEENS8_17SM75_U32x2_LDSM_NENS8_14SM90_TMA_STOREES32_NS8_17SM90_U32x2_STSM_NENS29_IJS35_NS_6half_tEEEEvEEENS5_19PersistentSchedulerEvEEEEEEvNT_6ParamsE",
+        "calls": 1440,
+        "total_ms": 41.67170043945318,
+        "ms_per_step": 1.0417925109863295
+      },
+      {
+        "name": "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8::Params)",
+        "calls": 2040,
+        "total_ms": 40.38116796874991,
+        "ms_per_step": 1.0095291992187476
+      },
+      {
+        "name": "fused_sigmoid_gating_delta_rule_update_kernel",
+        "calls": 1440,
+        "total_ms": 11.77519799804687,
+        "ms_per_step": 0.2943799499511718
+      },
+      {
+        "name": "kernel_cutlass_kernel_flashinferquantizationkernelsmxfp8_quantizeMXFP8QuantizeSwizzledKernel_object_at__tensorptrbf16gmemalign16o256025601_tensorptri8gmemalign16o256025601_tensorptri8gmem_0",
+        "calls": 5760,
+        "total_ms": 10.205805664062773,
+        "ms_per_step": 0.2551451416015693
+      },
+      {
+        "name": "_layer_norm_fwd_1pass_kernel",
+        "calls": 1440,
+        "total_ms": 9.651680908203119,
+        "ms_per_step": 0.24129202270507796
+      },
+      {
+        "name": "_norm",
+        "calls": 4000,
+        "total_ms": 8.076748291015802,
+        "ms_per_step": 0.20191870727539504
+      },
+      {
+        "name": "void sglang::act_and_mul_kernel<__nv_bfloat16, (sglang::ActivationKind)0, true, false, false, false>(sglang::ActivationParams)",
+        "calls": 1920,
+        "total_ms": 7.654735107421899,
+        "ms_per_step": 0.19136837768554749
+      },
+      {
+        "name": "kernel_mha(unsigned int, float, float const*, Vec<__nv_bfloat16, 256u>*, Vec<__nv_bfloat16, 256u> const*, float const*, KVCacheList<true>, unsigned int, float, float const*, unsigned int, unsigned int, unsigned int, unsigned int*, void*)",
+        "calls": 480,
+        "total_ms": 7.49039306640624,
+        "ms_per_step": 0.187259826660156
+      },
+      {
+        "name": "_router_triton_kernel",
+        "calls": 1920,
+        "total_ms": 6.365529785156319,
+        "ms_per_step": 0.15913824462890797
+      },
+      {
+        "name": "void sglang::hc_combine_gate_kernel<4l, 2560l, true, __nv_bfloat16>(sglang::HcCombineSplitParams)",
+        "calls": 3840,
+        "total_ms": 5.440375732421806,
+        "ms_per_step": 0.13600939331054515
+      },
+      {
+        "name": "_causal_conv1d_update_kernel",
+        "calls": 1440,
+        "total_ms": 4.0210373535156565,
+        "ms_per_step": 0.1005259338378914
+      },
+      {
+        "name": "kernel_cutlass_kernel_flashinferquantizationkernelsmxfp8_quantizeMXFP8QuantizeSwizzledKernel_object_at__tensorptrbf16gmemalign16o6406401_tensorptri8gmemalign16o6406401_tensorptri8gmemalig_0",
+        "calls": 1920,
+        "total_ms": 3.5419370117187223,
+        "ms_per_step": 0.08854842529296805
+      },
+      {
+        "name": "void sglang::hc_combine_apply_kernel<4l, 2560l, true, __nv_bfloat16>(sglang::HcCombineSplitParams)",
+        "calls": 3840,
+        "total_ms": 3.3921845703125006,
+        "ms_per_step": 0.08480461425781252
+      },
+      {
+        "name": "fused_qkvzba_split_reshape_cat_contiguous_kernel",
+        "calls": 1440,
+        "total_ms": 3.2817260742187266,
+        "ms_per_step": 0.08204315185546816
+      },
+      {
+        "name": "void sglang::fast_topk_detail::fast_topk_kernel<512, true>(sglang::fast_topk_detail::FastTopKParams)",
+        "calls": 480,
+        "total_ms": 3.0625344238281262,
+        "ms_per_step": 0.07656336059570315
+      }
+    ]
+  },
+  "notes": [
+    "Profiler adds overhead; measure throughput separately without profiling.",
+    "Category/operator totals overlap and are not additive wall time.",
+    "CPU step spans measure host submission; queued GPU work uses matched GPU spans when available.",
+    "GPU graph nodes are included; GPU busy time is an interval union per device.",
+    "Python worker time may be absent from torch CPU events; use NVTX + Nsight Systems for worker staging."
+  ]
+}
