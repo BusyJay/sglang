@@ -16,13 +16,16 @@ pack = load_source(
 class ExpertCacheRetentionTests(unittest.TestCase):
     def test_expert_cache_discard_switch(self):
         obj = SimpleNamespace(
-            _cuda_source_private=True, _stream=SimpleNamespace(fileno=lambda: 123)
+            _source_mode="anonymous_thp",
+            _cuda_source_private=True,
+            _stream=SimpleNamespace(fileno=lambda: 123),
         )
         with (
             mock.patch.dict(os.environ, {}, clear=True),
             mock.patch.object(os, "posix_fadvise") as advise,
         ):
             pack.Qwen38ExpertPack.discard_source_file_cache(obj)
+
             advise.assert_not_called()
         for flag, called in [("0", False), ("1", True)]:
             with (
@@ -40,6 +43,12 @@ class ExpertCacheRetentionTests(unittest.TestCase):
             self.assertRaises(ValueError),
         ):
             pack.Qwen38ExpertPack.discard_source_file_cache(obj)
+
+    def test_shared_source_cache_is_retained(self):
+        obj = SimpleNamespace(_source_mode="shared_thp")
+        with mock.patch.object(os, "posix_fadvise") as advise:
+            pack.Qwen38ExpertPack.discard_source_file_cache(obj)
+            advise.assert_not_called()
 
 
 if __name__ == "__main__":

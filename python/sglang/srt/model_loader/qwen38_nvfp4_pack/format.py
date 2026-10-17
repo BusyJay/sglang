@@ -312,7 +312,7 @@ def load_manifest(path: str | Path) -> Qwen38ExpertPackManifest:
 
 
 class Qwen38ExpertPack:
-    """Read-only byte views over one file mapping, also shared by CUDA readers."""
+    """Read-only byte views over one source mapping, also shared by CUDA readers."""
 
     def __init__(self, manifest: Qwen38ExpertPackManifest):
         self.manifest = manifest
@@ -323,11 +323,14 @@ class Qwen38ExpertPack:
         self._prefetch_stop = threading.Event()
         self._prefetch_error = None
         self._source_mode = os.getenv("SGLANG_QWEN38_SOURCE_MODE", "anonymous_thp")
-        if self._source_mode not in ("file_cow", "cow_prefault", "anonymous", "anonymous_thp"):
+        if self._source_mode not in (
+            "file_cow", "cow_prefault", "anonymous", "anonymous_thp", "shared_thp"
+        ):
             self._mapping.close()
             self._stream.close()
             raise ValueError("invalid SGLANG_QWEN38_SOURCE_MODE")
         self._source_prepared = False
+        self._source_cache_hit = None
         self._prefetch_active = False
         self._prefetch_ready = threading.Event()
         if self._source_mode == "cow_prefault":
@@ -344,7 +347,7 @@ class Qwen38ExpertPack:
             self._cuda_source_private = True
 
     def start_prefetch(self) -> None:
-        """Populate the shared file page cache while model weights load."""
+        """Prepare the source mapping while model weights load."""
         if self._prefetch_thread is not None:
             return
         self._prefetch_active = True
@@ -391,9 +394,34 @@ class Qwen38ExpertPack:
             return
         started = time.perf_counter()
         from sglang.srt.layers.moe.qwen38_observation import observe
-        with observe("source_prefault_or_load", startup=True, mode=self._source_mode,
-                     source_bytes=self.manifest.payload_nbytes):
-            if self._source_mode == "cow_prefault":
+
+        with observe(
+            "source_prefault_or_load",
+            startup=True,
+            mode=self._source_mode,
+            source_bytes=self.manifest.payload_nbytes,
+        ):
+            if self._source_mode == "shared_thp":
+                from sglang.srt.model_loader.qwen38_nvfp4_pack.source_cache import (
+                    map_shared_source,
+                )
+
+                mapping, self._source_cache_hit = map_shared_source(
+                    self._stream.fileno(),
+                    os.getenv(
+                        "SGLANG_QWEN38_SOURCE_CACHE_DIR",
+                        "/dev/shm/sglang/qwen38-experts",
+                    ),
+                    self._prefetch_stop,
+                )
+                try:
+                    self._mapping.close()
+                except BaseException:
+                    mapping.close()
+                    raise
+                self._mapping = mapping
+                self._cuda_source_private = True  # Already writable/registerable.
+            elif self._source_mode == "cow_prefault":
                 # Writable population preserves file bytes, but materializes COW.
                 self._mapping.madvise(getattr(mmap, "MADV_POPULATE_WRITE", 23))
             else:
@@ -416,10 +444,11 @@ class Qwen38ExpertPack:
                     view.release()
             self._source_prepared = True
         logger.info(
-            "Qwen38 startup expert source ready: mode=%s GiB=%.2f seconds=%.3f",
+            "Qwen38 startup expert source ready: mode=%s GiB=%.2f seconds=%.3f cache_hit=%s",
             self._source_mode,
             self.manifest.payload_nbytes / (1 << 30),
             time.perf_counter() - started,
+            self._source_cache_hit,
         )
 
     def wait_prefetch(self) -> None:
@@ -432,11 +461,16 @@ class Qwen38ExpertPack:
 
     def _wait_source_readable(self):
         # Early alpha/scalar CPU reads must never observe uninitialized source.
-        if self._source_mode.startswith("anonymous") and not self._source_prepared:
+        if (
+            self._source_mode in ("anonymous", "anonymous_thp", "shared_thp")
+            and not self._source_prepared
+        ):
             if self._prefetch_active:
                 self._prefetch_ready.wait()
                 if self._prefetch_error is not None:
-                    raise RuntimeError("expert source preparation failed") from self._prefetch_error
+                    raise RuntimeError(
+                        "expert source preparation failed"
+                    ) from self._prefetch_error
             else:
                 self._prepare_source()
 
@@ -444,9 +478,9 @@ class Qwen38ExpertPack:
         """Promote at startup to the single CUDA-registerable source mapping.
 
         GeForce cannot register CPU-read-only pages. All transports therefore
-        share one private writable mapping; CUDA registration materializes its
-        COW pages. Application byte views stay read-only and writes cannot reach
-        the file. The pack owns the mapping beyond each mailbox's registration.
+        share one writable mapping. Anonymous/COW sources isolate the file;
+        shared_thp maps the persistent tmpfs cache directly. Application byte
+        views stay read-only. The pack owns the mapping beyond registration.
         Existing exported views must have been released before promotion.
         """
         self.wait_prefetch()
@@ -463,6 +497,9 @@ class Qwen38ExpertPack:
 
     def discard_source_file_cache(self) -> None:
         """Release redundant prefetch pages after CUDA materializes private pages."""
+        if self._source_mode == "shared_thp":
+            logger.info("Expert-pack shared THP cache retained for warm restarts")
+            return
         discard = os.getenv("SGLANG_QWEN38_DISCARD_SOURCE_FILE_CACHE", "0")
         if discard not in ("0", "1"):
             raise ValueError("SGLANG_QWEN38_DISCARD_SOURCE_FILE_CACHE must be 0 or 1")
