@@ -72,6 +72,8 @@ class Qwen38Fp4PleEmbedding(Qwen4ExpPinnedHostEmbedding):
         self._table_dir = table_dir
         self._lazy = backend == "lazy"
         self._packed_ready = False
+        self._shared_cache_spec = None
+        self._shared_ple = None
         rows = self.weight.shape[0]
         self.weight = nn.Parameter(
             torch.empty(
@@ -157,33 +159,63 @@ class Qwen38Fp4PleEmbedding(Qwen4ExpPinnedHostEmbedding):
                     start, write_cache,
                 )
             allocation_start = time.perf_counter()
-            table = allocate_ple_host_table(
-                shape=(local_rows, self._row_bytes), dtype=torch.uint8,
-                backend=self._backend, table_dir=self._table_dir,
-                tag=f"fp4-rows{start}-{start + local_rows}",
-            )
+            shared_spec = getattr(self, "_shared_cache_spec", None)
+            if cached_path is not None and shared_spec is not None:
+                from sglang.srt.models.qwen38_shared_ple import try_shared_ple
+
+                self._shared_ple = try_shared_ple(
+                    cached_path, shared_spec, self.fp4_global_scale.device
+                )
+            if getattr(self, "_shared_ple", None) is not None:
+                table = self._shared_ple.raw.view(local_rows, self._row_bytes)
+            else:
+                table = allocate_ple_host_table(
+                    shape=(local_rows, self._row_bytes),
+                    dtype=torch.uint8,
+                    backend=self._backend,
+                    table_dir=self._table_dir,
+                    tag=f"fp4-rows{start}-{start + local_rows}",
+                )
             allocation_seconds = time.perf_counter() - allocation_start
             copy_start = time.perf_counter()
-            if cached_path is not None:
-                from sglang.srt.models.qwen38_ple_packed_cache import read_packed_ple_cache
+            if getattr(self, "_shared_ple", None) is not None:
+                pass  # The registered tmpfs mapping already contains final rows.
+            elif cached_path is not None:
+                from sglang.srt.models.qwen38_ple_packed_cache import (
+                    read_packed_ple_cache,
+                )
 
                 # NumPy exports the tensor storage; no full-table temporary copy.
                 read_packed_ple_cache(cached_path, table.numpy())
             else:
-                copy_packed_ple_table(table, weights, scales, valid_rows,
-                                      self.embedding_dim, row_start=start)
-            logger.info("FP4 PLE host preparation: backend=%s cached=%s allocate_seconds=%.3f load_seconds=%.3f",
-                        self._backend, cached_path is not None, allocation_seconds,
-                        time.perf_counter() - copy_start)
+                copy_packed_ple_table(
+                    table,
+                    weights,
+                    scales,
+                    valid_rows,
+                    self.embedding_dim,
+                    row_start=start,
+                )
+            logger.info(
+                "FP4 PLE host preparation: backend=%s cached=%s allocate_seconds=%.3f load_seconds=%.3f",
+                self._backend,
+                cached_path is not None,
+                allocation_seconds,
+                time.perf_counter() - copy_start,
+            )
             if valid_rows < local_rows:
                 table[valid_rows:].zero_()
             self.weight = nn.Parameter(table, requires_grad=False)
             self._file_prefetcher = make_ple_file_prefetcher(table)
             self._file_rss_trimmer = make_ple_file_rss_trimmer(table)
             self._packed_ready = True
-            logger.info("FP4 PLE %s ready: rows=%d row_bytes=%d table=%.2f GiB; packed GPU gather",
-                        self._backend, local_rows, self._row_bytes,
-                        table.numel() / (1 << 30))
+            logger.info(
+                "FP4 PLE %s ready: rows=%d row_bytes=%d table=%.2f GiB; packed GPU gather",
+                self._backend,
+                local_rows,
+                self._row_bytes,
+                table.numel() / (1 << 30),
+            )
             return
         budget = envs.SGLANG_QWEN4_PLE_LAZY_CACHE_MB.get()
         batch = envs.SGLANG_QWEN4_PLE_LAZY_BATCH_ROWS.get()
@@ -227,15 +259,43 @@ class Qwen38Fp4PleEmbedding(Qwen4ExpPinnedHostEmbedding):
                 self._file_prefetcher.enqueue(ids, vocab_start=start, vocab_end=end)
             from sglang.srt.models.qwen4_exp import _gather_ple_embedding_from_pinned_kernel
             _gather_ple_embedding_from_pinned_kernel[(ids.numel(),)](
-                self.weight.data_ptr(), ids, out, embedding_dim=self.embedding_dim,
-                tp_vocab_start=start, tp_vocab_end=end, is_fp8=False,
-                BLOCK_D=self._block_d, MASK_INVALID=True, IS_NVFP4=True,
+                (
+                    self._shared_ple.pointer
+                    if getattr(self, "_shared_ple", None) is not None
+                    else self.weight.data_ptr()
+                ),
+                ids,
+                out,
+                embedding_dim=self.embedding_dim,
+                tp_vocab_start=start,
+                tp_vocab_end=end,
+                is_fp8=False,
+                BLOCK_D=self._block_d,
+                MASK_INVALID=True,
+                IS_NVFP4=True,
                 global_scale_ptr=self.fp4_global_scale,
             )
         return out
 
+    def close(self):
+        shared = getattr(self, "_shared_ple", None)
+        if shared is not None:
+            # Drop the Parameter's storage alias before closing the mmap. The
+            # owner retains its raw tensor until queued GPU readers finish.
+            self.weight.data = torch.empty(0, dtype=torch.uint8, device="cpu")
+            shared.close()
+            self._shared_ple = None
 
-def copy_packed_ple_table(target, weights, scales, rows, width, chunk_rows=65536, *, row_start=0):
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:
+            logger.debug("shared PLE cleanup during teardown", exc_info=True)
+
+
+def copy_packed_ple_table(
+    target, weights, scales, rows, width, chunk_rows=65536, *, row_start=0
+):
     """Stream contiguous checkpoint planes into interleaved compressed rows.
 
     No per-row Python cache or full-table dequantization. Temporary storage is

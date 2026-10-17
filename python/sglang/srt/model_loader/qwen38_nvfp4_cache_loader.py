@@ -281,20 +281,24 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
         )
 
         probe = get_startup_memory_probe(target_device)
-        memory_mark(probe, "loader.before_pack", metadata={"config": self.config})
-        pack = Qwen38ExpertPack(self.manifest)
-        memory_mark(probe, "loader.after_pack")
+        startup_cache = os.getenv("SGLANG_QWEN38_STARTUP_CACHE", "auto")
+        if startup_cache not in ("auto", "off"):
+            raise ValueError("SGLANG_QWEN38_STARTUP_CACHE must be auto or off")
+        pack = None
+        if startup_cache == "off":
+            memory_mark(probe, "loader.before_pack", metadata={"config": self.config})
+            pack = Qwen38ExpertPack(self.manifest)
+            memory_mark(probe, "loader.after_pack")
         try:
-            if self.config.get("async_pack_prefetch", True):
+            if pack is not None and self.config.get("async_pack_prefetch", True):
                 pack.start_prefetch()
             with set_default_torch_dtype(model_config.dtype):
                 with target_device:
                     memory_mark(probe, "loader.before_model_construct")
                     text_config = model_config.hf_text_config
-                    mapped_embedding = (
-                        os.getenv("SGLANG_QWEN38_HOST_TOKEN_EMBEDDING", "1") == "1"
-                        and not getattr(text_config, "tie_word_embeddings", False)
-                    )
+                    mapped_embedding = os.getenv(
+                        "SGLANG_QWEN38_HOST_TOKEN_EMBEDDING", "1"
+                    ) == "1" and not getattr(text_config, "tie_word_embeddings", False)
                     if mapped_embedding:
                         from sglang.srt.models.qwen38_host_embedding import (
                             find_token_embedding,
@@ -328,6 +332,25 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                     raise ValueError(
                         "Flash-Next offload worker unexpectedly allocated a local ViT"
                     )
+                if startup_cache == "auto":
+                    from sglang.srt.model_loader.qwen38_nvfp4_pack.startup_cache import (
+                        prepare_startup_cache,
+                    )
+
+                    source_mode = prepare_startup_cache(
+                        model, self.manifest, weight_files
+                    )
+                    memory_mark(
+                        probe, "loader.before_pack", metadata={"config": self.config}
+                    )
+                    pack = Qwen38ExpertPack(
+                        self.manifest,
+                        source_mode=source_mode,
+                        allow_shared_fallback=True,
+                    )
+                    memory_mark(probe, "loader.after_pack")
+                    if self.config.get("async_pack_prefetch", True):
+                        pack.start_prefetch()
                 lazy_ple = (
                     getattr(
                         model_config.hf_text_config, "ple_offload_backend", "pinned"
@@ -373,7 +396,8 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                     time.perf_counter() - weights_started,
                 )
         except BaseException:
-            pack.close()
+            if pack is not None:
+                pack.close()
             raise
 
         from sglang.srt.layers.moe.qwen38_cache_runtime import (
