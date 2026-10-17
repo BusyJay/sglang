@@ -106,7 +106,7 @@ def main():
         dense[prefix] = dequant(w, scales.cuda(), global_scale)
     reports = []
     for tokens in (1, 2, 3, 4):
-        for pattern in ("disjoint", "overlap", "invalid"):
+        for pattern in ("disjoint", "overlap", "invalid", "all_invalid"):
             ids = (
                 torch.arange(tokens * topk, device="cuda", dtype=torch.int32).reshape(
                     tokens, topk
@@ -118,16 +118,30 @@ def main():
                 ids[:, 1] = ids[:, 0]
             if pattern == "invalid":
                 ids[:, 0], ids[:, 1] = -1, e
+            if pattern == "all_invalid":
+                ids.fill_(-1)
             x = torch.randn(tokens, h, device="cuda", dtype=torch.bfloat16) * 0.2
             router = torch.randn(tokens, topk, device="cuda").softmax(-1)
             expected = reference(x, ids, router, dense["w13"], dense["w2"])
+            # The promoted K=1 default must select the validated fused result.
+            default = cached_w4a16_moe(x, ids, router, tensors, split_k=1)
+            fused = cached_w4a16_moe(
+                x, ids, router, tensors, split_k=1, verify_mode="fused"
+            )
+            torch.testing.assert_close(default, fused, atol=0, rtol=0)
             original_ids, original_x = ids.clone(), x.clone()
-            for split in (0, 1, 2, 4, 8):
+            original_router = router.clone()
+            configurations = [(split, "baseline") for split in (0, 1, 2, 4, 8)]
+            configurations += [(1, mode) for mode in ("fused", "reuse")]
+            for split, mode in configurations:
                 ids.copy_(original_ids)
                 x.copy_(original_x)
+                router.copy_(original_router)
 
-                def run(x=x, ids=ids, router=router, split=split):
-                    return cached_w4a16_moe(x, ids, router, tensors, split_k=split)
+                def run(x=x, ids=ids, router=router, split=split, mode=mode):
+                    return cached_w4a16_moe(
+                        x, ids, router, tensors, split_k=split, verify_mode=mode
+                    )
 
                 got = run()
                 torch.testing.assert_close(got, expected, atol=0.004, rtol=0.02)
@@ -136,7 +150,8 @@ def main():
                 with torch.cuda.graph(graph):
                     captured = run()
                 # Changed routes and activations must be read on replay, not at capture.
-                ids.copy_(ids.roll(1, 1))
+                ids.copy_(ids.roll(1, 0).roll(1, 1))
+                router.copy_(router.roll(2, 1))
                 x.mul_(0.9)
                 graph.replay()
                 torch.testing.assert_close(captured, run(), atol=0, rtol=0)
@@ -148,6 +163,7 @@ def main():
                 )
                 ids.copy_(original_ids)
                 x.copy_(original_x)
+                router.copy_(original_router)
                 del captured, graph
                 measurements = [
                     latency(run, args.iterations) for _ in range(args.rounds)
@@ -156,6 +172,7 @@ def main():
                     "tokens": tokens,
                     "pattern": pattern,
                     "split_k": split,
+                    "verify_mode": mode,
                     "max_abs_error": error,
                     "graph_replay": True,
                     "latency": {

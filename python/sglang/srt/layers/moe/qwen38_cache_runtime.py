@@ -186,8 +186,18 @@ class Qwen38SynchronousExpertRuntime:
         stats = self.stats_snapshot()
         if stats["run_invocations"] == 0:
             return
+        import os
+
+        from sglang.srt.layers.moe.qwen38_cache_stats_format import compact_stats
+
+        style = os.getenv("SGLANG_QWEN38_CACHE_STATS_FORMAT", "compact")
+        if style not in ("compact", "full"):
+            raise ValueError("cache stats format must be compact or full")
+        payload = compact_stats(stats) if style == "compact" else stats
         logger.info(
-            "Qwen38ExpertCacheStats[%s] %s", label, json.dumps(stats, sort_keys=True)
+            "Qwen38ExpertCacheStats[%s] %s",
+            label,
+            json.dumps(payload, sort_keys=True, separators=(",", ":")),
         )
 
     def _maybe_log_stats(self):

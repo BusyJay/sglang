@@ -88,11 +88,20 @@ def stop_owned(process):
 def log_snapshots(path):
     values = []
     if Path(path).exists():
-        for line_no, line in enumerate(Path(path).read_text(errors="replace").splitlines(), 1):
+        for line_no, line in enumerate(
+            Path(path).read_text(errors="replace").splitlines(), 1
+        ):
             if "Qwen38ExpertCacheStats[" in line:
                 try:
-                    values.append({"line": line_no, "raw": line,
-                                   "stats": json.loads(line[line.index("{", line.index("Qwen38ExpertCacheStats[")):])})
+                    from sglang.srt.layers.moe.qwen38_cache_stats_format import (
+                        expand_stats,
+                    )
+
+                    payload = line[line.index("{", line.index("Qwen38ExpertCacheStats[")) :]
+                    values.append(
+                        {"line": line_no, "raw": line,
+                         "stats": expand_stats(json.loads(payload))}
+                    )
                 except (ValueError, json.JSONDecodeError):
                     continue
     return values

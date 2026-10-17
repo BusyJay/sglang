@@ -1,0 +1,48 @@
+{
+  "base_env": {
+    "SGLANG_QWEN38_CACHE_W4A16": "1",
+    "SGLANG_QWEN38_CACHE_W4A16_SPLIT_K": "1",
+    "SGLANG_QWEN38_W4A16_VERIFY_MODE": "baseline",
+    "SGLANG_QWEN38_PARALLEL_MISS_PLAN": "1",
+    "SGLANG_QWEN38_MTP_ACTIVATION": "w4a4",
+    "SGLANG_QWEN38_CACHE_STATS_FORMAT": "compact",
+    "SGLANG_QWEN38_ADAPTIVE_CANDIDATE_MAX": "",
+    "CACHE_SLOTS_TOTAL": "6390",
+    "MTP_MODE": "2"
+  },
+  "variants": {
+    "baseline": {},
+    "cache256": {
+      "SGLANG_QWEN38_ADAPTIVE_CANDIDATE_MAX": "256"
+    },
+    "fused": {
+      "SGLANG_QWEN38_W4A16_VERIFY_MODE": "fused"
+    },
+    "reuse": {
+      "SGLANG_QWEN38_W4A16_VERIFY_MODE": "reuse"
+    },
+    "planner_warp": {
+      "SGLANG_QWEN38_PARALLEL_MISS_PLAN": "2"
+    },
+    "mtp1": {
+      "MTP_MODE": "1"
+    },
+    "combined": {
+      "SGLANG_QWEN38_ADAPTIVE_CANDIDATE_MAX": "256",
+      "SGLANG_QWEN38_W4A16_VERIFY_MODE": "fused",
+      "SGLANG_QWEN38_PARALLEL_MISS_PLAN": "2"
+    }
+  },
+  "ab_order": [
+    "baseline",
+    "candidate",
+    "candidate",
+    "baseline"
+  ],
+  "promoted_defaults": {
+    "SGLANG_QWEN38_ADAPTIVE_CANDIDATE_MAX": "256",
+    "SGLANG_QWEN38_W4A16_VERIFY_MODE": "fused",
+    "SGLANG_QWEN38_PARALLEL_MISS_PLAN": "2",
+    "SGLANG_QWEN38_CACHE_STATS_FORMAT": "compact"
+  }
+}

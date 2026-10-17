@@ -438,7 +438,7 @@ __device__ bool better_victim(int a, int b, const int32_t* keys,
 __device__ void parallel_lfu_plan(const int32_t* counts, const int32_t* active_ids,
     int active, int experts, int slots, int32_t* lookup, int32_t* keys,
     float* frequency, int64_t* ages, int64_t* generation, int64_t* clock,
-    int32_t* plan, float decay, bool export_routes) {
+    int32_t* plan, float decay, bool export_routes, bool warp_reduce) {
   __shared__ int candidates[128];
   __shared__ int current_slot;
   if (threadIdx.x == 0) {
@@ -461,14 +461,32 @@ __device__ void parallel_lfu_plan(const int32_t* counts, const int32_t* active_i
         if (keys[slot] >= 0 && counts[keys[slot]]) continue;
         if (better_victim(slot, best, keys, frequency, ages)) best = slot;
       }
-      candidates[threadIdx.x] = best;
-      __syncthreads();
-      for (int stride = blockDim.x/2; stride; stride /= 2) {
-        if (threadIdx.x < stride &&
-            better_victim(candidates[threadIdx.x+stride], candidates[threadIdx.x],
-                          keys, frequency, ages))
-          candidates[threadIdx.x] = candidates[threadIdx.x+stride];
+      if (warp_reduce) {
+        // Four warp minima replace seven full-block reduction barriers.
+        for (int delta = 16; delta; delta >>= 1) {
+          int other = __shfl_down_sync(0xffffffff, best, delta);
+          if ((threadIdx.x & 31) + delta < 32 &&
+              better_victim(other, best, keys, frequency, ages)) best = other;
+        }
+        if ((threadIdx.x & 31) == 0) candidates[threadIdx.x >> 5] = best;
         __syncthreads();
+        if (threadIdx.x == 0) {
+          best = candidates[0];
+          for (int warp = 1; warp < 4; ++warp)
+            if (better_victim(candidates[warp], best, keys, frequency, ages))
+              best = candidates[warp];
+          candidates[0] = best;
+        }
+      } else {
+        candidates[threadIdx.x] = best;
+        __syncthreads();
+        for (int stride = blockDim.x/2; stride; stride /= 2) {
+          if (threadIdx.x < stride &&
+              better_victim(candidates[threadIdx.x+stride], candidates[threadIdx.x],
+                            keys, frequency, ages))
+            candidates[threadIdx.x] = candidates[threadIdx.x+stride];
+          __syncthreads();
+        }
       }
       if (threadIdx.x == 0) {
         current_slot = candidates[0];
@@ -518,7 +536,7 @@ __global__ void decode_plan_kernel(
     bool export_routes,
     int64_t* hit_stats,
     int32_t* sample,
-    bool parallel_miss) {
+    int parallel_miss) {
   __shared__ int32_t histogram[513];
   __shared__ int32_t active_ids[32];
   __shared__ int active_count;
@@ -582,7 +600,8 @@ __global__ void decode_plan_kernel(
   __syncthreads();
   if (!all_hit && parallel_miss && !policy) {
     parallel_lfu_plan(histogram, active_ids, active_count, experts, slots,
-        lookup, keys, frequency, ages, generation, clock, plan, decay, export_routes);
+        lookup, keys, frequency, ages, generation, clock, plan, decay, export_routes,
+        parallel_miss == 2);
   }
   if (all_hit) {
     // No victim selection or lookup mutation. Keep decay and increment as
@@ -840,7 +859,9 @@ struct Qwen38CacheDecodePlan {
       double protected_fraction,
       int64_t hit_stats,
       int64_t sample,
-      bool parallel_miss) {
+      int64_t parallel_miss) {
+    TVM_FFI_ICHECK_GE(parallel_miss, 0);
+    TVM_FFI_ICHECK_LE(parallel_miss, 2);
     CHECK_INPUT_AND_TYPE(ids, dl_int32);
     CHECK_INPUT_AND_TYPE(output, dl_int32);
     CHECK_DIM(2, ids);
