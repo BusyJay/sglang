@@ -1964,6 +1964,13 @@ class Qwen4ExpModel(Qwen3_5ForCausalLM):
     def _build_embed_tokens(self, config: Qwen4ExpTextConfig) -> nn.Module:
         if not self.pp_group.is_first_rank:
             return PPMissingLayer()
+        descriptor = getattr(config, "_qwen38_mapped_token_embedding", None)
+        if descriptor is not None:
+            from sglang.srt.models.qwen38_host_embedding import Qwen38MappedTokenEmbedding
+
+            return Qwen38MappedTokenEmbedding(
+                config.vocab_size, config.hidden_size, descriptor
+            )
         return VocabParallelEmbedding(
             config.vocab_size,
             config.hidden_size,

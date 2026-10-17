@@ -31,6 +31,7 @@ from sglang.kernels.ops.moe.qwen38_expert_cache import (
     cache_route,
     cache_scatter,
 )
+from sglang.srt.layers.moe.qwen38_borrowed_arena import BorrowedArenaMixin
 from sglang.srt.layers.moe.qwen38_cache_device import Qwen38DeviceExpertRuntime
 from sglang.srt.layers.moe.qwen38_cache_runtime import PreparedExperts
 from sglang.srt.layers.moe.qwen38_expert_cache import LayerExpertCachePolicy
@@ -99,7 +100,7 @@ class TransferJob:
     sample_published: object = None  # optional observer handoff at transport changes
 
 
-class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
+class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime):
     def __init__(
         self,
         pack,
@@ -228,6 +229,10 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         self.host_plans = {}
         self.host_plan_allocations = 0
         self.cache_pool = None
+        self.borrowed_arena = False
+        self.borrowed_records = None
+        self.borrowed_layers = {}
+        self.borrowed_restore_runs = self.borrowed_restore_experts = 0
         self.adaptive_samples = None
         self.adaptive_worker = None
         self.adaptive_target = None
@@ -308,6 +313,21 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                 for name, pool in self.cache_pool.items()
             }
             self.adaptive_samples = queue.Queue(maxsize=4096)
+        if (
+            self.prefill_arena
+            and self.cache_pool is not None
+            and os.getenv("SGLANG_QWEN38_BORROW_PREFILL_ARENA", "1") == "1"
+            and budget >= self.manifest.num_experts
+        ):
+            self.arena = {
+                name: tensor[-self.manifest.num_experts :]
+                for name, tensor in self.cache_pool.items()
+            }
+            self.borrowed_arena = True
+            logger.info(
+                "Qwen38 prefill arena borrows %d expert slots from pool tail",
+                self.manifest.num_experts,
+            )
         super().reserve()
         memory_mark(probe, "runtime.after_base_reserve")
         # Precompile the JIT routing/planner before creating the worker or
@@ -617,7 +637,11 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             stats["startup_dense"] += 1
             return True
         resident = set()
-        if self.prefill_reuse_cache and keys is not None:
+        if (
+            self.prefill_reuse_cache
+            and keys is not None
+            and layer not in self.borrowed_layers
+        ):
             resident = {expert for expert in keys if expert >= 0}
         reused = [expert for expert in missing if expert in resident]
         host_missing = [expert for expert in missing if expert not in resident]
@@ -774,6 +798,7 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                 )
             with self.lock:
                 try:
+                    self._return_arena()
                     started = time.perf_counter()
                     self.jobs.join()
                     self.metadata_stream.synchronize()
@@ -838,6 +863,9 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
         result["decode_shared_fill_overlap_invocations"] = getattr(
             getattr(self, "miss_mailbox", None), "overlap_invocations", 0
         )
+        result["borrowed_prefill_arena"] = self.borrowed_arena
+        result["borrowed_restore_runs"] = self.borrowed_restore_runs
+        result["borrowed_restore_experts"] = self.borrowed_restore_experts
         result["packed_decode"] = self.packed_decode
         result["packed_prefill"] = self.packed_prefill
         result["packed_transport"] = (
@@ -990,7 +1018,11 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
                             and bool(keys)
                             and all(key < 0 for key in keys)
                         )
-                        if not job.verify and (self.warm_decode_cache or seed):
+                        if (
+                            not job.verify
+                            and (self.warm_decode_cache or seed)
+                            and job.layer not in self.borrowed_layers
+                        ):
                             self._warm_from_arena(job.layer, counts[:-1])
                             if seed:
                                 self.prefill_seed_runs += 1
@@ -1146,6 +1178,9 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
 
     def memory_budget(self):
         result = super().memory_budget()
+        if self.borrowed_arena:
+            result["borrowed_prefill_arena_bytes"] = result["prefill_arena_bytes"]
+            result["prefill_arena_bytes"] = 0
         result["adaptive_metadata_bytes"] = (
             self.adaptive_metadata.nbytes() if hasattr(self, "adaptive_metadata") else 0
         )
@@ -1242,6 +1277,11 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             self.sampling_verify = execution_phase == "verify"
             if arena and self.arena is None:
                 raise ValueError("route bound exceeds cache; enable prefill arena")
+            if self.borrowed_arena:
+                if arena:
+                    self._borrow_arena()
+                else:
+                    self._return_arena()
             sample = self._sample_position(layer_id, topk_ids)
             if (
                 self.miss_mailbox is not None

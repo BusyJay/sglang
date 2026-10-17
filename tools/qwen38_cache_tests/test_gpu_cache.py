@@ -28,6 +28,7 @@ class TestGpuCache(unittest.TestCase):
         warm_decode_cache=False,
         layer_cache_slots=None,
         decode_device_gate=None,
+        adaptive_cache=False,
     ):
         from sglang.srt.layers.moe.qwen38_cache_runtime import (
             Qwen38SynchronousExpertRuntime,
@@ -61,6 +62,8 @@ class TestGpuCache(unittest.TestCase):
             options["layer_cache_slots"] = layer_cache_slots
         if decode_device_gate is not None:
             options["decode_device_gate"] = decode_device_gate
+        if adaptive_cache:
+            options.update(adaptive_cache=True, adaptive_cache_mode="sample")
         allocated_before = torch.cuda.memory_allocated()
         torch.cuda.reset_peak_memory_stats()
         runtime = runtime_class(self.fixture.pack, "cuda", slots_per_layer=2, **options)
@@ -76,6 +79,20 @@ class TestGpuCache(unittest.TestCase):
         runtime.reserve()
         from sglang.srt.model_loader.qwen38_nvfp4_pack.format import REQUIRED_TENSORS
 
+        if adaptive_cache:
+            self.assertTrue(runtime.borrowed_arena)
+            memory = runtime.memory_budget()
+            self.assertEqual(memory["prefill_arena_bytes"], 0)
+            self.assertEqual(
+                memory["borrowed_prefill_arena_bytes"],
+                sum(t.numel() * t.element_size() for t in runtime.arena.values()),
+            )
+            self.assertGreater(memory["adaptive_metadata_bytes"], 0)
+            for name, tensor in runtime.arena.items():
+                self.assertEqual(
+                    tensor.data_ptr(),
+                    runtime.cache_pool[name][-runtime.manifest.num_experts :].data_ptr(),
+                )
         pointers = [
             runtime.caches[0]["w13_weight"].data_ptr(),
             runtime.arena["w13_weight"].data_ptr(),
@@ -113,6 +130,9 @@ class TestGpuCache(unittest.TestCase):
         for actual, ref in zip(outputs, expected):
             for name in ref:
                 self.assertTrue(torch.equal(actual[name].cpu(), ref[name]), name)
+        if adaptive_cache:
+            self.assertGreater(runtime.borrowed_restore_runs, 0)
+            self.assertGreater(runtime.borrowed_restore_experts, 0)
         self.assertEqual(runtime.caches[0]["w13_weight"].data_ptr(), pointers[0])
         self.assertEqual(runtime.arena["w13_weight"].data_ptr(), pointers[1])
         self.assertLess(torch.cuda.max_memory_allocated() - allocated_before, 512 << 20)
@@ -181,6 +201,16 @@ class TestGpuCache(unittest.TestCase):
 
     def test_async_ring_event_cache_arena(self):
         self._exercise("async")
+
+    @mock.patch.dict(os.environ, {"SGLANG_QWEN38_BORROW_PREFILL_ARENA": "1"})
+    def test_borrowed_arena_cross_stream_decode_prefill_and_restore(self):
+        self._exercise(
+            "threaded",
+            adaptive_cache=True,
+            decode_device_gate=True,
+            warm_decode_cache=True,
+            layer_cache_slots=[3, 2],
+        )
 
     def test_threaded_pipeline(self):
         self._exercise("threaded")
@@ -858,7 +888,7 @@ class TestGpuCache(unittest.TestCase):
         )
         from sglang.srt.model_loader.qwen38_nvfp4_pack.format import REQUIRED_TENSORS
 
-        for adaptive in (False, True):
+        for adaptive, borrow in ((False, False), (True, False), (True, True)):
             runtime = Qwen38ThreadedExpertRuntime(
                 self.fixture.pack,
                 "cuda",
@@ -868,7 +898,11 @@ class TestGpuCache(unittest.TestCase):
                 cache_policy="slru",
             )
             self.addCleanup(runtime.close)
-            runtime.reserve()
+            with mock.patch.dict(
+                os.environ, {"SGLANG_QWEN38_BORROW_PREFILL_ARENA": str(int(borrow))}
+            ):
+                runtime.reserve()
+            self.assertEqual(runtime.borrowed_arena, borrow)
             runtime.prefill_tokens_seen = 128
             one_expert = sum(
                 self.fixture.pack.manifest.tensors[0][name].nbytes // 4
@@ -895,16 +929,18 @@ class TestGpuCache(unittest.TestCase):
                     runtime.synchronize()
                     self.assertEqual(
                         runtime.transferred_bytes - before,
-                        (4 if step == 0 else 2) * one_expert,
+                        (4 if step == 0 or borrow else 2) * one_expert,
                     )
                     for name in REQUIRED_TENSORS:
                         expected = getattr(self.fixture.resident[layer], name)[
                             ids.cpu()
                         ]
                         self.assertTrue(torch.equal(output[name].cpu(), expected), name)
-            self.assertEqual(runtime.prefill_seed_runs, 2)
-            self.assertEqual(runtime.prefill_reused_experts, 8)
-            self.assertEqual(runtime.prefill_reuse_d2d_bytes, 8 * one_expert)
+            self.assertEqual(runtime.prefill_seed_runs, 0 if borrow else 2)
+            self.assertEqual(runtime.prefill_reused_experts, 0 if borrow else 8)
+            self.assertEqual(
+                runtime.prefill_reuse_d2d_bytes, 0 if borrow else 8 * one_expert
+            )
             runtime.close()
 
     def test_prefill_cache_scatter_handles_vector_and_scalar_rows(self):

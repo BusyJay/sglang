@@ -389,6 +389,7 @@ class Qwen38ExpertPack:
     def _prepare_source(self):
         if self._source_prepared:
             return
+        started = time.perf_counter()
         from sglang.srt.layers.moe.qwen38_observation import observe
         with observe("source_prefault_or_load", startup=True, mode=self._source_mode,
                      source_bytes=self.manifest.payload_nbytes):
@@ -414,6 +415,12 @@ class Qwen38ExpertPack:
                 finally:
                     view.release()
             self._source_prepared = True
+        logger.info(
+            "Qwen38 startup expert source ready: mode=%s GiB=%.2f seconds=%.3f",
+            self._source_mode,
+            self.manifest.payload_nbytes / (1 << 30),
+            time.perf_counter() - started,
+        )
 
     def wait_prefetch(self) -> None:
         if self._prefetch_thread is not None:
