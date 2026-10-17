@@ -100,7 +100,9 @@ def _extract_cache_stats(server_log_path):
             continue
         payload = line[payload_pos:].strip()
         try:
-            latest = json.loads(payload)
+            from sglang.srt.layers.moe.qwen38_cache_stats_format import expand_stats
+
+            latest = expand_stats(json.loads(payload))
         except json.JSONDecodeError:
             continue
     return latest

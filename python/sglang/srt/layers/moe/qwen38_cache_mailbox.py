@@ -182,7 +182,7 @@ class DecodeMissMailbox:
             r.cache_protected_fraction,
             self.hit_stats.data_ptr() + self.hit_stats.stride(0) * 8 * layer,
             capture,
-            os.getenv("SGLANG_QWEN38_PARALLEL_MISS_PLAN", "1") == "1",
+            int(os.getenv("SGLANG_QWEN38_PARALLEL_MISS_PLAN", "2")),
         )
         self.native_active = True
         if capture:

@@ -1,0 +1,158 @@
+{
+  "package_sha256": "9c6aa3c5d0571cb4c603f695bcf156bade4955aa9fb2c02298ffe1b60085c87c",
+  "manifest": {
+    "base_commit": "0d01fb2dc8e4c0d861fb16f5a77537936e598000",
+    "base_tree": "4248397770f51a020907509f25a3e3562a576022",
+    "candidates_are_independent": true,
+    "performance_defaults_enabled": false,
+    "compact_logs_default_enabled": true,
+    "gpu_validated": false,
+    "patches": {
+      "01-cache-candidates.patch": {
+        "base": "0d01fb2dc8e4c0d861fb16f5a77537936e598000",
+        "target_tree": "62a1617c27654f666b739f4638f0d76c1aecdb27",
+        "sha256": "0f836e191aa7a09a3cb251dbde3a1728b276273f1a1189fa41788679052d6cb7",
+        "apply_check": true,
+        "target_tree_check": true,
+        "reverse_tree_check": true,
+        "paths": [
+          "python/sglang/srt/layers/moe/qwen38_cache_adaptive.py",
+          "python/sglang/srt/layers/moe/qwen38_cache_analysis_worker.py",
+          "tools/qwen38_cache_tests/test_cpu_verify_cache_candidates.py"
+        ]
+      },
+      "02-w4a16-projection.patch": {
+        "base": "0d01fb2dc8e4c0d861fb16f5a77537936e598000",
+        "target_tree": "6e376144c78ca3a76b1fa0b9f28d8ecfc6322f35",
+        "sha256": "7150575d4d3dcdcc745bbfe810ee6a4894649b52af4f84ab1dde9135140cc0c3",
+        "apply_check": true,
+        "target_tree_check": true,
+        "reverse_tree_check": true,
+        "paths": [
+          "python/sglang/srt/layers/quantization/qwen38_cached_w4a16.py",
+          "tools/qwen38_cache_tests/w4a16_verify_compile_check.py",
+          "tools/qwen38_cache_tests/w4a16_verify_gpu_check.py"
+        ]
+      },
+      "03-planner-warp.patch": {
+        "base": "0d01fb2dc8e4c0d861fb16f5a77537936e598000",
+        "target_tree": "da88c431167de5c361b5494f47c4412ebc5358a2",
+        "sha256": "bcf556abed5673f5e2f612d04f2f63174d5064f3a72bac57f71b82402ef31225",
+        "apply_check": true,
+        "target_tree_check": true,
+        "reverse_tree_check": true,
+        "paths": [
+          "python/sglang/kernels/jit/csrc/moe/qwen38_expert_cache.cu",
+          "python/sglang/srt/layers/moe/qwen38_cache_mailbox.py",
+          "tools/qwen38_cache_tests/test_gpu_verify_mailbox.py"
+        ]
+      },
+      "04-compact-logs.patch": {
+        "base": "0d01fb2dc8e4c0d861fb16f5a77537936e598000",
+        "target_tree": "320e65f4f82069f8c3ef762b00f9b2b8be71d84b",
+        "sha256": "07a6cdacd827151bfe0ec38c69d8e295bc7676245157e5a629248343d075de9c",
+        "apply_check": true,
+        "target_tree_check": true,
+        "reverse_tree_check": true,
+        "paths": [
+          "python/sglang/srt/layers/moe/qwen38_cache_runtime.py",
+          "python/sglang/srt/layers/moe/qwen38_cache_stats_format.py",
+          "tools/qwen38_cache_tests/test_cpu_compact_cache_stats.py",
+          "tools/qwen38_cache_tests/full_model_canary.py",
+          "tools/qwen38_cache_tests/benchmark/runner.py"
+        ]
+      },
+      "05-experiment-tools.patch": {
+        "base": "0d01fb2dc8e4c0d861fb16f5a77537936e598000",
+        "target_tree": "6e839f84ae3df0ad57971f1e62765acc084c4641",
+        "sha256": "ec4c655dd713c30d27ac1a2da0b39f1377cd35ad4b8a2d0c8bdf6df7d0fcc17a",
+        "apply_check": true,
+        "target_tree_check": true,
+        "reverse_tree_check": true,
+        "paths": [
+          "tools/qwen38_cache_tests/verify_experiments_20261018/Dockerfile",
+          "tools/qwen38_cache_tests/verify_experiments_20261018/README.md",
+          "tools/qwen38_cache_tests/verify_experiments_20261018/cache_stats_decode.py",
+          "tools/qwen38_cache_tests/verify_experiments_20261018/experiment_matrix.json",
+          "tools/qwen38_cache_tests/verify_experiments_20261018/planner_bench.py",
+          "tools/qwen38_cache_tests/verify_experiments_20261018/service_bench.py"
+        ]
+      },
+      "all.patch": {
+        "base": "0d01fb2dc8e4c0d861fb16f5a77537936e598000",
+        "target_tree": "fe5be65fa6fb040f3c8f547af40a5c38897ac950",
+        "sha256": "22e94528c3521d2479ad6db4eb122134a68a0f13f63db0193375bb5533472b2e",
+        "apply_check": true,
+        "target_tree_check": true,
+        "reverse_tree_check": true,
+        "paths": [
+          "python/sglang/srt/layers/moe/qwen38_cache_adaptive.py",
+          "python/sglang/srt/layers/moe/qwen38_cache_analysis_worker.py",
+          "tools/qwen38_cache_tests/test_cpu_verify_cache_candidates.py",
+          "python/sglang/srt/layers/quantization/qwen38_cached_w4a16.py",
+          "tools/qwen38_cache_tests/w4a16_verify_compile_check.py",
+          "tools/qwen38_cache_tests/w4a16_verify_gpu_check.py",
+          "python/sglang/kernels/jit/csrc/moe/qwen38_expert_cache.cu",
+          "python/sglang/srt/layers/moe/qwen38_cache_mailbox.py",
+          "tools/qwen38_cache_tests/test_gpu_verify_mailbox.py",
+          "python/sglang/srt/layers/moe/qwen38_cache_runtime.py",
+          "python/sglang/srt/layers/moe/qwen38_cache_stats_format.py",
+          "tools/qwen38_cache_tests/test_cpu_compact_cache_stats.py",
+          "tools/qwen38_cache_tests/full_model_canary.py",
+          "tools/qwen38_cache_tests/benchmark/runner.py",
+          "tools/qwen38_cache_tests/verify_experiments_20261018/Dockerfile",
+          "tools/qwen38_cache_tests/verify_experiments_20261018/README.md",
+          "tools/qwen38_cache_tests/verify_experiments_20261018/cache_stats_decode.py",
+          "tools/qwen38_cache_tests/verify_experiments_20261018/experiment_matrix.json",
+          "tools/qwen38_cache_tests/verify_experiments_20261018/planner_bench.py",
+          "tools/qwen38_cache_tests/verify_experiments_20261018/service_bench.py"
+        ]
+      }
+    },
+    "paths": [
+      "python/sglang/srt/layers/moe/qwen38_cache_adaptive.py",
+      "python/sglang/srt/layers/moe/qwen38_cache_analysis_worker.py",
+      "tools/qwen38_cache_tests/test_cpu_verify_cache_candidates.py",
+      "python/sglang/srt/layers/quantization/qwen38_cached_w4a16.py",
+      "tools/qwen38_cache_tests/w4a16_verify_compile_check.py",
+      "tools/qwen38_cache_tests/w4a16_verify_gpu_check.py",
+      "python/sglang/kernels/jit/csrc/moe/qwen38_expert_cache.cu",
+      "python/sglang/srt/layers/moe/qwen38_cache_mailbox.py",
+      "tools/qwen38_cache_tests/test_gpu_verify_mailbox.py",
+      "python/sglang/srt/layers/moe/qwen38_cache_runtime.py",
+      "python/sglang/srt/layers/moe/qwen38_cache_stats_format.py",
+      "tools/qwen38_cache_tests/test_cpu_compact_cache_stats.py",
+      "tools/qwen38_cache_tests/full_model_canary.py",
+      "tools/qwen38_cache_tests/benchmark/runner.py",
+      "tools/qwen38_cache_tests/verify_experiments_20261018/Dockerfile",
+      "tools/qwen38_cache_tests/verify_experiments_20261018/README.md",
+      "tools/qwen38_cache_tests/verify_experiments_20261018/cache_stats_decode.py",
+      "tools/qwen38_cache_tests/verify_experiments_20261018/experiment_matrix.json",
+      "tools/qwen38_cache_tests/verify_experiments_20261018/planner_bench.py",
+      "tools/qwen38_cache_tests/verify_experiments_20261018/service_bench.py"
+    ],
+    "source_sha256": {
+      "python/sglang/srt/layers/moe/qwen38_cache_adaptive.py": "60a9e3c0b1e8916b6d91adac2de5859d510ec67acd8b65bbb429b7858659e9af",
+      "python/sglang/srt/layers/moe/qwen38_cache_analysis_worker.py": "46f46ed53ca73b30feda18c37a566c76ac87811c0fe5eca4239cc88ae9a42a79",
+      "tools/qwen38_cache_tests/test_cpu_verify_cache_candidates.py": "1e90c84a6934ec20e76364543d593e854309c366819c4c77f349595e2d3de034",
+      "python/sglang/srt/layers/quantization/qwen38_cached_w4a16.py": "a9cd0001a047115e9408e61ec91d95fa5c8195fef78e68272c29326c52ab063c",
+      "tools/qwen38_cache_tests/w4a16_verify_compile_check.py": "3408813e36214325e4d488069dcb1ac21356cd6526c7fcd129ea8e238e9466b4",
+      "tools/qwen38_cache_tests/w4a16_verify_gpu_check.py": "bef124008407070d203fd3e0f6d79622641bd5b6a8c8e52b671f65ef33aa5415",
+      "python/sglang/kernels/jit/csrc/moe/qwen38_expert_cache.cu": "28a908d0688d5b4f39231668e287f3d48684ceebd114e91056fe116ebb185b76",
+      "python/sglang/srt/layers/moe/qwen38_cache_mailbox.py": "b4066d8435304c74701562ea9667e091300c90eed6015aad32fa0967bfb8156d",
+      "tools/qwen38_cache_tests/test_gpu_verify_mailbox.py": "ceb17c51ab3c2eda5d0b6c18dee0ef1eecaa2d5211b82138b59e9d2adbda276f",
+      "python/sglang/srt/layers/moe/qwen38_cache_runtime.py": "ecde89f5e326e1e66fd0b2cd8a7060f8388c30c6858dceaf739345adb4ad6eb0",
+      "python/sglang/srt/layers/moe/qwen38_cache_stats_format.py": "215e02e78e876592bc1287236a20ad6868a710517225b7d90a9545126b9c7405",
+      "tools/qwen38_cache_tests/test_cpu_compact_cache_stats.py": "3b709bffe999c5be2b7f1d852e3bf36e024b3b008871e08c8804220d3d0df8bd",
+      "tools/qwen38_cache_tests/full_model_canary.py": "c95d51b002f4b3d5182a476519fb936e1a237ebf68786b3553adb9212e60e972",
+      "tools/qwen38_cache_tests/benchmark/runner.py": "3c54b93bc46be827b08b72310475a7d3a102481011cc651c21fe0edcc08a5c31",
+      "tools/qwen38_cache_tests/verify_experiments_20261018/Dockerfile": "19cef8163ae1c7b17f079945ca95a321f84d104c336e1dc546d51baa8727ad9b",
+      "tools/qwen38_cache_tests/verify_experiments_20261018/README.md": "36c0484c61fdff4e1f2f2f1949aa0ed52705b9eb1c6e759e45e6ed00591eadb3",
+      "tools/qwen38_cache_tests/verify_experiments_20261018/cache_stats_decode.py": "615927a3ab29ed5f30c5ad2de54fdbf174cc39a1cf95ebce51845d414ac6e7d0",
+      "tools/qwen38_cache_tests/verify_experiments_20261018/experiment_matrix.json": "b0a596207354c5c5f7bf3ad5a82cc5094ca42853b64a079bb88164fde34d48ac",
+      "tools/qwen38_cache_tests/verify_experiments_20261018/planner_bench.py": "498636b8e2fc2f278b777f89cef37c542919102ff82c9e695d75570e943d7775",
+      "tools/qwen38_cache_tests/verify_experiments_20261018/service_bench.py": "b49687228891257691a590f41b4004d72b1a795e1ac81d0de556c50909942a7b"
+    },
+    "combination_tree_check": true
+  }
+}

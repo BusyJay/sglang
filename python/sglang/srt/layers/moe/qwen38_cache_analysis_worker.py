@@ -3,6 +3,7 @@
 
 import importlib.util
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -25,6 +26,15 @@ def main():
         request = json.loads(line)
         started = time.perf_counter()
         routes = request["routes"]
+        candidate_max = request.get("candidate_max")
+        if candidate_max is None:
+            # Preserve larger existing layouts and support smaller expert sets.
+            default_max = min(request["num_experts"], max(256, max(request["current"])))
+            configured_max = os.getenv(
+                "SGLANG_QWEN38_ADAPTIVE_CANDIDATE_MAX", str(default_max)
+            )
+            # An explicitly empty value restores the original candidate grid.
+            candidate_max = int(configured_max) if configured_max else None
         warmup = min(128, len(routes[0]) // 4)
         # Every batch is contiguous, but batches may have an unobserved gap.
         # Reset all candidates together rather than pretending the gap was idle.
@@ -36,6 +46,7 @@ def main():
             policy=request["policy"],
             protected_fraction=request["protected_fraction"],
             budget=request.get("budget"),
+            candidate_max=candidate_max,
         )
         target = None
         for token in range(len(routes[0])):
@@ -59,6 +70,7 @@ def main():
                     "target": target,
                     "evaluation": allocator.last_evaluation,
                     "warmup_tokens": warmup,
+                    "candidates": allocator.candidates,
                     "seconds": time.perf_counter() - started,
                 }
             ),

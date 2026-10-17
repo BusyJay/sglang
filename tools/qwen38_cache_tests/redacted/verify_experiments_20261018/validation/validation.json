@@ -1,0 +1,86 @@
+{
+  "status": "passed",
+  "base_commit": "0d01fb2dc8e4c0d861fb16f5a77537936e598000",
+  "promotion_criterion": "Measured component or individual-sample benefit; stable aggregate throughput not required",
+  "defaults": {
+    "SGLANG_QWEN38_ADAPTIVE_CANDIDATE_MAX": "256",
+    "SGLANG_QWEN38_W4A16_VERIFY_MODE": "fused",
+    "SGLANG_QWEN38_PARALLEL_MISS_PLAN": "2",
+    "SGLANG_QWEN38_CACHE_STATS_FORMAT": "compact"
+  },
+  "reuse_default_enabled": false,
+  "cpu": {
+    "tests": 321,
+    "status": "passed",
+    "log": "cpu-final.log.gz"
+  },
+  "gpu": {
+    "tests": 67,
+    "skipped": 0,
+    "failures": 0,
+    "errors": 0,
+    "status": "passed",
+    "skip_details": [],
+    "failure_details": [],
+    "error_details": [],
+    "device": "NVIDIA GeForce RTX 5090 D",
+    "weights_downloaded": false
+  },
+  "projection": {
+    "configurations": 112,
+    "status": "passed",
+    "default_matches_explicit_fused": true
+  },
+  "service": {
+    "workers": 8,
+    "requests": 32,
+    "quality_smoke_passed": 32,
+    "quality_smoke_total": 32,
+    "all_kv_capacity": 221248,
+    "comparison": "sustained/comparison.json"
+  },
+  "final_default_worker": {
+    "quality_smoke_passed": 4,
+    "kv_capacity": 221248,
+    "near_limit": {
+      "id": "[REDACTED REQUEST ID]",
+      "finish_reason": {
+        "type": "length",
+        "length": 128
+      },
+      "prompt_tokens": 218015,
+      "weight_version": "default",
+      "num_retractions": 0,
+      "reasoning_tokens": 0,
+      "completion_tokens": 128,
+      "cached_tokens": 0,
+      "weight_versions": [
+        {
+          "version": "default",
+          "start": 0,
+          "end": 128
+        }
+      ],
+      "cached_tokens_details": null,
+      "dp_rank": null,
+      "e2e_latency": 33.3529053790262,
+      "spec_accept_rate": 0.6851851851851852,
+      "spec_accept_length": 2.3703703703703702,
+      "spec_num_correct_drafts": 74,
+      "spec_num_proposed_drafts": 108,
+      "spec_verify_ct": 54,
+      "spec_correct_drafts_histogram": [
+        11,
+        12,
+        31
+      ]
+    },
+    "health_after_near_limit": "200 OK",
+    "candidate_switches_unset": true,
+    "runtime_source_hashes_match": true
+  },
+  "limitations": [
+    "Service throughput is variable and aggregate candidate results include regressions; no stable overall speedup is claimed",
+    "Quality checks are smoke tests, not a comprehensive model-quality evaluation"
+  ]
+}

@@ -101,6 +101,7 @@ class AdaptiveLayerAllocator:
         policy="lfu",
         protected_fraction=0.7,
         budget=None,
+        candidate_max=None,
     ):
         self.num_layers = len(initial_slots)
         self.num_experts = num_experts
@@ -118,7 +119,23 @@ class AdaptiveLayerAllocator:
             step = 16 if num_experts >= 64 else 1
             lower = max(min_slots, ((baseline // 2 + step - 1) // step) * step)
             upper = min(num_experts, max(initial_slots) + 16)
-            candidates = range(lower, upper + 1, step)
+            if candidate_max is not None:
+                if (
+                    type(candidate_max) is not int
+                    or not max(initial_slots) <= candidate_max <= num_experts
+                ):
+                    raise ValueError(
+                        "candidate_max must cover the baseline and fit experts"
+                    )
+                upper = min(upper, candidate_max)
+            candidates = list(range(lower, upper + 1, step))
+            if candidate_max is not None:
+                # Coarse extensions bound shadow-policy work; keep the baseline grid.
+                coarse = max(step, 32)
+                candidates.extend(
+                    range(((upper // coarse) + 1) * coarse, candidate_max + 1, coarse)
+                )
+                candidates.append(candidate_max)
         self.candidates = tuple(sorted(set(candidates) | set(initial_slots)))
         if (
             not self.num_layers

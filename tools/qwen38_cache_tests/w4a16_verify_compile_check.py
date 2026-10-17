@@ -42,6 +42,7 @@ def main():
         {
             "_scale_offset",
             "_cache_project_splitk",
+            "_cache_project_reuse",
             "_splitk_swiglu",
             "_splitk_combine",
         },
@@ -69,6 +70,7 @@ def main():
                         "N": n,
                         "TOPK": 10,
                         "FIRST": first,
+                        "FUSE_SWIGLU": False,
                         "SPLIT_K": split,
                         "BN": 16,
                         "BK": 256,
@@ -76,6 +78,50 @@ def main():
                     },
                 )
                 triton.compile(source, target=target, options={"num_warps": 4})
+                if split == 1:
+                    signature = {
+                        "X": "*bf16",
+                        "W": "*u8",
+                        "S": "*fp8e4nv",
+                        "G": "*fp32",
+                        "Q": "*fp32",
+                        "IDs": "*i32",
+                        "Router": "*fp32",
+                        "Y": "*bf16" if first else "*fp32",
+                        "E": "i32",
+                    }
+                    constants = dict(
+                        K=k, N=n, TOPK=10, FIRST=first, BN=16, BK=256, ROUTES=routes
+                    )
+                    if first:
+                        triton.compile(
+                            ASTSource(
+                                kernels._cache_project_splitk,
+                                signature=signature,
+                                constexprs={
+                                    **constants,
+                                    "SPLIT_K": 1,
+                                    "FUSE_SWIGLU": True,
+                                },
+                            ),
+                            target=target,
+                            options={"num_warps": 4},
+                        )
+                    triton.compile(
+                        ASTSource(
+                            kernels._cache_project_reuse,
+                            signature=signature,
+                            constexprs={
+                                **constants,
+                                "TOKENS": routes // 10,
+                                "BT": 4,
+                                "BR": 32,
+                                "BTOP": 16,
+                            },
+                        ),
+                        target=target,
+                        options={"num_warps": 4},
+                    )
             for name, signature, constants in (
                 (
                     "_splitk_swiglu",
