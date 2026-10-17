@@ -93,3 +93,13 @@ The complete dependency-backed CPU suite was rerun in
 `swallow-sglang:service-flash-next-f712e3118c75`: **276 tests passed**.
 See `commit-container-cpu-tests.log`. The host Python lacks torch and cannot
 run this complete suite; the container result is the relevant check.
+
+## Shared launch log correction
+
+Both FP4 presets invoke `sglang-fp4-local.sh`; A4 passes only `--decode-a4`.
+The old A4 entry is an exec-only compatibility shim. The shared script now
+also uses a single `sglang-fp4-local.log` for both precisions. The previous
+precision-dependent log-name branch was removed. The currently running A4
+log inode was renamed to the common path; the old A4 name is a symlink and
+the previous common log is archived under the deployment model-backups.
+No model restart or precision change was needed for this log migration.
