@@ -18,6 +18,10 @@ _PROBES = {}
 
 
 def get_startup_memory_probe(device):
+    if os.getenv("SGLANG_QWEN38_OOM_MEMORY_DIR"):
+        from sglang.srt.layers.moe.qwen38_oom_memory import install_oom_memory_observer
+
+        install_oom_memory_observer(device)
     directory = os.getenv("SGLANG_QWEN38_STARTUP_MEMORY_DIR")
     if not directory:
         return None

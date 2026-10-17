@@ -1,0 +1,1699 @@
+{
+  "snapshot": "/home/user/workspace/prod/homelab-llm/models/profiles/oom-investigation/live/oom-pid170-1792230427827658009.pickle",
+  "active_by_stack": [
+    {
+      "bytes": 14764075008,
+      "count": 6,
+      "stack": "srt/layers/moe/qwen38_cache_threaded.py:275:reserve <- srt/model_loader/qwen38_nvfp4_cache_loader.py:435:load_model <- srt/model_executor/model_runner_components/load_model_utils.py:339:load_model_with_memory_saver"
+    },
+    {
+      "bytes": 2938306560,
+      "count": 240,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/quantization/fp8.py:639:create_fp8_weight_ <- srt/layers/quantization/fp8.py:708:create_weights"
+    },
+    {
+      "bytes": 1567621120,
+      "count": 13,
+      "stack": "srt/mem_cache/memory_pool.py:2345:_create_buffers_normal <- srt/mem_cache/memory_pool.py:2168:_create_buffers <- srt/mem_cache/memory_pool.py:2075:__init__"
+    },
+    {
+      "bytes": 1567621120,
+      "count": 13,
+      "stack": "srt/mem_cache/memory_pool.py:2349:_create_buffers_normal <- srt/mem_cache/memory_pool.py:2168:_create_buffers <- srt/mem_cache/memory_pool.py:2075:__init__"
+    },
+    {
+      "bytes": 1415581696,
+      "count": 6,
+      "stack": "srt/layers/moe/qwen38_cache_runtime.py:235:_allocate <- srt/layers/moe/qwen38_cache_device.py:78:_allocate <- srt/layers/moe/qwen38_cache_runtime.py:222:reserve"
+    },
+    {
+      "bytes": 1271398400,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/quantization/unquant.py:415:create_weights <- srt/layers/vocab_parallel_embedding.py:339:__init__"
+    },
+    {
+      "bytes": 1271398400,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/quantization/unquant.py:452:create_weights <- srt/layers/vocab_parallel_embedding.py:339:__init__"
+    },
+    {
+      "bytes": 838860800,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/quantization/modelopt_quant.py:2443:create_weights <- srt/layers/quantization/qwen38_fp4_mtp.py:156:create_weights"
+    },
+    {
+      "bytes": 655360000,
+      "count": 100,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- lib/python3.12/site-packages/torch/nn/modules/linear.py:109:__init__ <- srt/layers/hyperconnection.py:157:__init__"
+    },
+    {
+      "bytes": 655360000,
+      "count": 100,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- lib/python3.12/site-packages/torch/nn/modules/linear.py:109:__init__ <- srt/layers/hyperconnection.py:164:__init__"
+    },
+    {
+      "bytes": 622854144,
+      "count": 1,
+      "stack": "srt/mem_cache/memory_pool.py:643:__init__ <- srt/mem_cache/memory_pool.py:1307:_init_mamba_pool <- srt/mem_cache/memory_pool.py:1269:__init__"
+    },
+    {
+      "bytes": 419430400,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/quantization/modelopt_quant.py:2458:create_weights <- srt/layers/quantization/qwen38_fp4_mtp.py:156:create_weights"
+    },
+    {
+      "bytes": 339738624,
+      "count": 1,
+      "stack": "srt/mem_cache/memory_pool.py:777:__init__ <- srt/mem_cache/memory_pool.py:1307:_init_mamba_pool <- srt/mem_cache/memory_pool.py:1269:__init__"
+    },
+    {
+      "bytes": 335544320,
+      "count": 2,
+      "stack": "kernels/ops/elementwise/hc_combine.py:86:hc_combine <- srt/layers/hyperconnection.py:329:combine <- srt/models/qwen4_exp.py:1763:_postprocess_qwen4_exp_layer"
+    },
+    {
+      "bytes": 269172736,
+      "count": 49,
+      "stack": "lib/python3.12/site-packages/flashinfer/gemm/gemm_base.py:5688:mm_mxfp8 <- lib/python3.12/site-packages/flashinfer/api_logging.py:2333:_auto_dump_wrapper <- lib/python3.12/site-packages/flashinfer/utils.py:1449:wrapper"
+    },
+    {
+      "bytes": 268435456,
+      "count": 1,
+      "stack": "srt/layers/attention/flashinfer_backend.py:432:<lambda> <- srt/runtime_context.py:997:get_buffer <- srt/runtime_context.py:1611:get_buffer"
+    },
+    {
+      "bytes": 268435456,
+      "count": 2,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:1486:_forward_trtllm_sparse <- srt/layers/attention/qwen_sparse_attn_backend.py:1541:_forward_paged_attention <- srt/layers/attention/qwen_sparse_attn_backend.py:1292:forward_extend"
+    },
+    {
+      "bytes": 201326592,
+      "count": 1,
+      "stack": "kernels/ops/attention/fla/chunk_delta_h.py:396:chunk_gated_delta_rule_fwd_h <- kernels/ops/attention/fla/chunk.py:63:chunk_gated_delta_rule_fwd <- kernels/ops/attention/fla/chunk.py:119:forward"
+    },
+    {
+      "bytes": 197263360,
+      "count": 52,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/quantization/unquant.py:452:create_weights <- srt/layers/linear.py:239:__init__"
+    },
+    {
+      "bytes": 195952640,
+      "count": 2,
+      "stack": "srt/mem_cache/qsa_kv_pool.py:168:__init__ <- srt/mem_cache/kv_cache_configurator.py:1940:_build_hybrid_linear_kv_pool <- srt/mem_cache/kv_cache_configurator.py:1304:_build_token_to_kv_pool"
+    },
+    {
+      "bytes": 167772160,
+      "count": 1,
+      "stack": "srt/models/qwen4_exp.py:1661:_prepare_qwen4_exp_attn <- srt/models/qwen4_exp.py:1790:forward <- lib/python3.12/site-packages/torch/nn/modules/module.py:1789:_call_impl"
+    },
+    {
+      "bytes": 167772160,
+      "count": 1,
+      "stack": "srt/layers/quantization/qwen38_fp32_norm.py:38:fp32_grouped_gemma_norm <- srt/layers/hyperconnection.py:61:forward <- lib/python3.12/site-packages/torch/nn/modules/module.py:1789:_call_impl"
+    },
+    {
+      "bytes": 167772160,
+      "count": 3,
+      "stack": "kernels/ops/attention/fla/utils.py:153:<genexpr> <- kernels/ops/attention/fla/utils.py:177:wrapper <- lib/python3.12/site-packages/torch/autograd/function.py:625:apply"
+    },
+    {
+      "bytes": 167772160,
+      "count": 1,
+      "stack": "kernels/ops/mamba/causal_conv1d_triton.py:454:causal_conv1d_fn <- srt/layers/attention/mamba/causal_conv1d.py:94:causal_conv1d_fn <- srt/layers/attention/linear/gdn_backend.py:1003:forward_extend"
+    },
+    {
+      "bytes": 134217728,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:1486:_forward_trtllm_sparse <- srt/layers/attention/qwen_sparse_attn_backend.py:1541:_forward_paged_attention <- srt/layers/attention/qwen_sparse_attn_backend.py:1519:forward_decode"
+    },
+    {
+      "bytes": 104857600,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/quantization/modelopt_quant.py:2472:create_weights <- srt/layers/quantization/qwen38_fp4_mtp.py:156:create_weights"
+    },
+    {
+      "bytes": 101058560,
+      "count": 7,
+      "stack": "[]"
+    },
+    {
+      "bytes": 100663296,
+      "count": 3,
+      "stack": "srt/layers/quantization/unquant.py:512:apply <- srt/layers/linear.py:298:forward <- lib/python3.12/site-packages/torch/nn/modules/module.py:1789:_call_impl"
+    },
+    {
+      "bytes": 100663296,
+      "count": 1,
+      "stack": "kernels/ops/attention/fla/chunk_delta_h.py:398:chunk_gated_delta_rule_fwd_h <- kernels/ops/attention/fla/chunk.py:63:chunk_gated_delta_rule_fwd <- kernels/ops/attention/fla/chunk.py:119:forward"
+    },
+    {
+      "bytes": 100663296,
+      "count": 1,
+      "stack": "kernels/ops/attention/fla/wy_fast.py:131:recompute_w_u_fwd <- kernels/ops/attention/fla/chunk_fwd.py:409:chunk_gated_delta_rule_fwd_intra <- kernels/ops/attention/fla/chunk.py:54:chunk_gated_delta_rule_fwd"
+    },
+    {
+      "bytes": 100663296,
+      "count": 1,
+      "stack": "kernels/ops/attention/fla/wy_fast.py:132:recompute_w_u_fwd <- kernels/ops/attention/fla/chunk_fwd.py:409:chunk_gated_delta_rule_fwd_intra <- kernels/ops/attention/fla/chunk.py:54:chunk_gated_delta_rule_fwd"
+    },
+    {
+      "bytes": 91914240,
+      "count": 240,
+      "stack": "lib/python3.12/site-packages/flashinfer/quantization/fp4_quantization.py:393:block_scale_interleave_sm100 <- lib/python3.12/site-packages/flashinfer/quantization/fp4_quantization.py:1191:block_scale_interleave <- srt/layers/quantization/fp8.py:960:_process_mxfp8_linear_weight_scale"
+    },
+    {
+      "bytes": 91822080,
+      "count": 240,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/quantization/fp8.py:658:create_fp8_weight_ <- srt/layers/quantization/fp8.py:708:create_weights"
+    },
+    {
+      "bytes": 77660160,
+      "count": 38,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/quantization/unquant.py:452:create_weights <- srt/layers/linear.py:375:__init__"
+    },
+    {
+      "bytes": 67108864,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/rotary_embedding/base.py:195:_compute_cos_sin_cache <- srt/layers/rotary_embedding/base.py:112:__init__"
+    },
+    {
+      "bytes": 67108864,
+      "count": 1,
+      "stack": "srt/layers/moe/qwen38_packed_transport.py:38:__init__ <- srt/layers/moe/qwen38_cache_threaded.py:358:reserve <- srt/model_loader/qwen38_nvfp4_cache_loader.py:435:load_model"
+    },
+    {
+      "bytes": 52428800,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/quantization/modelopt_quant.py:2498:create_weights <- srt/layers/quantization/qwen38_fp4_mtp.py:156:create_weights"
+    },
+    {
+      "bytes": 50331648,
+      "count": 1,
+      "stack": "kernels/ops/attention/fla/chunk_fwd.py:392:chunk_gated_delta_rule_fwd_intra <- kernels/ops/attention/fla/chunk.py:54:chunk_gated_delta_rule_fwd <- kernels/ops/attention/fla/chunk.py:119:forward"
+    },
+    {
+      "bytes": 41943040,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/nn/functional.py:2615:embedding <- srt/layers/quantization/unquant.py:435:embedding <- srt/layers/vocab_parallel_embedding.py:543:_embed_local_shard"
+    },
+    {
+      "bytes": 41943040,
+      "count": 1,
+      "stack": "srt/models/qwen4_exp.py:980:allocate_output <- srt/models/qwen4_exp.py:1404:_allocate_prefetch_buffer <- srt/models/qwen4_exp.py:1420:_get_prefetch_buffer"
+    },
+    {
+      "bytes": 41943040,
+      "count": 1,
+      "stack": "inductor/7l/c7lrkih3krz23myc2bi5aspmd6tsjbhgtv7iol2qalbtt6dpiut2.py:197:call <- srt/layers/hyperconnection.py:199:_mix_compute <- lib/python3.12/site-packages/torch/_inductor/output_code.py:763:__call__"
+    },
+    {
+      "bytes": 34734080,
+      "count": 2,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/quantization/unquant.py:452:create_weights <- srt/layers/linear.py:1486:__init__"
+    },
+    {
+      "bytes": 33554432,
+      "count": 1,
+      "stack": "srt/utils/common.py:4971:init_cublas <- srt/model_executor/model_runner_components/attention_backend_setup.py:76:build_attention_backends <- srt/model_executor/model_runner.py:1032:init_attention_backends"
+    },
+    {
+      "bytes": 33554432,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/flashinfer/utils.py:238:_get_cache_buf <- lib/python3.12/site-packages/flashinfer/gemm/gemm_base.py:5694:mm_mxfp8 <- lib/python3.12/site-packages/flashinfer/api_logging.py:2333:_auto_dump_wrapper"
+    },
+    {
+      "bytes": 33554432,
+      "count": 1,
+      "stack": "kernels/ops/attention/fla/l2norm.py:80:l2norm_fwd <- kernels/ops/attention/fla/chunk.py:111:forward <- lib/python3.12/site-packages/torch/amp/autocast_mode.py:481:decorate_fwd"
+    },
+    {
+      "bytes": 33554432,
+      "count": 1,
+      "stack": "kernels/ops/attention/fla/l2norm.py:80:l2norm_fwd <- kernels/ops/attention/fla/chunk.py:112:forward <- lib/python3.12/site-packages/torch/amp/autocast_mode.py:481:decorate_fwd"
+    },
+    {
+      "bytes": 33554432,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/nn/modules/linear.py:134:forward <- lib/python3.12/site-packages/torch/nn/modules/module.py:1789:_call_impl <- lib/python3.12/site-packages/torch/nn/modules/module.py:1778:_wrapped_call_impl"
+    },
+    {
+      "bytes": 24330240,
+      "count": 1,
+      "stack": "srt/mem_cache/memory_pool.py:617:__init__ <- srt/mem_cache/memory_pool.py:1307:_init_mamba_pool <- srt/mem_cache/memory_pool.py:1269:__init__"
+    },
+    {
+      "bytes": 15138816,
+      "count": 3,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:1393:_get_fa2_scratch <- srt/layers/attention/qwen_sparse_attn_backend.py:1448:_forward_trtllm_sparse <- srt/layers/attention/qwen_sparse_attn_backend.py:1541:_forward_paged_attention"
+    },
+    {
+      "bytes": 15138816,
+      "count": 3,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:1394:_get_fa2_scratch <- srt/layers/attention/qwen_sparse_attn_backend.py:1448:_forward_trtllm_sparse <- srt/layers/attention/qwen_sparse_attn_backend.py:1541:_forward_paged_attention"
+    },
+    {
+      "bytes": 13107200,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- lib/python3.12/site-packages/torch/nn/modules/linear.py:109:__init__ <- srt/models/qwen4_exp_mtp.py:126:_init_linear_projections"
+    },
+    {
+      "bytes": 13107200,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- lib/python3.12/site-packages/torch/nn/modules/linear.py:109:__init__ <- srt/models/qwen4_exp_mtp.py:129:_init_linear_projections"
+    },
+    {
+      "bytes": 11796480,
+      "count": 36,
+      "stack": "srt/layers/quantization/fp8.py:952:_process_mxfp8_linear_weight_scale <- srt/layers/quantization/fp8.py:770:process_weights_after_loading_block_quant <- srt/layers/quantization/fp8.py:1023:process_weights_after_loading"
+    },
+    {
+      "bytes": 11302912,
+      "count": 6,
+      "stack": "srt/model_executor/cuda_graph_buffer_registry.py:361:register_slot <- srt/model_executor/cuda_graph_buffer_registry.py:731:build_decode_registry <- srt/model_executor/cuda_graph_buffer_registry.py:1037:build_eager_registry"
+    },
+    {
+      "bytes": 8028160,
+      "count": 98,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- lib/python3.12/site-packages/torch/nn/modules/linear.py:109:__init__ <- srt/layers/hyperconnection.py:184:__init__"
+    },
+    {
+      "bytes": 7372800,
+      "count": 1,
+      "stack": "srt/mem_cache/memory_pool.py:505:_allocate_deduplicated_conv_window <- srt/mem_cache/memory_pool.py:824:__init__ <- srt/mem_cache/memory_pool.py:1307:_init_mamba_pool"
+    },
+    {
+      "bytes": 6488064,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/moe/qwen38_cache_sampling.py:41:__init__ <- srt/layers/moe/qwen38_cache_mailbox.py:129:_initialize"
+    },
+    {
+      "bytes": 4096000,
+      "count": 100,
+      "stack": "srt/models/qwen4_exp.py:2459:load_weights <- srt/model_loader/loader.py:1092:load_weights_only <- srt/model_loader/loader.py:1040:load_weights_and_postprocess"
+    },
+    {
+      "bytes": 4055040,
+      "count": 4,
+      "stack": "srt/model_executor/runner_backend/breakable_cuda_graph_backend.py:186:_alloc_full_buffer <- srt/model_executor/runner_backend/breakable_cuda_graph_backend.py:202:_alloc_full_buffer <- srt/model_executor/runner_backend/breakable_cuda_graph_backend.py:140:capture_one"
+    },
+    {
+      "bytes": 2979840,
+      "count": 1,
+      "stack": "srt/model_executor/graph_shared_output.py:69:get_logits_buffer <- srt/model_executor/runner/decode_cuda_graph_runner.py:414:__init__ <- srt/model_executor/model_runner_components/cuda_graph_setup.py:746:capture_decode_graph"
+    },
+    {
+      "bytes": 2765824,
+      "count": 6,
+      "stack": "srt/layers/moe/qwen38_cache_threaded.py:307:reserve <- srt/model_loader/qwen38_nvfp4_cache_loader.py:435:load_model <- srt/model_executor/model_runner_components/load_model_utils.py:339:load_model_with_memory_saver"
+    },
+    {
+      "bytes": 2027520,
+      "count": 1,
+      "stack": "srt/mem_cache/ple_state_pool.py:73:__init__ <- srt/mem_cache/memory_pool.py:1331:_init_mamba_pool <- srt/mem_cache/memory_pool.py:1269:__init__"
+    },
+    {
+      "bytes": 1760768,
+      "count": 1,
+      "stack": "srt/mem_cache/memory_pool.py:304:__init__ <- srt/mem_cache/memory_pool.py:1255:__init__ <- srt/mem_cache/kv_cache_configurator.py:1138:_build_hybrid_req_pool"
+    },
+    {
+      "bytes": 1572864,
+      "count": 1,
+      "stack": "srt/layers/quantization/fp8.py:1240:apply <- srt/layers/linear.py:504:forward <- lib/python3.12/site-packages/torch/nn/modules/module.py:1789:_call_impl"
+    },
+    {
+      "bytes": 1572864,
+      "count": 1,
+      "stack": "kernels/ops/attention/fla/fused_gdn_gating.py:57:fused_gdn_gating <- srt/layers/attention/linear/gdn_backend.py:1101:forward_extend <- srt/layers/attention/hybrid_linear_attn_backend.py:1359:forward_extend"
+    },
+    {
+      "bytes": 1572864,
+      "count": 1,
+      "stack": "kernels/ops/attention/fla/fused_gdn_gating.py:58:fused_gdn_gating <- srt/layers/attention/linear/gdn_backend.py:1101:forward_extend <- srt/layers/attention/hybrid_linear_attn_backend.py:1359:forward_extend"
+    },
+    {
+      "bytes": 1572864,
+      "count": 1,
+      "stack": "kernels/ops/attention/fla/cumsum.py:183:chunk_local_cumsum_scalar <- kernels/ops/attention/fla/cumsum.py:271:chunk_local_cumsum <- kernels/ops/attention/fla/utils.py:177:wrapper"
+    },
+    {
+      "bytes": 1474560,
+      "count": 432,
+      "stack": "srt/layers/moe/qwen38_cache_buffers.py:27:__init__ <- srt/layers/moe/qwen38_cache_threaded.py:300:reserve <- srt/model_loader/qwen38_nvfp4_cache_loader.py:435:load_model"
+    },
+    {
+      "bytes": 1287680,
+      "count": 20,
+      "stack": "srt/mem_cache/unified_cache/unified_tree_core.py:1481:_add_new_node <- srt/mem_cache/unified_cache/unified_tree_core.py:1329:_insert_commit_step <- srt/mem_cache/unified_cache/unified_tree_core.py:1210:_advance_insert"
+    },
+    {
+      "bytes": 1287680,
+      "count": 1,
+      "stack": "srt/mem_cache/unified_cache/unified_tree_core.py:994:_match_post_processor <- srt/mem_cache/unified_cache/unified_tree_core.py:837:match_prefix <- srt/mem_cache/unified_radix_cache.py:558:match_prefix"
+    },
+    {
+      "bytes": 1105920,
+      "count": 1,
+      "stack": "srt/mem_cache/ple_state_pool.py:79:__init__ <- srt/mem_cache/memory_pool.py:1331:_init_mamba_pool <- srt/mem_cache/memory_pool.py:1269:__init__"
+    },
+    {
+      "bytes": 993280,
+      "count": 1,
+      "stack": "srt/layers/logits_processor.py:1158:_copy_logits_to_buffer <- srt/layers/logits_processor.py:941:_get_logits <- srt/layers/logits_processor.py:591:forward"
+    },
+    {
+      "bytes": 737280,
+      "count": 48,
+      "stack": "srt/layers/quantization/qwen38_nvfp4_cache.py:31:_capture_expert_output <- srt/model_executor/runner_backend_utils/breakable_cuda_graph/breakable_cuda_graph.py:256:wrapper <- srt/layers/quantization/qwen38_nvfp4_cache.py:144:apply"
+    },
+    {
+      "bytes": 676864,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:596:_metadata_from_forward_batch <- srt/layers/attention/qwen_sparse_attn_backend.py:729:init_forward_metadata <- srt/layers/attention/hybrid_linear_attn_backend.py:1263:init_forward_metadata"
+    },
+    {
+      "bytes": 644096,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:596:_metadata_from_forward_batch <- srt/layers/attention/qwen_sparse_attn_backend.py:729:init_forward_metadata <- srt/model_executor/runner/eager_runner.py:321:_execute_extend"
+    },
+    {
+      "bytes": 589824,
+      "count": 49,
+      "stack": "srt/layers/moe/qwen38_packed_transport.py:64:refresh_targets <- srt/layers/moe/qwen38_cache_threaded.py:359:reserve <- srt/model_loader/qwen38_nvfp4_cache_loader.py:435:load_model"
+    },
+    {
+      "bytes": 393216,
+      "count": 2,
+      "stack": "srt/layers/attention/qsa/metadata.py:274:build_rope_position_matrix <- srt/layers/attention/qwen_sparse_attn_backend.py:687:_metadata_from_forward_batch <- srt/layers/attention/qwen_sparse_attn_backend.py:729:init_forward_metadata"
+    },
+    {
+      "bytes": 393216,
+      "count": 2,
+      "stack": "srt/models/qwen4_exp.py:748:_shift_right_ignore_eos <- srt/models/qwen4_exp.py:707:_hash_contexts <- srt/models/qwen4_exp.py:783:compute_ngram_ids"
+    },
+    {
+      "bytes": 250880,
+      "count": 49,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- lib/python3.12/site-packages/torch/nn/modules/linear.py:109:__init__ <- srt/models/qwen2_moe.py:390:__init__"
+    },
+    {
+      "bytes": 196608,
+      "count": 96,
+      "stack": "srt/layers/moe/qwen38_cache_threaded.py:325:reserve <- srt/model_loader/qwen38_nvfp4_cache_loader.py:435:load_model <- srt/model_executor/model_runner_components/load_model_utils.py:339:load_model_with_memory_saver"
+    },
+    {
+      "bytes": 196608,
+      "count": 1,
+      "stack": "srt/model_executor/forward_batch_info.py:1554:_compute_mrope_positions_extend <- srt/model_executor/forward_batch_info.py:1431:_compute_mrope_positions <- srt/model_executor/forward_batch_info.py:1152:init_new"
+    },
+    {
+      "bytes": 196608,
+      "count": 1,
+      "stack": "srt/models/qwen4_exp.py:778:compute_ngram_ids <- srt/models/qwen4_exp.py:1443:start_prefetch <- srt/models/qwen4_exp.py:2050:forward"
+    },
+    {
+      "bytes": 174080,
+      "count": 3,
+      "stack": "srt/mem_cache/allocator/paged.py:202:alloc_extend <- srt/mem_cache/allocation.py:211:alloc_paged_token_slots_extend <- srt/mem_cache/allocation.py:403:alloc_for_extend"
+    },
+    {
+      "bytes": 131072,
+      "count": 2,
+      "stack": "srt/managers/overlap_utils.py:94:resolve_forward_inputs <- srt/managers/scheduler.py:4392:run_batch <- srt/utils/nvtx_utils.py:109:wrapper"
+    },
+    {
+      "bytes": 131072,
+      "count": 2,
+      "stack": "srt/layers/attention/qsa/metadata.py:241:build_pending_ring_slots <- srt/layers/attention/qwen_sparse_attn_backend.py:672:_metadata_from_forward_batch <- srt/layers/attention/qwen_sparse_attn_backend.py:729:init_forward_metadata"
+    },
+    {
+      "bytes": 81920,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- lib/python3.12/site-packages/torch/nn/modules/conv.py:170:__init__ <- lib/python3.12/site-packages/torch/nn/modules/conv.py:351:__init__"
+    },
+    {
+      "bytes": 66048,
+      "count": 1,
+      "stack": "srt/models/qwen4_exp.py:294:_prepare_ple_batch <- srt/models/qwen4_exp.py:2035:forward <- srt/models/qwen4_exp.py:2110:forward"
+    },
+    {
+      "bytes": 65536,
+      "count": 1,
+      "stack": "srt/models/qwen4_exp.py:233:_prepare_ple_batch <- srt/models/qwen4_exp.py:2035:forward <- srt/models/qwen4_exp.py:2110:forward"
+    },
+    {
+      "bytes": 65536,
+      "count": 1,
+      "stack": "srt/models/qwen4_exp.py:234:_prepare_ple_batch <- srt/models/qwen4_exp.py:2035:forward <- srt/models/qwen4_exp.py:2110:forward"
+    },
+    {
+      "bytes": 65536,
+      "count": 1,
+      "stack": "kernels/ops/attention/position.py:13:compute_position_triton <- srt/model_executor/forward_batch_info.py:2128:compute_position <- srt/model_executor/forward_batch_info.py:1125:init_new"
+    },
+    {
+      "bytes": 61440,
+      "count": 3,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/hyperconnection.py:31:__init__ <- srt/layers/hyperconnection.py:152:__init__"
+    },
+    {
+      "bytes": 61440,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/speculative/eagle_draft_extend_cuda_graph_runner.py:185:__init__ <- srt/speculative/eagle_worker_v2.py:603:_capture_cuda_graphs"
+    },
+    {
+      "bytes": 61440,
+      "count": 1,
+      "stack": "srt/layers/attention/linear/gdn_backend.py:996:forward_extend <- srt/layers/attention/hybrid_linear_attn_backend.py:1359:forward_extend <- srt/layers/attention/hybrid_linear_attn_backend.py:1407:forward"
+    },
+    {
+      "bytes": 49152,
+      "count": 96,
+      "stack": "srt/layers/moe/qwen38_cache_async.py:162:_scales <- srt/layers/moe/qwen38_cache_runtime.py:218:reserve <- srt/layers/moe/qwen38_cache_async.py:52:reserve"
+    },
+    {
+      "bytes": 49152,
+      "count": 96,
+      "stack": "lib/python3.12/site-packages/torch/cuda/graphs.py:153:capture_begin <- lib/python3.12/site-packages/torch/cuda/graphs.py:462:__enter__ <- srt/layers/moe/qwen38_cache_overlap.py:85:capture"
+    },
+    {
+      "bytes": 49152,
+      "count": 96,
+      "stack": "lib/python3.12/site-packages/torch/cuda/graphs.py:153:capture_begin <- srt/model_executor/runner_backend_utils/breakable_cuda_graph/breakable_cuda_graph.py:401:_begin_new_segment <- srt/model_executor/runner_backend_utils/breakable_cuda_graph/breakable_cuda_graph.py:279:wrapper"
+    },
+    {
+      "bytes": 41472,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:791:init_cuda_graph_state <- srt/layers/attention/hybrid_linear_attn_backend.py:1279:init_cuda_graph_state <- srt/model_executor/runner/decode_cuda_graph_runner.py:368:__init__"
+    },
+    {
+      "bytes": 41472,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:791:init_cuda_graph_state <- srt/speculative/eagle_draft_extend_cuda_graph_runner.py:155:__init__ <- srt/speculative/eagle_worker_v2.py:603:_capture_cuda_graphs"
+    },
+    {
+      "bytes": 40960,
+      "count": 1,
+      "stack": "srt/managers/overlap_utils.py:355:_maybe_init_forward_bufs <- srt/managers/overlap_utils.py:606:stash <- srt/managers/scheduler.py:4696:_relay_forward_payload"
+    },
+    {
+      "bytes": 33792,
+      "count": 2,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:485:_qsa_write_plan <- srt/layers/attention/qwen_sparse_attn_backend.py:532:_qsa_build_write_plan <- srt/layers/attention/qwen_sparse_attn_backend.py:641:_metadata_from_forward_batch"
+    },
+    {
+      "bytes": 33792,
+      "count": 2,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:490:_qsa_write_plan <- srt/layers/attention/qwen_sparse_attn_backend.py:532:_qsa_build_write_plan <- srt/layers/attention/qwen_sparse_attn_backend.py:641:_metadata_from_forward_batch"
+    },
+    {
+      "bytes": 33792,
+      "count": 2,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:478:_qsa_write_plan <- srt/layers/attention/qwen_sparse_attn_backend.py:532:_qsa_build_write_plan <- srt/layers/attention/qwen_sparse_attn_backend.py:641:_metadata_from_forward_batch"
+    },
+    {
+      "bytes": 32768,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:618:_metadata_from_forward_batch <- srt/layers/attention/qwen_sparse_attn_backend.py:729:init_forward_metadata <- srt/layers/attention/hybrid_linear_attn_backend.py:1263:init_forward_metadata"
+    },
+    {
+      "bytes": 32768,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:618:_metadata_from_forward_batch <- srt/layers/attention/qwen_sparse_attn_backend.py:729:init_forward_metadata <- srt/model_executor/runner/eager_runner.py:321:_execute_extend"
+    },
+    {
+      "bytes": 26624,
+      "count": 13,
+      "stack": "srt/mem_cache/qsa_kv_pool.py:149:__init__ <- srt/mem_cache/kv_cache_configurator.py:1940:_build_hybrid_linear_kv_pool <- srt/mem_cache/kv_cache_configurator.py:1304:_build_token_to_kv_pool"
+    },
+    {
+      "bytes": 25088,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:126:__init__ <- srt/speculative/eagle_worker_v2.py:456:_configure_qsa_mtp_index_share <- srt/speculative/eagle_worker_v2.py:418:init_attention_backend"
+    },
+    {
+      "bytes": 24576,
+      "count": 48,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/moe/qwen38_cache_mailbox.py:250:refresh_targets <- srt/layers/moe/qwen38_cache_mailbox.py:89:_initialize"
+    },
+    {
+      "bytes": 20480,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/layernorm.py:1092:__init__ <- srt/models/qwen4_exp_mtp.py:121:_init_pre_fc_norms"
+    },
+    {
+      "bytes": 20480,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/layernorm.py:1095:__init__ <- srt/models/qwen4_exp_mtp.py:121:_init_pre_fc_norms"
+    },
+    {
+      "bytes": 20480,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/speculative/eagle_draft_cuda_graph_runner.py:209:__init__ <- srt/speculative/eagle_worker_v2.py:499:_capture_cuda_graphs"
+    },
+    {
+      "bytes": 20480,
+      "count": 1,
+      "stack": "srt/models/qwen4_exp_mtp.py:224:_set_hc_logits_hidden_states <- srt/models/qwen4_exp_mtp.py:267:forward <- lib/python3.12/site-packages/torch/utils/_contextlib.py:124:decorate_context"
+    },
+    {
+      "bytes": 20480,
+      "count": 1,
+      "stack": "srt/speculative/eagle_draft_extend_cuda_graph_runner.py:652:execute <- srt/speculative/eagle_worker_v2.py:1125:_draft_extend_for_decode <- srt/speculative/eagle_worker_v2.py:1420:forward_batch_generation"
+    },
+    {
+      "bytes": 18432,
+      "count": 36,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/models/qwen3_5.py:411:__init__ <- srt/models/qwen3_5.py:1062:__init__"
+    },
+    {
+      "bytes": 18432,
+      "count": 36,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/models/qwen3_5.py:414:__init__ <- srt/models/qwen3_5.py:1062:__init__"
+    },
+    {
+      "bytes": 18432,
+      "count": 36,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- kernels/ops/attention/fla/layernorm_gated.py:480:__init__ <- srt/models/qwen3_5.py:438:__init__"
+    },
+    {
+      "bytes": 17408,
+      "count": 2,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:484:_qsa_write_plan <- srt/layers/attention/qwen_sparse_attn_backend.py:532:_qsa_build_write_plan <- srt/layers/attention/qwen_sparse_attn_backend.py:641:_metadata_from_forward_batch"
+    },
+    {
+      "bytes": 15360,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/model_executor/runner_utils/buffers.py:154:create <- srt/model_executor/runner/decode_cuda_graph_runner.py:409:__init__"
+    },
+    {
+      "bytes": 15360,
+      "count": 1,
+      "stack": "srt/models/qwen4_exp.py:980:allocate_output <- srt/models/qwen4_exp.py:1404:_allocate_prefetch_buffer <- srt/models/qwen4_exp.py:1414:_get_prefetch_buffer"
+    },
+    {
+      "bytes": 14848,
+      "count": 1,
+      "stack": "srt/mem_cache/allocator/paged.py:322:_release_page_ids <- srt/mem_cache/allocator/paged.py:331:free_group_end <- srt/managers/scheduler_components/batch_result_processor.py:1069:process_batch_result_decode"
+    },
+    {
+      "bytes": 13824,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:791:init_cuda_graph_state <- srt/layers/attention/qwen_sparse_attn_backend.py:1728:init_cuda_graph_state <- srt/speculative/eagle_draft_cuda_graph_runner.py:162:__init__"
+    },
+    {
+      "bytes": 8192,
+      "count": 1,
+      "stack": "srt/models/qwen4_exp.py:243:_prepare_ple_batch <- srt/models/qwen4_exp.py:2035:forward <- srt/models/qwen4_exp.py:2110:forward"
+    },
+    {
+      "bytes": 6656,
+      "count": 13,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/layernorm.py:1092:__init__ <- srt/models/qwen3_5.py:1308:__init__"
+    },
+    {
+      "bytes": 6656,
+      "count": 13,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/layernorm.py:1095:__init__ <- srt/models/qwen3_5.py:1308:__init__"
+    },
+    {
+      "bytes": 6656,
+      "count": 13,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/layernorm.py:1092:__init__ <- srt/models/qwen3_5.py:1309:__init__"
+    },
+    {
+      "bytes": 6656,
+      "count": 13,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/layernorm.py:1095:__init__ <- srt/models/qwen3_5.py:1309:__init__"
+    },
+    {
+      "bytes": 6656,
+      "count": 13,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/layernorm.py:1092:__init__ <- srt/layers/attention/qsa/qsa_indexer.py:76:__init__"
+    },
+    {
+      "bytes": 6656,
+      "count": 13,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/layernorm.py:1095:__init__ <- srt/layers/attention/qsa/qsa_indexer.py:76:__init__"
+    },
+    {
+      "bytes": 6656,
+      "count": 13,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/layernorm.py:1092:__init__ <- srt/layers/attention/qsa/qsa_indexer.py:79:__init__"
+    },
+    {
+      "bytes": 6656,
+      "count": 13,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/layernorm.py:1095:__init__ <- srt/layers/attention/qsa/qsa_indexer.py:79:__init__"
+    },
+    {
+      "bytes": 6656,
+      "count": 13,
+      "stack": "srt/layers/attention/qsa/qsa_indexer.py:150:_rope_axis_map <- srt/layers/attention/qsa/qsa_indexer.py:186:project_qk <- srt/layers/attention/qsa/qsa_indexer.py:584:_forward_impl"
+    },
+    {
+      "bytes": 5120,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/layernorm.py:1092:__init__ <- srt/models/qwen4_exp_mtp.py:113:_init_pre_fc_norms"
+    },
+    {
+      "bytes": 5120,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/layernorm.py:1095:__init__ <- srt/models/qwen4_exp_mtp.py:113:_init_pre_fc_norms"
+    },
+    {
+      "bytes": 4096,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/quantization/modelopt_quant.py:2532:create_weights <- srt/layers/quantization/qwen38_fp4_mtp.py:156:create_weights"
+    },
+    {
+      "bytes": 4096,
+      "count": 4,
+      "stack": "kernels/ops/attention/fla/index.py:26:prepare_chunk_indices <- kernels/ops/attention/fla/utils.py:135:wrapper <- kernels/ops/attention/fla/chunk.py:115:forward"
+    },
+    {
+      "bytes": 4096,
+      "count": 1,
+      "stack": "kernels/ops/elementwise/hc_combine.py:106:_get_partials <- kernels/ops/elementwise/hc_combine.py:132:hc_combine_split <- srt/layers/hyperconnection.py:319:combine"
+    },
+    {
+      "bytes": 3072,
+      "count": 6,
+      "stack": "lib/python3.12/site-packages/torch/cuda/graphs.py:153:capture_begin <- srt/model_executor/runner_backend_utils/breakable_cuda_graph/breakable_cuda_graph.py:401:_begin_new_segment <- srt/model_executor/runner_backend_utils/breakable_cuda_graph/breakable_cuda_graph.py:360:__enter__"
+    },
+    {
+      "bytes": 2560,
+      "count": 1,
+      "stack": "srt/layers/moe/qwen38_cache_async.py:37:__init__ <- srt/layers/moe/qwen38_cache_device.py:25:__init__ <- srt/layers/moe/qwen38_cache_threaded.py:146:__init__"
+    },
+    {
+      "bytes": 2048,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/quantization/modelopt_quant.py:2538:create_weights <- srt/layers/quantization/qwen38_fp4_mtp.py:156:create_weights"
+    },
+    {
+      "bytes": 2048,
+      "count": 4,
+      "stack": "kernels/ops/attention/fla/index.py:35:prepare_chunk_offsets <- kernels/ops/attention/fla/utils.py:135:wrapper <- kernels/ops/attention/fla/chunk_delta_h.py:392:chunk_gated_delta_rule_fwd_h"
+    },
+    {
+      "bytes": 2048,
+      "count": 4,
+      "stack": "srt/layers/attention/hybrid_linear_attn_backend.py:280:_forward_metadata <- srt/layers/attention/hybrid_linear_attn_backend.py:360:init_forward_metadata <- srt/layers/attention/linear/gdn_backend.py:556:init_forward_metadata"
+    },
+    {
+      "bytes": 2048,
+      "count": 4,
+      "stack": "kernels/ops/attention/fla/index.py:13:prepare_lens <- kernels/ops/attention/fla/utils.py:135:wrapper <- kernels/ops/attention/fla/index.py:23:prepare_chunk_indices"
+    },
+    {
+      "bytes": 2048,
+      "count": 4,
+      "stack": "srt/mem_cache/memory_pool.py:1650:donate_mamba_ping_pong_slot <- srt/mem_cache/unified_cache/components/mamba.py:601:prepare_for_caching_req <- srt/mem_cache/unified_radix_cache.py:1188:cache_unfinished_req"
+    },
+    {
+      "bytes": 1536,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/moe/qwen38_cache_mailbox.py:58:_initialize <- srt/layers/moe/qwen38_cache_mailbox.py:28:__init__"
+    },
+    {
+      "bytes": 1536,
+      "count": 3,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:1406:_get_trtllm_sparse_tables <- srt/layers/attention/qwen_sparse_attn_backend.py:1442:_forward_trtllm_sparse <- srt/layers/attention/qwen_sparse_attn_backend.py:1541:_forward_paged_attention"
+    },
+    {
+      "bytes": 1536,
+      "count": 3,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:1404:_get_trtllm_sparse_tables <- srt/layers/attention/qwen_sparse_attn_backend.py:1442:_forward_trtllm_sparse <- srt/layers/attention/qwen_sparse_attn_backend.py:1541:_forward_paged_attention"
+    },
+    {
+      "bytes": 1536,
+      "count": 3,
+      "stack": "srt/model_executor/runner_backend/breakable_cuda_graph_backend.py:186:_alloc_full_buffer <- srt/model_executor/runner_backend/breakable_cuda_graph_backend.py:195:<genexpr> <- srt/model_executor/runner_backend/breakable_cuda_graph_backend.py:195:_alloc_full_buffer"
+    },
+    {
+      "bytes": 1536,
+      "count": 3,
+      "stack": "srt/mem_cache/allocation.py:381:alloc_for_extend <- srt/managers/schedule_batch.py:2793:prepare_for_extend <- srt/managers/scheduler.py:4108:_get_new_batch_prefill_raw"
+    },
+    {
+      "bytes": 1536,
+      "count": 3,
+      "stack": "srt/managers/schedule_batch.py:2982:prepare_for_extend <- srt/managers/scheduler.py:4108:_get_new_batch_prefill_raw <- srt/managers/scheduler.py:3815:get_new_batch_prefill"
+    },
+    {
+      "bytes": 1536,
+      "count": 3,
+      "stack": "srt/managers/schedule_batch.py:2763:prepare_for_extend <- srt/managers/scheduler.py:4108:_get_new_batch_prefill_raw <- srt/managers/scheduler.py:3815:get_new_batch_prefill"
+    },
+    {
+      "bytes": 1536,
+      "count": 3,
+      "stack": "srt/managers/schedule_batch.py:2987:prepare_for_extend <- srt/managers/scheduler.py:4108:_get_new_batch_prefill_raw <- srt/managers/scheduler.py:3815:get_new_batch_prefill"
+    },
+    {
+      "bytes": 1536,
+      "count": 3,
+      "stack": "srt/managers/schedule_batch.py:2992:prepare_for_extend <- srt/managers/scheduler.py:4108:_get_new_batch_prefill_raw <- srt/managers/scheduler.py:3815:get_new_batch_prefill"
+    },
+    {
+      "bytes": 1536,
+      "count": 3,
+      "stack": "srt/sampling/sampling_batch_info.py:125:from_schedule_batch <- srt/managers/schedule_batch.py:3006:prepare_for_extend <- srt/managers/scheduler.py:4108:_get_new_batch_prefill_raw"
+    },
+    {
+      "bytes": 1536,
+      "count": 3,
+      "stack": "srt/sampling/sampling_batch_info.py:132:from_schedule_batch <- srt/managers/schedule_batch.py:3006:prepare_for_extend <- srt/managers/scheduler.py:4108:_get_new_batch_prefill_raw"
+    },
+    {
+      "bytes": 1536,
+      "count": 3,
+      "stack": "srt/sampling/sampling_batch_info.py:137:from_schedule_batch <- srt/managers/schedule_batch.py:3006:prepare_for_extend <- srt/managers/scheduler.py:4108:_get_new_batch_prefill_raw"
+    },
+    {
+      "bytes": 1536,
+      "count": 3,
+      "stack": "srt/sampling/sampling_batch_info.py:142:from_schedule_batch <- srt/managers/schedule_batch.py:3006:prepare_for_extend <- srt/managers/scheduler.py:4108:_get_new_batch_prefill_raw"
+    },
+    {
+      "bytes": 1024,
+      "count": 2,
+      "stack": "srt/mem_cache/memory_pool.py:2263:_init_data_ptrs_and_strides <- srt/mem_cache/memory_pool.py:2170:_create_buffers <- srt/mem_cache/memory_pool.py:2075:__init__"
+    },
+    {
+      "bytes": 1024,
+      "count": 2,
+      "stack": "srt/mem_cache/memory_pool.py:2268:_init_data_ptrs_and_strides <- srt/mem_cache/memory_pool.py:2170:_create_buffers <- srt/mem_cache/memory_pool.py:2075:__init__"
+    },
+    {
+      "bytes": 1024,
+      "count": 2,
+      "stack": "srt/mem_cache/memory_pool.py:2274:_init_data_ptrs_and_strides <- srt/mem_cache/memory_pool.py:2170:_create_buffers <- srt/mem_cache/memory_pool.py:2075:__init__"
+    },
+    {
+      "bytes": 1024,
+      "count": 2,
+      "stack": "srt/mem_cache/memory_pool.py:2279:_init_data_ptrs_and_strides <- srt/mem_cache/memory_pool.py:2170:_create_buffers <- srt/mem_cache/memory_pool.py:2075:__init__"
+    },
+    {
+      "bytes": 1024,
+      "count": 2,
+      "stack": "srt/mem_cache/qsa_kv_pool.py:163:__init__ <- srt/mem_cache/kv_cache_configurator.py:1940:_build_hybrid_linear_kv_pool <- srt/mem_cache/kv_cache_configurator.py:1304:_build_token_to_kv_pool"
+    },
+    {
+      "bytes": 1024,
+      "count": 2,
+      "stack": "srt/batch_overlap/two_batch_overlap.py:344:__init__ <- srt/model_executor/runner/base_runner.py:242:__init__ <- srt/model_executor/runner/eager_runner.py:85:__init__"
+    },
+    {
+      "bytes": 1024,
+      "count": 2,
+      "stack": "srt/utils/common.py:3838:fast_topk <- srt/speculative/eagle_worker_v2.py:1028:_draft_extend_for_prefill <- srt/speculative/eagle_worker_v2.py:1514:_forward_prefill_batch"
+    },
+    {
+      "bytes": 1024,
+      "count": 2,
+      "stack": "srt/managers/schedule_batch.py:2757:prepare_for_extend <- srt/managers/scheduler.py:4108:_get_new_batch_prefill_raw <- srt/managers/scheduler.py:3815:get_new_batch_prefill"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/models/qwen4_exp.py:597:_build_layer_multipliers <- srt/models/qwen4_exp.py:513:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/rotary_embedding/mrope.py:136:_build_axis_map <- srt/layers/rotary_embedding/mrope.py:107:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/models/qwen4_exp.py:521:__init__ <- srt/models/qwen4_exp.py:1200:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/models/qwen4_exp.py:526:__init__ <- srt/models/qwen4_exp.py:1200:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/models/qwen4_exp.py:557:__init__ <- srt/models/qwen4_exp.py:1200:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/models/qwen38_fp4_ple.py:88:__init__ <- srt/models/qwen4_exp.py:570:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/speculative/base_spec_worker.py:144:_rebuild_topk1_chain_buffers <- srt/speculative/eagle_worker_v2.py:186:__init__ <- srt/speculative/eagle_worker_v2.py:1244:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/speculative/base_spec_worker.py:147:_rebuild_topk1_chain_buffers <- srt/speculative/eagle_worker_v2.py:186:__init__ <- srt/speculative/eagle_worker_v2.py:1244:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/speculative/eagle_worker_v2.py:1266:__init__ <- srt/managers/scheduler.py:1035:maybe_init_draft_worker <- srt/managers/scheduler.py:1095:init_model_worker"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/speculative/eagle_worker_v2.py:1269:__init__ <- srt/managers/scheduler.py:1035:maybe_init_draft_worker <- srt/managers/scheduler.py:1095:init_model_worker"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/mem_cache/ple_state_pool.py:177:__init__ <- srt/mem_cache/memory_pool.py:1341:_init_mamba_pool <- srt/mem_cache/memory_pool.py:1269:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/mem_cache/ple_state_pool.py:184:__init__ <- srt/mem_cache/memory_pool.py:1341:_init_mamba_pool <- srt/mem_cache/memory_pool.py:1269:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/mem_cache/memory_pool.py:1382:_init_mamba_pool <- srt/mem_cache/memory_pool.py:1269:__init__ <- srt/mem_cache/kv_cache_configurator.py:1138:_build_hybrid_req_pool"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/mem_cache/memory_pool.py:1387:_init_mamba_pool <- srt/mem_cache/memory_pool.py:1269:__init__ <- srt/mem_cache/kv_cache_configurator.py:1138:_build_hybrid_req_pool"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:773:init_cuda_graph_state <- srt/layers/attention/qwen_sparse_attn_backend.py:1728:init_cuda_graph_state <- srt/speculative/eagle_draft_cuda_graph_runner.py:162:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:776:init_cuda_graph_state <- srt/layers/attention/qwen_sparse_attn_backend.py:1728:init_cuda_graph_state <- srt/speculative/eagle_draft_cuda_graph_runner.py:162:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:779:init_cuda_graph_state <- srt/layers/attention/qwen_sparse_attn_backend.py:1728:init_cuda_graph_state <- srt/speculative/eagle_draft_cuda_graph_runner.py:162:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:782:init_cuda_graph_state <- srt/layers/attention/qwen_sparse_attn_backend.py:1728:init_cuda_graph_state <- srt/speculative/eagle_draft_cuda_graph_runner.py:162:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:785:init_cuda_graph_state <- srt/layers/attention/qwen_sparse_attn_backend.py:1728:init_cuda_graph_state <- srt/speculative/eagle_draft_cuda_graph_runner.py:162:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:788:init_cuda_graph_state <- srt/layers/attention/qwen_sparse_attn_backend.py:1728:init_cuda_graph_state <- srt/speculative/eagle_draft_cuda_graph_runner.py:162:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:794:init_cuda_graph_state <- srt/layers/attention/qwen_sparse_attn_backend.py:1728:init_cuda_graph_state <- srt/speculative/eagle_draft_cuda_graph_runner.py:162:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:797:init_cuda_graph_state <- srt/layers/attention/qwen_sparse_attn_backend.py:1728:init_cuda_graph_state <- srt/speculative/eagle_draft_cuda_graph_runner.py:162:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:800:init_cuda_graph_state <- srt/layers/attention/qwen_sparse_attn_backend.py:1728:init_cuda_graph_state <- srt/speculative/eagle_draft_cuda_graph_runner.py:162:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:803:init_cuda_graph_state <- srt/layers/attention/qwen_sparse_attn_backend.py:1728:init_cuda_graph_state <- srt/speculative/eagle_draft_cuda_graph_runner.py:162:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:806:init_cuda_graph_state <- srt/layers/attention/qwen_sparse_attn_backend.py:1728:init_cuda_graph_state <- srt/speculative/eagle_draft_cuda_graph_runner.py:162:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:809:init_cuda_graph_state <- srt/layers/attention/qwen_sparse_attn_backend.py:1728:init_cuda_graph_state <- srt/speculative/eagle_draft_cuda_graph_runner.py:162:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:812:init_cuda_graph_state <- srt/layers/attention/qwen_sparse_attn_backend.py:1728:init_cuda_graph_state <- srt/speculative/eagle_draft_cuda_graph_runner.py:162:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:815:init_cuda_graph_state <- srt/layers/attention/qwen_sparse_attn_backend.py:1728:init_cuda_graph_state <- srt/speculative/eagle_draft_cuda_graph_runner.py:162:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:822:init_cuda_graph_state <- srt/layers/attention/qwen_sparse_attn_backend.py:1728:init_cuda_graph_state <- srt/speculative/eagle_draft_cuda_graph_runner.py:162:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/speculative/eagle_draft_cuda_graph_runner.py:173:__init__ <- srt/speculative/eagle_worker_v2.py:499:_capture_cuda_graphs"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:773:init_cuda_graph_state <- srt/speculative/eagle_draft_extend_cuda_graph_runner.py:155:__init__ <- srt/speculative/eagle_worker_v2.py:603:_capture_cuda_graphs"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/speculative/eagle_draft_cuda_graph_runner.py:175:__init__ <- srt/speculative/eagle_worker_v2.py:499:_capture_cuda_graphs"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/speculative/eagle_draft_cuda_graph_runner.py:179:__init__ <- srt/speculative/eagle_worker_v2.py:499:_capture_cuda_graphs"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/speculative/eagle_draft_cuda_graph_runner.py:180:__init__ <- srt/speculative/eagle_worker_v2.py:499:_capture_cuda_graphs"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:776:init_cuda_graph_state <- srt/speculative/eagle_draft_extend_cuda_graph_runner.py:155:__init__ <- srt/speculative/eagle_worker_v2.py:603:_capture_cuda_graphs"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/speculative/eagle_draft_cuda_graph_runner.py:194:__init__ <- srt/speculative/eagle_worker_v2.py:499:_capture_cuda_graphs"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/speculative/eagle_draft_cuda_graph_runner.py:195:__init__ <- srt/speculative/eagle_worker_v2.py:499:_capture_cuda_graphs"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/speculative/eagle_draft_cuda_graph_runner.py:196:__init__ <- srt/speculative/eagle_worker_v2.py:499:_capture_cuda_graphs"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/speculative/eagle_draft_cuda_graph_runner.py:217:__init__ <- srt/speculative/eagle_worker_v2.py:499:_capture_cuda_graphs"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/speculative/eagle_draft_cuda_graph_runner.py:225:__init__ <- srt/speculative/eagle_worker_v2.py:499:_capture_cuda_graphs"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:779:init_cuda_graph_state <- srt/speculative/eagle_draft_extend_cuda_graph_runner.py:155:__init__ <- srt/speculative/eagle_worker_v2.py:603:_capture_cuda_graphs"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:782:init_cuda_graph_state <- srt/speculative/eagle_draft_extend_cuda_graph_runner.py:155:__init__ <- srt/speculative/eagle_worker_v2.py:603:_capture_cuda_graphs"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:785:init_cuda_graph_state <- srt/speculative/eagle_draft_extend_cuda_graph_runner.py:155:__init__ <- srt/speculative/eagle_worker_v2.py:603:_capture_cuda_graphs"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:788:init_cuda_graph_state <- srt/speculative/eagle_draft_extend_cuda_graph_runner.py:155:__init__ <- srt/speculative/eagle_worker_v2.py:603:_capture_cuda_graphs"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:794:init_cuda_graph_state <- srt/speculative/eagle_draft_extend_cuda_graph_runner.py:155:__init__ <- srt/speculative/eagle_worker_v2.py:603:_capture_cuda_graphs"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:797:init_cuda_graph_state <- srt/speculative/eagle_draft_extend_cuda_graph_runner.py:155:__init__ <- srt/speculative/eagle_worker_v2.py:603:_capture_cuda_graphs"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:800:init_cuda_graph_state <- srt/speculative/eagle_draft_extend_cuda_graph_runner.py:155:__init__ <- srt/speculative/eagle_worker_v2.py:603:_capture_cuda_graphs"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:803:init_cuda_graph_state <- srt/speculative/eagle_draft_extend_cuda_graph_runner.py:155:__init__ <- srt/speculative/eagle_worker_v2.py:603:_capture_cuda_graphs"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:806:init_cuda_graph_state <- srt/speculative/eagle_draft_extend_cuda_graph_runner.py:155:__init__ <- srt/speculative/eagle_worker_v2.py:603:_capture_cuda_graphs"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:809:init_cuda_graph_state <- srt/speculative/eagle_draft_extend_cuda_graph_runner.py:155:__init__ <- srt/speculative/eagle_worker_v2.py:603:_capture_cuda_graphs"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:812:init_cuda_graph_state <- srt/speculative/eagle_draft_extend_cuda_graph_runner.py:155:__init__ <- srt/speculative/eagle_worker_v2.py:603:_capture_cuda_graphs"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:815:init_cuda_graph_state <- srt/speculative/eagle_draft_extend_cuda_graph_runner.py:155:__init__ <- srt/speculative/eagle_worker_v2.py:603:_capture_cuda_graphs"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:822:init_cuda_graph_state <- srt/speculative/eagle_draft_extend_cuda_graph_runner.py:155:__init__ <- srt/speculative/eagle_worker_v2.py:603:_capture_cuda_graphs"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/mem_cache/pool_host/common.py:318:make_kernel_ptr_table <- srt/mem_cache/pool_host/mha.py:174:__init__ <- srt/mem_cache/hybrid_cache/hybrid_pool_assembler.py:167:build_kv_host_pool"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/mem_cache/pool_host/common.py:318:make_kernel_ptr_table <- srt/mem_cache/pool_host/mha.py:179:__init__ <- srt/mem_cache/hybrid_cache/hybrid_pool_assembler.py:167:build_kv_host_pool"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/mem_cache/pool_host/mha.py:187:__init__ <- srt/mem_cache/hybrid_cache/hybrid_pool_assembler.py:167:build_kv_host_pool <- srt/mem_cache/hybrid_cache/hybrid_pool_assembler.py:1150:build_hybrid_mamba_stack"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/mem_cache/pool_host/mha.py:190:__init__ <- srt/mem_cache/hybrid_cache/hybrid_pool_assembler.py:167:build_kv_host_pool <- srt/mem_cache/hybrid_cache/hybrid_pool_assembler.py:1150:build_hybrid_mamba_stack"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/mem_cache/pool_host/mamba.py:149:__init__ <- srt/mem_cache/hybrid_cache/hybrid_pool_assembler.py:1173:build_hybrid_mamba_stack <- srt/mem_cache/hybrid_cache/hybrid_pool_assembler.py:1814:build"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/mem_cache/pool_host/mamba.py:158:__init__ <- srt/mem_cache/hybrid_cache/hybrid_pool_assembler.py:1173:build_hybrid_mamba_stack <- srt/mem_cache/hybrid_cache/hybrid_pool_assembler.py:1814:build"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/managers/overlap_utils.py:282:__init__ <- srt/speculative/spec_info.py:193:create_future_map <- srt/managers/scheduler.py:1632:init_overlap"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/speculative/eagle_draft_extend_cuda_graph_runner.py:201:__init__ <- srt/speculative/eagle_worker_v2.py:603:_capture_cuda_graphs"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/speculative/eagle_draft_extend_cuda_graph_runner.py:204:__init__ <- srt/speculative/eagle_worker_v2.py:603:_capture_cuda_graphs"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/speculative/eagle_draft_extend_cuda_graph_runner.py:208:__init__ <- srt/speculative/eagle_worker_v2.py:603:_capture_cuda_graphs"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/managers/overlap_utils.py:285:__init__ <- srt/speculative/spec_info.py:193:create_future_map <- srt/managers/scheduler.py:1632:init_overlap"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/linear/utils.py:125:build_verify_intermediate_state_indices <- srt/layers/attention/linear/gdn_backend.py:540:__init__ <- srt/layers/attention/attention_registry.py:456:attn_backend_wrapper"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:131:__init__ <- srt/speculative/eagle_worker_v2.py:456:_configure_qsa_mtp_index_share <- srt/speculative/eagle_worker_v2.py:418:init_attention_backend"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:136:__init__ <- srt/speculative/eagle_worker_v2.py:456:_configure_qsa_mtp_index_share <- srt/speculative/eagle_worker_v2.py:418:init_attention_backend"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/batch_overlap/two_batch_overlap.py:344:__init__ <- srt/model_executor/runner/base_runner.py:242:__init__ <- srt/model_executor/runner/decode_cuda_graph_runner.py:241:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:773:init_cuda_graph_state <- srt/layers/attention/hybrid_linear_attn_backend.py:1279:init_cuda_graph_state <- srt/model_executor/runner/decode_cuda_graph_runner.py:368:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:776:init_cuda_graph_state <- srt/layers/attention/hybrid_linear_attn_backend.py:1279:init_cuda_graph_state <- srt/model_executor/runner/decode_cuda_graph_runner.py:368:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:779:init_cuda_graph_state <- srt/layers/attention/hybrid_linear_attn_backend.py:1279:init_cuda_graph_state <- srt/model_executor/runner/decode_cuda_graph_runner.py:368:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:782:init_cuda_graph_state <- srt/layers/attention/hybrid_linear_attn_backend.py:1279:init_cuda_graph_state <- srt/model_executor/runner/decode_cuda_graph_runner.py:368:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:785:init_cuda_graph_state <- srt/layers/attention/hybrid_linear_attn_backend.py:1279:init_cuda_graph_state <- srt/model_executor/runner/decode_cuda_graph_runner.py:368:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:788:init_cuda_graph_state <- srt/layers/attention/hybrid_linear_attn_backend.py:1279:init_cuda_graph_state <- srt/model_executor/runner/decode_cuda_graph_runner.py:368:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:794:init_cuda_graph_state <- srt/layers/attention/hybrid_linear_attn_backend.py:1279:init_cuda_graph_state <- srt/model_executor/runner/decode_cuda_graph_runner.py:368:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:797:init_cuda_graph_state <- srt/layers/attention/hybrid_linear_attn_backend.py:1279:init_cuda_graph_state <- srt/model_executor/runner/decode_cuda_graph_runner.py:368:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:800:init_cuda_graph_state <- srt/layers/attention/hybrid_linear_attn_backend.py:1279:init_cuda_graph_state <- srt/model_executor/runner/decode_cuda_graph_runner.py:368:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:803:init_cuda_graph_state <- srt/layers/attention/hybrid_linear_attn_backend.py:1279:init_cuda_graph_state <- srt/model_executor/runner/decode_cuda_graph_runner.py:368:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:806:init_cuda_graph_state <- srt/layers/attention/hybrid_linear_attn_backend.py:1279:init_cuda_graph_state <- srt/model_executor/runner/decode_cuda_graph_runner.py:368:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:809:init_cuda_graph_state <- srt/layers/attention/hybrid_linear_attn_backend.py:1279:init_cuda_graph_state <- srt/model_executor/runner/decode_cuda_graph_runner.py:368:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:812:init_cuda_graph_state <- srt/layers/attention/hybrid_linear_attn_backend.py:1279:init_cuda_graph_state <- srt/model_executor/runner/decode_cuda_graph_runner.py:368:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:815:init_cuda_graph_state <- srt/layers/attention/hybrid_linear_attn_backend.py:1279:init_cuda_graph_state <- srt/model_executor/runner/decode_cuda_graph_runner.py:368:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:822:init_cuda_graph_state <- srt/layers/attention/hybrid_linear_attn_backend.py:1279:init_cuda_graph_state <- srt/model_executor/runner/decode_cuda_graph_runner.py:368:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/hybrid_linear_attn_backend.py:594:init_cuda_graph_state <- srt/layers/attention/hybrid_linear_attn_backend.py:1279:init_cuda_graph_state <- srt/model_executor/runner/decode_cuda_graph_runner.py:368:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/hybrid_linear_attn_backend.py:599:init_cuda_graph_state <- srt/layers/attention/hybrid_linear_attn_backend.py:1279:init_cuda_graph_state <- srt/model_executor/runner/decode_cuda_graph_runner.py:368:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/hybrid_linear_attn_backend.py:612:init_cuda_graph_state <- srt/layers/attention/hybrid_linear_attn_backend.py:1279:init_cuda_graph_state <- srt/model_executor/runner/decode_cuda_graph_runner.py:368:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/hybrid_linear_attn_backend.py:615:init_cuda_graph_state <- srt/layers/attention/hybrid_linear_attn_backend.py:1279:init_cuda_graph_state <- srt/model_executor/runner/decode_cuda_graph_runner.py:368:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/hybrid_linear_attn_backend.py:620:init_cuda_graph_state <- srt/layers/attention/hybrid_linear_attn_backend.py:1279:init_cuda_graph_state <- srt/model_executor/runner/decode_cuda_graph_runner.py:368:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/hybrid_linear_attn_backend.py:625:init_cuda_graph_state <- srt/layers/attention/hybrid_linear_attn_backend.py:1279:init_cuda_graph_state <- srt/model_executor/runner/decode_cuda_graph_runner.py:368:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/hybrid_linear_attn_backend.py:629:init_cuda_graph_state <- srt/layers/attention/hybrid_linear_attn_backend.py:1279:init_cuda_graph_state <- srt/model_executor/runner/decode_cuda_graph_runner.py:368:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/hybrid_linear_attn_backend.py:632:init_cuda_graph_state <- srt/layers/attention/hybrid_linear_attn_backend.py:1279:init_cuda_graph_state <- srt/model_executor/runner/decode_cuda_graph_runner.py:368:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/model_executor/runner_utils/buffers.py:153:create <- srt/model_executor/runner/decode_cuda_graph_runner.py:409:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/model_executor/runner_utils/buffers.py:157:create <- srt/model_executor/runner/decode_cuda_graph_runner.py:409:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/model_executor/runner_utils/buffers.py:158:create <- srt/model_executor/runner/decode_cuda_graph_runner.py:409:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/model_executor/runner_utils/buffers.py:159:create <- srt/model_executor/runner/decode_cuda_graph_runner.py:409:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/model_executor/runner_utils/buffers.py:166:create <- srt/model_executor/runner/decode_cuda_graph_runner.py:409:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/model_executor/runner_utils/buffers.py:207:create <- srt/model_executor/runner/decode_cuda_graph_runner.py:409:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/model_executor/runner_utils/buffers.py:208:create <- srt/model_executor/runner/decode_cuda_graph_runner.py:409:__init__"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/model_executor/forward_batch_info.py:1113:init_new <- srt/managers/tp_worker.py:621:forward_batch_generation <- srt/speculative/eagle_worker_v2.py:1475:_forward_prefill_batch"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/linear/gdn_backend.py:942:forward_extend <- srt/layers/attention/hybrid_linear_attn_backend.py:1359:forward_extend <- srt/layers/attention/hybrid_linear_attn_backend.py:1407:forward"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/managers/overlap_utils.py:337:_maybe_init_forward_bufs <- srt/managers/overlap_utils.py:606:stash <- srt/managers/scheduler.py:4696:_relay_forward_payload"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/model_executor/forward_batch_info.py:1116:init_new <- srt/managers/tp_worker.py:621:forward_batch_generation <- srt/speculative/eagle_worker_v2.py:1475:_forward_prefill_batch"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "kernels/ops/gemm/hc_mix.py:146:_get_counters <- kernels/ops/gemm/hc_mix.py:204:fused_hc_mix <- srt/layers/hyperconnection.py:282:mix"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/linear/gdn_backend.py:569:init_forward_metadata <- srt/layers/attention/hybrid_linear_attn_backend.py:1263:init_forward_metadata <- srt/model_executor/runner/eager_runner.py:321:_execute_extend"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/hybrid_linear_attn_backend.py:508:_track_indices_to_device <- srt/layers/attention/hybrid_linear_attn_backend.py:526:_init_track_ssm_indices_from_cpu <- srt/layers/attention/hybrid_linear_attn_backend.py:427:_init_track_ssm_indices"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/models/qwen4_exp.py:220:_prepare_ple_batch <- srt/models/qwen4_exp.py:2035:forward <- srt/models/qwen4_exp.py:2110:forward"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/sampler.py:197:forward <- lib/python3.12/site-packages/torch/nn/modules/module.py:1789:_call_impl <- lib/python3.12/site-packages/torch/nn/modules/module.py:1778:_wrapped_call_impl"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/speculative/eagle_worker_v2.py:1178:_draft_extend_for_decode <- srt/speculative/eagle_worker_v2.py:1420:forward_batch_generation <- srt/managers/scheduler.py:4415:run_batch"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/speculative/eagle_worker_v2.py:1181:_draft_extend_for_decode <- srt/speculative/eagle_worker_v2.py:1420:forward_batch_generation <- srt/managers/scheduler.py:4415:run_batch"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "kernels/ops/attention/position.py:16:compute_position_triton <- srt/model_executor/forward_batch_info.py:2128:compute_position <- srt/model_executor/forward_batch_info.py:1125:init_new"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:589:_metadata_from_forward_batch <- srt/layers/attention/qwen_sparse_attn_backend.py:729:init_forward_metadata <- srt/model_executor/runner/eager_runner.py:321:_execute_extend"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/models/qwen4_exp.py:269:_prepare_ple_batch <- srt/models/qwen4_exp.py:2035:forward <- srt/models/qwen4_exp.py:2110:forward"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/managers/overlap_utils.py:342:_maybe_init_forward_bufs <- srt/managers/overlap_utils.py:606:stash <- srt/managers/scheduler.py:4696:_relay_forward_payload"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "kernels/ops/memory/ptr_table.py:22:make_ptr_table <- srt/mem_cache/mamba_slot_fused.py:121:build_conv_slot_descriptor <- srt/mem_cache/memory_pool.py:995:_conv_slot_desc"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/mem_cache/mamba_slot_fused.py:119:<lambda> <- srt/mem_cache/mamba_slot_fused.py:122:build_conv_slot_descriptor <- srt/mem_cache/memory_pool.py:995:_conv_slot_desc"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/mem_cache/mamba_slot_fused.py:119:<lambda> <- srt/mem_cache/mamba_slot_fused.py:123:build_conv_slot_descriptor <- srt/mem_cache/memory_pool.py:995:_conv_slot_desc"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/mem_cache/mamba_slot_fused.py:119:<lambda> <- srt/mem_cache/mamba_slot_fused.py:124:build_conv_slot_descriptor <- srt/mem_cache/memory_pool.py:995:_conv_slot_desc"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/mem_cache/memory_pool.py:1492:get_mamba_indices <- srt/layers/attention/hybrid_linear_attn_backend.py:162:_forward_metadata <- srt/layers/attention/hybrid_linear_attn_backend.py:360:init_forward_metadata"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/hybrid_linear_attn_backend.py:508:_track_indices_to_device <- srt/layers/attention/hybrid_linear_attn_backend.py:179:_forward_metadata <- srt/layers/attention/hybrid_linear_attn_backend.py:360:init_forward_metadata"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/hybrid_linear_attn_backend.py:530:_init_track_ssm_indices_from_cpu <- srt/layers/attention/hybrid_linear_attn_backend.py:427:_init_track_ssm_indices <- srt/layers/attention/hybrid_linear_attn_backend.py:311:_forward_metadata"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/hybrid_linear_attn_backend.py:531:_init_track_ssm_indices_from_cpu <- srt/layers/attention/hybrid_linear_attn_backend.py:427:_init_track_ssm_indices <- srt/layers/attention/hybrid_linear_attn_backend.py:311:_forward_metadata"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/hybrid_linear_attn_backend.py:416:_init_track_conv_indices <- srt/layers/attention/hybrid_linear_attn_backend.py:297:_forward_metadata <- srt/layers/attention/hybrid_linear_attn_backend.py:360:init_forward_metadata"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/speculative/eagle_worker_common.py:627:run_eagle_verify <- srt/speculative/eagle_worker_v2.py:1898:verify <- srt/speculative/eagle_worker_v2.py:1397:forward_batch_generation"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "kernels/ops/moe/moe_fused_gate.py:332:_dummy_i32 <- kernels/ops/moe/moe_fused_gate.py:478:moe_fused_gate <- srt/layers/moe/topk.py:1062:fused_topk"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "kernels/ops/memory/ptr_table.py:22:make_ptr_table <- kernels/ops/mamba/mamba_state_scatter_triton.py:583:_conv_multi_build_meta <- kernels/ops/mamba/mamba_state_scatter_triton.py:631:fused_conv_window_scatter_multi"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/layers/attention/qwen_sparse_attn_backend.py:589:_metadata_from_forward_batch <- srt/layers/attention/qwen_sparse_attn_backend.py:729:init_forward_metadata <- srt/layers/attention/hybrid_linear_attn_backend.py:1263:init_forward_metadata"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/mem_cache/memory_pool.py:1613:_alloc_ping_pong_buffer <- srt/mem_cache/memory_pool.py:1471:alloc <- srt/mem_cache/allocation.py:323:alloc_req_slots"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/managers/overlap_utils.py:535:resolve_seq_lens_cpu <- srt/managers/scheduler.py:4382:run_batch <- srt/utils/nvtx_utils.py:109:wrapper"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/mem_cache/allocator/mamba.py:82:free <- srt/mem_cache/memory_pool.py:1712:free_mamba_cache <- srt/mem_cache/unified_cache/components/mamba.py:647:cleanup_after_caching_req"
+    },
+    {
+      "bytes": 512,
+      "count": 1,
+      "stack": "srt/mem_cache/allocator/mamba.py:82:free <- srt/mem_cache/unified_cache/components/mamba.py:537:_free_mamba_value <- srt/mem_cache/unified_cache/components/mamba.py:944:apply_component_action"
+    }
+  ],
+  "largest_blocks": [
+    [
+      8749056000,
+      "active_allocated",
+      "srt/layers/moe/qwen38_cache_threaded.py:275:reserve <- srt/model_loader/qwen38_nvfp4_cache_loader.py:435:load_model <- srt/model_executor/model_runner_components/load_model_utils.py:339:load_model_with_memory_saver"
+    ],
+    [
+      4374528000,
+      "active_allocated",
+      "srt/layers/moe/qwen38_cache_threaded.py:275:reserve <- srt/model_loader/qwen38_nvfp4_cache_loader.py:435:load_model <- srt/model_executor/model_runner_components/load_model_utils.py:339:load_model_with_memory_saver"
+    ],
+    [
+      1271398400,
+      "active_allocated",
+      "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/quantization/unquant.py:452:create_weights <- srt/layers/vocab_parallel_embedding.py:339:__init__"
+    ],
+    [
+      1271398400,
+      "active_allocated",
+      "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/quantization/unquant.py:415:create_weights <- srt/layers/vocab_parallel_embedding.py:339:__init__"
+    ],
+    [
+      1093632000,
+      "active_allocated",
+      "srt/layers/moe/qwen38_cache_threaded.py:275:reserve <- srt/model_loader/qwen38_nvfp4_cache_loader.py:435:load_model <- srt/model_executor/model_runner_components/load_model_utils.py:339:load_model_with_memory_saver"
+    ],
+    [
+      838860800,
+      "active_allocated",
+      "srt/layers/moe/qwen38_cache_runtime.py:235:_allocate <- srt/layers/moe/qwen38_cache_device.py:78:_allocate <- srt/layers/moe/qwen38_cache_runtime.py:222:reserve"
+    ],
+    [
+      838860800,
+      "active_allocated",
+      "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/quantization/modelopt_quant.py:2443:create_weights <- srt/layers/quantization/qwen38_fp4_mtp.py:156:create_weights"
+    ],
+    [
+      622854144,
+      "active_allocated",
+      "srt/mem_cache/memory_pool.py:643:__init__ <- srt/mem_cache/memory_pool.py:1307:_init_mamba_pool <- srt/mem_cache/memory_pool.py:1269:__init__"
+    ],
+    [
+      546816000,
+      "active_allocated",
+      "srt/layers/moe/qwen38_cache_threaded.py:275:reserve <- srt/model_loader/qwen38_nvfp4_cache_loader.py:435:load_model <- srt/model_executor/model_runner_components/load_model_utils.py:339:load_model_with_memory_saver"
+    ],
+    [
+      419430400,
+      "active_allocated",
+      "srt/layers/moe/qwen38_cache_runtime.py:235:_allocate <- srt/layers/moe/qwen38_cache_device.py:78:_allocate <- srt/layers/moe/qwen38_cache_runtime.py:222:reserve"
+    ],
+    [
+      419430400,
+      "active_allocated",
+      "lib/python3.12/site-packages/torch/utils/_device.py:122:__torch_function__ <- srt/layers/quantization/modelopt_quant.py:2458:create_weights <- srt/layers/quantization/qwen38_fp4_mtp.py:156:create_weights"
+    ],
+    [
+      339738624,
+      "active_allocated",
+      "srt/mem_cache/memory_pool.py:777:__init__ <- srt/mem_cache/memory_pool.py:1307:_init_mamba_pool <- srt/mem_cache/memory_pool.py:1269:__init__"
+    ],
+    [
+      268435456,
+      "active_allocated",
+      "srt/layers/attention/flashinfer_backend.py:432:<lambda> <- srt/runtime_context.py:997:get_buffer <- srt/runtime_context.py:1611:get_buffer"
+    ],
+    [
+      268435456,
+      "active_allocated",
+      "lib/python3.12/site-packages/flashinfer/gemm/gemm_base.py:5688:mm_mxfp8 <- lib/python3.12/site-packages/flashinfer/api_logging.py:2333:_auto_dump_wrapper <- lib/python3.12/site-packages/flashinfer/utils.py:1449:wrapper"
+    ],
+    [
+      201326592,
+      "active_allocated",
+      "kernels/ops/attention/fla/chunk_delta_h.py:396:chunk_gated_delta_rule_fwd_h <- kernels/ops/attention/fla/chunk.py:63:chunk_gated_delta_rule_fwd <- kernels/ops/attention/fla/chunk.py:119:forward"
+    ],
+    [
+      180879360,
+      "active_allocated",
+      "srt/mem_cache/qsa_kv_pool.py:168:__init__ <- srt/mem_cache/kv_cache_configurator.py:1940:_build_hybrid_linear_kv_pool <- srt/mem_cache/kv_cache_configurator.py:1304:_build_token_to_kv_pool"
+    ],
+    [
+      167772160,
+      "active_allocated",
+      "srt/models/qwen4_exp.py:1661:_prepare_qwen4_exp_attn <- srt/models/qwen4_exp.py:1790:forward <- lib/python3.12/site-packages/torch/nn/modules/module.py:1789:_call_impl"
+    ],
+    [
+      167772160,
+      "active_allocated",
+      "srt/layers/quantization/qwen38_fp32_norm.py:38:fp32_grouped_gemma_norm <- srt/layers/hyperconnection.py:61:forward <- lib/python3.12/site-packages/torch/nn/modules/module.py:1789:_call_impl"
+    ],
+    [
+      167772160,
+      "active_allocated",
+      "kernels/ops/mamba/causal_conv1d_triton.py:454:causal_conv1d_fn <- srt/layers/attention/mamba/causal_conv1d.py:94:causal_conv1d_fn <- srt/layers/attention/linear/gdn_backend.py:1003:forward_extend"
+    ],
+    [
+      167772160,
+      "active_allocated",
+      "kernels/ops/elementwise/hc_combine.py:86:hc_combine <- srt/layers/hyperconnection.py:329:combine <- srt/models/qwen4_exp.py:1763:_postprocess_qwen4_exp_layer"
+    ],
+    [
+      167772160,
+      "active_allocated",
+      "kernels/ops/elementwise/hc_combine.py:86:hc_combine <- srt/layers/hyperconnection.py:329:combine <- srt/models/qwen4_exp.py:1763:_postprocess_qwen4_exp_layer"
+    ],
+    [
+      134217728,
+      "active_allocated",
+      "srt/layers/attention/qwen_sparse_attn_backend.py:1486:_forward_trtllm_sparse <- srt/layers/attention/qwen_sparse_attn_backend.py:1541:_forward_paged_attention <- srt/layers/attention/qwen_sparse_attn_backend.py:1519:forward_decode"
+    ],
+    [
+      134217728,
+      "active_allocated",
+      "srt/layers/attention/qwen_sparse_attn_backend.py:1486:_forward_trtllm_sparse <- srt/layers/attention/qwen_sparse_attn_backend.py:1541:_forward_paged_attention <- srt/layers/attention/qwen_sparse_attn_backend.py:1292:forward_extend"
+    ],
+    [
+      134217728,
+      "active_allocated",
+      "srt/layers/attention/qwen_sparse_attn_backend.py:1486:_forward_trtllm_sparse <- srt/layers/attention/qwen_sparse_attn_backend.py:1541:_forward_paged_attention <- srt/layers/attention/qwen_sparse_attn_backend.py:1292:forward_extend"
+    ],
+    [
+      120586240,
+      "active_allocated",
+      "srt/mem_cache/memory_pool.py:2349:_create_buffers_normal <- srt/mem_cache/memory_pool.py:2168:_create_buffers <- srt/mem_cache/memory_pool.py:2075:__init__"
+    ],
+    [
+      120586240,
+      "active_allocated",
+      "srt/mem_cache/memory_pool.py:2349:_create_buffers_normal <- srt/mem_cache/memory_pool.py:2168:_create_buffers <- srt/mem_cache/memory_pool.py:2075:__init__"
+    ],
+    [
+      120586240,
+      "active_allocated",
+      "srt/mem_cache/memory_pool.py:2349:_create_buffers_normal <- srt/mem_cache/memory_pool.py:2168:_create_buffers <- srt/mem_cache/memory_pool.py:2075:__init__"
+    ],
+    [
+      120586240,
+      "active_allocated",
+      "srt/mem_cache/memory_pool.py:2349:_create_buffers_normal <- srt/mem_cache/memory_pool.py:2168:_create_buffers <- srt/mem_cache/memory_pool.py:2075:__init__"
+    ],
+    [
+      120586240,
+      "active_allocated",
+      "srt/mem_cache/memory_pool.py:2349:_create_buffers_normal <- srt/mem_cache/memory_pool.py:2168:_create_buffers <- srt/mem_cache/memory_pool.py:2075:__init__"
+    ],
+    [
+      120586240,
+      "active_allocated",
+      "srt/mem_cache/memory_pool.py:2349:_create_buffers_normal <- srt/mem_cache/memory_pool.py:2168:_create_buffers <- srt/mem_cache/memory_pool.py:2075:__init__"
+    ],
+    [
+      120586240,
+      "active_allocated",
+      "srt/mem_cache/memory_pool.py:2349:_create_buffers_normal <- srt/mem_cache/memory_pool.py:2168:_create_buffers <- srt/mem_cache/memory_pool.py:2075:__init__"
+    ],
+    [
+      120586240,
+      "active_allocated",
+      "srt/mem_cache/memory_pool.py:2349:_create_buffers_normal <- srt/mem_cache/memory_pool.py:2168:_create_buffers <- srt/mem_cache/memory_pool.py:2075:__init__"
+    ],
+    [
+      120586240,
+      "active_allocated",
+      "srt/mem_cache/memory_pool.py:2349:_create_buffers_normal <- srt/mem_cache/memory_pool.py:2168:_create_buffers <- srt/mem_cache/memory_pool.py:2075:__init__"
+    ],
+    [
+      120586240,
+      "active_allocated",
+      "srt/mem_cache/memory_pool.py:2349:_create_buffers_normal <- srt/mem_cache/memory_pool.py:2168:_create_buffers <- srt/mem_cache/memory_pool.py:2075:__init__"
+    ],
+    [
+      120586240,
+      "active_allocated",
+      "srt/mem_cache/memory_pool.py:2349:_create_buffers_normal <- srt/mem_cache/memory_pool.py:2168:_create_buffers <- srt/mem_cache/memory_pool.py:2075:__init__"
+    ],
+    [
+      120586240,
+      "active_allocated",
+      "srt/mem_cache/memory_pool.py:2349:_create_buffers_normal <- srt/mem_cache/memory_pool.py:2168:_create_buffers <- srt/mem_cache/memory_pool.py:2075:__init__"
+    ],
+    [
+      120586240,
+      "active_allocated",
+      "srt/mem_cache/memory_pool.py:2349:_create_buffers_normal <- srt/mem_cache/memory_pool.py:2168:_create_buffers <- srt/mem_cache/memory_pool.py:2075:__init__"
+    ],
+    [
+      120586240,
+      "active_allocated",
+      "srt/mem_cache/memory_pool.py:2345:_create_buffers_normal <- srt/mem_cache/memory_pool.py:2168:_create_buffers <- srt/mem_cache/memory_pool.py:2075:__init__"
+    ],
+    [
+      120586240,
+      "active_allocated",
+      "srt/mem_cache/memory_pool.py:2345:_create_buffers_normal <- srt/mem_cache/memory_pool.py:2168:_create_buffers <- srt/mem_cache/memory_pool.py:2075:__init__"
+    ],
+    [
+      120586240,
+      "active_allocated",
+      "srt/mem_cache/memory_pool.py:2345:_create_buffers_normal <- srt/mem_cache/memory_pool.py:2168:_create_buffers <- srt/mem_cache/memory_pool.py:2075:__init__"
+    ],
+    [
+      120586240,
+      "active_allocated",
+      "srt/mem_cache/memory_pool.py:2345:_create_buffers_normal <- srt/mem_cache/memory_pool.py:2168:_create_buffers <- srt/mem_cache/memory_pool.py:2075:__init__"
+    ],
+    [
+      120586240,
+      "active_allocated",
+      "srt/mem_cache/memory_pool.py:2345:_create_buffers_normal <- srt/mem_cache/memory_pool.py:2168:_create_buffers <- srt/mem_cache/memory_pool.py:2075:__init__"
+    ],
+    [
+      120586240,
+      "active_allocated",
+      "srt/mem_cache/memory_pool.py:2345:_create_buffers_normal <- srt/mem_cache/memory_pool.py:2168:_create_buffers <- srt/mem_cache/memory_pool.py:2075:__init__"
+    ],
+    [
+      120586240,
+      "active_allocated",
+      "srt/mem_cache/memory_pool.py:2345:_create_buffers_normal <- srt/mem_cache/memory_pool.py:2168:_create_buffers <- srt/mem_cache/memory_pool.py:2075:__init__"
+    ],
+    [
+      120586240,
+      "active_allocated",
+      "srt/mem_cache/memory_pool.py:2345:_create_buffers_normal <- srt/mem_cache/memory_pool.py:2168:_create_buffers <- srt/mem_cache/memory_pool.py:2075:__init__"
+    ]
+  ],
+  "segment_bytes": 32656850944,
+  "active_bytes": 32466449408
+}
