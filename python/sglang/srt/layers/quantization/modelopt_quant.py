@@ -1079,6 +1079,12 @@ class ModelOptMixedPrecisionConfig(ModelOptQuantConfig):
             if quant_algo == "NVFP4":
                 return ModelOptNvFp4FusedMoEMethod(self.nvfp4_config)
             if quant_algo == "W4A16_NVFP4":
+                if prefix.startswith("mtp.") or ".mtp." in prefix:
+                    from sglang.srt.layers.quantization.qwen38_fp4_mtp import (
+                        Qwen38Fp4MtpMethod,
+                    )
+
+                    return Qwen38Fp4MtpMethod(self.nvfp4a16_config)
                 return ModelOptNvFp4FusedMoEMethod(self.nvfp4a16_config)
             return None
 

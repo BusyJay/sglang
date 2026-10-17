@@ -102,7 +102,7 @@ class TestSharedFillOverlap(unittest.TestCase):
         self.assertEqual(self.trace[-3:], ["filled", "exit_fill", "compute_wait"])
         shared.assert_not_called()
 
-    def test_decode_only_eligibility_and_noninplace_guard(self):
+    def test_decode_verify_eligibility_and_noninplace_guard(self):
         config = SimpleNamespace(inplace=False, apply_router_weight_on_input=False)
         runtime = SimpleNamespace(
             supports_fill_overlap=True, miss_mailbox=object(), fused_decode_plan=True
@@ -123,7 +123,17 @@ class TestSharedFillOverlap(unittest.TestCase):
             self.assertTrue(
                 self.module.can_overlap_shared(method, block, hidden, "decode")
             )
-            for phase in ("prefill", "verify", None):
+            with mock.patch.dict(
+                "os.environ", {"SGLANG_QWEN38_SHARED_FILL_OVERLAP": "0"}
+            ):
+                self.assertFalse(
+                    self.module.can_overlap_shared(method, block, hidden, "decode")
+                )
+            with mock.patch.object(hidden, "shape", (3, 8)):
+                self.assertTrue(
+                    self.module.can_overlap_shared(method, block, hidden, "verify")
+                )
+            for phase in ("prefill", None):
                 self.assertFalse(
                     self.module.can_overlap_shared(method, block, hidden, phase)
                 )

@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import logging
+import os
 import re
 from typing import Optional
 
@@ -40,6 +42,21 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
     fuse_routed_scaling_factor_in_topk = True
 
     def __init__(self, manifest, prefix: str):
+        # Keep CUTLASS as the default: the optional SIMT A16 implementation is
+        # substantially slower on SM120, particularly for multi-token prefill.
+        enabled = os.getenv("SGLANG_QWEN38_CACHE_W4A16", "0")
+        if enabled not in ("0", "1"):
+            raise ValueError("SGLANG_QWEN38_CACHE_W4A16 must be 0 or 1")
+        self.use_w4a16 = enabled == "1"
+        prefill = os.getenv("SGLANG_QWEN38_CACHE_PREFILL_W4A16", enabled)
+        if prefill not in ("0", "1"):
+            raise ValueError("SGLANG_QWEN38_CACHE_PREFILL_W4A16 must be 0 or 1")
+        self.prefill_use_w4a16 = prefill == "1"
+        self.w4a16_chunk_tokens = int(
+            os.getenv("SGLANG_QWEN38_CACHE_W4A16_CHUNK_TOKENS", "16")
+        )
+        if not 1 <= self.w4a16_chunk_tokens <= 64:
+            raise ValueError("W4A16 chunk tokens must be in 1..64")
         self.manifest = manifest
         self.prefix = prefix
         self.layer_id: int | None = None
@@ -93,6 +110,13 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
         )
         # Seed at the current layer capacity before KV and graph allocation.
         self.swiglu_buffers.get(runtime.slots_for_layer(self.layer_id))
+        if self.layer_id == 0:
+            logging.getLogger(__name__).info(
+                "Qwen38 cache activation mode: prefill=%s decode/verify=%s; W4A16 chunk=%d",
+                "W4A16" if self.prefill_use_w4a16 else "W4A4 CUTLASS",
+                "W4A16" if self.use_w4a16 else "W4A4 CUTLASS",
+                self.w4a16_chunk_tokens,
+            )
 
     def apply(self, layer, dispatch_output):
         from sglang.srt.layers.moe.qwen38_cache_overlap import current_fill_overlap
@@ -132,6 +156,13 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
         from sglang.srt.runtime_context import get_forward
 
         return get_forward().qwen38_execution_phase
+
+    def uses_w4a16(self, execution_phase):
+        # Phase, not token count: a one-token prefill is still prefill, and a
+        # multi-token verify/replay must retain the decode activation mode.
+        if execution_phase == "prefill":
+            return self.prefill_use_w4a16
+        return self.use_w4a16
 
     def can_overlap_shared(self, block, hidden_states, phase):
         from sglang.srt.layers.moe.qwen38_cache_overlap import can_overlap_shared
@@ -183,6 +214,24 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
         )
 
         def execute(prepared):
+            if self.uses_w4a16(execution_phase):
+                from sglang.srt.layers.moe.token_dispatcher.standard import (
+                    StandardCombineInput,
+                )
+                from sglang.srt.layers.quantization.qwen38_cached_w4a16 import (
+                    cached_w4a16_moe,
+                    validate_runner_config,
+                )
+
+                validate_runner_config(self.moe_runner_config)
+                result = cached_w4a16_moe(
+                    hidden_states.contiguous(),
+                    prepared.topk_ids.contiguous(),
+                    topk_weights.contiguous(),
+                    prepared.tensors,
+                    chunk_tokens=self.w4a16_chunk_tokens,
+                )
+                return StandardCombineInput(hidden_states=result)
             capacity = prepared.num_experts
             if capacity not in self.runners:
                 config = replace(

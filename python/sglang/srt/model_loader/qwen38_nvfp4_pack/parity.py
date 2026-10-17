@@ -19,9 +19,20 @@ def check_exported_layer(
     atol=0.02,
     decode_graph=False,
     graph_width=1,
+    use_w4a16=False,
+    prefill_w4a16=None,
+    reference=None,
+    benchmark_iterations=0,
+    shared_overlap=False,
 ):
     import torch
 
+    if shared_overlap and (mode != "threaded" or decode_graph):
+        raise ValueError("shared overlap parity requires eager threaded mode")
+    if use_w4a16 and reference is None:
+        raise ValueError("W4A16 parity needs an independent BF16-activation reference")
+    if benchmark_iterations < 0:
+        raise ValueError("benchmark iterations must be nonnegative")
     if decode_graph and mode != "threaded":
         raise ValueError("decode graph parity requires threaded mode")
     if graph_width not in (1, 2, 3, 4):
@@ -102,12 +113,30 @@ def check_exported_layer(
             )
             runtime.reserve()
             cached = Qwen38CachedNvFp4MoeMethod(manifest, "model.layers.0.mlp.experts")
+            # Conversion parity proves the serialized CUTLASS ABI. A16 has a
+            # separate BF16-activation numerical reference, not W4A4 parity.
+            cached.use_w4a16 = use_w4a16
+            cached.prefill_use_w4a16 = use_w4a16 if prefill_w4a16 is None else prefill_w4a16
             cached.layer_id = 0
             cached.create_moe_runner(layer, replace(config, layer_id=0))
             cached.bind_runtime(runtime)
             reports = []
             generator = torch.Generator(device="cuda").manual_seed(731)
             graph = None
+            from types import SimpleNamespace
+
+            shared_result = SimpleNamespace(output=None, calls=0)
+            shared_weight = (
+                torch.eye(layer.hidden_size, device="cuda", dtype=torch.bfloat16)
+                if shared_overlap
+                else None
+            )
+
+            def shared_run(value):
+                shared_result.output = torch.nn.functional.linear(value, shared_weight)
+                shared_result.calls += 1
+
+            shared_call = SimpleNamespace(run=shared_run)
             # Miss, repeat hit, disjoint routes, then enough unique IDs for arena.
             cases = [
                 ("decode_miss", 1, 0),
@@ -140,8 +169,12 @@ def check_exported_layer(
                     ("decode_revisit", 1, 0),
                     ("decode_revisit_hit", 1, 0),
                 ]
+            if prefill_w4a16 is not None:
+                cases.append(("prefill_single", 1, 0))
             try:
                 for label, tokens, offset in cases:
+                    phase = "prefill" if label.startswith("prefill") else "verify" if label.startswith("verify") else "decode"
+                    cached._execution_phase = lambda: phase
                     ids = (
                         (
                             (
@@ -173,10 +206,14 @@ def check_exported_layer(
                         torch.empty(tokens, layer.num_experts, device="cuda"),
                     )
                     # Clone inputs independently, as kernels may modify workspaces.
-                    resident = layer.quant_method.apply(
-                        layer, StandardDispatchOutput(hidden.clone(), None, topk)
-                    ).hidden_states
-                    if decode_graph and tokens == graph_width:
+                    resident = (
+                        reference(hidden, ids, weights)
+                        if reference is not None and cached.uses_w4a16(phase)
+                        else layer.quant_method.apply(
+                            layer, StandardDispatchOutput(hidden.clone(), None, topk)
+                        ).hidden_states
+                    )
+                    if decode_graph and tokens == graph_width and phase != "prefill":
                         from sglang.srt.model_executor.runner_backend_utils.breakable_cuda_graph import (
                             BreakableCUDAGraph,
                             BreakableCUDAGraphCapture,
@@ -240,6 +277,22 @@ def check_exported_layer(
                                 "replay did not enqueue fresh host transport"
                             )
                         actual = graph_output
+                    elif shared_overlap:
+                        actual = cached._run_experts(
+                            hidden,
+                            weights,
+                            ids,
+                            topk.router_logits,
+                            execution_phase=phase,
+                            shared_call=shared_call,
+                            shared_input=hidden,
+                        )
+                        torch.testing.assert_close(
+                            shared_result.output,
+                            torch.nn.functional.linear(hidden, shared_weight),
+                            atol=0,
+                            rtol=0,
+                        )
                     else:
                         actual = cached.apply(
                             layer, StandardDispatchOutput(hidden.clone(), None, topk)
@@ -251,9 +304,41 @@ def check_exported_layer(
                     ):
                         raise AssertionError(f"nonfinite CUTLASS output in {label}")
                     torch.testing.assert_close(actual, resident, rtol=rtol, atol=atol)
+                    timing = {}
+                    if benchmark_iterations:
+                        from statistics import median
+
+                        samples = []
+                        for _ in range(benchmark_iterations):
+                            begin = torch.cuda.Event(enable_timing=True)
+                            end = torch.cuda.Event(enable_timing=True)
+                            begin.record()
+                            measured = cached._run_experts(
+                                hidden,
+                                weights,
+                                ids,
+                                topk.router_logits,
+                                execution_phase=phase,
+                            )
+                            end.record()
+                            runtime.synchronize() if hasattr(
+                                runtime, "synchronize"
+                            ) else torch.cuda.synchronize()
+                            samples.append(begin.elapsed_time(end))
+                        torch.testing.assert_close(
+                            measured, resident, rtol=rtol, atol=atol
+                        )
+                        timing = {
+                            "median_ms": median(samples),
+                            "iterations": benchmark_iterations,
+                            "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+                        }
                     reports.append(
                         {
                             "case": label,
+                            "phase": phase,
+                            "activation_mode": "w4a16" if cached.uses_w4a16(phase) else "w4a4",
+                            **timing,
                             "tokens": tokens,
                             "max_abs_error": (actual.float() - resident.float())
                             .abs()
@@ -261,9 +346,15 @@ def check_exported_layer(
                             .item(),
                         }
                     )
+                if shared_overlap and runtime.miss_mailbox.overlap_invocations < 1:
+                    raise AssertionError("shared expert did not overlap a cache fill")
                 return {
                     "status": "passed",
+                    "shared_overlap": shared_overlap,
+                    "shared_calls": shared_result.calls,
                     "runtime_mode": mode,
+                    "activation_mode": "w4a16" if use_w4a16 else "w4a4",
+                    "prefill_activation_mode": "w4a16" if cached.prefill_use_w4a16 else "w4a4",
                     "decode_graph": decode_graph,
                     "graph_width": graph_width,
                     "rtol": rtol,

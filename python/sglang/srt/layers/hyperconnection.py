@@ -1,3 +1,4 @@
+import os
 from typing import Optional
 
 import msgspec
@@ -40,11 +41,29 @@ class GroupedGemmaRMSNorm(nn.Module):
 
     def _weight_loader(self, param: torch.Tensor, loaded_weight: torch.Tensor) -> None:
         assert param.size() == loaded_weight.size()
+        if loaded_weight.dtype == torch.float32:
+            param.data = param.data.float()
         param.data.copy_(loaded_weight)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if (
+            os.getenv("SGLANG_QWEN38_FP32_NORM_FUSION", "1") == "1"
+            and x.is_cuda
+            and x.dtype == torch.bfloat16
+            and self.weight.dtype == torch.float32
+            and x.is_contiguous()
+            and self.weight.is_contiguous()
+        ):
+            from sglang.srt.layers.quantization.qwen38_fp32_norm import (
+                fp32_grouped_gemma_norm,
+            )
+
+            return fp32_grouped_gemma_norm(
+                x, self.weight, self.group_size, self.variance_epsilon
+            )
+        if (
             self._jit_group_size is not None
+            and self.weight.dtype == x.dtype
             and x.is_cuda
             and x.dtype in (torch.bfloat16, torch.float16)
         ):

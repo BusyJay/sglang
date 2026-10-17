@@ -120,8 +120,6 @@ def _configure_mtp(server_args, cfg, errors, remote_vision):
     """Opt-in, same-device NEXTN chain; target-only defaults stay unchanged."""
     if cfg.speculative_algorithm.upper() not in ("NEXTN", "EAGLE"):
         errors.append("qwen38 MTP supports only NEXTN (EAGLE alias)")
-    if remote_vision:
-        errors.append("qwen38 MTP currently requires pure text, without EPD")
     if cfg.speculative_draft_load_format != "qwen38_mtp":
         errors.append("qwen38 MTP requires --speculative-draft-load-format qwen38_mtp")
     if cfg.speculative_draft_model_path not in (None, cfg.model_path):

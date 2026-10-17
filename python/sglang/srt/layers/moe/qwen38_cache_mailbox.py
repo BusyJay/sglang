@@ -163,9 +163,12 @@ class DecodeMissMailbox:
             if self.sampler is not None
             else 0
         )
+        # The planner consumes a sorted/unique union but remaps every route.
+        # Flatten small verify batches without losing token/route output shape.
+        # The native kernel's existing histogram handles cross-token duplicates.
         _module().decode_plan_parallel(
-            ids,
-            remapped,
+            ids.view(1, -1),
+            remapped.view(1, -1),
             state["counts"],
             state["lookup"],
             state["keys"],
@@ -201,7 +204,7 @@ class DecodeMissMailbox:
                 _module().mailbox_fill_grid(
                     state["plan"],
                     self.layouts[layer],
-                    r.manifest.top_k,
+                    ids.numel(),
                     self.failed_address,
                     self.fill_cta,
                 )

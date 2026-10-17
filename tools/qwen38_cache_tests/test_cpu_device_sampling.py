@@ -90,8 +90,8 @@ class TestDeviceRouteSampler(unittest.TestCase):
         pointer = self.sampler.begin(layer, (cycle, index), self.stream)
         if pointer:
             bank = self.sampler.current[layer][0]
-            self.sampler.device.rows[bank, layer, index] = [len(active), *active, -999][
-                :3
+            self.sampler.device.rows[bank, layer, index] = [
+                len(active), *active, *([-999] * (self.sampler.width - len(active) - 1))
             ]
             self.sampler.commit(layer, (cycle, index), self.stream)
         return pointer
@@ -112,8 +112,17 @@ class TestDeviceRouteSampler(unittest.TestCase):
             self.runtime.adaptive_samples.get_nowait(), (1, 3, 1, 2, [[7]])
         )
         self.abort.assert_not_called()
-        self.assertEqual(self.sampler.device_bytes, 2 * 2 * 2 * 3 * 4)
+        self.assertEqual(self.sampler.device_bytes, 2 * 2 * 2 * 33 * 4)
         self.assertEqual(self.sampler.pinned_bytes, self.sampler.device_bytes)
+
+    def test_verify_union_can_exceed_single_token_topk(self):
+        self.record(0, 0, 0, [0, 1, 2, 3, 4, 5])
+        self.sampler.synchronize()
+        self.assertEqual(
+            self.runtime.adaptive_samples.get_nowait(),
+            (0, 0, 0, 1, [[0, 1, 2, 3, 4, 5]]),
+        )
+        self.abort.assert_not_called()
 
     def test_banks_are_not_reused_while_collector_waits_for_cuda(self):
         event = self.sampler.copied[0][0]

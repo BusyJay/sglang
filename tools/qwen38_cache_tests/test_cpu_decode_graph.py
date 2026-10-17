@@ -258,6 +258,7 @@ class TestEagerBreakReplay(unittest.TestCase):
                 "python/sglang/srt/layers/quantization/qwen38_nvfp4_cache.py",
             )
             method = module.Qwen38CachedNvFp4MoeMethod(None, "fixture")
+            method.use_w4a16 = False
             method.runtime = SimpleNamespace(
                 run=transport, supports_execution_phase=True
             )

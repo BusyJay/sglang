@@ -33,7 +33,9 @@ class DeviceRouteSampler:
         self.layers = runtime.manifest.num_layers
         self.window, self.width = (
             runtime.adaptive_cache_window,
-            runtime.manifest.top_k + 1,
+            # The fused mailbox supports up to 32 routes, including the union
+            # across a multi-token verify batch. Reserve the count plus IDs.
+            max(32, runtime.manifest.top_k) + 1,
         )
         shape = (2, self.layers, self.window, self.width)
         self.device = torch.empty(shape, dtype=torch.int32, device=runtime.device)

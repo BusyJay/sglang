@@ -94,6 +94,7 @@ def main():
         num_experts=512, num_layers=48, hidden_size=2560, intermediate_size=640
     )
     method = Qwen38CachedNvFp4MoeMethod(manifest, "model.layers.0.mlp")
+    method.use_w4a16 = False
     layer = torch.nn.Module()
     layer.layer_id = 0
     method.create_weights(layer, 512, 2560, 640, torch.bfloat16)
