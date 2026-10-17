@@ -355,6 +355,12 @@ def _bf16_gemm_dispatch_impl(
 def bf16_gemm_dispatch(
     x: torch.Tensor, weight: torch.Tensor, bias: Optional[torch.Tensor]
 ) -> torch.Tensor:
+    # The branch is model-scoped; other architectures use the established dispatcher.
+    from sglang.srt.runtime_context import get_model
+    if get_model().load_format == "qwen38_nvfp4_cache":
+        from sglang.srt.layers.quantization.qwen38_decode_gemv import applicable, decode_gemv
+        if applicable(x, weight, bias):
+            return decode_gemv(x, weight)
     return _bf16_gemm_dispatch_impl(x, weight, bias)
 
 
@@ -498,6 +504,11 @@ class UnquantizedLinearMethod(LinearMethodBase):
                 return bf16_gemm_dispatch(x, layer.weight, bias)
             return _bf16_gemm_dispatch_impl(x, layer.weight, bias)
 
+        from sglang.srt.runtime_context import get_model
+        if get_model().load_format == "qwen38_nvfp4_cache":
+            from sglang.srt.layers.quantization.qwen38_decode_gemv import applicable, decode_gemv
+            if applicable(x, layer.weight, bias):
+                return decode_gemv(x, layer.weight)
         return F.linear(x, layer.weight, bias)
 
     def apply_with_addend(

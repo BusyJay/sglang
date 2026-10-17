@@ -113,7 +113,7 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             raise ValueError("warm_decode_cache must be a JSON boolean")
         if not isinstance(config.get("adaptive_cache", False), bool):
             raise ValueError("adaptive_cache must be a JSON boolean")
-        if not isinstance(config.get("async_pack_prefetch", False), bool):
+        if not isinstance(config.get("async_pack_prefetch", True), bool):
             raise ValueError("async_pack_prefetch must be a JSON boolean")
         for option in ("prefill_reuse_cache", "prefill_seed_cache"):
             if type(config.get(option, True)) is not bool:
@@ -281,7 +281,7 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
         pack = Qwen38ExpertPack(self.manifest)
         memory_mark(probe, "loader.after_pack")
         try:
-            if self.config.get("async_pack_prefetch", False):
+            if self.config.get("async_pack_prefetch", True):
                 pack.start_prefetch()
             with set_default_torch_dtype(model_config.dtype):
                 with target_device:

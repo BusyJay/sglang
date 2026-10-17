@@ -18,7 +18,8 @@ class TestMailboxRegistration(unittest.TestCase):
         fixture = TestSynchronousRuntime()
         fixture.setUp()
         self.addCleanup(fixture.tearDown)
-        original = fixture.pack._mapping[:]
+        # Anonymous sources are populated on first public read/registration.
+        original = fixture.pack.manifest.payload_path.read_bytes()
         with torch.device("cuda"):
             runtime = Qwen38ThreadedExpertRuntime(
                 fixture.pack, "cuda", slots_per_layer=2, decode_device_gate=True

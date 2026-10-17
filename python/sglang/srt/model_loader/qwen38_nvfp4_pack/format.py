@@ -322,17 +322,46 @@ class Qwen38ExpertPack:
         self._prefetch_thread = None
         self._prefetch_stop = threading.Event()
         self._prefetch_error = None
+        self._source_mode = os.getenv("SGLANG_QWEN38_SOURCE_MODE", "anonymous_thp")
+        if self._source_mode not in ("file_cow", "cow_prefault", "anonymous", "anonymous_thp"):
+            self._mapping.close()
+            self._stream.close()
+            raise ValueError("invalid SGLANG_QWEN38_SOURCE_MODE")
+        self._source_prepared = False
+        self._prefetch_active = False
+        self._prefetch_ready = threading.Event()
+        if self._source_mode == "cow_prefault":
+            self._mapping.close()
+            self._mapping = mmap.mmap(self._stream.fileno(), 0, access=mmap.ACCESS_COPY)
+            self._cuda_source_private = True
+        elif self._source_mode.startswith("anonymous"):
+            self._mapping.close()
+            self._mapping = mmap.mmap(-1, self.manifest.payload_nbytes,
+                flags=mmap.MAP_PRIVATE | mmap.MAP_ANONYMOUS,
+                prot=mmap.PROT_READ | mmap.PROT_WRITE)
+            if self._source_mode == "anonymous_thp":
+                self._mapping.madvise(mmap.MADV_HUGEPAGE)
+            self._cuda_source_private = True
 
     def start_prefetch(self) -> None:
         """Populate the shared file page cache while model weights load."""
         if self._prefetch_thread is not None:
             return
+        self._prefetch_active = True
         self._prefetch_thread = threading.Thread(
             target=self._prefetch, name="qwen38-pack-prefetch", daemon=True
         )
         self._prefetch_thread.start()
 
     def _prefetch(self) -> None:
+        if self._source_mode != "file_cow":
+            try:
+                self._prepare_source()
+            except BaseException as exc:
+                self._prefetch_error = exc
+            finally:
+                self._prefetch_ready.set()
+            return
         started = time.perf_counter()
         size = self.manifest.payload_nbytes
         offset = 0
@@ -357,9 +386,52 @@ class Qwen38ExpertPack:
                     offset / (1 << 30), time.perf_counter() - started,
                 )
 
+    def _prepare_source(self):
+        if self._source_prepared:
+            return
+        from sglang.srt.layers.moe.qwen38_observation import observe
+        with observe("source_prefault_or_load", startup=True, mode=self._source_mode,
+                     source_bytes=self.manifest.payload_nbytes):
+            if self._source_mode == "cow_prefault":
+                # Writable population preserves file bytes, but materializes COW.
+                self._mapping.madvise(getattr(mmap, "MADV_POPULATE_WRITE", 23))
+            else:
+                view = memoryview(self._mapping)
+                try:
+                    offset = 0
+                    while offset < len(view):
+                        if self._prefetch_stop.is_set():
+                            raise RuntimeError("expert source preparation cancelled")
+                        end = min(offset + (8 << 20), len(view))
+                        part = view[offset:end]
+                        try:
+                            count = os.preadv(self._stream.fileno(), [part], offset)
+                        finally:
+                            part.release()
+                        if count <= 0:
+                            raise OSError("short expert source read")
+                        offset += count
+                finally:
+                    view.release()
+            self._source_prepared = True
+
     def wait_prefetch(self) -> None:
         if self._prefetch_thread is not None:
             self._prefetch_thread.join()
+        if self._source_mode != "file_cow":
+            if self._prefetch_error is not None:
+                raise RuntimeError("expert source preparation failed") from self._prefetch_error
+            self._prepare_source()
+
+    def _wait_source_readable(self):
+        # Early alpha/scalar CPU reads must never observe uninitialized source.
+        if self._source_mode.startswith("anonymous") and not self._source_prepared:
+            if self._prefetch_active:
+                self._prefetch_ready.wait()
+                if self._prefetch_error is not None:
+                    raise RuntimeError("expert source preparation failed") from self._prefetch_error
+            else:
+                self._prepare_source()
 
     def cuda_source_mapping(self) -> mmap.mmap:
         """Promote at startup to the single CUDA-registerable source mapping.
@@ -370,8 +442,8 @@ class Qwen38ExpertPack:
         the file. The pack owns the mapping beyond each mailbox's registration.
         Existing exported views must have been released before promotion.
         """
+        self.wait_prefetch()
         if not self._cuda_source_private:
-            self.wait_prefetch()
             mapping = mmap.mmap(self._stream.fileno(), 0, access=mmap.ACCESS_COPY)
             try:
                 self._mapping.close()
@@ -393,6 +465,7 @@ class Qwen38ExpertPack:
                 logger.warning("Could not discard expert-pack file cache: %s", exc)
 
     def tensor_bytes(self, layer: int, name: str) -> memoryview:
+        self._wait_source_readable()
         record = self.manifest.tensors[layer][name]
         return memoryview(self._mapping)[
             record.offset : record.offset + record.nbytes
@@ -403,6 +476,7 @@ class Qwen38ExpertPack:
             raise IndexError(f"expert {expert} is outside the runtime pack")
         if name in LAYER_TENSORS:
             raise ValueError(f"{name} is a layer scalar, not an expert tensor")
+        self._wait_source_readable()
         record = self.manifest.tensors[layer][name]
         expert_nbytes = record.nbytes // self.manifest.num_experts
         start = record.offset + expert * expert_nbytes
@@ -417,7 +491,8 @@ class Qwen38ExpertPack:
 
     def close(self) -> None:
         self._prefetch_stop.set()
-        self.wait_prefetch()
+        if self._prefetch_thread is not None:
+            self._prefetch_thread.join()
         if not self._mapping.closed:
             self._mapping.close()
         self._stream.close()

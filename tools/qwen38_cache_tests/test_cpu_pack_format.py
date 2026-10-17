@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from ._load_source import load_source
 
@@ -89,8 +91,11 @@ class TestPackFormat(unittest.TestCase):
                 pack.start_prefetch()
                 pack.wait_prefetch()
                 self.assertIsNone(pack._prefetch_error)
-                self.assertEqual(bytes(pack.tensor_bytes(0, "w13_weight")), bytes(range(8)))
+                self.assertEqual(
+                    bytes(pack.tensor_bytes(0, "w13_weight")), bytes(range(8))
+                )
 
+    @mock.patch.dict(os.environ, {"SGLANG_QWEN38_SOURCE_MODE": "file_cow"})
     def test_cuda_source_replaces_mapping_and_preserves_read_only_views(self):
         with tempfile.TemporaryDirectory() as value:
             manifest = load_manifest(make_pack(Path(value)))
@@ -113,6 +118,7 @@ class TestPackFormat(unittest.TestCase):
                         view.release()
                 self.assertEqual(manifest.payload_path.read_bytes(), original)
 
+    @mock.patch.dict(os.environ, {"SGLANG_QWEN38_SOURCE_MODE": "file_cow"})
     def test_cuda_source_promotion_keeps_existing_views_valid_on_failure(self):
         with tempfile.TemporaryDirectory() as value:
             manifest = load_manifest(make_pack(Path(value)))
@@ -128,6 +134,31 @@ class TestPackFormat(unittest.TestCase):
                 finally:
                     view.release()
                 self.assertIs(pack.cuda_source_mapping(), pack._mapping)
+
+    def test_prepared_sources_are_readable_before_registration(self):
+        for mode in ("cow_prefault", "anonymous", "anonymous_thp"):
+            for background in (False, True):
+                with self.subTest(
+                    mode=mode, background=background
+                ), tempfile.TemporaryDirectory() as value:
+                    manifest = load_manifest(make_pack(Path(value)))
+                    original = manifest.payload_path.read_bytes()
+                    with mock.patch.dict(
+                        os.environ, {"SGLANG_QWEN38_SOURCE_MODE": mode}
+                    ), Qwen38ExpertPack(manifest) as pack:
+                        if background:
+                            pack.start_prefetch()
+                        # CPU scale/weight reads may precede runtime registration.
+                        view = pack.tensor_bytes(0, "w13_weight")
+                        try:
+                            self.assertTrue(view.readonly)
+                            self.assertEqual(bytes(view), bytes(range(8)))
+                        finally:
+                            view.release()
+                        mapping = pack.cuda_source_mapping()
+                        self.assertEqual(bytes(mapping), original)
+                        self.assertIs(mapping, pack.cuda_source_mapping())
+                    self.assertEqual(manifest.payload_path.read_bytes(), original)
 
     def test_overlap_is_rejected(self):
         with tempfile.TemporaryDirectory() as value:

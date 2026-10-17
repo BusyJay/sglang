@@ -8,6 +8,7 @@ Prior GPU readers finish before a layer's plan or cache slots are reused.
 """
 
 import collections
+import os
 import threading
 import time
 
@@ -47,6 +48,11 @@ class DecodeMissMailbox:
         from sglang.srt.utils.cuda_vmm_utils import check_drv
 
         self.runtime = runtime
+        # Zero selects a device-side policy; no miss count crosses to the CPU.
+        fill_cta = os.getenv("SGLANG_QWEN38_FILL_CTA", "8")
+        if fill_cta not in tuple(str(i) for i in range(1, 9)) + ("adaptive",):
+            raise ValueError("SGLANG_QWEN38_FILL_CTA must be 1..8 or adaptive")
+        self.fill_cta = 0 if fill_cta == "adaptive" else int(fill_cta)
         layers, experts = runtime.manifest.num_layers, runtime.manifest.num_experts
         # hits, all-hit calls, misses, miss calls; one row per layer.
         self.hit_stats = torch.zeros(
@@ -70,11 +76,16 @@ class DecodeMissMailbox:
         }
         # Every transport shares the pack's one private source mapping. CUDA
         # materializes COW pages once; no second read-only mapping is retained.
-        self.pack_mapping = runtime.pack.cuda_source_mapping()
+        from sglang.srt.layers.moe.qwen38_observation import observe
+        with observe("source_mapping", device=runtime.device, startup=True):
+            self.pack_mapping = runtime.pack.cuda_source_mapping()
         self.pack_view = torch.frombuffer(self.pack_mapping, dtype=torch.uint8)
         with torch.cuda.device(runtime.device):
-            self.pack_address = _module().mailbox_register(self.pack_view)
-        runtime.pack.discard_source_file_cache()
+            with observe("host_register_and_device_pointer", device=runtime.device,
+                         startup=True, source_bytes=self.pack_view.nbytes):
+                self.pack_address = _module().mailbox_register(self.pack_view)
+        with observe("discard_source_cache", device=runtime.device, startup=True):
+            runtime.pack.discard_source_file_cache()
         self.refresh_targets()
         self.last_computed = None
         # Reuse completion events instead of allocating/destroying them in
@@ -96,11 +107,12 @@ class DecodeMissMailbox:
         self.retained_external = {}
         # Preload the fill kernel before serving frames.
         warm_plan = torch.zeros(4, dtype=torch.int32, device=runtime.device)
-        _module().mailbox_fill(
+        _module().mailbox_fill_grid(
             warm_plan,
             self.layouts[0],
             runtime.manifest.top_k,
             self.failed_address,
+            self.fill_cta,
         )
         torch.cuda.current_stream(runtime.device).synchronize()
         self.pending = collections.deque()
@@ -151,7 +163,7 @@ class DecodeMissMailbox:
             if self.sampler is not None
             else 0
         )
-        _module().decode_plan_mailbox(
+        _module().decode_plan_parallel(
             ids,
             remapped,
             state["counts"],
@@ -167,6 +179,7 @@ class DecodeMissMailbox:
             r.cache_protected_fraction,
             self.hit_stats.data_ptr() + self.hit_stats.stride(0) * 8 * layer,
             capture,
+            os.getenv("SGLANG_QWEN38_PARALLEL_MISS_PLAN", "1") == "1",
         )
         self.native_active = True
         if capture:
@@ -185,11 +198,12 @@ class DecodeMissMailbox:
         try:
 
             def submit_fill():
-                _module().mailbox_fill(
+                _module().mailbox_fill_grid(
                     state["plan"],
                     self.layouts[layer],
                     r.manifest.top_k,
                     self.failed_address,
+                    self.fill_cta,
                 )
 
             if during_fill is None:
