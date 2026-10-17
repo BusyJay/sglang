@@ -1,0 +1,1807 @@
+{
+  "status": "passed",
+  "gpu": "NVIDIA GeForce RTX 5090 D",
+  "scope": "CUDA graph, resident synthetic weights, all routes valid; no-zero variants are diagnostic and unsafe for invalid routes",
+  "reports": [
+    {
+      "tokens": 2,
+      "shared_experts": 0,
+      "unique_experts": 20,
+      "reuse_fraction": 0.0,
+      "mode": "baseline",
+      "compiler": [
+        {
+          "kernel": "_cache_project_splitk",
+          "first": true,
+          "n_regs": 115,
+          "n_spills": 0,
+          "shared_bytes": 512
+        },
+        {
+          "kernel": "_cache_project_splitk",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 512
+        }
+      ],
+      "median_us": 77.36149802803993,
+      "p95_us": 78.09100300073624
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 0,
+      "unique_experts": 20,
+      "reuse_fraction": 0.0,
+      "mode": "fused",
+      "compiler": [
+        {
+          "kernel": "_cache_project_splitk",
+          "first": true,
+          "n_regs": 115,
+          "n_spills": 0,
+          "shared_bytes": 512
+        },
+        {
+          "kernel": "_cache_project_splitk",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 512
+        }
+      ],
+      "median_us": 77.88550108671188,
+      "p95_us": 77.93200016021729
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 0,
+      "unique_experts": 20,
+      "reuse_fraction": 0.0,
+      "mode": "reuse",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 128,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 122,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 155.88749945163727,
+      "p95_us": 155.95300495624542
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 0,
+      "unique_experts": 20,
+      "reuse_fraction": 0.0,
+      "mode": "reuse_no_zero",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 128,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 122,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 154.73050624132156,
+      "p95_us": 154.8919975757599
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 0,
+      "unique_experts": 20,
+      "reuse_fraction": 0.0,
+      "mode": "reuse_vector",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 72,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 125,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 146.417498588562,
+      "p95_us": 146.5570032596588
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 0,
+      "unique_experts": 20,
+      "reuse_fraction": 0.0,
+      "mode": "reuse_vector_no_zero",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 72,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 125,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 145.29849588871002,
+      "p95_us": 145.96599340438843
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 2,
+      "unique_experts": 18,
+      "reuse_fraction": 0.09999999999999998,
+      "mode": "baseline",
+      "compiler": [
+        {
+          "kernel": "_cache_project_splitk",
+          "first": true,
+          "n_regs": 115,
+          "n_spills": 0,
+          "shared_bytes": 512
+        },
+        {
+          "kernel": "_cache_project_splitk",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 512
+        }
+      ],
+      "median_us": 78.831996768713,
+      "p95_us": 78.88799905776978
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 2,
+      "unique_experts": 18,
+      "reuse_fraction": 0.09999999999999998,
+      "mode": "fused",
+      "compiler": [
+        {
+          "kernel": "_cache_project_splitk",
+          "first": true,
+          "n_regs": 115,
+          "n_spills": 0,
+          "shared_bytes": 512
+        },
+        {
+          "kernel": "_cache_project_splitk",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 512
+        }
+      ],
+      "median_us": 78.2490000128746,
+      "p95_us": 78.30800116062164
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 2,
+      "unique_experts": 18,
+      "reuse_fraction": 0.09999999999999998,
+      "mode": "reuse",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 128,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 122,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 151.81999653577805,
+      "p95_us": 151.97299420833588
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 2,
+      "unique_experts": 18,
+      "reuse_fraction": 0.09999999999999998,
+      "mode": "reuse_no_zero",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 128,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 122,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 150.46800673007965,
+      "p95_us": 150.59499442577362
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 2,
+      "unique_experts": 18,
+      "reuse_fraction": 0.09999999999999998,
+      "mode": "reuse_vector",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 72,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 125,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 142.94499903917313,
+      "p95_us": 143.094003200531
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 2,
+      "unique_experts": 18,
+      "reuse_fraction": 0.09999999999999998,
+      "mode": "reuse_vector_no_zero",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 72,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 125,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 141.45749807357788,
+      "p95_us": 141.51300489902496
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 4,
+      "unique_experts": 16,
+      "reuse_fraction": 0.19999999999999996,
+      "mode": "baseline",
+      "compiler": [
+        {
+          "kernel": "_cache_project_splitk",
+          "first": true,
+          "n_regs": 115,
+          "n_spills": 0,
+          "shared_bytes": 512
+        },
+        {
+          "kernel": "_cache_project_splitk",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 512
+        }
+      ],
+      "median_us": 78.9950005710125,
+      "p95_us": 79.01699841022491
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 4,
+      "unique_experts": 16,
+      "reuse_fraction": 0.19999999999999996,
+      "mode": "fused",
+      "compiler": [
+        {
+          "kernel": "_cache_project_splitk",
+          "first": true,
+          "n_regs": 115,
+          "n_spills": 0,
+          "shared_bytes": 512
+        },
+        {
+          "kernel": "_cache_project_splitk",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 512
+        }
+      ],
+      "median_us": 78.48099991679192,
+      "p95_us": 78.68999987840652
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 4,
+      "unique_experts": 16,
+      "reuse_fraction": 0.19999999999999996,
+      "mode": "reuse",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 128,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 122,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 123.8350011408329,
+      "p95_us": 124.0760013461113
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 4,
+      "unique_experts": 16,
+      "reuse_fraction": 0.19999999999999996,
+      "mode": "reuse_no_zero",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 128,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 122,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 122.9500025510788,
+      "p95_us": 123.05399775505066
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 4,
+      "unique_experts": 16,
+      "reuse_fraction": 0.19999999999999996,
+      "mode": "reuse_vector",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 72,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 125,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 138.68550211191177,
+      "p95_us": 138.79099488258362
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 4,
+      "unique_experts": 16,
+      "reuse_fraction": 0.19999999999999996,
+      "mode": "reuse_vector_no_zero",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 72,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 125,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 137.3245045542717,
+      "p95_us": 137.45300471782684
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 6,
+      "unique_experts": 14,
+      "reuse_fraction": 0.30000000000000004,
+      "mode": "baseline",
+      "compiler": [
+        {
+          "kernel": "_cache_project_splitk",
+          "first": true,
+          "n_regs": 115,
+          "n_spills": 0,
+          "shared_bytes": 512
+        },
+        {
+          "kernel": "_cache_project_splitk",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 512
+        }
+      ],
+      "median_us": 79.30349931120872,
+      "p95_us": 79.37300205230713
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 6,
+      "unique_experts": 14,
+      "reuse_fraction": 0.30000000000000004,
+      "mode": "fused",
+      "compiler": [
+        {
+          "kernel": "_cache_project_splitk",
+          "first": true,
+          "n_regs": 115,
+          "n_spills": 0,
+          "shared_bytes": 512
+        },
+        {
+          "kernel": "_cache_project_splitk",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 512
+        }
+      ],
+      "median_us": 78.80749925971031,
+      "p95_us": 79.51399683952332
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 6,
+      "unique_experts": 14,
+      "reuse_fraction": 0.30000000000000004,
+      "mode": "reuse",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 128,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 122,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 118.65799874067307,
+      "p95_us": 118.72199922800064
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 6,
+      "unique_experts": 14,
+      "reuse_fraction": 0.30000000000000004,
+      "mode": "reuse_no_zero",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 128,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 122,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 117.31649935245514,
+      "p95_us": 117.39899963140488
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 6,
+      "unique_experts": 14,
+      "reuse_fraction": 0.30000000000000004,
+      "mode": "reuse_vector",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 72,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 125,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 134.07649844884872,
+      "p95_us": 134.18899476528168
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 6,
+      "unique_experts": 14,
+      "reuse_fraction": 0.30000000000000004,
+      "mode": "reuse_vector_no_zero",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 72,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 125,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 132.72549957036972,
+      "p95_us": 132.80600309371948
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 8,
+      "unique_experts": 12,
+      "reuse_fraction": 0.4,
+      "mode": "baseline",
+      "compiler": [
+        {
+          "kernel": "_cache_project_splitk",
+          "first": true,
+          "n_regs": 115,
+          "n_spills": 0,
+          "shared_bytes": 512
+        },
+        {
+          "kernel": "_cache_project_splitk",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 512
+        }
+      ],
+      "median_us": 79.30299639701843,
+      "p95_us": 79.31700348854065
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 8,
+      "unique_experts": 12,
+      "reuse_fraction": 0.4,
+      "mode": "fused",
+      "compiler": [
+        {
+          "kernel": "_cache_project_splitk",
+          "first": true,
+          "n_regs": 115,
+          "n_spills": 0,
+          "shared_bytes": 512
+        },
+        {
+          "kernel": "_cache_project_splitk",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 512
+        }
+      ],
+      "median_us": 78.69600132107735,
+      "p95_us": 78.74999940395355
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 8,
+      "unique_experts": 12,
+      "reuse_fraction": 0.4,
+      "mode": "reuse",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 128,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 122,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 113.48800361156464,
+      "p95_us": 113.5760024189949
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 8,
+      "unique_experts": 12,
+      "reuse_fraction": 0.4,
+      "mode": "reuse_no_zero",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 128,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 122,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 112.14599758386612,
+      "p95_us": 112.26300150156021
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 8,
+      "unique_experts": 12,
+      "reuse_fraction": 0.4,
+      "mode": "reuse_vector",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 72,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 125,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 128.3545047044754,
+      "p95_us": 128.42200696468353
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 8,
+      "unique_experts": 12,
+      "reuse_fraction": 0.4,
+      "mode": "reuse_vector_no_zero",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 72,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 125,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 126.91900134086609,
+      "p95_us": 127.00599431991577
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 10,
+      "unique_experts": 10,
+      "reuse_fraction": 0.5,
+      "mode": "baseline",
+      "compiler": [
+        {
+          "kernel": "_cache_project_splitk",
+          "first": true,
+          "n_regs": 115,
+          "n_spills": 0,
+          "shared_bytes": 512
+        },
+        {
+          "kernel": "_cache_project_splitk",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 512
+        }
+      ],
+      "median_us": 79.35449853539467,
+      "p95_us": 79.40699905157089
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 10,
+      "unique_experts": 10,
+      "reuse_fraction": 0.5,
+      "mode": "fused",
+      "compiler": [
+        {
+          "kernel": "_cache_project_splitk",
+          "first": true,
+          "n_regs": 115,
+          "n_spills": 0,
+          "shared_bytes": 512
+        },
+        {
+          "kernel": "_cache_project_splitk",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 512
+        }
+      ],
+      "median_us": 78.80600169301033,
+      "p95_us": 79.54800128936768
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 10,
+      "unique_experts": 10,
+      "reuse_fraction": 0.5,
+      "mode": "reuse",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 128,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 122,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 107.33950138092041,
+      "p95_us": 107.53700137138367
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 10,
+      "unique_experts": 10,
+      "reuse_fraction": 0.5,
+      "mode": "reuse_no_zero",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 128,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 122,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 105.99350184202194,
+      "p95_us": 106.16199672222137
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 10,
+      "unique_experts": 10,
+      "reuse_fraction": 0.5,
+      "mode": "reuse_vector",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 72,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 125,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 93.84749829769135,
+      "p95_us": 93.90400350093842
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 10,
+      "unique_experts": 10,
+      "reuse_fraction": 0.5,
+      "mode": "reuse_vector_no_zero",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 72,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 125,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 92.44599938392639,
+      "p95_us": 92.50299632549286
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 0,
+      "unique_experts": 30,
+      "reuse_fraction": 0.0,
+      "mode": "baseline",
+      "compiler": [
+        {
+          "kernel": "_cache_project_splitk",
+          "first": true,
+          "n_regs": 115,
+          "n_spills": 0,
+          "shared_bytes": 512
+        },
+        {
+          "kernel": "_cache_project_splitk",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 512
+        }
+      ],
+      "median_us": 117.92900040745735,
+      "p95_us": 119.08499896526337
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 0,
+      "unique_experts": 30,
+      "reuse_fraction": 0.0,
+      "mode": "fused",
+      "compiler": [
+        {
+          "kernel": "_cache_project_splitk",
+          "first": true,
+          "n_regs": 115,
+          "n_spills": 0,
+          "shared_bytes": 512
+        },
+        {
+          "kernel": "_cache_project_splitk",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 512
+        }
+      ],
+      "median_us": 117.26049706339836,
+      "p95_us": 117.31699854135513
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 0,
+      "unique_experts": 30,
+      "reuse_fraction": 0.0,
+      "mode": "reuse",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 128,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 383.8450014591217,
+      "p95_us": 384.2340111732483
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 0,
+      "unique_experts": 30,
+      "reuse_fraction": 0.0,
+      "mode": "reuse_no_zero",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 128,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 382.3530077934265,
+      "p95_us": 382.5159966945648
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 0,
+      "unique_experts": 30,
+      "reuse_fraction": 0.0,
+      "mode": "reuse_vector",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 127,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 121,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 375.40899217128754,
+      "p95_us": 375.58600306510925
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 0,
+      "unique_experts": 30,
+      "reuse_fraction": 0.0,
+      "mode": "reuse_vector_no_zero",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 127,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 121,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 374.2925077676773,
+      "p95_us": 374.4310140609741
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 2,
+      "unique_experts": 26,
+      "reuse_fraction": 0.1333333333333333,
+      "mode": "baseline",
+      "compiler": [
+        {
+          "kernel": "_cache_project_splitk",
+          "first": true,
+          "n_regs": 115,
+          "n_spills": 0,
+          "shared_bytes": 512
+        },
+        {
+          "kernel": "_cache_project_splitk",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 512
+        }
+      ],
+      "median_us": 117.70249903202057,
+      "p95_us": 117.77400225400925
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 2,
+      "unique_experts": 26,
+      "reuse_fraction": 0.1333333333333333,
+      "mode": "fused",
+      "compiler": [
+        {
+          "kernel": "_cache_project_splitk",
+          "first": true,
+          "n_regs": 115,
+          "n_spills": 0,
+          "shared_bytes": 512
+        },
+        {
+          "kernel": "_cache_project_splitk",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 512
+        }
+      ],
+      "median_us": 117.09950119256973,
+      "p95_us": 117.53399670124054
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 2,
+      "unique_experts": 26,
+      "reuse_fraction": 0.1333333333333333,
+      "mode": "reuse",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 128,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 337.5899940729141,
+      "p95_us": 337.72701025009155
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 2,
+      "unique_experts": 26,
+      "reuse_fraction": 0.1333333333333333,
+      "mode": "reuse_no_zero",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 128,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 336.13450825214386,
+      "p95_us": 336.26100420951843
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 2,
+      "unique_experts": 26,
+      "reuse_fraction": 0.1333333333333333,
+      "mode": "reuse_vector",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 127,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 121,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 332.0325016975403,
+      "p95_us": 332.2120010852814
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 2,
+      "unique_experts": 26,
+      "reuse_fraction": 0.1333333333333333,
+      "mode": "reuse_vector_no_zero",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 127,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 121,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 330.65949380397797,
+      "p95_us": 330.78300952911377
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 4,
+      "unique_experts": 22,
+      "reuse_fraction": 0.2666666666666667,
+      "mode": "baseline",
+      "compiler": [
+        {
+          "kernel": "_cache_project_splitk",
+          "first": true,
+          "n_regs": 115,
+          "n_spills": 0,
+          "shared_bytes": 512
+        },
+        {
+          "kernel": "_cache_project_splitk",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 512
+        }
+      ],
+      "median_us": 118.93250048160553,
+      "p95_us": 118.99899691343307
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 4,
+      "unique_experts": 22,
+      "reuse_fraction": 0.2666666666666667,
+      "mode": "fused",
+      "compiler": [
+        {
+          "kernel": "_cache_project_splitk",
+          "first": true,
+          "n_regs": 115,
+          "n_spills": 0,
+          "shared_bytes": 512
+        },
+        {
+          "kernel": "_cache_project_splitk",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 512
+        }
+      ],
+      "median_us": 118.40850114822388,
+      "p95_us": 118.79099905490875
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 4,
+      "unique_experts": 22,
+      "reuse_fraction": 0.2666666666666667,
+      "mode": "reuse",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 128,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 291.2674993276596,
+      "p95_us": 291.41300916671753
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 4,
+      "unique_experts": 22,
+      "reuse_fraction": 0.2666666666666667,
+      "mode": "reuse_no_zero",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 128,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 289.85700011253357,
+      "p95_us": 290.17001390457153
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 4,
+      "unique_experts": 22,
+      "reuse_fraction": 0.2666666666666667,
+      "mode": "reuse_vector",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 127,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 121,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 286.6300046443939,
+      "p95_us": 286.7850065231323
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 4,
+      "unique_experts": 22,
+      "reuse_fraction": 0.2666666666666667,
+      "mode": "reuse_vector_no_zero",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 127,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 121,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 285.10600328445435,
+      "p95_us": 285.29998660087585
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 6,
+      "unique_experts": 18,
+      "reuse_fraction": 0.4,
+      "mode": "baseline",
+      "compiler": [
+        {
+          "kernel": "_cache_project_splitk",
+          "first": true,
+          "n_regs": 115,
+          "n_spills": 0,
+          "shared_bytes": 512
+        },
+        {
+          "kernel": "_cache_project_splitk",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 512
+        }
+      ],
+      "median_us": 117.81100183725357,
+      "p95_us": 118.9579963684082
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 6,
+      "unique_experts": 18,
+      "reuse_fraction": 0.4,
+      "mode": "fused",
+      "compiler": [
+        {
+          "kernel": "_cache_project_splitk",
+          "first": true,
+          "n_regs": 115,
+          "n_spills": 0,
+          "shared_bytes": 512
+        },
+        {
+          "kernel": "_cache_project_splitk",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 512
+        }
+      ],
+      "median_us": 118.48749965429306,
+      "p95_us": 118.97999793291092
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 6,
+      "unique_experts": 18,
+      "reuse_fraction": 0.4,
+      "mode": "reuse",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 128,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 244.89600211381912,
+      "p95_us": 245.03099918365479
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 6,
+      "unique_experts": 18,
+      "reuse_fraction": 0.4,
+      "mode": "reuse_no_zero",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 128,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 243.5535043478012,
+      "p95_us": 243.67399513721466
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 6,
+      "unique_experts": 18,
+      "reuse_fraction": 0.4,
+      "mode": "reuse_vector",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 127,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 121,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 241.82450026273727,
+      "p95_us": 241.94100499153137
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 6,
+      "unique_experts": 18,
+      "reuse_fraction": 0.4,
+      "mode": "reuse_vector_no_zero",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 127,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 121,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 240.4645010828972,
+      "p95_us": 240.6110018491745
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 8,
+      "unique_experts": 14,
+      "reuse_fraction": 0.5333333333333333,
+      "mode": "baseline",
+      "compiler": [
+        {
+          "kernel": "_cache_project_splitk",
+          "first": true,
+          "n_regs": 115,
+          "n_spills": 0,
+          "shared_bytes": 512
+        },
+        {
+          "kernel": "_cache_project_splitk",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 512
+        }
+      ],
+      "median_us": 119.01649832725525,
+      "p95_us": 119.07900124788284
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 8,
+      "unique_experts": 14,
+      "reuse_fraction": 0.5333333333333333,
+      "mode": "fused",
+      "compiler": [
+        {
+          "kernel": "_cache_project_splitk",
+          "first": true,
+          "n_regs": 115,
+          "n_spills": 0,
+          "shared_bytes": 512
+        },
+        {
+          "kernel": "_cache_project_splitk",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 512
+        }
+      ],
+      "median_us": 118.43100190162659,
+      "p95_us": 118.7250018119812
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 8,
+      "unique_experts": 14,
+      "reuse_fraction": 0.5333333333333333,
+      "mode": "reuse",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 128,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 200.96450299024582,
+      "p95_us": 201.0210007429123
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 8,
+      "unique_experts": 14,
+      "reuse_fraction": 0.5333333333333333,
+      "mode": "reuse_no_zero",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 128,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 199.5455026626587,
+      "p95_us": 199.70199465751648
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 8,
+      "unique_experts": 14,
+      "reuse_fraction": 0.5333333333333333,
+      "mode": "reuse_vector",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 127,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 121,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 197.85050302743912,
+      "p95_us": 197.92500138282776
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 8,
+      "unique_experts": 14,
+      "reuse_fraction": 0.5333333333333333,
+      "mode": "reuse_vector_no_zero",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 127,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 121,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 196.4155063033104,
+      "p95_us": 196.53399288654327
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 10,
+      "unique_experts": 10,
+      "reuse_fraction": 0.6666666666666667,
+      "mode": "baseline",
+      "compiler": [
+        {
+          "kernel": "_cache_project_splitk",
+          "first": true,
+          "n_regs": 115,
+          "n_spills": 0,
+          "shared_bytes": 512
+        },
+        {
+          "kernel": "_cache_project_splitk",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 512
+        }
+      ],
+      "median_us": 117.87350103259087,
+      "p95_us": 119.0750002861023
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 10,
+      "unique_experts": 10,
+      "reuse_fraction": 0.6666666666666667,
+      "mode": "fused",
+      "compiler": [
+        {
+          "kernel": "_cache_project_splitk",
+          "first": true,
+          "n_regs": 115,
+          "n_spills": 0,
+          "shared_bytes": 512
+        },
+        {
+          "kernel": "_cache_project_splitk",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 512
+        }
+      ],
+      "median_us": 118.43100190162659,
+      "p95_us": 118.50199848413467
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 10,
+      "unique_experts": 10,
+      "reuse_fraction": 0.6666666666666667,
+      "mode": "reuse",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 128,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 182.39349871873856,
+      "p95_us": 182.60300159454346
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 10,
+      "unique_experts": 10,
+      "reuse_fraction": 0.6666666666666667,
+      "mode": "reuse_no_zero",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 128,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 180.31200021505356,
+      "p95_us": 180.55999279022217
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 10,
+      "unique_experts": 10,
+      "reuse_fraction": 0.6666666666666667,
+      "mode": "reuse_vector",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 127,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 121,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 179.2685016989708,
+      "p95_us": 179.4770061969757
+    },
+    {
+      "tokens": 3,
+      "shared_experts": 10,
+      "unique_experts": 10,
+      "reuse_fraction": 0.6666666666666667,
+      "mode": "reuse_vector_no_zero",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 127,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 121,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 177.5374934077263,
+      "p95_us": 177.72500216960907
+    }
+  ]
+}
