@@ -71,6 +71,12 @@ def chunk_gated_delta_rule_fwd(
         chunk_indices=chunk_indices,
         inplace_update=inplace_update,
     )
+    # The state update has consumed u. Keeping it alive through the output
+    # allocation needlessly overlaps two full token/value buffers. Likewise w
+    # is only part of the return contract at recompute suppression level 3+.
+    del u
+    if SUPPRESS_LEVEL < 3:
+        del w
     o = chunk_fwd_o(
         q=q,
         k=k,
