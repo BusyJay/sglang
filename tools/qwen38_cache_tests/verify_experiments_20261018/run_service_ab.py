@@ -70,6 +70,7 @@ def main():
     parser.add_argument("--variants", nargs="+", required=True)
     parser.add_argument("--tokens", type=int, default=1024)
     parser.add_argument("--near-limit", action="store_true")
+    parser.add_argument("--runtime-overlay", type=Path)
     parser.add_argument(
         "--long-input",
         type=Path,
@@ -101,6 +102,17 @@ def main():
             order=args.variants,
             tokens=args.tokens,
             matrix=matrix,
+            runtime_overlay=(
+                {
+                    str(p.relative_to(args.runtime_overlay)): hashlib.sha256(
+                        p.read_bytes()
+                    ).hexdigest()
+                    for p in args.runtime_overlay.rglob("*")
+                    if p.is_file()
+                }
+                if args.runtime_overlay
+                else None
+            ),
             long_input_sha256=hashlib.sha256(args.long_input.read_bytes()).hexdigest(),
             scope="Fixed saved long input plus CPU-cache and Raft prompts; quality checks are smoke only",
             source_sha256={
@@ -133,6 +145,16 @@ def main():
         command[offset:offset] = [
             item for k, v in env.items() for item in ("-e", f"{k}={v}")
         ]
+        if args.runtime_overlay:
+            overlay = args.runtime_overlay.resolve()
+            mounts = [
+                item
+                for p in sorted(overlay.rglob("*"))
+                if p.is_file()
+                for item in ("-v", f"{p}:/workspace/sglang/{p.relative_to(overlay)}:ro")
+            ]
+            offset = command.index("--entrypoint")
+            command[offset:offset] = mounts
         save(folder / "command.json", command)
         with (
             (folder / "service.log").open("w") as log,

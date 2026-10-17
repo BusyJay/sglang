@@ -1,0 +1,105 @@
+{
+  "status": "passed_so_far",
+  "reports": [
+    {
+      "tokens": 2,
+      "shared_experts": 0,
+      "unique_experts": 20,
+      "reuse_fraction": 0.0,
+      "mode": "baseline",
+      "compiler": [
+        {
+          "kernel": "_cache_project_splitk",
+          "first": true,
+          "n_regs": 115,
+          "n_spills": 0,
+          "shared_bytes": 512
+        },
+        {
+          "kernel": "_cache_project_splitk",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 512
+        }
+      ],
+      "median_us": 77.45650038123131,
+      "p95_us": 77.6050016283989
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 0,
+      "unique_experts": 20,
+      "reuse_fraction": 0.0,
+      "mode": "fused",
+      "compiler": [
+        {
+          "kernel": "_cache_project_splitk",
+          "first": true,
+          "n_regs": 115,
+          "n_spills": 0,
+          "shared_bytes": 512
+        },
+        {
+          "kernel": "_cache_project_splitk",
+          "first": false,
+          "n_regs": 96,
+          "n_spills": 0,
+          "shared_bytes": 512
+        }
+      ],
+      "median_us": 77.89149880409241,
+      "p95_us": 77.95199751853943
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 0,
+      "unique_experts": 20,
+      "reuse_fraction": 0.0,
+      "mode": "reuse",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 128,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 122,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 155.89899569749832,
+      "p95_us": 155.98200261592865
+    },
+    {
+      "tokens": 2,
+      "shared_experts": 0,
+      "unique_experts": 20,
+      "reuse_fraction": 0.0,
+      "mode": "reuse_no_zero",
+      "compiler": [
+        {
+          "kernel": "_cache_project_reuse",
+          "first": true,
+          "n_regs": 128,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        },
+        {
+          "kernel": "_cache_project_reuse",
+          "first": false,
+          "n_regs": 122,
+          "n_spills": 0,
+          "shared_bytes": 8192
+        }
+      ],
+      "median_us": 154.7500044107437,
+      "p95_us": 154.89600598812103
+    }
+  ]
+}

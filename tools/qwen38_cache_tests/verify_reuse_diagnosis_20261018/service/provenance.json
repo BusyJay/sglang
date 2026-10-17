@@ -1,0 +1,156 @@
+{
+  "head": "3b1a45865f530dbdf9869e2c5307134dba3a3b11",
+  "image": "sha256:f712e3118c757894f77ebab49081badab75e47fb16523a088435ec1910a37f59",
+  "order": [
+    "defaults"
+  ],
+  "tokens": 1024,
+  "matrix": {
+    "base_env": {
+      "SGLANG_QWEN38_CACHE_W4A16": "1",
+      "SGLANG_QWEN38_CACHE_W4A16_SPLIT_K": "1",
+      "SGLANG_QWEN38_W4A16_VERIFY_MODE": "baseline",
+      "SGLANG_QWEN38_PARALLEL_MISS_PLAN": "1",
+      "SGLANG_QWEN38_MTP_ACTIVATION": "w4a4",
+      "SGLANG_QWEN38_CACHE_STATS_FORMAT": "compact",
+      "SGLANG_QWEN38_ADAPTIVE_CANDIDATE_MAX": "",
+      "CACHE_SLOTS_TOTAL": "6390",
+      "MTP_MODE": "2"
+    },
+    "variants": {
+      "baseline": {},
+      "cache256": {
+        "SGLANG_QWEN38_ADAPTIVE_CANDIDATE_MAX": "256"
+      },
+      "fused": {
+        "SGLANG_QWEN38_W4A16_VERIFY_MODE": "fused"
+      },
+      "reuse": {
+        "SGLANG_QWEN38_W4A16_VERIFY_MODE": "reuse"
+      },
+      "planner_warp": {
+        "SGLANG_QWEN38_PARALLEL_MISS_PLAN": "2"
+      },
+      "mtp1": {
+        "MTP_MODE": "1"
+      },
+      "combined": {
+        "SGLANG_QWEN38_ADAPTIVE_CANDIDATE_MAX": "256",
+        "SGLANG_QWEN38_W4A16_VERIFY_MODE": "fused",
+        "SGLANG_QWEN38_PARALLEL_MISS_PLAN": "2"
+      }
+    },
+    "ab_order": [
+      "baseline",
+      "candidate",
+      "candidate",
+      "baseline"
+    ],
+    "promoted_defaults": {
+      "SGLANG_QWEN38_ADAPTIVE_CANDIDATE_MAX": "256",
+      "SGLANG_QWEN38_W4A16_VERIFY_MODE": "fused",
+      "SGLANG_QWEN38_PARALLEL_MISS_PLAN": "2",
+      "SGLANG_QWEN38_CACHE_STATS_FORMAT": "compact"
+    }
+  },
+  "runtime_overlay": {
+    "python/sglang/srt/layers/moe/qwen38_cache_threaded.py": "ad2eed11f802808064f6c7fe8f0e438d151d46918ca4640250edb12f91ad9640"
+  },
+  "long_input_sha256": "48b5d22212665611538d4ac343e5c3a5073c4ff261e8d5bfefba73bdf0e043be",
+  "scope": "Fixed saved long input plus CPU-cache and Raft prompts; quality checks are smoke only",
+  "source_sha256": {
+    "python/sglang/srt/arg_groups/qwen38_cache_hook.py": "8a37d9dad71e17670e9fcba67153668922920085f1646d28085008354c1c1bff",
+    "python/sglang/srt/entrypoints/qwen38_warmup.py": "1c269d5fd2956165e5c9ae9e9d630cb9291ea8ff538bc6116e8faa90bfea01dc",
+    "python/sglang/srt/model_loader/qwen38_nvfp4_common.py": "eb4f7daf2af7c17d1d080760f5344e0c63d33465a97d005d2cd8a6e8f656e24a",
+    "python/sglang/srt/model_loader/qwen38_fp4_local.py": "26bab6e4247a46074d8e2c7ab7c881c553ad0249171ed4ec4d89d09b66f9c230",
+    "python/sglang/srt/model_loader/qwen38_mtp_common.py": "16e82b7dfc9b51529c142035e3fd83ff6baa716ba3cca033e372d07284655800",
+    "python/sglang/srt/model_loader/qwen38_mtp_loader.py": "680e0bc3d5278131515096396fb8b60a104a58541dff85126b2480992532a67b",
+    "python/sglang/srt/model_loader/qwen38_nvfp4_cache_loader.py": "bf7dca1bbd27f138fb2fb71e770506c23a076676dd5b63a990b1d434c9cb6b00",
+    "python/sglang/srt/models/qwen38_host_embedding.py": "8492930a8882bf84499a00e995243cdaed107fbd76a6c97b88a1f9decd014130",
+    "python/sglang/srt/models/qwen38_fp4_ple.py": "498272f7e69e448bf8d9224f2f71796816bf3988f153b483b631bb04977f7901",
+    "python/sglang/srt/models/qwen38_shared_ple.py": "5a996465d67845d8b72622dbf8f59eb728f7fc6b18f3405100f5ac996340aa1e",
+    "python/sglang/srt/models/qwen38_ple_packed_cache.py": "f22dab87ae097ccba25f3c52a7bd55660c4af6fdbac3406147a2e96f640ac10e",
+    "python/sglang/srt/models/__pycache__/qwen38_fp4_ple.cpython-314.pyc": "2fea0b3c69b89eb3b7da0df646d1de1a8796252a0054fe4897183a8b48878f64",
+    "python/sglang/srt/models/__pycache__/qwen38_fp4_ple.cpython-312.pyc": "4ce1ec000bdd5d8e1116180ff7dc2d7762dc31703fe231b464136e5e5a1aea97",
+    "python/sglang/srt/models/__pycache__/qwen38_ple_packed_cache.cpython-312.pyc": "ecd55e08175f0f2e7451997a75031bd6120203cd42c28d167110f48b93041ea4",
+    "python/sglang/srt/models/__pycache__/qwen38_shared_ple.cpython-312.pyc": "f453ef9daa78cf6d34a20f7e79969316df85f9cf64852c24dc2d158d826907ab",
+    "python/sglang/srt/model_loader/__pycache__/qwen38_nvfp4_common.cpython-314.pyc": "d34bfe44036f02557a60a4caf67320865516a126f1719f0730cf53c1d84e5881",
+    "python/sglang/srt/model_loader/__pycache__/qwen38_nvfp4_cache_loader.cpython-314.pyc": "75529380907f5ac58d78f87b9e84505ca1654596db1338441ca2eda3dd16c7e5",
+    "python/sglang/srt/model_loader/__pycache__/qwen38_mtp_common.cpython-314.pyc": "9b0ac6b6f8e7d5a71652d817aa1f47d6a1a468ed3f2bdc5460217ffc6951f6f7",
+    "python/sglang/srt/model_loader/__pycache__/qwen38_mtp_loader.cpython-314.pyc": "b70ba9e94cceb8132df2ed587bfa0bfd503d2e103ff079955472682c4cc36287",
+    "python/sglang/srt/model_loader/__pycache__/qwen38_fp4_local.cpython-312.pyc": "3d0d394e854ca97577a48b3175f6924ba31a76474869035f9ed37a66d9db51f1",
+    "python/sglang/srt/model_loader/__pycache__/qwen38_mtp_common.cpython-312.pyc": "57127952b358ff6741a2ca0a1b98b43293efae9598d0cab43d89c02d0eacfd24",
+    "python/sglang/srt/model_loader/__pycache__/qwen38_nvfp4_common.cpython-312.pyc": "1c8cce546e98927d51ab01a5d82971c3dde9cec5eb39761838b0f2966bf4b9b4",
+    "python/sglang/srt/layers/moe/qwen38_cache_mailbox.py": "782f671069364e376c8583c9c5f8e051c04b4af62434e228a51318152ca7bf19",
+    "python/sglang/srt/layers/moe/qwen38_cache_warmup.py": "c3bf306fc7816fb927bc2fb42957256912386f82ece2bdde6e4dbbee7b022dd2",
+    "python/sglang/srt/layers/moe/qwen38_observation.py": "55c1992ff2f9fdd505294baf411533503919afcc3793a1f563cdcd2e8bf05a5b",
+    "python/sglang/srt/layers/moe/qwen38_cache_analysis_worker.py": "7731e7f2cca67df21c00c555b173a560321268eef8b587ff20731af1fa95a457",
+    "python/sglang/srt/layers/moe/qwen38_cache_async.py": "fce216abfbf25a5a3121bb65cc547f4f893d4d3fd4ee34f171b56b2fd4665646",
+    "python/sglang/srt/layers/moe/qwen38_packed_transport.py": "f3f6708b96ccb762ec0a7820d603b92eb4afccc37a9a9de233036e4b96938cdc",
+    "python/sglang/srt/layers/moe/qwen38_cache_buffers.py": "3a2c1d9c9992eb0d154e043a411098f7bb8a2c070508e9ced4cf5a7b8958c271",
+    "python/sglang/srt/layers/moe/qwen38_cache_capacity.py": "b8d18115acc3c1f3691be405a58ee8b50697cd8b35cd3aeff7579d7faf84a70d",
+    "python/sglang/srt/layers/moe/qwen38_oom_memory.py": "ce90c5674e77a490083f7c6de4397d085e86fd892b7257faa77d8cf075da1e7a",
+    "python/sglang/srt/layers/moe/qwen38_cache_threaded.py": "b09fb94d0fede0eb338292e38ab90c705dab06702359a6bf9345be8e698d614f",
+    "python/sglang/srt/layers/moe/qwen38_cache_adaptive.py": "60a9e3c0b1e8916b6d91adac2de5859d510ec67acd8b65bbb429b7858659e9af",
+    "python/sglang/srt/layers/moe/qwen38_expert_cache.py": "68cd202fbc798de17557d9a7d29ea3da300bcc64443e70c36a2dc49a9ceedcbc",
+    "python/sglang/srt/layers/moe/qwen38_borrowed_arena.py": "280e5a6507db9ab9ae862ab052d30e61691b7d02e3f23015b39cdf5f4dd794c5",
+    "python/sglang/srt/layers/moe/qwen38_cache_runtime.py": "ecde89f5e326e1e66fd0b2cd8a7060f8388c30c6858dceaf739345adb4ad6eb0",
+    "python/sglang/srt/layers/moe/qwen38_cache_device.py": "0c2502994a457d407460e24d7e947e7fe34f62a9c34ea5f47177ef7e5499e412",
+    "python/sglang/srt/layers/moe/qwen38_startup_memory.py": "e52b7a606a0b9be4fbe2acd390542e246a6311f43c203df5b1a98e872aadc0e7",
+    "python/sglang/srt/layers/moe/qwen38_cache_sampling.py": "30025aeffdc2076a5b44917370b98917d7b17cb6bd127b7c9ad0a10b6d94dbe1",
+    "python/sglang/srt/layers/moe/qwen38_cache_overlap.py": "8bd71565f0287ab60881640a9f5deeb296229d64a5e55b7d0bac2e737a664d0e",
+    "python/sglang/srt/layers/moe/qwen38_cache_stats_format.py": "981a3ef56704e365ac638fffa44664913a7af8ef31474661af684aeaa74f15ad",
+    "python/sglang/srt/layers/quantization/qwen38_fp4_mtp.py": "d59205d00192490e8d61a296e10e95a5243c2963c2c8644e3f747daeefc99320",
+    "python/sglang/srt/layers/quantization/qwen38_cached_w4a16.py": "f856c8f033ff505c0f2f6e821f0c95f5ceebc47419c2187a0e703590bef79bc2",
+    "python/sglang/srt/layers/quantization/qwen38_gdn_preallocated.py": "c39b871b6bd9c5e4fb094c78ed7a116c28c7a7fc77908516f70a7fb3b0f814c5",
+    "python/sglang/srt/layers/quantization/qwen38_decode_gemv.py": "db073f5f319f1a5e8541ecfaa8e849b071217987750ea241bf288160a6c226f9",
+    "python/sglang/srt/layers/quantization/qwen38_nvfp4_cache.py": "3b10720add2dd0c7cd94a4a4adb3f39279cbbf8f60966258272a4f33c97a1810",
+    "python/sglang/srt/layers/quantization/qwen38_fp32_norm.py": "4fd72552ddc925a6c7a982894b011b23d226833a17b9d20ac4b1a652592e2cbb",
+    "python/sglang/srt/layers/quantization/__pycache__/qwen38_cached_w4a16.cpython-314.pyc": "0871d883701049795b1a0d5f67ec7d33c4d2fd18259c13e6dd0a89257b204b16",
+    "python/sglang/srt/layers/quantization/__pycache__/qwen38_decode_gemv.cpython-312.pyc": "7a7e7dc348ff4f67ef8270f30b06313e8ff3c62cc71b0cfd10e908658b4529e8",
+    "python/sglang/srt/layers/quantization/__pycache__/qwen38_nvfp4_cache.cpython-314.pyc": "cb1ac1fbf3990e8f20453ecbbfdb97b317755ce8a188dafee9d8c3a779aa9003",
+    "python/sglang/srt/layers/quantization/__pycache__/qwen38_fp4_mtp.cpython-312.pyc": "88848b51ae3d4d0254b79c14396cc9e1ed7f4cfb94d713ca6e9e7c84d58a2546",
+    "python/sglang/srt/layers/quantization/__pycache__/qwen38_cached_w4a16.cpython-312.pyc": "c5e0195533795dc4f4c4af822040d70ccf1327934e3f062948bff0cec94f75f4",
+    "python/sglang/srt/layers/quantization/__pycache__/qwen38_nvfp4_cache.cpython-312.pyc": "2b08c98adc17ba4848175997141853cda9d9ddcedbbdd49eff7f8b6a64cfb21f",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_cache_sampling.cpython-312.pyc": "688bfe383067f5f898eb69a2b044da7afc5d2fb0342b94bfdd119972a361243e",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_expert_cache.cpython-314.pyc": "1c04e622b148be856e7f00d76032c7d1e209f170dbbec16b7b2be7757b828d08",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_cache_mailbox.cpython-312.pyc": "f1b421e26841538fc92bf47b21f278afb54f8ea8c1f6b3810f0e99ee74ab0407",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_cache_adaptive.cpython-314.pyc": "a19bc98a0ac7bae1114626abcc9ded74f9bbc5afbaa25485db32fd3c304c89b8",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_oom_memory.cpython-312.pyc": "4734128803bb96fe74bba17b5311782cec1e661a19772439ae14363daa192cd1",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_cache_threaded.cpython-314.pyc": "37407f6084ce330c87fd288a2879b3e856be64166ad059ecab188c38c2947ae7",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_cache_adaptive.cpython-312.pyc": "1ea76cc3d81ec38069112793c9920a8a472dd45dcd30e9d189e82135eb531d91",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_cache_capacity.cpython-314.pyc": "5d8646d17dc791e7a57b05c6a62e5a3839d209077e217822a125e30e9f329543",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_cache_warmup.cpython-314.pyc": "89d24cd36cce549025b42cbbeb3f97fa7eebe483a63b9dc3c235ee5be22a4686",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_cache_async.cpython-314.pyc": "356e32971f85fafd97a1b72731cc6a00e2569a73d799a331a676ecb0b4ed723e",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_cache_device.cpython-314.pyc": "d0ecdad9d5af96c6a66fcb61ebc81b5ee44781d29b879a08f1a463e32346d8d6",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_cache_mailbox.cpython-314.pyc": "a809e10d0b699da1d297e9eabc80531614c8dad11ab3810f16c5be0f73f12b8b",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_cache_stats_format.cpython-314.pyc": "189aee85f37141f586f5d20417930781e3c7814fc05e1b2a843cd0969267925d",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_packed_transport.cpython-314.pyc": "a1449400abe3888e403cc94eb9fac3bba334946f6333500460c6eac8de78d39a",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_startup_memory.cpython-314.pyc": "46683033067ad0a77234e8918a82527befd2cdf16afebdc068a10b51bbc7291f",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_cache_sampling.cpython-314.pyc": "ee5fbb81d4450bddee0090a69a1518233bfc26cb02684afd72d713f99e335e36",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_cache_overlap.cpython-314.pyc": "b2cb5b9c23de8c818b26cd4d1da3cd6288abed15e48033632ad8e17914e76e60",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_cache_runtime.cpython-312.pyc": "a49c878dfce8b854e821d8b62c8c2940ca5402008c712a97ea7e40bbee16d052",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_cache_capacity.cpython-312.pyc": "8305234a87847c0a31b1ad731bb0fadfb7971a599ba6e3b898a89bd282f29d56",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_expert_cache.cpython-312.pyc": "42a2bd280ba7f223284243031ca4754d11b74c5cb27f3abc0b8d907d90de5ceb",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_startup_memory.cpython-312.pyc": "50971493b5428bd043897607dd3b04a60e00b05746ffe326548235b6941fffa3",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_observation.cpython-312.pyc": "f0c213fd2db72eea01e976e79090f92c6e25f01efa65cbac3a708a41623543d1",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_cache_buffers.cpython-312.pyc": "f559986a96854d2e6fe9f0e9e22440d15aa0978e485a2cb6acec445129ca05c0",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_cache_overlap.cpython-312.pyc": "2c98556f90185a49e90da03a4d91a806c99c2f01a99a7dbfc0298c66ecd85523",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_cache_threaded.cpython-312.pyc": "de62bcd8d0e9f3ad0431ccd261262e0f35fb04a83a7d3912b5d7106ce6962f13",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_cache_device.cpython-312.pyc": "290a8e04a0a5c392b9f9ff9e2a803a04f99685ab23f6c79b8da9537d9482665e",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_cache_async.cpython-312.pyc": "3306e53b69212b05e3cc2dab984ed9047dfce2f574e90dff316babc51153022f",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_cache_warmup.cpython-312.pyc": "981a8053b07fb903d360964c93a4031d3b1cdc6fe4797aa95898c4e2c514bbe7",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_packed_transport.cpython-312.pyc": "d9680bf6566f6e1e1457ae5d79845f4a12aaa15ffd39fe632c4f84dff955a8c5",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_oom_memory.cpython-314.pyc": "fc46fc5d3cfd66ed5d9d110c7160efc6a63c8eae5b890ced64d07f27625c4a71",
+    "python/sglang/srt/layers/moe/__pycache__/qwen38_borrowed_arena.cpython-312.pyc": "d55391dcbf297fd07ae8e4690f177d06a15f6ba5953720a802aa55bb7f655a5a",
+    "python/sglang/srt/entrypoints/__pycache__/qwen38_warmup.cpython-314.pyc": "91adb633dfcf93b8e58edf38ada6969ae0e9089fb7eb6d0c4c1a20181359f372",
+    "python/sglang/srt/entrypoints/__pycache__/qwen38_warmup.cpython-312.pyc": "7445a7ec727ccd13f65305c00eb272f3acc5cf00922908e6645d85aa754e21fe",
+    "python/sglang/srt/arg_groups/__pycache__/qwen38_cache_hook.cpython-312.pyc": "b2f8450c9a58682d57c81fcd7a19e653577eafee995f346e3af3563808edcd14",
+    "python/sglang/srt/arg_groups/__pycache__/qwen38_cache_hook.cpython-314.pyc": "268ec06e311dc12679dd64184bae04afd7ff5b52f8386fd94432defe526126d0",
+    "python/sglang/kernels/ops/moe/qwen38_expert_cache.py": "88ca6b147d05d2278e3adb55aaf0218c1cdfd64cb91a2f5c4e9303671159408b",
+    "python/sglang/kernels/ops/moe/__pycache__/qwen38_expert_cache.cpython-314.pyc": "afb11ffe6ecad35651115e9a991afdcc8dc80a0a1fad6fdedf2a1e0e63a2b69d",
+    "python/sglang/kernels/ops/moe/__pycache__/qwen38_expert_cache.cpython-312.pyc": "987cadeb166e61b41305cf5501abc03404641fd7c975d92ff075eff42f73e250",
+    "python/sglang/kernels/jit/csrc/moe/qwen38_mailbox.cc": "5674f5ffdc955cb007d489caed8eb03146dcb9becb4255de13a763a60457ccb6",
+    "python/sglang/kernels/jit/csrc/moe/qwen38_expert_cache.cu": "28a908d0688d5b4f39231668e287f3d48684ceebd114e91056fe116ebb185b76"
+  }
+}
