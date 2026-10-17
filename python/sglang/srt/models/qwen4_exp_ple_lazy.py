@@ -15,8 +15,12 @@ from dataclasses import dataclass
 import numpy as np
 import torch
 
-PLE_SHARD = re.compile(r"\.ngram_embedding\.shard_(\d+)\.weight$")
-_DTYPES = {"BF16": (torch.bfloat16, 2), "F8_E4M3": (torch.float8_e4m3fn, 1)}
+PLE_SHARD = re.compile(r"\.ngram_embedding\.shard_(\d+)\.(?:weight|weight_scale)$")
+_DTYPES = {
+    "U8": (torch.uint8, 1),
+    "BF16": (torch.bfloat16, 2),
+    "F8_E4M3": (torch.float8_e4m3fn, 1),
+}
 
 
 @dataclass(frozen=True)

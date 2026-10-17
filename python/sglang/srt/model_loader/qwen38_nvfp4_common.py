@@ -3,8 +3,8 @@
 
 from __future__ import annotations
 
-import re
 import json
+import re
 from pathlib import Path
 from typing import Iterable, Iterator
 
@@ -30,10 +30,14 @@ def resolve_cached_checkpoint(model_path, *, revision=None, cache_dir=None):
         from huggingface_hub.errors import LocalEntryNotFoundError
 
         try:
-            path = Path(snapshot_download(
-                repo_id=model_path, revision=revision, cache_dir=cache_dir,
-                local_files_only=True,
-            ))
+            path = Path(
+                snapshot_download(
+                    repo_id=model_path,
+                    revision=revision,
+                    cache_dir=cache_dir,
+                    local_files_only=True,
+                )
+            )
         except LocalEntryNotFoundError as error:
             raise ValueError(
                 f"checkpoint {model_path!r} revision {revision or 'main'!r} "
@@ -54,7 +58,15 @@ def cached_checkpoint_weight_files(checkpoint_dir):
             raise ValueError(f"empty safetensors shard index in {path}")
         files = []
         for name in names:
-            if not isinstance(name, str) or Path(name).name != name:
+            # FP4-Local stores shards under tensors/. Check lexical containment;
+            # resolving symlinks would reject legitimate HF snapshot blob links.
+            if (
+                not isinstance(name, str)
+                or not name
+                or Path(name).is_absolute()
+                or ".." in Path(name).parts
+                or Path(name).suffix != ".safetensors"
+            ):
                 raise ValueError(f"invalid safetensors shard name: {name!r}")
             shard = path / name
             if not shard.is_file():
@@ -64,7 +76,9 @@ def cached_checkpoint_weight_files(checkpoint_dir):
                 )
             files.append(str(shard))
         return files
-    files = sorted(str(shard) for shard in path.glob("*.safetensors") if shard.is_file())
+    files = sorted(
+        str(shard) for shard in path.glob("*.safetensors") if shard.is_file()
+    )
     if not files:
         raise ValueError(f"no safetensors checkpoint files found in {path}")
     return files
@@ -79,8 +93,11 @@ def validate_cached_checkpoint_revision(checkpoint_dir, hf_config, pack_revision
     path = Path(checkpoint_dir)
     snapshot = path.name if path.parent.name == "snapshots" else None
     config_revision = getattr(hf_config, "_commit_hash", None)
-    known = [value for value in (snapshot, config_revision, pack_revision)
-             if isinstance(value, str) and re.fullmatch(r"[0-9a-f]{40}", value)]
+    known = [
+        value
+        for value in (snapshot, config_revision, pack_revision)
+        if isinstance(value, str) and re.fullmatch(r"[0-9a-f]{40}", value)
+    ]
     if len(set(known)) > 1:
         raise ValueError(
             "checkpoint/config/expert-pack revision mismatch: "

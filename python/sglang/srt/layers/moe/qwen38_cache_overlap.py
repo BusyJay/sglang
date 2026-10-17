@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import os
 from contextvars import ContextVar
 
 import torch
@@ -39,12 +40,14 @@ def fill_with_overlap(compute, fill_stream, ready, filled, submit_fill, independ
 def can_overlap_shared(method, block, hidden_states, phase):
     from sglang.srt.layers.moe import get_moe_a2a_backend
 
+    if os.getenv("SGLANG_QWEN38_SHARED_FILL_OVERLAP", "1") == "0":
+        return False
     runtime = method.runtime
     config = method.moe_runner_config
     return bool(
-        phase == "decode"
+        phase in ("decode", "verify")
         and hidden_states.is_cuda
-        and hidden_states.shape[0] == 1
+        and (hidden_states.shape[0] == 1 or phase == "verify")
         and runtime is not None
         and getattr(runtime, "supports_fill_overlap", False)
         and runtime.miss_mailbox is not None

@@ -299,6 +299,8 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                         model_config.hf_text_config, "ple_offload_backend", "pinned"
                     )
                     == "lazy"
+                    or getattr(model_config.hf_text_config, "ple_embedding_dtype", None)
+                    == "nvfp4"
                 )
                 checkpoint_audit = {} if probe is not None else None
                 weights = filtered_safetensors_weights_iterator(

@@ -1245,11 +1245,15 @@ class Qwen38ThreadedExpertRuntime(Qwen38DeviceExpertRuntime):
             sample = self._sample_position(layer_id, topk_ids)
             if (
                 self.miss_mailbox is not None
-                and (layer_id in self.gate_warmed_layers or sample is not None)
+                and (
+                    execution_phase == "verify"
+                    or layer_id in self.gate_warmed_layers
+                    or sample is not None
+                )
                 and self.fused_decode_plan
                 and not arena
-                and topk_ids.shape[0] == 1
-                and 0 < topk_ids.shape[1] <= 32
+                and (topk_ids.shape[0] == 1 or execution_phase == "verify")
+                and 0 < topk_ids.numel() <= 32
             ):
                 result = self.miss_mailbox.run(
                     layer_id,

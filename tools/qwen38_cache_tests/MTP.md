@@ -1,12 +1,13 @@
 # Qwen3.8 同卡 MTP（显式开启）
 
-默认不启用。首版支持 SM120、纯文本、单请求、TP/DP/EP/PP=1、threaded 专家缓存、NEXTN，以及可选 breakable decode graph 和 adaptive cache。target pack 格式不变，draft 只读取 checkpoint 索引的 `mtp.*`，保留 FP8/BF16 混合精度；加载后共享 target 的完整 embedding/head 模块。
+默认不启用。支持 SM120、纯文本或 remote-only EPD、单请求、TP/DP/EP/PP=1、threaded 专家缓存、NEXTN，以及可选 breakable decode graph 和 adaptive cache。target pack 格式不变，draft 只读取 checkpoint 索引的 `mtp.*`，保留 FP8/BF16 混合精度；加载后共享 target 的完整 embedding/head 模块。
 
 本分支的逐项 patch 审查、5090 数值测试和真实 checkpoint 短请求验收见
 [2026-10-14 验收记录](MTP_PATCH_REVIEW_20261014.md)。这些结果覆盖 eager/fixed、
 graph/fixed、graph/adaptive 和 steps=1/2/3。
 后续的 0.92 容量检查及相同配置的 warmed 吞吐对照见
 [2026-10-14 吞吐记录](MTP_THROUGHPUT_20261014.md)；长上下文及完整部署负载仍需另测。
+线上纯文本切换及 lazy PLE 配置见 [部署记录](MTP_DEPLOYMENT_20261014.md)。
 
 在现有 target 启动命令上添加：
 
@@ -38,7 +39,7 @@ steps 可为 1/2/3，对应 verify 宽度 2/3/4。adaptive 模式下，每层初
 
 `bs=1` 指一个请求，target 图按 2/3/4 token verify 宽度捕获，保留全部 logits 和 10240 维 HC 状态。draft decode（steps>1）和 draft-extend 使用现有 specialized breakable graph runners。主专家 route/plan、H2D、CUTLASS、slot/event 生命周期仍在 eager break 中执行；rebalance 后读取新的池视图。图回放阶段通过 break 参数保留，不依赖已经退出的 Python scope。prefill 保持 eager。使用 `--cuda-graph-backend-decode=disabled` 可作 eager 对照，不支持 full/tc_piecewise。
 
-draft model/revision 必须与 target 一致，默认跟随。draft KV 默认 BF16，可显式指定 `--speculative-draft-kv-cache-dtype fp8_e4m3` 作对照；GDN state 固定 BF16。不支持 EPD、LoRA 或独立 draft GPU。
+draft model/revision 必须与 target 一致，默认跟随。draft KV 默认 BF16，可显式指定 `--speculative-draft-kv-cache-dtype fp8_e4m3` 作对照；GDN state 固定 BF16。支持 `--language-only --encoder-urls http://vit:8000` 的 remote-only EPD；不支持自适应本地/远端 encoder 混用、LoRA 或独立 draft GPU。
 
 BF16 model dtype 是未量化参数和计算输出的默认类型，专家权重仍为 checkpoint 的 block-FP8，不会整层反量化成 BF16，也不在线重新量化成 NVFP4。MTP 原始独立权重约 2.513 GiB；还需另算 draft KV、推测中间态、工作区、graph 与加载后处理峰值。旧配置中 0.10 GiB 的单 token decode graph 预算不能直接沿用到 verify/draft 图。降低总 slots 释放的是专家池容量，确切 bytes 应读 runtime memory budget；是否保留原有 220K KV 容量需实测。
 
@@ -77,3 +78,14 @@ python3 tools/qwen38_cache_tests/full_model_canary.py \
 设置 `SGLANG_QWEN38_STARTUP_MEMORY_DIR` 可记录 draft 构造、加载、后处理等阶段。绑定后的共享 storage 按原有 memory probe 去重。内存探针会增加同步，只用于显存检查，不用于性能对照。
 
 状态提交沿用 EAGLE v2 的 KV/GDN/PLE/QSA 与 HC 路径。完整接受、拒绝、部分接受、连续轮次、EOS/stop/取消、prefix/chunk/page 边界仍需真实 checkpoint 的 GPU 验收；CPU 测试和 synthetic MoE parity 不能代替端到端状态验收。跨卡仍未实现。Graph、rebalance 与模型状态提交的组合需要真实 GPU 验收，不能把 CPU 协议测试当作 GPU 数值证据。
+
+## 2026-10-17 FP4-Local / EPD 更新
+
+FP4 MTP 的实际权重参数带只读 `weight_loader` 属性；严格加载审计现挂接并恢复
+底层回调，而非给该属性赋值。保留完整参数与 stacked/expert slice 覆盖检查。
+旧的纯文本限制已解除。真实 FP4-Local 服务（steps=2、pinned PLE）通过文本、
+远端 ViT 图文、>8192 token 的 chunked 图文 prefill、图像前缀缓存和图片位于
+chunk 边界附近的生成检查。模型运行信息包含 target verify、draft decode、
+draft extend 图。完整记录在生产目录
+`/home/jay/workspace/prod/homelab-llm/models/acceptance/fp4-pinned-mtp-epd-20261017.json`。
+这些是功能检查，未证明 MTP 有质量或速度收益。

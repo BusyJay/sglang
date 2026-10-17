@@ -1304,7 +1304,9 @@ class FusedMoE(torch.nn.Module):
             )
             return
 
-        if "ModelOpt" in method.__class__.__name__:
+        if "ModelOpt" in method.__class__.__name__ or isinstance(
+            method, ModelOptNvFp4FusedMoEMethod
+        ):
             # Determine per-tensor weight scale patterns based on variant
             is_fp4_variant = isinstance(method, ModelOptNvFp4FusedMoEMethod)
 

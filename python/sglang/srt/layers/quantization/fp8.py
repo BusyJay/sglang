@@ -944,6 +944,14 @@ class Fp8LinearMethod(LinearMethodBase):
 
             if scale_u8 is None:
                 scale_u8 = layer.weight_scale_inv.data
+            if backend.is_flashinfer_cutlass() and layer.weight.shape[0] < 128:
+                # CUTLASS MXFP8 requires N >= 128. Qwen FP4-Local's merged
+                # GDN a/b projection has N=96. Preserve logical parameters for
+                # shard loaders and prepare the padded compute view once.
+                weight = layer.weight.data
+                padded_weight = weight.new_zeros((128, weight.shape[1]))
+                padded_weight[: weight.shape[0]].copy_(weight)
+                copy_or_rebind_param(layer, "weight_mxfp8_padded", padded_weight)
             # block_scale_interleave may pad and/or reshape scales,
             # so store swizzled scales separately to keep weight update working
             copy_or_rebind_param(
@@ -1179,6 +1187,10 @@ class Fp8LinearMethod(LinearMethodBase):
             mxfp8_view = False
         if mxfp8_view:
             backend = self.mxfp8_dense_backend
+            weight = getattr(layer, "weight_mxfp8_padded", layer.weight)
+            logical_rows = layer.weight.shape[0]
+            if bias is not None and weight.shape[0] != logical_rows:
+                bias = F.pad(bias, (0, weight.shape[0] - logical_rows))
             extra_kwargs = {}
             if self.mxfp8_prefill_autotune_min_tokens is not None:
                 input_tensor = x[0] if isinstance(x, tuple) else x
@@ -1203,23 +1215,32 @@ class Fp8LinearMethod(LinearMethodBase):
             else:
                 weight_scale = layer.weight_scale_inv
             if isinstance(x, tuple):
-                return self.w8a8_mxfp8_linear(
+                out = self.w8a8_mxfp8_linear(
                     input=x[0],
-                    weight=layer.weight,
+                    weight=weight,
                     weight_scale=weight_scale,
                     input_scale=x[1],
                     bias=bias,
                     **extra_kwargs,
                 )
+                return (
+                    out[..., :logical_rows].contiguous()
+                    if weight.shape[0] != logical_rows
+                    else out
+                )
             out = self.w8a8_mxfp8_linear(
                 input=x,
-                weight=layer.weight,
+                weight=weight,
                 weight_scale=weight_scale,
                 input_scale=None,
                 bias=bias,
                 **extra_kwargs,
             )
-            return out
+            return (
+                out[..., :logical_rows].contiguous()
+                if weight.shape[0] != logical_rows
+                else out
+            )
 
         if self.block_quant:
             if use_intel_amx_backend(layer):

@@ -12,6 +12,8 @@ import argparse
 import gc
 import json
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 PROJECTIONS = {
@@ -19,6 +21,8 @@ PROJECTIONS = {
     "up_proj": ("w13", "w3"),
     "down_proj": ("w2", "w2"),
 }
+from sglang.srt.model_loader.qwen38_fp4_local import decode_nvfp4_csf, scale_sources
+
 SUFFIXES = ("weight", "weight_scale", "weight_scale_2", "input_scale")
 
 
@@ -29,9 +33,18 @@ def layer_checkpoint_entries(index, layer_id, num_experts):
         for projection, (target, shard) in PROJECTIONS.items():
             for suffix in SUFFIXES:
                 name = f"{prefix}{expert}.{projection}.{suffix}"
-                if name not in index:
-                    raise ValueError(f"checkpoint index is missing {name}")
-                entries[name] = (index[name], f"{target}_{suffix}", shard, expert)
+                sources = (
+                    scale_sources(index, name) if suffix == "weight_scale" else (name,)
+                )
+                for source in sources:
+                    if source not in index:
+                        raise ValueError(f"checkpoint index is missing {source}")
+                    entries[source] = (
+                        index[source],
+                        f"{target}_{suffix}",
+                        shard,
+                        expert,
+                    )
     return entries
 
 
@@ -93,11 +106,39 @@ def load_layer_checkpoint(layer, checkpoint, index, layer_id):
         if not path.is_file():
             raise ValueError(f"invalid or missing checkpoint shard {filename}")
         by_file.setdefault(path, []).append((name, target, shard, expert))
+    # Pairs can span safetensors files. Hold only this layer's compressed scales;
+    # decode each pair as soon as its second stream arrives.
+    pending = {}
     for path, tensors in sorted(by_file.items()):
         with safe_open(str(path), framework="pt", device="cpu") as handle:
             for name, target, shard, expert in tensors:
-                # Read only this layer's expert tensor; no dense/PLE/vision weights.
                 tensor = handle.get_tensor(name)
+                if ".nvfp4_csf_" in name:
+                    base, stream = name.rsplit(".nvfp4_csf_", 1)
+                    parts = pending.setdefault(base, {})
+                    parts[stream] = tensor
+                    if len(parts) != 2:
+                        continue
+                    weight_name = base[: -len("weight_scale")] + "weight"
+                    # Logical scale geometry is determined by the expert shape.
+                    projection = weight_name.rsplit(".", 2)[-2]
+                    text_rows, text_cols = (
+                        (
+                            layer.w2_weight.shape[1],
+                            layer.intermediate_size_per_partition,
+                        )
+                        if projection == "down_proj"
+                        else (
+                            layer.intermediate_size_per_partition,
+                            layer.w2_weight.shape[1],
+                        )
+                    )
+                    tensor = decode_nvfp4_csf(
+                        parts["fixed"],
+                        parts["exceptions"],
+                        (text_rows, text_cols // 16),
+                    )
+                    del pending[base]
                 layer.weight_loader(
                     getattr(layer, target),
                     tensor,
@@ -105,6 +146,19 @@ def load_layer_checkpoint(layer, checkpoint, index, layer_id):
                     shard_id=shard,
                     expert_id=expert,
                 )
+    if pending:
+        raise ValueError("incomplete CSF streams after reading checkpoint")
+    # The cached CUTLASS ABI has one GEMM1 alpha per expert. Refuse a
+    # checkpoint requiring different gate/up alphas rather than corrupt it.
+    import torch
+
+    global_scales = layer.w13_weight_scale_2
+    if (
+        global_scales.ndim == 2
+        and global_scales.shape[1] == 2
+        and not torch.equal(global_scales[:, 0], global_scales[:, 1])
+    ):
+        raise ValueError("CUTLASS cache pack requires equal gate/up global scales")
     layer.quant_method.process_weights_after_loading(layer)
 
 
@@ -119,6 +173,12 @@ def main():
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--assemble", action="store_true")
     parser.add_argument(
+        "--layers-per-process",
+        type=int,
+        default=4,
+        help="bound CUDA lifetime during parity by converting this many layers per subprocess",
+    )
+    parser.add_argument(
         "--runtime-mode",
         choices=["sync", "async", "device", "threaded"],
         default="sync",
@@ -129,14 +189,18 @@ def main():
         help="compare resident vs cached CUTLASS before releasing each layer",
     )
     args = parser.parse_args()
+    if args.layers_per_process < 1:
+        parser.error("--layers-per-process must be positive")
     import torch
 
     if not torch.cuda.is_available() or torch.cuda.get_device_capability() != (12, 0):
         parser.error("conversion requires SM120 CUDA")
     from sglang.srt.model_loader.qwen38_nvfp4_common import (
-        resolve_cached_checkpoint, cached_checkpoint_weight_files,
+        cached_checkpoint_weight_files,
+        resolve_cached_checkpoint,
         validate_cached_checkpoint_revision,
     )
+
     checkpoint = resolve_cached_checkpoint(
         args.checkpoint, revision=args.checkpoint_revision, cache_dir=args.cache_dir
     )
@@ -159,6 +223,40 @@ def main():
     # Validate all requested coverage first, before CUDA model construction.
     for layer_id in layers:
         layer_checkpoint_entries(index, layer_id, text["num_experts"])
+    if args.parity and len(layers) > args.layers_per_process:
+        # CUDA/backend caches can retain resident tensors beyond Python GC.
+        # A fresh process bounds those allocations over a full 48-layer audit.
+        # Children still run parity for every requested layer; no skip/resume
+        # shortcut is used, and assembly only follows the last successful batch.
+        for start in range(0, len(layers), args.layers_per_process):
+            batch = layers[start : start + args.layers_per_process]
+            command = [
+                sys.executable,
+                "-m",
+                "sglang.srt.model_loader.qwen38_nvfp4_pack.convert",
+                "--checkpoint",
+                str(checkpoint),
+                "--output",
+                args.output,
+                "--checkpoint-revision",
+                args.checkpoint_revision,
+                "--sglang-commit",
+                args.sglang_commit,
+                "--runtime-mode",
+                args.runtime_mode,
+                "--layers-per-process",
+                str(args.layers_per_process),
+                "--parity",
+                "--layers",
+                *map(str, batch),
+            ]
+            if args.resume:
+                command.append("--resume")
+            if args.assemble and start + len(batch) == len(layers):
+                command.append("--assemble")
+            print(f"Converting isolated parity batch {batch}", flush=True)
+            subprocess.run(command, check=True)
+        return 0
     output = Path(args.output)
     output.mkdir(parents=True, exist_ok=True)
     from .build import build_pack

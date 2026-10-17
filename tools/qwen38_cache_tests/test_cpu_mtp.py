@@ -164,6 +164,27 @@ class TestMtpLoading(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "left uninitialized"):
             strict(model, [])
 
+    def test_read_only_parameter_loader_is_audited_and_restored(self):
+        from sglang.srt.layers.parameter import ModelWeightParameter
+        import torch
+        source = ast.parse((REPO_ROOT / "python/sglang/srt/model_loader/qwen38_mtp_loader.py").read_text())
+        fn = next(n for n in source.body if isinstance(n, ast.FunctionDef) and n.name == "load_mtp_weights_strict")
+        ns = {"default_weight_loader": lambda *a: None}
+        exec(compile(ast.Module(body=[fn], type_ignores=[]), "strict-loader", "exec"), ns)
+        original = mock.Mock()
+        param = ModelWeightParameter(data=torch.empty(2), input_dim=0, output_dim=0, weight_loader=original)
+        def load(weights):
+            for _, value in weights:
+                param.weight_loader(param, value)
+        model = SimpleNamespace(named_parameters=lambda: [("fc_hidden.weight", param)], load_weights=load)
+        ns[fn.name](model, [("mtp.fc_hidden.weight", torch.ones(2))])
+        self.assertIs(param.weight_loader, original)
+        original.assert_called_once()
+        model.load_weights = lambda weights: list(weights)
+        with self.assertRaisesRegex(ValueError, "was not loaded"):
+            ns[fn.name](model, [("mtp.fc_hidden.weight", torch.ones(2))])
+        self.assertIs(param.weight_loader, original)
+
     def test_stacked_parameter_missing_shard_fails(self):
         source = ast.parse(
             (
@@ -267,6 +288,16 @@ class TestMtpConfig(unittest.TestCase):
             self.assertEqual(args.speculative_moe_runner_backend, "triton")
             self.assertEqual(args.speculative_draft_kv_cache_dtype, "bfloat16")
             self.assertEqual(args.mamba_ssm_dtype, "bfloat16")
+
+    def test_mtp_accepts_epd_and_preserves_remote_only_target(self):
+        args = self.args(language_only=True, language_model_only=False, enable_multimodal=True)
+        self.hook.handle_qwen38_nvfp4_cache(args)
+        self.assertFalse(args.language_model_only)
+        self.assertTrue(args.language_only)
+        self.assertEqual(args.speculative_draft_load_format, "qwen38_mtp")
+        for values in ({"enable_multimodal": False}, {"enable_adaptive_dispatch_to_encoder": True}):
+            with self.assertRaises(ValueError):
+                self.hook.handle_qwen38_nvfp4_cache(self.args(language_only=True, language_model_only=False, **values))
 
     def test_unsupported_combinations_fail_before_loading(self):
         for values in (

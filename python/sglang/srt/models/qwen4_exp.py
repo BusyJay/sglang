@@ -427,8 +427,24 @@ class Qwen4ExpPLEGroupedNorm(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        import os
+
+        if (
+            os.getenv("SGLANG_QWEN38_FP32_NORM_FUSION", "1") == "1"
+            and x.is_cuda
+            and x.dtype == torch.bfloat16
+            and self.weight.dtype == torch.float32
+            and x.is_contiguous()
+            and self.weight.is_contiguous()
+        ):
+            from sglang.srt.layers.quantization.qwen38_fp32_norm import (
+                fp32_grouped_gemma_norm,
+            )
+
+            return fp32_grouped_gemma_norm(x, self.weight, self.group_size, self.eps)
         if (
             self._jit_group_size is not None
+            and self.weight.dtype == x.dtype
             and x.is_cuda
             and x.dtype in (torch.bfloat16, torch.float16)
         ):
@@ -540,8 +556,18 @@ class Qwen4ExpNGramEmbedding(nn.Module):
         ngram_embedding.register_buffer(
             "weight_scale", torch.ones(1, dtype=torch.bfloat16), persistent=True
         )
+        if getattr(config, "ple_embedding_dtype", None) == "nvfp4":
+            from sglang.srt.models.qwen38_fp4_ple import Qwen38Fp4PleEmbedding
+
+            if not offload_embedding:
+                raise ValueError(
+                    "FP4-Local PLE currently requires --ple-offload-embedding"
+                )
+            embedding_class = Qwen38Fp4PleEmbedding
+        else:
+            embedding_class = Qwen4ExpPinnedHostEmbedding
         if offload_embedding:
-            ngram_embedding = Qwen4ExpPinnedHostEmbedding(
+            ngram_embedding = embedding_class(
                 ngram_embedding,
                 backend=getattr(config, "ple_offload_backend", "pinned"),
                 table_dir=getattr(config, "ple_offload_dir", None),
@@ -771,6 +797,8 @@ def _gather_ple_embedding_from_pinned_kernel(
     is_fp8: tl.constexpr,
     BLOCK_D: tl.constexpr,
     MASK_INVALID: tl.constexpr = False,
+    IS_NVFP4: tl.constexpr = False,
+    global_scale_ptr=None,
 ):
     row_id = tl.program_id(0)
     global_idx = tl.load(ids_ptr + row_id)
@@ -778,6 +806,53 @@ def _gather_ple_embedding_from_pinned_kernel(
     local_idx = tl.where(in_range, global_idx - tp_vocab_start, 0)
     offsets = tl.arange(0, BLOCK_D)
     mask = offsets < embedding_dim
+    if IS_NVFP4:
+        weight_ptr = weight_ptr.to(tl.int64).to(tl.pointer_type(tl.uint8))
+        row_bytes = embedding_dim // 2 + embedding_dim // 16
+        packed = tl.load(
+            weight_ptr + local_idx * row_bytes + offsets // 2,
+            mask=mask & in_range,
+            other=0,
+        )
+        code = (packed >> ((offsets % 2) * 4)) & 15
+        mag = code & 7
+        value = tl.where(
+            mag == 0,
+            0.0,
+            tl.where(
+                mag == 1,
+                0.5,
+                tl.where(
+                    mag == 2,
+                    1.0,
+                    tl.where(
+                        mag == 3,
+                        1.5,
+                        tl.where(
+                            mag == 4,
+                            2.0,
+                            tl.where(mag == 5, 3.0, tl.where(mag == 6, 4.0, 6.0)),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        value = tl.where((code & 8) != 0, -value, value)
+        scale_byte = tl.load(
+            weight_ptr + local_idx * row_bytes + embedding_dim // 2 + offsets // 16,
+            mask=mask & in_range,
+            other=0,
+        )
+        scale = scale_byte.to(tl.float8e4nv, bitcast=True).to(tl.float32)
+        value *= scale
+        if global_scale_ptr is not None:
+            value *= tl.load(global_scale_ptr).to(tl.float32)
+        tl.store(
+            output_ptr + row_id * embedding_dim + offsets,
+            tl.where(in_range, value, 0.0).to(tl.bfloat16),
+            mask=mask,
+        )
+        return
     if is_fp8:
         weight_ptr = weight_ptr.to(tl.int64).to(tl.pointer_type(tl.float8e4nv))
     else:
@@ -992,8 +1067,10 @@ class Qwen4ExpPinnedHostEmbedding(VocabParallelEmbedding):
             pin_memory=True,
         )
         if os.getenv("SGLANG_QWEN38_PLE_DOUBLE_STAGING", "1") == "1":
-            self._lazy_staging_ring = [self._lazy_staging, torch.empty_like(
-                self._lazy_staging, device="cpu", pin_memory=True)]
+            self._lazy_staging_ring = [
+                self._lazy_staging,
+                torch.empty_like(self._lazy_staging, device="cpu", pin_memory=True),
+            ]
             self._lazy_staging_events = [None, None]
             self._lazy_staging_index = 0
         logger.info(
@@ -1026,6 +1103,7 @@ class Qwen4ExpPinnedHostEmbedding(VocabParallelEmbedding):
         # One D2H synchronization for the whole lookup, including prefill.
         lookup_start = time.monotonic()
         from sglang.srt.layers.moe.qwen38_observation import observe
+
         with observe("ple_ids_d2h", ids=input_ids.numel()):
             ids = input_ids.reshape(-1).long().cpu().numpy()
         flat_output = output.view(-1, self.embedding_dim)
@@ -1034,14 +1112,20 @@ class Qwen4ExpPinnedHostEmbedding(VocabParallelEmbedding):
         for base in range(0, len(ids), self._batch_rows):
             ring = getattr(self, "_lazy_staging_ring", None)
             bank = self._lazy_staging_index if ring is not None else None
-            event = self._lazy_staging_events[bank] if ring is not None else self._staging_event
+            event = (
+                self._lazy_staging_events[bank]
+                if ring is not None
+                else self._staging_event
+            )
             if event is not None:
                 with observe("ple_staging_wait"):
                     event.synchronize()
             chunk = ids[base : base + self._batch_rows]
             valid = (chunk >= tp_start) & (chunk < tp_end)
             unique, inverse = np.unique(chunk[valid], return_inverse=True)
-            staging = (ring[bank] if ring is not None else self._lazy_staging)[: len(unique)]
+            staging = (ring[bank] if ring is not None else self._lazy_staging)[
+                : len(unique)
+            ]
             with observe("ple_cache_fill", unique_rows=len(unique)):
                 self._lazy_cache.fill(unique.tolist(), staging)
             mapped = np.full(len(chunk), -1, dtype=np.int64)
@@ -1057,12 +1141,14 @@ class Qwen4ExpPinnedHostEmbedding(VocabParallelEmbedding):
                 is_fp8=self.weight.dtype == torch.float8_e4m3fn,
                 BLOCK_D=self._block_d,
                 MASK_INVALID=True,
+                IS_NVFP4=getattr(self, "_fp4_ple", False),
+                global_scale_ptr=getattr(self, "fp4_global_scale", None),
             )
             if ring is not None:
                 if self._lazy_staging_events[bank] is None:
                     self._lazy_staging_events[bank] = torch.cuda.Event()
                 self._lazy_staging_events[bank].record(torch.cuda.current_stream())
-                self._lazy_staging_index = 1-bank
+                self._lazy_staging_index = 1 - bank
             else:
                 if self._staging_event is None:
                     self._staging_event = torch.cuda.Event()
@@ -1231,6 +1317,9 @@ class Qwen4ExpPLELayer(nn.Module):
         )
         padded_seq[batch.req_indices, batch.token_offsets] = x
         conv_input = torch.cat([state, padded_seq.transpose(1, 2)], dim=-1)
+        # cat owns the packed convolution input. Drop the padded copy before
+        # conv1d allocates its output/workspace (160 MiB at an 8192-token chunk).
+        del state, padded_seq
         conv_output = F.conv1d(
             conv_input,
             self.conv1d.weight.to(dtype=x.dtype),
@@ -1296,6 +1385,9 @@ class Qwen4ExpPLELayer(nn.Module):
 
         # Advanced indexing owns the selected output. State/intermediate-cache
         # updates above read conv_input, so activation cannot alter their data.
+        # All state updates are enqueued on this stream; the allocator orders
+        # their reads before reusing the input allocation for selected_output.
+        del conv_input
         selected_output = conv_output[batch.req_indices, batch.token_offsets]
         return F.silu(selected_output, inplace=not torch.is_grad_enabled())
 
@@ -2095,6 +2187,10 @@ class Qwen4ExpForConditionalGeneration(Qwen3VLForConditionalGeneration):
     ) -> bool:
         if ".ple.ple_embedding." not in name:
             return False
+        if name.endswith(".ngram_embedding.weight_scale_2"):
+            mapped = name.removesuffix("weight_scale_2") + "fp4_global_scale"
+            if mapped in buffers:
+                name = mapped
         buffer_name = name.rsplit(".", 1)[-1]
         if buffer_name.startswith("hashstats_"):
             return True
@@ -2105,6 +2201,7 @@ class Qwen4ExpForConditionalGeneration(Qwen3VLForConditionalGeneration):
             "ngram_heads_offsets",
             "ngram_heads_vocab_sizes",
             "weight_scale",
+            "fp4_global_scale",
         }:
             return False
         buffer = buffers.get(name)
@@ -2216,7 +2313,9 @@ class Qwen4ExpForConditionalGeneration(Qwen3VLForConditionalGeneration):
                 return False
             import re
 
-            match = re.search(r"\.ngram_embedding\.shard_(\d+)\.weight$", name)
+            match = re.search(
+                r"\.ngram_embedding\.shard_(\d+)\.(weight|weight_scale)$", name
+            )
             if not match:
                 return False
             shard_idx = int(match.group(1))
@@ -2225,6 +2324,14 @@ class Qwen4ExpForConditionalGeneration(Qwen3VLForConditionalGeneration):
             if ple_mod is None:
                 return False
             emb = ple_mod.ngram_embedding
+            if getattr(emb, "_fp4_ple", False):
+                emb.load_checkpoint_part(
+                    shard_idx, match.group(2), loaded_weight, ple_num_sync_shards
+                )
+                loaded_shard_params.add(f"{mod_prefix}.ngram_embedding.weight")
+                return True
+            if match.group(2) != "weight":
+                raise ValueError("unexpected PLE block scales for a non-FP4 table")
             if isinstance(loaded_weight, PleCheckpointShard):
                 if not isinstance(emb, Qwen4ExpPinnedHostEmbedding) or not emb._lazy:
                     raise ValueError("indexed PLE checkpoint requires lazy embedding")
@@ -2314,6 +2421,14 @@ class Qwen4ExpForConditionalGeneration(Qwen3VLForConditionalGeneration):
         skipped_visual_count = 0
 
         for name, loaded_weight in weights:
+            from sglang.srt.model_loader.qwen38_fp4_local import (
+                canonicalize_mxfp8_scale_name,
+            )
+
+            if self.quant_config is not None and hasattr(
+                self.quant_config, "resolve_quant_algo"
+            ):
+                name = canonicalize_mxfp8_scale_name(name, self.quant_config)
             # An EPD encoder owns only the visual tower, not language/PLE layers.
             if self.config.encoder_only and "visual" not in name:
                 continue
@@ -2335,6 +2450,13 @@ class Qwen4ExpForConditionalGeneration(Qwen3VLForConditionalGeneration):
             elif name.endswith(".v_proj.v_scale"):
                 name = name.replace(".v_proj.v_scale", ".attn.v_scale")
 
+            if (
+                name in params_dict
+                and isinstance(loaded_weight, torch.Tensor)
+                and loaded_weight.dtype == torch.float32
+                and ("hyper_connection" in name or ".ple." in name)
+            ):
+                params_dict[name].data = params_dict[name].data.float()
             layer_id = get_layer_id(name)
             if layer_id is not None and (
                 layer_id < self.start_layer or layer_id >= self.end_layer

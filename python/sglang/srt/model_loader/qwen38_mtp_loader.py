@@ -33,11 +33,16 @@ def load_mtp_weights_strict(model, weights):
     params = dict(model.named_parameters())
     loaded, consumed, slices = set(), set(), {}
     current = [None]
-    originals = {}
+    originals = []
     try:
         for name, param in params.items():
             original = getattr(param, "weight_loader", None)
-            originals[name] = original
+            descriptor = getattr(type(param), "weight_loader", None)
+            slot = ("_weight_loader" if isinstance(descriptor, property)
+                    and descriptor.fset is None and hasattr(param, "_weight_loader")
+                    else "weight_loader")
+            had_own_loader = slot in vars(param)
+            original_slot = getattr(param, slot, None)
 
             def loader(
                 p,
@@ -55,7 +60,8 @@ def load_mtp_weights_strict(model, weights):
                 slices.setdefault(_name, set()).add((expert, shard))
                 return result
 
-            param.weight_loader = loader
+            setattr(param, slot, loader)
+            originals.append((param, slot, had_own_loader, original_slot))
 
         def audited_weights():
             for name, tensor in weights:
@@ -84,11 +90,12 @@ def load_mtp_weights_strict(model, weights):
             if not expected <= slices.get(name, set()):
                 raise ValueError(f"MTP parameter slices left uninitialized: {name}")
     finally:
-        for name, param in params.items():
-            if originals[name] is None:
-                del param.weight_loader
+        for param, slot, had_own_loader, original in reversed(originals):
+            if had_own_loader:
+                setattr(param, slot, original)
             else:
-                param.weight_loader = originals[name]
+                delattr(param, slot)
+
 
 
 class Qwen38MtpModelLoader(BaseModelLoader):
@@ -127,12 +134,11 @@ class Qwen38MtpModelLoader(BaseModelLoader):
         quant = _get_quantization_config(model_config, self.load_config)
         if quant is None or quant.get_name() != "modelopt_mixed":
             raise ValueError("qwen38_mtp requires original ModelOpt mixed precision")
-        if quant.resolve_quant_algo(
-            "mtp.layers.0.mlp.experts"
-        ) != "FP8_BLOCK_SCALES" or quant.fp8_block_config.weight_block_size != [
-            128,
-            128,
-        ]:
+        quant_algo = quant.resolve_quant_algo("mtp.layers.0.mlp.experts")
+        if quant_algo not in ("FP8_BLOCK_SCALES", "FP8_PB_WO", "W4A16_NVFP4"):
+            raise ValueError("qwen38_mtp requires block-FP8 or W4A16 NVFP4 experts")
+        fp4 = quant_algo == "W4A16_NVFP4"
+        if not fp4 and quant.fp8_block_config.weight_block_size != [128, 128]:
             raise ValueError("qwen38_mtp requires serialized 128x128 block-FP8 experts")
         device = torch.device(device_config.device)
         if device.type != "cuda" or torch.cuda.get_device_capability(device) != (12, 0):
@@ -151,14 +157,29 @@ class Qwen38MtpModelLoader(BaseModelLoader):
             methods = [
                 getattr(module, "quant_method", None) for module in model.modules()
             ]
-            fp8 = [method for method in methods if isinstance(method, Fp8MoEMethod)]
-            if (
-                len(fp8) != 1
-                or not fp8[0].block_quant
-                or not fp8[0].runner.runner_backend.is_triton()
-            ):
-                raise ValueError("MTP routed experts must dispatch to Triton block-FP8")
-            weights = mtp_weights_iterator(selected, files)
+            from sglang.srt.layers.quantization.qwen38_fp4_mtp import Qwen38Fp4MtpMethod
+
+            if fp4:
+                routed = [
+                    method
+                    for method in methods
+                    if isinstance(method, Qwen38Fp4MtpMethod)
+                ]
+                if len(routed) != 1:
+                    raise ValueError(
+                        "MTP must have exactly one W4A16 NVFP4 expert module"
+                    )
+            else:
+                fp8 = [method for method in methods if isinstance(method, Fp8MoEMethod)]
+                if (
+                    len(fp8) != 1
+                    or not fp8[0].block_quant
+                    or not fp8[0].runner.runner_backend.is_triton()
+                ):
+                    raise ValueError(
+                        "MTP routed experts must dispatch to Triton block-FP8"
+                    )
+            weights = mtp_weights_iterator(selected, files, quant_algo)
             try:
                 load_mtp_weights_strict(model, weights)
             finally:
@@ -169,6 +190,8 @@ class Qwen38MtpModelLoader(BaseModelLoader):
                 model=model,
                 metadata={"tensor_count": len(selected)},
             )
+            # FP4 input_scale is initialized to one; this weight-only checkpoint
+            # intentionally has no serialized activation scales.
             DefaultModelLoader.postprocess_weights(
                 model, device, startup_memory_probe=probe
             )
