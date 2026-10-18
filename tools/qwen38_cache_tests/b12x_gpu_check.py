@@ -102,6 +102,7 @@ def main():
                     atol=0.004,
                     rtol=0.02,
                 )
+                b12x_graph_latency = latency(graph.replay, args.iterations)
                 del graph, captured
                 # Real boundary runs eagerly; alternate streams with shared scratch.
                 other = torch.cuda.Stream()
@@ -118,6 +119,7 @@ def main():
                         ids_dtype=str(dtype),
                         max_abs_error=error,
                         graph_replay=True,
+                        b12x_graph_replay=b12x_graph_latency,
                         alternate_stream=True,
                         b12x=latency(run, args.iterations),
                         triton_fused=latency(
@@ -128,6 +130,7 @@ def main():
                         ),
                     )
                 )
+                print(f"passed tokens={tokens} pattern={pattern} ids={dtype}", flush=True)
     # Capacity changes and replacement pool storage must not retain old pointers.
     for capacity in (16, 32, 16):
         replacement = {

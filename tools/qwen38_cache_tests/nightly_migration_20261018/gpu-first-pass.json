@@ -1,0 +1,442 @@
+{
+  "status": "passed",
+  "gpu": "NVIDIA GeForce RTX 5090 D",
+  "torch": "2.14.1+cu130",
+  "scratch_bytes_per_layer": 151040,
+  "migration": true,
+  "reports": [
+    {
+      "tokens": 1,
+      "pattern": "disjoint",
+      "ids_dtype": "torch.int32",
+      "max_abs_error": 0.0001220703125,
+      "graph_replay": true,
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.1693119928240776,
+        "p95_ms": 0.17974400520324707,
+        "peak_scratch_bytes": 5120
+      },
+      "triton_fused": {
+        "median_ms": 0.12110399827361107,
+        "p95_ms": 0.12732799351215363,
+        "peak_scratch_bytes": 171520
+      }
+    },
+    {
+      "tokens": 1,
+      "pattern": "disjoint",
+      "ids_dtype": "torch.int64",
+      "max_abs_error": 6.103515625e-05,
+      "graph_replay": true,
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.17452799528837204,
+        "p95_ms": 0.18476800620555878,
+        "peak_scratch_bytes": 5120
+      },
+      "triton_fused": {
+        "median_ms": 0.12171200290322304,
+        "p95_ms": 0.1279039978981018,
+        "peak_scratch_bytes": 171520
+      }
+    },
+    {
+      "tokens": 1,
+      "pattern": "overlap",
+      "ids_dtype": "torch.int32",
+      "max_abs_error": 0.0001220703125,
+      "graph_replay": true,
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.1724800020456314,
+        "p95_ms": 0.17961600422859192,
+        "peak_scratch_bytes": 5120
+      },
+      "triton_fused": {
+        "median_ms": 0.12161600217223167,
+        "p95_ms": 0.1263040006160736,
+        "peak_scratch_bytes": 171520
+      }
+    },
+    {
+      "tokens": 1,
+      "pattern": "overlap",
+      "ids_dtype": "torch.int64",
+      "max_abs_error": 0.0001220703125,
+      "graph_replay": true,
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.1706240028142929,
+        "p95_ms": 0.18240000307559967,
+        "peak_scratch_bytes": 5120
+      },
+      "triton_fused": {
+        "median_ms": 0.1218079999089241,
+        "p95_ms": 0.12303999811410904,
+        "peak_scratch_bytes": 171520
+      }
+    },
+    {
+      "tokens": 1,
+      "pattern": "invalid",
+      "ids_dtype": "torch.int32",
+      "max_abs_error": 6.103515625e-05,
+      "graph_replay": true,
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.16835200041532516,
+        "p95_ms": 0.1775680035352707,
+        "peak_scratch_bytes": 5120
+      },
+      "triton_fused": {
+        "median_ms": 0.12236800044775009,
+        "p95_ms": 0.1247360035777092,
+        "peak_scratch_bytes": 171520
+      }
+    },
+    {
+      "tokens": 1,
+      "pattern": "invalid",
+      "ids_dtype": "torch.int64",
+      "max_abs_error": 0.0001220703125,
+      "graph_replay": true,
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.16964799910783768,
+        "p95_ms": 0.17903999984264374,
+        "peak_scratch_bytes": 5120
+      },
+      "triton_fused": {
+        "median_ms": 0.12163200229406357,
+        "p95_ms": 0.12310399860143661,
+        "peak_scratch_bytes": 171520
+      }
+    },
+    {
+      "tokens": 1,
+      "pattern": "all_invalid",
+      "ids_dtype": "torch.int32",
+      "max_abs_error": 0.0,
+      "graph_replay": true,
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.1616479977965355,
+        "p95_ms": 0.17244799435138702,
+        "peak_scratch_bytes": 5120
+      },
+      "triton_fused": {
+        "median_ms": 0.11801599711179733,
+        "p95_ms": 0.12118399888277054,
+        "peak_scratch_bytes": 171520
+      }
+    },
+    {
+      "tokens": 1,
+      "pattern": "all_invalid",
+      "ids_dtype": "torch.int64",
+      "max_abs_error": 0.0,
+      "graph_replay": true,
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.1634879931807518,
+        "p95_ms": 0.17481599748134613,
+        "peak_scratch_bytes": 5120
+      },
+      "triton_fused": {
+        "median_ms": 0.11859200149774551,
+        "p95_ms": 0.12176000326871872,
+        "peak_scratch_bytes": 171520
+      }
+    },
+    {
+      "tokens": 2,
+      "pattern": "disjoint",
+      "ids_dtype": "torch.int32",
+      "max_abs_error": 0.0001220703125,
+      "graph_replay": true,
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.177776001393795,
+        "p95_ms": 0.19103999435901642,
+        "peak_scratch_bytes": 10240
+      },
+      "triton_fused": {
+        "median_ms": 0.07919999957084656,
+        "p95_ms": 0.09967999905347824,
+        "peak_scratch_bytes": 240640
+      }
+    },
+    {
+      "tokens": 2,
+      "pattern": "disjoint",
+      "ids_dtype": "torch.int64",
+      "max_abs_error": 0.0001220703125,
+      "graph_replay": true,
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.178847998380661,
+        "p95_ms": 0.187391996383667,
+        "peak_scratch_bytes": 10240
+      },
+      "triton_fused": {
+        "median_ms": 0.07875200361013412,
+        "p95_ms": 0.08374399691820145,
+        "peak_scratch_bytes": 240640
+      }
+    },
+    {
+      "tokens": 2,
+      "pattern": "overlap",
+      "ids_dtype": "torch.int32",
+      "max_abs_error": 3.0517578125e-05,
+      "graph_replay": true,
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.1810080036520958,
+        "p95_ms": 0.18915200233459473,
+        "peak_scratch_bytes": 10240
+      },
+      "triton_fused": {
+        "median_ms": 0.0790719985961914,
+        "p95_ms": 0.08348800241947174,
+        "peak_scratch_bytes": 240640
+      }
+    },
+    {
+      "tokens": 2,
+      "pattern": "overlap",
+      "ids_dtype": "torch.int64",
+      "max_abs_error": 6.103515625e-05,
+      "graph_replay": true,
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.18086400628089905,
+        "p95_ms": 0.19097599387168884,
+        "peak_scratch_bytes": 10240
+      },
+      "triton_fused": {
+        "median_ms": 0.07843200117349625,
+        "p95_ms": 0.08243200182914734,
+        "peak_scratch_bytes": 240640
+      }
+    },
+    {
+      "tokens": 2,
+      "pattern": "invalid",
+      "ids_dtype": "torch.int32",
+      "max_abs_error": 7.62939453125e-05,
+      "graph_replay": true,
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.18065600097179413,
+        "p95_ms": 0.18902400135993958,
+        "peak_scratch_bytes": 10240
+      },
+      "triton_fused": {
+        "median_ms": 0.07948800176382065,
+        "p95_ms": 0.08463999629020691,
+        "peak_scratch_bytes": 240640
+      }
+    },
+    {
+      "tokens": 2,
+      "pattern": "invalid",
+      "ids_dtype": "torch.int64",
+      "max_abs_error": 6.103515625e-05,
+      "graph_replay": true,
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.179904006421566,
+        "p95_ms": 0.18848000466823578,
+        "peak_scratch_bytes": 10240
+      },
+      "triton_fused": {
+        "median_ms": 0.07937600091099739,
+        "p95_ms": 0.08403199911117554,
+        "peak_scratch_bytes": 240640
+      }
+    },
+    {
+      "tokens": 2,
+      "pattern": "all_invalid",
+      "ids_dtype": "torch.int32",
+      "max_abs_error": 0.0,
+      "graph_replay": true,
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.17988800257444382,
+        "p95_ms": 0.18700799345970154,
+        "peak_scratch_bytes": 10240
+      },
+      "triton_fused": {
+        "median_ms": 0.07539200037717819,
+        "p95_ms": 0.08022399991750717,
+        "peak_scratch_bytes": 240640
+      }
+    },
+    {
+      "tokens": 2,
+      "pattern": "all_invalid",
+      "ids_dtype": "torch.int64",
+      "max_abs_error": 0.0,
+      "graph_replay": true,
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.17876800149679184,
+        "p95_ms": 0.18662400543689728,
+        "peak_scratch_bytes": 10240
+      },
+      "triton_fused": {
+        "median_ms": 0.07571200281381607,
+        "p95_ms": 0.08022399991750717,
+        "peak_scratch_bytes": 240640
+      }
+    },
+    {
+      "tokens": 3,
+      "pattern": "disjoint",
+      "ids_dtype": "torch.int32",
+      "max_abs_error": 0.0001220703125,
+      "graph_replay": true,
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.19339200109243393,
+        "p95_ms": 0.2035840004682541,
+        "peak_scratch_bytes": 15360
+      },
+      "triton_fused": {
+        "median_ms": 0.10547199845314026,
+        "p95_ms": 0.1098880022764206,
+        "peak_scratch_bytes": 360960
+      }
+    },
+    {
+      "tokens": 3,
+      "pattern": "disjoint",
+      "ids_dtype": "torch.int64",
+      "max_abs_error": 0.0001220703125,
+      "graph_replay": true,
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.1916320025920868,
+        "p95_ms": 0.2019519954919815,
+        "peak_scratch_bytes": 15360
+      },
+      "triton_fused": {
+        "median_ms": 0.10558399930596352,
+        "p95_ms": 0.11020799726247787,
+        "peak_scratch_bytes": 360960
+      }
+    },
+    {
+      "tokens": 3,
+      "pattern": "overlap",
+      "ids_dtype": "torch.int32",
+      "max_abs_error": 3.0517578125e-05,
+      "graph_replay": true,
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.19528000056743622,
+        "p95_ms": 0.20854400098323822,
+        "peak_scratch_bytes": 15360
+      },
+      "triton_fused": {
+        "median_ms": 0.10584000125527382,
+        "p95_ms": 0.11004800349473953,
+        "peak_scratch_bytes": 360960
+      }
+    },
+    {
+      "tokens": 3,
+      "pattern": "overlap",
+      "ids_dtype": "torch.int64",
+      "max_abs_error": 1.52587890625e-05,
+      "graph_replay": true,
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.1940319985151291,
+        "p95_ms": 0.20131200551986694,
+        "peak_scratch_bytes": 15360
+      },
+      "triton_fused": {
+        "median_ms": 0.10580800101161003,
+        "p95_ms": 0.1101439967751503,
+        "peak_scratch_bytes": 360960
+      }
+    },
+    {
+      "tokens": 3,
+      "pattern": "invalid",
+      "ids_dtype": "torch.int32",
+      "max_abs_error": 6.103515625e-05,
+      "graph_replay": true,
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.1910719946026802,
+        "p95_ms": 0.19971199333667755,
+        "peak_scratch_bytes": 15360
+      },
+      "triton_fused": {
+        "median_ms": 0.10502400249242783,
+        "p95_ms": 0.1090560033917427,
+        "peak_scratch_bytes": 360960
+      }
+    },
+    {
+      "tokens": 3,
+      "pattern": "invalid",
+      "ids_dtype": "torch.int64",
+      "max_abs_error": 6.103515625e-05,
+      "graph_replay": true,
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.19174399971961975,
+        "p95_ms": 0.19977599382400513,
+        "peak_scratch_bytes": 15360
+      },
+      "triton_fused": {
+        "median_ms": 0.10507200285792351,
+        "p95_ms": 0.11030399799346924,
+        "peak_scratch_bytes": 360960
+      }
+    },
+    {
+      "tokens": 3,
+      "pattern": "all_invalid",
+      "ids_dtype": "torch.int32",
+      "max_abs_error": 0.0,
+      "graph_replay": true,
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.18689600378274918,
+        "p95_ms": 0.19436800479888916,
+        "peak_scratch_bytes": 15360
+      },
+      "triton_fused": {
+        "median_ms": 0.10222400352358818,
+        "p95_ms": 0.10803200304508209,
+        "peak_scratch_bytes": 360960
+      }
+    },
+    {
+      "tokens": 3,
+      "pattern": "all_invalid",
+      "ids_dtype": "torch.int64",
+      "max_abs_error": 0.0,
+      "graph_replay": true,
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.18804799765348434,
+        "p95_ms": 0.197952002286911,
+        "peak_scratch_bytes": 15360
+      },
+      "triton_fused": {
+        "median_ms": 0.10208000242710114,
+        "p95_ms": 0.10704000294208527,
+        "peak_scratch_bytes": 360960
+      }
+    }
+  ],
+  "scope": "Synthetic resident cache; excludes planner/fill/model/service"
+}

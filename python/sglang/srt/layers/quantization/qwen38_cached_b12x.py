@@ -44,7 +44,9 @@ class CachedB12xW4A16:
             device=device,
         )
         self.unused = torch.empty(0, dtype=torch.bfloat16, device=device)
-        self.done = torch.cuda.Event()
+        # Graph capture may wait on the last eager use of this scratch.
+        # External nodes preserve that dependency across capture/replay.
+        self.done = torch.cuda.Event(external=True)
         self.used = False
 
     @classmethod
