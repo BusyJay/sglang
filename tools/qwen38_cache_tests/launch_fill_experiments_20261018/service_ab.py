@@ -2,12 +2,30 @@
 
 import argparse
 import json
-import os
+import re
 from pathlib import Path
 import subprocess
 import sys
 import time
 import urllib.request
+
+
+def configure_launcher(path, prepared, cta):
+    text = path.read_text()
+    for key, value in [
+        ("SGLANG_OPT_QWEN38_B12X_PREPARED_LAUNCH", prepared),
+        ("SGLANG_QWEN38_FILL_CTA", cta),
+    ]:
+        text, count = re.subn(
+            r"^export " + key + r"=.*$",
+            lambda match: f'export {key}="{value}"',
+            text,
+            flags=re.MULTILINE,
+        )
+        if count != 1:
+            raise ValueError(f"Expected exactly one explicit launcher export for {key}")
+    path.write_text(text)
+    return text
 
 
 def main():
@@ -37,49 +55,22 @@ def main():
             ["git", "rev-parse", "HEAD"], cwd=root, text=True
         ).strip(),
     }
-    env = {**os.environ, "LLM_PRESET": "fp4-local"}
+    launcher = deployment / "home-jay/remote-mapping/llm/sglang-fp4-local.sh"
+    (output / "launcher-before.sh").write_text(launcher.read_text())
     for repeat in range(args.rounds):
         order = variants if repeat % 2 == 0 else list(reversed(variants))
         for name, prepared, cta in order:
             folder = output / f"{repeat}-{name}"
             folder.mkdir(exist_ok=True)
-            override = folder / "override.json"
-            override.write_text(
-                json.dumps(
-                    {
-                        "services": {
-                            "llm": {
-                                "environment": {
-                                    "SGLANG_OPT_QWEN38_B12X_PREPARED_LAUNCH": prepared,
-                                    "SGLANG_QWEN38_FILL_CTA": cta,
-                                }
-                            }
-                        }
-                    },
-                    indent=2,
-                )
-                + "\n"
+            # Keep settings in the mounted script, including when the existing
+            # container still carries older Compose environment values.
+            (folder / "launcher.sh").write_text(
+                configure_launcher(launcher, prepared, cta)
             )
             print("START", repeat, name, "prepared", prepared, "CTA", cta, flush=True)
-            with (folder / "recreate.log").open("w") as log:
+            with (folder / "restart.log").open("w") as log:
                 subprocess.run(
-                    [
-                        "docker",
-                        "compose",
-                        "--project-name",
-                        "hermes",
-                        "-f",
-                        str(deployment / "docker-compose.yml"),
-                        "-f",
-                        str(override),
-                        "up",
-                        "-d",
-                        "--no-deps",
-                        "--force-recreate",
-                        "llm",
-                    ],
-                    cwd=deployment,
-                    env=env,
+                    ["docker", "restart", "--timeout", "45", "homelab-llm"],
                     stdout=log,
                     stderr=subprocess.STDOUT,
                     check=True,

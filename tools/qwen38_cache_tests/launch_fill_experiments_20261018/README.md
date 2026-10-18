@@ -10,6 +10,10 @@ state, not evidence that the optimizations are ineffective. See
 [CONTROLLED_PROTOCOL.md](CONTROLLED_PROTOCOL.md) for the unexecuted retest plan.
 The remaining sections preserve the package author's original experiment plan.
 
+Runtime switches belong in the mounted launcher script. Edit its explicit
+exports, then `docker restart homelab-llm`; do not configure these through YAML.
+See [deployment/README.md](deployment/README.md) for the current procedure.
+
 Base: `bed9c124a2e7b627bbdf84ae6e92265e79160f76`. Image:
 `lmsysorg/sglang:nightly-dev-20261018-b234b5c3`, tested local image ID
 `sha256:bfef46e5a45a815f8c2f88a722980baf47b71a8689b89c6cc738f596ceeaf47c`.
