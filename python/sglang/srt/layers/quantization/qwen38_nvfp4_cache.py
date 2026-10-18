@@ -48,6 +48,12 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
         if enabled not in ("0", "1"):
             raise ValueError("SGLANG_QWEN38_CACHE_W4A16 must be 0 or 1")
         self.use_w4a16 = enabled == "1"
+        self.w4a16_backend = os.getenv("SGLANG_QWEN38_CACHE_W4A16_BACKEND", "triton")
+        if self.w4a16_backend not in ("triton", "b12x"):
+            raise ValueError("W4A16 backend must be triton or b12x")
+        if self.w4a16_backend == "b12x" and not self.use_w4a16:
+            raise ValueError("B12X requires SGLANG_QWEN38_CACHE_W4A16=1")
+        self.b12x = None
         prefill = os.getenv("SGLANG_QWEN38_CACHE_PREFILL_W4A16", enabled)
         if prefill not in ("0", "1"):
             raise ValueError("SGLANG_QWEN38_CACHE_PREFILL_W4A16 must be 0 or 1")
@@ -110,6 +116,22 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
         )
         # Seed at the current layer capacity before KV and graph allocation.
         self.swiglu_buffers.get(runtime.slots_for_layer(self.layer_id))
+        if self.w4a16_backend == "b12x":
+            from sglang.srt.layers.quantization.qwen38_cached_b12x import (
+                CachedB12xW4A16,
+            )
+
+            self.b12x = CachedB12xW4A16(
+                runtime.device,
+                self.manifest.hidden_size,
+                self.manifest.intermediate_size,
+                self.manifest.num_experts,
+            )
+            if self.layer_id == 0:
+                logging.getLogger(__name__).info(
+                    "Qwen38 B12X W4A16 enabled: BF16 decode/verify 1..3 tokens; "
+                    "other shapes use Triton W4A16"
+                )
         if self.layer_id == 0:
             logging.getLogger(__name__).info(
                 "Qwen38 cache activation mode: prefill=%s decode/verify=%s; W4A16 chunk=%d",
@@ -224,6 +246,13 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
                 )
 
                 validate_runner_config(self.moe_runner_config)
+                if self.b12x is not None and self.b12x.eligible(
+                    hidden_states, prepared.topk_ids, execution_phase
+                ):
+                    result = self.b12x.run(
+                        hidden_states, prepared.topk_ids, topk_weights, prepared.tensors
+                    )
+                    return StandardCombineInput(hidden_states=result)
                 result = cached_w4a16_moe(
                     hidden_states.contiguous(),
                     prepared.topk_ids.contiguous(),
