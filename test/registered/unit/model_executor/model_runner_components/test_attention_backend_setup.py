@@ -12,6 +12,7 @@ from sglang.srt.model_executor.model_runner_components.attention_backend_setup i
     ResolvedAttentionBackendStr,
 )
 from sglang.test.ci.ci_register import register_cpu_ci
+from sglang.test.test_utils import CustomTestCase
 
 register_cpu_ci(est_time=12, suite="base-a-test-cpu")
 
@@ -116,6 +117,41 @@ def test_equal_resolved_backends_ignore_stale_global_backend():
         )
 
     assert result.name == "resolved"
+
+
+class TestQsaConstruction(CustomTestCase):
+    def test_sparse_hybrid_does_not_leave_discarded_dense_workspace(self):
+        import torch
+
+        from sglang.srt.configs.qwen4_exp import Qwen4ExpConfig
+
+        config = Qwen4ExpConfig(text_config=dict(
+            indexer_n_heads=4, indexer_kv_heads=1, indexer_head_dim=128,
+            indexer_budget=2048, indexer_compress_ratio=4))
+        runner = SimpleNamespace(model_config=SimpleNamespace(hf_config=config))
+        persistent = {}
+
+        def dense_backend(_runner):
+            persistent["unused_workspace"] = torch.empty(256)
+            return _FakeBackend("dense")
+
+        def sparse_wrapper(_runner, dense):
+            return SimpleNamespace(name="qsa", discarded_dense=dense)
+
+        for resolved in (
+            ResolvedAttentionBackendStr(prefill="flashinfer", decode="flashinfer"),
+            ResolvedAttentionBackendStr(prefill="flashinfer", decode="triton"),
+        ):
+            with (self.subTest(resolved=resolved),
+                  patch.dict(attention_backend_setup.ATTENTION_BACKENDS,
+                             {"flashinfer": dense_backend, "triton": dense_backend}),
+                  patch.object(attention_backend_setup, "attn_backend_wrapper",
+                               side_effect=sparse_wrapper)):
+                result = attention_backend_setup._build_resolved_backend(
+                    model_runner=runner, resolved=resolved, init_new_workspace=False)
+                self.assertEqual(result.name, "qsa")
+                self.assertIsNone(result.discarded_dense)
+                self.assertEqual(persistent, {})
 
 
 if __name__ == "__main__":

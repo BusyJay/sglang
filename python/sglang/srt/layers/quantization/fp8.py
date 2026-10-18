@@ -1042,6 +1042,10 @@ class Fp8LinearMethod(LinearMethodBase):
                 padded_weight = weight.new_zeros((128, weight.shape[1]))
                 padded_weight[: weight.shape[0]].copy_(weight)
                 copy_or_rebind_param(layer, "weight_mxfp8_padded", padded_weight)
+                # Keep the logical loader parameter as a view of the compute
+                # storage. Use the installed buffer: weight updates may copy
+                # into an existing padded parameter rather than rebind it.
+                layer.weight.data = layer.weight_mxfp8_padded[: weight.shape[0]]
             # block_scale_interleave may pad and/or reshape scales,
             # so store swizzled scales separately to keep weight update working
             copy_or_rebind_param(

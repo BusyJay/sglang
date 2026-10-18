@@ -204,6 +204,22 @@ def _build_resolved_backend(
     resolved: ResolvedAttentionBackendStr,
     init_new_workspace: bool,
 ) -> AttentionBackend:
+    from sglang.srt.configs.hybrid_arch import hybrid_gdn_config
+    from sglang.srt.layers.attention.qsa.config import is_qwen_qsa
+
+    config = getattr(getattr(model_runner, "model_config", None), "hf_config", None)
+    if (
+        config is not None
+        and is_qwen_qsa(config)
+        and hybrid_gdn_config(model_runner.model_config) is not None
+    ):
+        # The hybrid wrapper selects QSA for every full-attention layer. Do
+        # not construct a dense backend just to discard it: its process-wide
+        # workspace survives the discarded instance (256 MiB for FlashInfer).
+        for backend_str in (resolved.prefill, resolved.decode):
+            if backend_str not in ATTENTION_BACKENDS:
+                raise ValueError(f"Invalid attention backend: {backend_str}")
+        return attn_backend_wrapper(model_runner, None)
     if resolved.is_draft_override:
         attn_backend = _build_backend_from_str(
             model_runner=model_runner,

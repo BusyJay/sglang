@@ -1248,6 +1248,33 @@ class TestResources(_IsolatedServerArgs):
         with get_resources().override(expert_distribution_recorder="mock"):
             self.assertEqual(get_global_expert_distribution_recorder(), "mock")
 
+    def test_host_cached_identity_experts_need_no_location_storage(self):
+        import torch
+
+        from sglang.srt.eplb.expert_location import (
+            ModelConfigForExpertLocation,
+            compute_initial_expert_location_metadata,
+        )
+
+        base = dict(load_format="qwen38_nvfp4_cache", device="cpu",
+                    ep_size=1, enable_eplb=False, ep_num_redundant_experts=0,
+                    init_expert_location="trivial",
+                    expert_distribution_recorder_mode=None)
+        with get_context().override_server_args(**base):
+            self.assertIsNone(compute_initial_expert_location_metadata(None, 0))
+        # Other loaders and actual EPLB/recording consumers still get a usable
+        # map, even when the current placement happens to be identity.
+        for change in ({"load_format": "auto"}, {"enable_eplb": True},
+                       {"expert_distribution_recorder_mode": "stat"}):
+            with (self.subTest(change=change),
+                  get_context().override_server_args(**(base | change)),
+                  patch.object(ModelConfigForExpertLocation, "from_model_config",
+                               return_value=ModelConfigForExpertLocation(2, 4))):
+                metadata = compute_initial_expert_location_metadata(None, 0)
+                self.assertIsNotNone(metadata)
+                torch.testing.assert_close(metadata.physical_to_logical_map,
+                                           torch.arange(4).repeat(2, 1))
+
     def test_expert_location_metadata_publish_once_until_reset(self):
         from sglang.srt.eplb.expert_location import (
             get_global_expert_location_metadata,
