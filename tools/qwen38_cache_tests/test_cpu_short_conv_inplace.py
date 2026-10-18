@@ -26,7 +26,15 @@ class TestShortConvInplace(unittest.TestCase):
         method.returns = None
         for arg in method.args.args:
             arg.annotation = None
-        cls.namespace = {"torch": torch, "F": torch.nn.functional}
+        from sglang.srt.layers.attention.linear.utils import (
+            select_verify_intermediate_state_indices,
+        )
+
+        cls.namespace = {
+            "torch": torch,
+            "F": torch.nn.functional,
+            "select_verify_intermediate_state_indices": select_verify_intermediate_state_indices,
+        }
         exec(
             compile(
                 ast.fix_missing_locations(ast.Module(body=[method], type_ignores=[])),
@@ -68,6 +76,7 @@ class TestShortConvInplace(unittest.TestCase):
         state = initial.clone()
         intermediate = expected_intermediate.clone()
         pool = SimpleNamespace(
+            size=2,
             short_conv_layer_cache=lambda _: state,
             short_conv_layer_intermediate_cache=lambda _: intermediate,
         )
@@ -83,6 +92,7 @@ class TestShortConvInplace(unittest.TestCase):
             silu=lambda t, **_: activation(t, inplace=False),
         )
         reference_namespace["get_req_to_token_pool"] = lambda: SimpleNamespace(
+            size=2,
             short_conv_layer_cache=lambda _: expected_state,
             short_conv_layer_intermediate_cache=lambda _: expected_intermediate,
         )
@@ -107,9 +117,13 @@ class TestShortConvInplace(unittest.TestCase):
                 },
             ),
         ):
-            expected = reference(model, x, SimpleNamespace(), batch)
+            expected = reference(
+                model, x, SimpleNamespace(req_pool_indices=torch.arange(2)), batch
+            )
             with mock.patch.object(torch.nn.functional, "silu", side_effect=capture):
-                actual = self.short_conv(model, x, SimpleNamespace(), batch)
+                actual = self.short_conv(
+                    model, x, SimpleNamespace(req_pool_indices=torch.arange(2)), batch
+                )
             self.assertTrue(torch.equal(actual, expected))
             if grad:
                 actual_grad = torch.autograd.grad(actual.sum(), x, retain_graph=True)[0]

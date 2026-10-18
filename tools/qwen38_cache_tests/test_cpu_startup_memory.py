@@ -142,6 +142,9 @@ class TestStartupMemory(unittest.TestCase):
             events.append(("exit", m))
 
         namespace = {
+            "QuantizedRLModelLoader": SimpleNamespace(
+                is_reload_scenario=lambda _: False
+            ),
             "_modules_with_quant_method": lambda m: [(module, method)],
             "device_loading_context": context,
         }

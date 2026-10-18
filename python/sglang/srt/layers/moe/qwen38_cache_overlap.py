@@ -127,4 +127,6 @@ def run_shared_overlap(block, hidden_states, phase):
         )
     else:
         routed.add_(shared)
-    return reduce_moe_output(routed)
+    return (
+        reduce_moe_output(routed) if getattr(block, "reduce_results", True) else routed
+    )
