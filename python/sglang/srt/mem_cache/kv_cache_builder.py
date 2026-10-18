@@ -35,7 +35,6 @@ from sglang.srt.configs.hybrid_arch import (
     mamba2_config,
 )
 from sglang.srt.configs.model_config import ModelImpl, is_deepseek_dsa
-from sglang.srt.environ import envs
 from sglang.srt.managers.mm_schedule import init_mm_embedding_cache
 from sglang.srt.mem_cache.allocator.swa import is_swa_req_ring
 from sglang.srt.mem_cache.base_swa_memory_pool import BaseSWAKVPool
@@ -440,7 +439,11 @@ def build_kv_cache(
             )
         tree_cache.validate_retraction_host_capacity()
 
-    embedding_cache_size = envs.SGLANG_VLM_CACHE_SIZE_MB.get()
+    from sglang.srt.disaggregation.encoder.replay_cache import (
+        gpu_embedding_cache_size_mb,
+    )
+
+    embedding_cache_size = gpu_embedding_cache_size_mb()
     init_mm_embedding_cache(embedding_cache_size * 1024 * 1024)
 
     return KVCacheBuildResult(

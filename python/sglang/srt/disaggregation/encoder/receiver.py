@@ -1074,6 +1074,13 @@ class WaitingMMRequestBase(ABC):
             recv_embedding,
             **self.recv_embedding_data.get_mm_extra_meta(),
         )
+        replay_cache = getattr(self, "replay_cache", None)
+        if replay_cache is not None:
+            replay_cache.put(
+                self.replay_key,
+                recv_embedding,
+                self.recv_embedding_data.get_mm_extra_meta(),
+            )
         self._bind_pool_slot_to_mm_inputs(mm_inputs)
         self.recv_req.mm_inputs = mm_inputs
         self.recv_req.input_ids = array("q", mm_inputs.input_ids)
@@ -1925,6 +1932,11 @@ class MMReceiverBase(ABC):
         self.gpu_id = get_device().gpu_id if scheduler is not None else 0
         self.wait_timeout = envs.SGLANG_ENCODER_RECV_TIMEOUT.get()
         self.embedding_pool = None
+        from sglang.srt.disaggregation.encoder.replay_cache import EncoderReplayCache
+
+        self.replay_cache = EncoderReplayCache(
+            envs.SGLANG_VLM_CACHE_SIZE_MB.get() * 1024 * 1024
+        )
 
         self.model_type = (
             getattr(hf_config, "model_type", "").lower()
@@ -2184,6 +2196,76 @@ class MMReceiverBase(ABC):
         finally:
             recv_socket.close()
 
+    def prepare_replay_dispatch(self, obj):
+        """Defer immutable image replay dispatch to the receiving scheduler."""
+        from sglang.srt.disaggregation.encoder.replay_cache import replay_key
+
+        if (
+            type(self).__name__ != "MMReceiverHTTP"
+            or self.encoder_transfer_backend != "zmq_to_scheduler"
+            or envs.SGLANG_VLM_CACHE_SIZE_MB.get() <= 0
+            or (
+                envs.SGLANG_EMBEDDING_POOL_SIZE_MB.is_set()
+                and envs.SGLANG_EMBEDDING_POOL_SIZE_MB.get() > 0
+            )
+        ):
+            return False
+        items = self._extract_url_data(obj)
+        if replay_key(items, obj.cache_salt) is None or not self.encode_urls:
+            return False
+        obj.deferred_encoder_items = items
+        obj.encoder_urls = list(self.encode_urls)
+        obj.num_items_assigned = self._assign_items_by_modality(
+            items, len(obj.encoder_urls)
+        )
+        obj.need_wait_for_mm_inputs = True
+        return True
+
+    def _record_replay_dispatch_error(self, request, error):
+        # Worker thread publishes only an error message; resource teardown
+        # remains on the scheduler thread through the existing receive hook.
+        with request.registration_lock:
+            request.registration_error = (error.error_msg, error.error_code)
+
+    def _reuse_encoder_replay(self, recv_req):
+        from sglang.srt.disaggregation.encoder.replay_cache import replay_key
+
+        key = replay_key(recv_req.deferred_encoder_items, recv_req.cache_salt)
+        record = self.replay_cache.get(key)
+        hit = record is not None
+        if self.tp_size > 1:
+            hit = all(self.tp_group.all_gather_object(hit))
+        if not hit:
+            return key, False
+        embeddings, metadata = record
+        # Rebuild offsets and mRoPE for the CURRENT prompt, not the previous
+        # conversation turn. Fresh metadata containers protect cache ownership.
+        import copy
+
+        error = None
+        mm_inputs = None
+        try:
+            mm_inputs = self.mm_processor.get_validated_mm_data(
+                _select_mm_processor_prompt(recv_req, self.mm_processor),
+                dict(embeddings),
+                **copy.deepcopy(metadata),
+            )
+        except Exception as exc:
+            error = str(exc)
+        errors = (
+            [error] if self.tp_size <= 1 else self.tp_group.all_gather_object(error)
+        )
+        if any(value is not None for value in errors):
+            # All ranks take the same normal encode fallback.
+            self.replay_cache.remove(key)
+            logger.warning("Encoder replay reconstruction failed: %s", errors)
+            return key, False
+        recv_req.mm_inputs = mm_inputs
+        recv_req.input_ids = array("q", mm_inputs.input_ids)
+        recv_req.need_wait_for_mm_inputs = False
+        logger.info("Reusing CPU encoder replay for request %s", recv_req.rid)
+        return key, True
+
     def send_encode_request(
         self, obj, time_stats_json=None, on_dispatch_error=None
     ) -> Optional[threading.Event]:
@@ -2329,6 +2411,12 @@ class MMReceiverBase(ABC):
                 isinstance(recv_req, TokenizedGenerateReqInput)
                 and recv_req.need_wait_for_mm_inputs is True
             ):
+                replay_key_value = None
+                if getattr(recv_req, "deferred_encoder_items", None):
+                    replay_key_value, reused = self._reuse_encoder_replay(recv_req)
+                    if reused:
+                        new_recv_reqs.append(recv_req)
+                        continue
                 # Use the URL snapshot frozen by the tokenizer when it
                 # computed num_items_assigned -- the encoder_idx values in
                 # that assignment must index into this exact list.  Falling
@@ -2357,6 +2445,32 @@ class MMReceiverBase(ABC):
                     )
                     self.waiting_by_rid[waiting_req.rid] = waiting_req
                     waiting_req.send_encode_request()
+                    if replay_key_value is not None:
+                        waiting_req.replay_cache = self.replay_cache
+                        waiting_req.replay_key = replay_key_value
+                        if self.tp_rank == 0:
+                            # Registration and /encode can overlap; encoder
+                            # supports receive URL registration before encoding.
+                            ready = threading.Event()
+                            ready.set()
+                            threading.Thread(
+                                target=self._run_encode_in_thread,
+                                args=(
+                                    recv_req.rid,
+                                    recv_req.deferred_encoder_items,
+                                    "encode",
+                                    recv_req.num_items_assigned,
+                                    encode_urls,
+                                    None,
+                                    ready,
+                                    lambda error, request=waiting_req: (
+                                        self._record_replay_dispatch_error(
+                                            request, error
+                                        )
+                                    ),
+                                ),
+                                daemon=True,
+                            ).start()
                 except Exception as error:
                     local_error = f"{type(error).__name__}: {error}"
                     logger.exception(

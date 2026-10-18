@@ -1,0 +1,327 @@
+{
+  "trace": "tools/qwen38_cache_tests/adaptive_kv_vit_20261019/original-isolated.trace.json.gz",
+  "decode_steps": 11,
+  "decode_wall_ms": 315.7485205078125,
+  "mean_step_ms": 28.704410955255682,
+  "gpu_step_window_ms": 422.2613642578125,
+  "gpu_mean_step_ms": 38.387396750710224,
+  "gpu_window_source": "matched GPU annotations",
+  "gpu_busy_ms_by_device": {
+    "0": 369.783607421875
+  },
+  "copy_bytes_per_step": {
+    "Memcpy HtoD (Pinned -> Device)": 128689272.04013363,
+    "Memcpy DtoD (Device -> Device)": 737381.7111990266
+  },
+  "top": {
+    "cpu_op": [
+      {
+        "name": "aten::copy_",
+        "calls": 3622,
+        "total_ms": 16.161143066406186,
+        "ms_per_step": 1.4691948242187443
+      },
+      {
+        "name": "aten::slice",
+        "calls": 6716,
+        "total_ms": 5.731421142578171,
+        "ms_per_step": 0.5210382856889246
+      },
+      {
+        "name": "aten::mul",
+        "calls": 1056,
+        "total_ms": 5.023760253906255,
+        "ms_per_step": 0.4567054776278414
+      },
+      {
+        "name": "aten::select",
+        "calls": 5712,
+        "total_ms": 4.903847656250014,
+        "ms_per_step": 0.4458043323863649
+      },
+      {
+        "name": "aten::empty_like",
+        "calls": 1056,
+        "total_ms": 3.854171142578127,
+        "ms_per_step": 0.35037919477982976
+      },
+      {
+        "name": "aten::empty_strided",
+        "calls": 1056,
+        "total_ms": 3.3239948730468782,
+        "ms_per_step": 0.3021813520951708
+      },
+      {
+        "name": "aten::zero_",
+        "calls": 528,
+        "total_ms": 2.5825712890625017,
+        "ms_per_step": 0.23477920809659106
+      },
+      {
+        "name": "aten::view",
+        "calls": 7200,
+        "total_ms": 2.356906738281268,
+        "ms_per_step": 0.21426424893466073
+      },
+      {
+        "name": "aten::reshape",
+        "calls": 3072,
+        "total_ms": 1.9681984863281357,
+        "ms_per_step": 0.1789271351207396
+      },
+      {
+        "name": "aten::fill_",
+        "calls": 528,
+        "total_ms": 1.9655734863281245,
+        "ms_per_step": 0.17868849875710222
+      },
+      {
+        "name": "aten::as_strided",
+        "calls": 12428,
+        "total_ms": 1.790733642578168,
+        "ms_per_step": 0.16279396750710617
+      },
+      {
+        "name": "aten::unbind",
+        "calls": 528,
+        "total_ms": 1.3085239257812522,
+        "ms_per_step": 0.11895672052556838
+      },
+      {
+        "name": "aten::detach",
+        "calls": 512,
+        "total_ms": 0.33249389648437516,
+        "ms_per_step": 0.030226717862215924
+      },
+      {
+        "name": "aten::to",
+        "calls": 1040,
+        "total_ms": 0.14022705078125075,
+        "ms_per_step": 0.012747913707386432
+      },
+      {
+        "name": "detach",
+        "calls": 512,
+        "total_ms": 0.10343286132812413,
+        "ms_per_step": 0.00940298739346583
+      },
+      {
+        "name": "aten::resolve_conj",
+        "calls": 512,
+        "total_ms": 0.023609619140625086,
+        "ms_per_step": 0.0021463290127840986
+      },
+      {
+        "name": "aten::resolve_neg",
+        "calls": 512,
+        "total_ms": 0.019998535156250084,
+        "ms_per_step": 0.0018180486505681894
+      }
+    ],
+    "kernel": [
+      {
+        "name": "void (anonymous namespace)::mailbox_fill_kernel<true>(int const*, long const*, int, int const volatile*)",
+        "calls": 528,
+        "total_ms": 192.39089477539076,
+        "ms_per_step": 17.49008134321734
+      },
+      {
+        "name": "_ZN7cutlass13device_kernelIN10flashinfer4gemm53DeviceGemmMxfp8GemmSm120___nv_bfloat16_128_32_128true9Sm12xOnlyINS_4gemm6kernel13GemmUniversalIN4cute5tupleIJiiiiEEENS5_10collective13CollectiveMmaINS5_42MainloopSm120TmaWarpSpecializedBlockScaledILi4ELi3ENS9_IJNS8_1CILi1EEESF_SF_EEENS5_51KernelTmaWarpSpecializedCooperativeBlockScaledSm120ILi3EEEEENS9_IJNSE_ILi128EEENSE_ILi32EEESK_EEENS9_IJNS_12float_e4m3_tENS_13float_ue8m0_tEEEENS9_IJNS9_IJlSF_lEEENS8_6LayoutINS9_IJNS9_IJNS9_IJSL_NSE_ILi4EEEEEEiEEESU_NS9_IJSF_iEEEEEENS9_IJNS9_IJNS9_IJNSE_ILi16EEESS_EEEiEEENS9_IJNS9_IJNSE_ILi0EEESF_EEENSE_ILi512EEEEEENS9_IJS10_iEEEEEEEEEEESP_S17_NS8_8TiledMMAINS8_8MMA_AtomIJNS8_5SM12011BLOCKSCALED19SM120_16x8x32_TN_VSISN_SN_fSO_Li32EEEEEENSR_INS9_IJSS_NSE_ILi2EEESF_EEENS9_IJSF_SS_S10_EEEEENS9_IJSK_NSR_INS9_IJNSE_ILi8EEES1F_S1F_EEENS9_IJSF_SX_S1J_EEEEESL_EEEEENS9_IJNS8_13SM90_TMA_LOADES1P_EEENS9_IJNS8_14ComposedLayoutINS8_7SwizzleILi3ELi4ELi3EEENS8_18smem_ptr_flag_bitsILi8EEENSR_INS9_IJS1J_SK_EEENS9_IJSK_SF_EEEEEEENSR_INS9_IJNS9_IJST_SF_EEENS9_IJNS9_IJSL_SF_EEESS_SF_EEEEEENS9_IJNS9_IJSY_S12_EEENS9_IJS11_SF_S12_EEEEEEEEEEENS9_IJNS8_9Copy_AtomIJNS8_17SM75_U32x4_LDSM_NEhEEENS29_IJNS8_13UniversalCopyISO_SO_EESO_EEEEEENS8_8identityES1Q_S28_S2F_S2G_EENS_8epilogue10collective18CollectiveEpilogueINS2I_22Sm90TmaWarpSpecializedILi2ELi2ELi4ELb0ELb1EEEJSM_NS9_IJNSE_ILi64EEESL_EEEvNS9_IJSF_llEEENS_10bfloat16_tES2P_NS2I_6fusion15FusionCallbacksINS2I_23Sm120TmaWarpSpecializedILi2ELi2ELi4ELb0ELb1EEENS2R_17LinearCombinationIS2Q_fvfLNS_15FloatRoundStyleE2EEESM_S2O_JEEES1P_NS1R_IS1T_NS1U_ILi16EEENSR_INS9_IJS2N_S1J_EEENS9_IJSF_S2N_EEEEEEENS8_17SM75_U16x4_LDSM_TENS8_14SM90_TMA_STOREES33_NS8_17SM90_U16x4_STSM_TENS29_IJNS8_17SM90_U32x2_STSM_NENS_6half_tEEEEvEEENS5_19PersistentSchedulerEvEEEEEEvNT_6ParamsE",
+        "calls": 2640,
+        "total_ms": 48.669122314453034,
+        "ms_per_step": 4.424465664950276
+      },
+      {
+        "name": "kernel_cutlass_kernel_b12xmoe_sharedkernelsw4a16kernelMoEMicroKernelW4A16SmallMDirect_object_at__tensorptrbf16gmemalign16o1_tensorptri8gmemalign16oi641_tensorptri8gmemalign16oi641_tensorp_0",
+        "calls": 528,
+        "total_ms": 31.05610546875,
+        "ms_per_step": 2.8232823153409092
+      },
+      {
+        "name": "(anonymous namespace)::decode_plan_kernel(int const*, int*, int*, int*, int*, float*, long*, long*, long*, int*, int, int, int, float, int, int, bool, long*, int*, int)",
+        "calls": 528,
+        "total_ms": 18.334793212890638,
+        "ms_per_step": 1.666799382990058
+      },
+      {
+        "name": "_hc_mix_persistent_kernel",
+        "calls": 1067,
+        "total_ms": 14.72235668945314,
+        "ms_per_step": 1.3383960626775582
+      },
+      {
+        "name": "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8::Params)",
+        "calls": 561,
+        "total_ms": 11.256583740234362,
+        "ms_per_step": 1.0233257945667602
+      },
+      {
+        "name": "void sglang::act_and_mul_kernel<__nv_bfloat16, (sglang::ActivationKind)0, true, false, false, false, false, false>(sglang::ActivationParams)",
+        "calls": 528,
+        "total_ms": 3.197973388671877,
+        "ms_per_step": 0.2907248535156252
+      },
+      {
+        "name": "fused_sigmoid_gating_delta_rule_update_kernel",
+        "calls": 396,
+        "total_ms": 3.124145996093749,
+        "ms_per_step": 0.284013272372159
+      },
+      {
+        "name": "kernel_cutlass_kernel_flashinferquantizationkernelsmxfp8_quantizeMXFP8QuantizeSwizzledKernel_object_at__tensorptrbf16gmemalign16o256025601_tensorptri8gmemalign16o256025601_tensorptri8gmem_0",
+        "calls": 1584,
+        "total_ms": 3.0947170410156173,
+        "ms_per_step": 0.2813379128196016
+      },
+      {
+        "name": "_layer_norm_fwd_1pass_kernel",
+        "calls": 396,
+        "total_ms": 2.4752119140624984,
+        "ms_per_step": 0.2250192649147726
+      },
+      {
+        "name": "_norm",
+        "calls": 1100,
+        "total_ms": 2.455652587890618,
+        "ms_per_step": 0.22324114435369255
+      },
+      {
+        "name": "kernel_cutlass_kernel_flashinferquantizationkernelsmxfp8_quantizeMXFP8QuantizeSwizzledKernel_object_at__tensorptrbf16gmemalign16o6406401_tensorptri8gmemalign16o6406401_tensorptri8gmemalig_0",
+        "calls": 528,
+        "total_ms": 2.3751933593749985,
+        "ms_per_step": 0.21592666903409077
+      },
+      {
+        "name": "_router_triton_kernel",
+        "calls": 528,
+        "total_ms": 1.9109858398437483,
+        "ms_per_step": 0.17372598544034076
+      },
+      {
+        "name": "void sglang::hc_combine_gate_kernel<4l, 2560l, true, __nv_bfloat16>(sglang::HcCombineSplitParams)",
+        "calls": 1056,
+        "total_ms": 1.5516682128906316,
+        "ms_per_step": 0.14106074662642107
+      },
+      {
+        "name": "void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::BinaryFunctor<float, float, float, at::native::binary_internal::MulFunctor<float> > >(at::TensorIteratorBase&, at::native::BinaryFunctor<float, float, float, at::native::binary_internal::MulFunctor<float> > const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::BinaryFunctor<float, float, float, at::native::binary_internal::MulFunctor<float> > >(at::TensorIteratorBase&, at::native::BinaryFunctor<float, float, float, at::native::binary_internal::MulFunctor<float> > const&)::{lambda(int)#1})",
+        "calls": 1056,
+        "total_ms": 1.3763723144531292,
+        "ms_per_step": 0.12512475585937538
+      },
+      {
+        "name": "_causal_conv1d_update_kernel",
+        "calls": 396,
+        "total_ms": 1.1609672851562491,
+        "ms_per_step": 0.10554248046874992
+      },
+      {
+        "name": "kernel_mha(unsigned int, float, float const*, Vec<__nv_bfloat16, 256u>*, Vec<__nv_bfloat16, 256u> const*, float const*, KVCacheList<true>, unsigned int, float, float const*, unsigned int, unsigned int, unsigned int, unsigned int*, void*)",
+        "calls": 132,
+        "total_ms": 1.1542104492187513,
+        "ms_per_step": 0.10492822265625011
+      },
+      {
+        "name": "fused_qkvzba_split_reshape_cat_contiguous_kernel",
+        "calls": 396,
+        "total_ms": 0.9038073730468767,
+        "ms_per_step": 0.08216430664062516
+      },
+      {
+        "name": "void sglang::hc_combine_apply_kernel<4l, 2560l, true, __nv_bfloat16>(sglang::HcCombineSplitParams)",
+        "calls": 1056,
+        "total_ms": 0.8914111328125061,
+        "ms_per_step": 0.08103737571022783
+      },
+      {
+        "name": "(anonymous namespace)::alpha_scatter_kernel(float const*, float const*, float*, float*, int const*, int, int)",
+        "calls": 528,
+        "total_ms": 0.8875075683593732,
+        "ms_per_step": 0.08068250621448847
+      }
+    ],
+    "gpu_memcpy": [
+      {
+        "name": "Memcpy HtoD (Pinned -> Device)",
+        "calls": 3073,
+        "total_ms": 54.180462402343046,
+        "ms_per_step": 4.925496582031186
+      },
+      {
+        "name": "Memcpy DtoD (Device -> Device)",
+        "calls": 551,
+        "total_ms": 0.44027978515624977,
+        "ms_per_step": 0.040025435014204525
+      }
+    ],
+    "cuda_runtime": [
+      {
+        "name": "cudaEventSynchronize",
+        "calls": 765,
+        "total_ms": 75.52416528320315,
+        "ms_per_step": 6.865833207563923
+      },
+      {
+        "name": "cudaGraphLaunch",
+        "calls": 1067,
+        "total_ms": 18.402753662109383,
+        "ms_per_step": 1.6729776056463075
+      },
+      {
+        "name": "cudaMemcpyAsync",
+        "calls": 3622,
+        "total_ms": 9.484846679687484,
+        "ms_per_step": 0.8622587890624985
+      },
+      {
+        "name": "cudaLaunchKernel",
+        "calls": 3168,
+        "total_ms": 7.250273437500008,
+        "ms_per_step": 0.6591157670454553
+      },
+      {
+        "name": "cudaLaunchKernelExC",
+        "calls": 528,
+        "total_ms": 1.8561491699218726,
+        "ms_per_step": 0.16874083362926115
+      },
+      {
+        "name": "cudaEventRecordWithFlags",
+        "calls": 3136,
+        "total_ms": 1.465993164062465,
+        "ms_per_step": 0.13327210582386045
+      },
+      {
+        "name": "cudaStreamIsCapturing",
+        "calls": 9376,
+        "total_ms": 1.1818305664062034,
+        "ms_per_step": 0.10743914240056394
+      },
+      {
+        "name": "cudaEventQuery",
+        "calls": 2934,
+        "total_ms": 1.0866882324218756,
+        "ms_per_step": 0.0987898393110796
+      },
+      {
+        "name": "cudaStreamWaitEvent",
+        "calls": 2640,
+        "total_ms": 0.7318771972656186,
+        "ms_per_step": 0.06653429066051078
+      },
+      {
+        "name": "cudaStreamSynchronize",
+        "calls": 3,
+        "total_ms": 0.087955078125,
+        "ms_per_step": 0.007995916193181818
+      }
+    ]
+  },
+  "notes": [
+    "Profiler adds overhead; measure throughput separately without profiling.",
+    "Category/operator totals overlap and are not additive wall time.",
+    "CPU step spans measure host submission; queued GPU work uses matched GPU spans when available.",
+    "GPU graph nodes are included; GPU busy time is an interval union per device.",
+    "Python worker time may be absent from torch CPU events; use NVTX + Nsight Systems for worker staging."
+  ]
+}

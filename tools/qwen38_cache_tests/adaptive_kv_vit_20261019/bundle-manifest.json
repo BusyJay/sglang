@@ -1,0 +1,28 @@
+{
+  "base_commit": "18fdf4a7e403d74d8c7a3ee49e2e8f96c23ec77f",
+  "snapshot_tree": "c12df2c03f5c04c665276e4345f113bb63a1aa7a",
+  "same_source_as_r1": true,
+  "verification": {
+    "actual_isolated_apply": "passed",
+    "exact_tree": "passed",
+    "cpu_tests": 59,
+    "gpu": "not_run"
+  },
+  "patches": [
+    "01-adaptive-kv-cache.patch",
+    "02-remove-expert-l2.patch",
+    "03-remote-vit-replay.patch"
+  ],
+  "deleted_paths": [
+    "tools/qwen38_cache_tests/benchmark/config_validation.py",
+    "tools/qwen38_cache_tests/benchmark/package_final.py"
+  ],
+  "replacement_paths": [
+    "tools/qwen38_cache_tests/benchmark/campaign.example.json",
+    "tools/qwen38_cache_tests/benchmark/suite.combinations.json",
+    "tools/qwen38_cache_tests/benchmark/suite.example.json",
+    "tools/qwen38_cache_tests/benchmark/suite01.example.json",
+    "tools/qwen38_cache_tests/benchmark/suite05.example.json",
+    "tools/qwen38_cache_tests/benchmark/suite06.example.json"
+  ]
+}

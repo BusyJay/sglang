@@ -69,6 +69,21 @@ class BaseTokenToKVPoolAllocator(abc.ABC):
     # The scheduler calls these unconditionally, with no allocator-type branches
     # on its side; byte-accounted composites override the token-count defaults.
 
+    def prepare_staged_allocation(self, reserve: int) -> None:
+        """Return any one-way KV loan before a scheduler batch (default no-op)."""
+
+    def cache_maintenance_needs_result(self) -> bool:
+        return False
+
+    def cache_maintenance_before_forward(self, reserve: int) -> None:
+        pass
+
+    def cache_maintenance_bind_result(self, result) -> None:
+        pass
+
+    def cache_maintenance_after_result(self, result) -> None:
+        pass
+
     def create_prefill_budget(self, tree_cache, *, num_mixed_decode_tokens=0):
         from sglang.srt.mem_cache.prefill_budget import PrefillBudget
 

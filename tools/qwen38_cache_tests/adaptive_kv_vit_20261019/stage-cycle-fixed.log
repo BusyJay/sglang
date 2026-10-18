@@ -1,0 +1,605 @@
+[2026-10-19 00:11:32] Load weight begin. avail mem=30.66 GB
+[2026-10-19 00:11:32] Detected ModelOpt FP8 checkpoint. The format is experimental and subject to change.
+[2026-10-19 00:11:32] Detected fp8 checkpoint.
+[2026-10-19 00:11:32] Detected fp8 checkpoint.
+[2026-10-19 00:11:32] Detected nvfp4 checkpoint.
+[2026-10-19 00:11:32] Detected nvfp4 checkpoint.
+[2026-10-19 00:11:33] using attn output gate!
+[2026-10-19 00:11:37] Qwen38 startup model construction: seconds=4.391 mapped_token_embedding=True source=/workspace/sglang/python/sglang/srt/model_loader/qwen38_nvfp4_cache_loader.py
+[2026-10-19 00:11:37] Qwen38 startup cache plan: {"available_bytes": 77846179840, "budget": 99928030212, "cleanup": {"in_use": 0, "removed_bytes": 0, "removed_files": 0}, "expert_bytes": 67948507140, "ple_bytes": 28800138240, "ram_budget": 134622582993, "reserve_bytes": 39972242227, "reusable_bytes": 96748645380, "tier": "both", "tmpfs_budget": 99928030212}
+[2026-10-19 00:11:37] Qwen38 startup expert source ready: mode=shared_thp GiB=63.28 seconds=0.014 cache_hit=True
+[2026-10-19 00:11:38] Qwen38 mapped token embedding: 1212.5 MiB host, register 0.174s
+[2026-10-19 00:11:40] FP4 PLE packed cache hit: path=/root/.cache/sglang/ple/fp4-ple-v1-bb51b7c3cde80405e6a7f68ad3264373.bin bytes=28800138240 seconds=0.005
+[2026-10-19 00:11:40] Qwen38 startup shared PLE ready: GiB=26.82 cache_hit=True prepare_seconds=0.000 register_seconds=0.218
+[2026-10-19 00:11:40] FP4 PLE host preparation: backend=pinned cached=True allocate_seconds=0.218 load_seconds=0.000
+[2026-10-19 00:11:40] FP4 PLE pinned ready: rows=320001536 row_bytes=90 table=26.82 GiB; packed GPU gather
+[2026-10-19 00:11:41] Qwen38 startup checkpoint load and postprocess: seconds=3.619
+[2026-10-19 00:11:41] GPU 0 has not joined an NVLink fabric clique; probing local FABRIC allocation support
+[2026-10-19 00:11:41] CUDA VMM FABRIC backing unavailable on device 0; trying fallback: cuMemCreate(FABRIC probe): <CUresult.CUDA_ERROR_INVALID_VALUE: 1>
+[2026-10-19 00:11:41] CUDA VMM selected POSIX_FD backing for device 0
+[2026-10-19 00:11:41] KvVmmArena[173_0] ready: device=0 reserved_va=63.5 GiB granularity=2048 KiB handle_type=POSIX_FD
+[2026-10-19 00:11:41] Qwen38 prefill arena borrows 512 expert slots from pool tail
+[2026-10-19 00:11:41] Expert-pack shared THP cache retained for warm restarts
+[2026-10-19 00:11:41] Qwen38 startup runtime reserve: seconds=0.582 decode_cache_MiB=16827.59 prefill_arena_MiB=0.00 borrowed_prefill_arena_MiB=1350.00
+[2026-10-19 00:11:42] Qwen38 B12X W4A16 enabled: BF16 decode/verify 1..3 tokens; other shapes use Triton W4A16
+[2026-10-19 00:11:42] Qwen38 cache activation mode: prefill=W4A4 CUTLASS decode/verify=W4A16; W4A16 chunk=16
+[2026-10-19 00:11:42] Using FP8 KV cache but no scaling factors provided. Defaulting to scaling factors of 1.0.
+[2026-10-19 00:11:42] Load weight end. elapsed=9.60 s, type=Qwen4ExpForConditionalGeneration, quant=modelopt_mixed, quant_algo=MIXED_PRECISION, avail mem=8.41 GB, mem usage=22.25 GB.
+[2026-10-19 00:11:42] Using draft model load_format: 'qwen38_mtp'
+[2026-10-19 00:11:42] Memory baseline taken. mem usage=0.00 GB
+[2026-10-19 00:11:42] Load weight begin. avail mem=8.41 GB
+[2026-10-19 00:11:42] Detected ModelOpt FP8 checkpoint. The format is experimental and subject to change.
+[2026-10-19 00:11:42] Detected fp8 checkpoint.
+[2026-10-19 00:11:42] Detected fp8 checkpoint.
+[2026-10-19 00:11:42] Detected nvfp4 checkpoint.
+[2026-10-19 00:11:42] Detected nvfp4 checkpoint.
+[2026-10-19 00:11:44] Qwen38 MTP expert activation: w4a4
+[2026-10-19 00:11:44] Using FP8 KV cache but no scaling factors provided. Defaulting to scaling factors of 1.0.
+[2026-10-19 00:11:44] Load weight end. elapsed=1.92 s, type=Qwen4ExpForCausalLMMTP, quant=modelopt_mixed, quant_algo=MIXED_PRECISION, avail mem=6.93 GB, mem usage=1.48 GB.
+[2026-10-19 00:11:45] Mamba Cache is allocated. max_mamba_cache_size: 10, conv_state size: 0.02GB, ssm_state size: 0.58GB intermediate_ssm_state_cache size: 0.32GB intermediate_conv_window_cache size: 0.01GB
+[2026-10-19 00:11:45] Warmed fused Mamba slot copy kernel in 218.901 ms
+[2026-10-19 00:11:45] KvVmmArena[173_1] ready: device=0 reserved_va=3.3 GiB granularity=2048 KiB handle_type=POSIX_FD
+[2026-10-19 00:11:45] KV Cache is allocated. dtype: torch.float8_e4m3fn, #tokens: 220032, K size: 1.26 GB, V size: 1.26 GB
+[2026-10-19 00:11:45] Qwen38 adaptive KV stages=(80000, 160000, 220032) expert budgets=[7001, 6635, 6382]
+[2026-10-19 00:11:45] QSA compressed indexer cache dtype: torch.bfloat16 (pending ring torch.bfloat16)
+[2026-10-19 00:11:45] Memory pool end. avail mem=3.30 GB
+[2026-10-19 00:11:45] KV Cache is allocated. dtype: torch.float8_e4m3fn, #tokens: 220032, K size: 0.10 GB, V size: 0.10 GB
+[2026-10-19 00:11:45] QSA compressed indexer cache dtype: torch.bfloat16 (pending ring torch.bfloat16)
+[2026-10-19 00:11:45] Memory pool end. avail mem=3.09 GB
+[2026-10-19 00:11:51] Linear attention kernel backend: decode=triton, prefill=triton, verify=triton
+[2026-10-19 00:11:51] Using hybrid linear attention backend for hybrid GDN models.
+[2026-10-19 00:11:51] GDN kernel dispatcher: decode=TritonGDNKernel, extend=TritonGDNKernel, verify=TritonGDNKernel packed_decode=True
+[2026-10-19 00:11:51] Using QSA for sparse full-attention layers.
+[2026-10-19 00:11:51] Linear attention kernel backend: decode=triton, prefill=triton, verify=triton
+[2026-10-19 00:11:51] Using hybrid linear attention backend for hybrid GDN models.
+[2026-10-19 00:11:51] GDN kernel dispatcher: decode=TritonGDNKernel, extend=TritonGDNKernel, verify=TritonGDNKernel packed_decode=True
+[2026-10-19 00:11:51] Using QSA for sparse full-attention layers.
+[2026-10-19 00:11:51] QSA MTP index sharing enabled: draft decode steps reuse the draft-extend selection for layers [0]
+[2026-10-19 00:11:51] Running FlashInfer autotune with cache: /root/.cache/sglang/flashinfer/autotune/0.7.2/sm120/7136095e509abffa/rank_tp0_pp0_dp0.json
+[2026-10-19 00:11:52] FlashInfer autotune completed.
+[2026-10-19 00:11:52] Disable prefill CUDA graph because cuda_graph_config resolved prefill.backend='disabled' (e.g. via --cuda-graph-backend-prefill=disabled or auto-disable rules).
+[2026-10-19 00:11:52] Capture target verify CUDA graph begin. backend=breakable, num_tokens_per_req=3, avail mem=2.53 GB
+
+  0%|          | 0/1 [00:00<?, ?it/s]
+Capturing batches (bs=1 avail_mem=2.53 GB):   0%|          | 0/1 [00:00<?, ?it/s]
+Capturing batches (bs=1 avail_mem=2.53 GB): 100%|██████████| 1/1 [00:00<00:00,  4.42it/s]
+Capturing batches (bs=1 avail_mem=2.53 GB): 100%|██████████| 1/1 [00:00<00:00,  4.42it/s]
+[2026-10-19 00:11:53] Capture target verify CUDA graph end. bs=[1], elapsed=1.23 s, mem usage=0.06 GB, avail mem=2.47 GB.
+[2026-10-19 00:11:53] Disable prefill CUDA graph because cuda_graph_config resolved prefill.backend='disabled' (e.g. via --cuda-graph-backend-prefill=disabled or auto-disable rules).
+[2026-10-19 00:11:53] Capture draft decode CUDA graph begin. backend=breakable, num_tokens_per_req=1, bs=[1], avail mem=2.47 GB
+
+  0%|          | 0/1 [00:00<?, ?it/s]
+Capturing batches (bs=1 avail_mem=2.47 GB):   0%|          | 0/1 [00:00<?, ?it/s][2026-10-19 00:11:53] Running FlashInfer autotune with cache: /root/.cache/sglang/flashinfer/autotune/0.7.2/sm120/98871fddb1070220/rank_tp0_pp0_dp0.json
+[TensorRT-LLM][INFO] Set logger level to INFO
+[2026-10-19 00:11:54] FlashInfer autotune completed.
+
+Capturing batches (bs=1 avail_mem=2.47 GB): 100%|██████████| 1/1 [00:00<00:00,  2.79it/s]
+Capturing batches (bs=1 avail_mem=2.47 GB): 100%|██████████| 1/1 [00:00<00:00,  2.79it/s]
+[2026-10-19 00:11:54] Capture draft decode CUDA graph end. elapsed=1.37 s, mem usage=0.24 GB, avail mem=2.23 GB.
+[2026-10-19 00:11:54] Capture draft extend CUDA graph begin. backend=breakable, num_tokens_per_req=3, bs=[1], avail mem=2.23 GB
+
+  0%|          | 0/1 [00:00<?, ?it/s]
+Capturing batches (bs=1 avail_mem=2.23 GB):   0%|          | 0/1 [00:00<?, ?it/s][2026-10-19 00:11:55] Running FlashInfer autotune with cache: /root/.cache/sglang/flashinfer/autotune/0.7.2/sm120/98871fddb1070220/rank_tp0_pp0_dp0.json
+[2026-10-19 00:11:55] FlashInfer autotune completed.
+
+Capturing batches (bs=1 avail_mem=2.23 GB): 100%|██████████| 1/1 [00:00<00:00, 48.97it/s]
+[2026-10-19 00:11:55] Capture draft extend CUDA graph end. elapsed=1.03 s, mem usage=0.14 GB, avail mem=2.09 GB.
+[2026-10-19 00:11:55] max_total_num_tokens=220032, chunked_prefill_size=8192, max_prefill_tokens=16384, max_running_requests=1, context_len=220000, available_gpu_mem=2.09 GB
+[2026-10-19 00:11:55] Init Unified Radix Cache. Components: (<ComponentType.FULL: 0>, <ComponentType.MAMBA: 2>). Tree Core: UnifiedTreeCore
+[2026-10-19 00:11:55] Allocating kv hierarchical KV host pool: 1320256 tokens, 17.58 GB host memory, packed MTP KV layers: target_layers=12, draft_layers=1, total_layers=13.
+[2026-10-19 00:11:58] Allocating 3.60 GB host memory for hierarchical Mamba cache (layout=page_first_direct).
+[2026-10-19 00:11:58] NPU HiCache Mamba state transfer mode: sync torch fallback.
+[2026-10-19 00:11:58] Allocating 1.10 GB host memory for V4 paged pool 'qsa_indexer' (layers=13, pages=20629, item_bytes=4096, layout=page_first_direct).
+[2026-10-19 00:11:58] Attached hybrid pool stack to UnifiedRadixCache: pools=KV + MAMBA + INDEXER, transfer_layer_id_max=48
+[2026-10-19 00:11:58] Tree cache initialized: source=default impl=UnifiedRadixCache hybrid_swa=False hybrid_ssm=True hicache_attached=True
+[2026-10-19 00:11:58] EPD MMReceiver: using transport_mode=http
+[2026-10-19 00:11:58] Scheduler TP rank 0 reuses ZMQ embedding port 39873
+[2026-10-19 00:11:59] Multimodal data loading enabled with 16 worker threads (auto).
+[2026-10-19 00:11:59] Engine startup timings (s): load_weight=11.52, kv_cache_allocation=0.76, scheduler_e2e=31.83, cuda_graph={prefill=0.00, decode=0.00, target_verify=1.23, draft_prefill=0.00, draft_decode=1.37, draft_extend=1.03}, tokenizer_e2e=37.66
+[2026-10-19 00:11:59] INFO:     Started server process [97]
+[2026-10-19 00:11:59] INFO:     Waiting for application startup.
+[2026-10-19 00:11:59] Using default chat sampling params from model generation config: {'temperature': 1.0, 'top_k': 20, 'top_p': 0.95}
+[2026-10-19 00:11:59] Running warmup qwen38_first_prefill
+[2026-10-19 00:12:02] Prefill batch, #new-seq: 1, #new-token: 4224, #cached-token: 0, full token usage: 0.02, mamba usage: 0.10, #running-req: 0, #queue-req: 0, #pending-token: 0, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 1739.24
+[2026-10-19 00:12:02] Qwen38 offload warmup: prefill=4224 decode=1 elapsed=2.437s
+[2026-10-19 00:12:02] Warmup ended
+[2026-10-19 00:12:02] INFO:     Application startup complete.
+[2026-10-19 00:12:02] INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+[2026-10-19 00:12:03] INFO:     127.0.0.1:38790 - "GET /model_info HTTP/1.1" 200 OK
+[2026-10-19 00:12:03] Prefill batch, #new-seq: 1, #new-token: 6, #cached-token: 0, full token usage: 0.00, mamba usage: 0.30, #running-req: 0, #queue-req: 0, #pending-token: 0, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 13.72
+[2026-10-19 00:12:03] INFO:     127.0.0.1:38794 - "POST /generate HTTP/1.1" 200 OK
+[2026-10-19 00:12:03] INFO:     127.0.0.1:38800 - "POST /freeze_gc HTTP/1.1" 200 OK
+[2026-10-19 00:12:03] The server is fired up and ready to roll!
+
+==========
+== CUDA ==
+==========
+
+CUDA Version 13.0.3
+
+Container image Copyright (c) 2016-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+This container image and its contents are governed by the NVIDIA Deep Learning Container License.
+By pulling and using the container, you accept the terms and conditions of this license:
+https://developer.nvidia.com/ngc/nvidia-deep-learning-container-license
+
+A copy of this license is made available in this container at /NGC-DL-CONTAINER-LICENSE for your convenience.
+
+Using SGLang source: /workspace/sglang
+Using existing expert pack: /root/.cache/sglang/qwen38-fp4-local/b9ce18a6887e18c089fdea8509a33e63429a3300/manifest.json
+Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+[2026-10-19 00:12:15] qwen38_nvfp4_cache selected: remote ViT (EPD), no local vision tower, eager by default, single-rank parallelism and FlashInfer CUTLASS are required
+[transformers] Unrecognized keys in `rope_parameters` for 'rope_type'='default': {'mrope_interleaved', 'mrope_section'}
+[2026-10-19 00:12:15] qwen38 offload: segmented decode graph enabled (host transport and CUTLASS remain eager)
+[2026-10-19 00:12:15] Setting page size to 64 for compressed QSA (full//ratio compressed addressing).
+[2026-10-19 00:12:15] Attention backend not specified. Use flashinfer backend by default.
+[transformers] Unrecognized keys in `rope_parameters` for 'rope_type'='default': {'mrope_interleaved', 'mrope_section'}
+[2026-10-19 00:12:15] DeepSeek MTP does not require setting speculative_draft_model_path.
+[2026-10-19 00:12:15] Encoder transfer backend auto-resolved to zmq_to_scheduler for Qwen4ExpForConditionalGeneration at TP1.
+[2026-10-19 00:12:16] server_args={'model_path': 'nvidia/Qwen3.8-Flash-Next-FP4-Local', 'tokenizer_path': 'nvidia/Qwen3.8-Flash-Next-FP4-Local', 'tokenizer_mode': 'auto', 'tokenizer_backend': 'huggingface', 'tokenizer_worker_num': 1, 'detokenizer_worker_num': 1, 'skip_tokenizer_init': False, 'load_format': 'qwen38_nvfp4_cache', 'model_loader_extra_config': '{"manifest_path":"/root/.cache/sglang/qwen38-fp4-local/b9ce18a6887e18c089fdea8509a33e63429a3300/manifest.json","checkpoint_revision":"b9ce18a6887e18c089fdea8509a33e63429a3300","sglang_commit":"acd9c47fed94afe9c753631e4f88df58ca3f676f+fp4-local-59db23b7bae46aa9","cache_slots_total":6382,"prefill_arena":true,"runtime_mode":"threaded","stats_log_interval":19200,"adaptive_cache":true,"kv_cache_stages":[80000,160000,220000],"preallocate_gdn_proj":true,"async_pack_prefetch":true,"packed_decode":"packed","packed_prefill":"packed"}', 'trust_remote_code': True, 'context_length': 220000, 'is_embedding': False, 'enable_multimodal': None, 'revision': 'b9ce18a6887e18c089fdea8509a33e63429a3300', 'model_impl': 'auto', 'model_config_parser': 'auto', 'json_model_override_args': '{}', 'dtype': 'auto', 'quantization': None, 'quantization_param_path': None, 'kv_cache_dtype': 'fp8_e4m3', 'enable_fp32_lm_head': False, 'modelopt_quant': None, 'modelopt_checkpoint_restore_path': None, 'modelopt_checkpoint_save_path': None, 'modelopt_export_path': None, 'quantize_and_serve': False, 'rl_quant_profile': None, 'enable_tf32_matmul': False, 'mem_fraction_static': 0.9, 'max_running_requests': 1, 'max_queued_requests': None, 'max_total_tokens': None, 'chunked_prefill_size': 8192, 'prefill_decode_interval': 0, 'enable_dynamic_chunking': False, 'max_prefill_tokens': 16384, 'prefill_max_requests': None, 'schedule_policy': 'fcfs', 'enable_priority_scheduling': False, 'disable_priority_preemption': False, 'default_priority_value': None, 'abort_on_priority_when_disabled': False, 'schedule_low_priority_values_first': False, 'priority_scheduling_preemption_threshold': 10, 'retraction_policy': 'length', 'schedule_conservativeness': 1.0, 'page_size': 64, 'c128_page_size': 16, 'swa_full_tokens_ratio': 0.8, 'disable_hybrid_swa_memory': False, 'radix_eviction_policy': 'lru', 'radix_eviction_policy_config': None, 'prefill_only_disable_kv_cache': False, 'disable_radix_cache': False, 'enable_page_major_kv_layout': False, 'enable_unified_memory': False, 'disable_chunked_prefix_cache': False, 'disable_overlap_schedule': False, 'num_continuous_decode_steps': 1, 'scheduler_recv_interval': 1, 'enable_mixed_chunk': False, 'nccl_port': None, 'dist_timeout': None, 'dist_init_addr': None, 'gated_launch_port': None, 'nnodes': 1, 'node_rank': 0, 'tp_size': 1, 'dcp_size': 1, 'pp_size': 1, 'pp_max_micro_batch_size': None, 'pp_async_batch_depth': 0, 'dp_size': 1, 'attn_dp_size': 1, 'load_balance_method': 'round_robin', 'attn_cp_size': 1, 'moe_dp_size': 1, 'dwdp_size': 1, 'dcp_comm_backend': 'ag_rs', 'dcp_replicate_q_proj': None, 'enable_prefill_cp': False, 'cp_strategy': None, 'enable_dsa_cache_layer_split': False, 'enable_cp_decode_attn_tp': False, 'enable_kv_cache_sharding': False, 'enable_dp_attention': False, 'enable_dp_attention_local_control_broadcast': False, 'enable_dp_lm_head': False, 'enable_tp_lm_head_all_to_all': False, 'enable_attn_tp_input_scattered': False, 'enable_shared_experts_attn_tp': False, 'shared_experts_tp_size': None, 'enable_dense_mlp_attn_tp': False, 'enable_layernorm_sp': False, 'disable_attn_tp_gather': False, 'enable_p2p_check': False, 'device': 'cuda', 'base_gpu_id': 0, 'gpu_id_step': 1, 'random_seed': 871747746, 'mlx_enable_sampling': False, 'watchdog_timeout': 300, 'soft_watchdog_timeout': None, 'sleep_on_idle': True, 'use_ray': False, 'custom_sigquit_handler': None, 'numa_node': None, 'gc_threshold': None, 'host': '0.0.0.0', 'port': 8001, 'fastapi_root_path': '', 'smg_grpc_mode': False, 'grpc_mode': False, 'grpc_port': None, 'grpc_worker_threads': 4, 'sidecar': None, 'sidecar_args': None, 'skip_server_warmup': False, 'warmups': 'qwen38_first_prefill', 'enable_http2': False, 'http2_max_concurrent_streams': 200, 'http2_initial_connection_window_size': 1048576, 'ssl_keyfile': None, 'ssl_certfile': None, 'ssl_ca_certs': None, 'ssl_keyfile_password': None, 'enable_ssl_refresh': False, 'api_key': None, 'admin_api_key': None, 'served_model_name': 'nvidia/Qwen3.8-Flash-Next-FP4-Local', 'weight_version': 'default', 'chat_template': None, 'trust_request_chat_template': False, 'hf_chat_template_name': None, 'completion_template': None, 'file_storage_path': None, 'enable_cache_report': True, 'return_input_ids': False, 'return_output_ids': False, 'reasoning_parser': 'qwen3', 'default_chat_template_kwargs': None, 'strip_thinking_cache': False, 'enable_strict_thinking': False, 'tool_call_parser': 'qwen3_coder', 'tool_server': None, 'sampling_defaults': 'model', 'asr_max_buffer_seconds': 60, 'asr_max_concurrent_sessions': 32, 'preferred_sampling_params': None, 'allow_auto_truncate': False, 'stream_interval': 1, 'batch_notify_size': 16, 'stream_response_default_include_usage': False, 'incremental_streaming_output': False, 'enable_streaming_session': False, 'enable_session_radix_cache': False, 'log_level': 'info', 'log_level_http': None, 'log_requests': False, 'log_requests_level': 2, 'log_requests_format': 'text', 'log_requests_target': None, 'uvicorn_access_log_exclude_prefixes': [], 'crash_dump_folder': None, 'show_time_cost': False, 'enable_metrics': False, 'smg_http_sidecar_port': None, 'enable_mfu_metrics': False, 'enable_metrics_for_all_schedulers': False, 'load_snapshot_publish_interval': 15, 'tokenizer_metrics_custom_labels_header': 'x-custom-labels', 'tokenizer_metrics_allowed_custom_labels': None, 'extra_metric_labels': None, 'bucket_time_to_first_token': None, 'bucket_inter_token_latency': None, 'bucket_e2e_request_latency': None, 'prompt_tokens_buckets': None, 'generation_tokens_buckets': None, 'gc_warning_threshold_secs': 0.0, 'decode_log_interval': 400, 'enable_request_time_stats_logging': False, 'kv_events_config': None, 'load_publish_endpoint': None, 'enable_forward_pass_metrics': False, 'forward_pass_metrics_worker_id': '', 'forward_pass_metrics_ipc_name': None, 'enable_trace': False, 'trace_modules': 'request', 'otlp_traces_endpoint': 'localhost:4317', 'export_metrics_to_file': False, 'export_metrics_to_file_dir': None, 'stat_loggers': None, 'constrained_json_whitespace_pattern': None, 'constrained_json_disable_any_whitespace': False, 'constrained_json_max_whitespace_cnt': None, 'attention_backend': 'flashinfer', 'decode_attention_backend': None, 'enable_lean_attention': None, 'prefill_attention_backend': None, 'sampling_backend': 'flashinfer', 'grammar_backend': 'xgrammar', 'radix_cache_backend': None, 'mm_attention_backend': None, 'fp8_gemm_runner_backend': 'auto', 'fp4_gemm_runner_backend': 'auto', 'bf16_gemm_backend': 'auto', 'dsa_prefill_backend': None, 'dsv4_prefill_backend': 'auto', 'dsa_decode_backend': None, 'dsa_paged_mqa_logits_backend': 'auto', 'dsa_topk_backend': 'sgl-kernel', 'disable_flashinfer_autotune': False, 'flashinfer_autotune_skip_ops': None, 'mamba_backend': 'triton', 'cuda_graph_config': {'decode': {'backend': 'breakable', 'max_bs': 1, 'bs': [1], 'tc_compiler': 'eager', 'max_context_size': None, 'full_prefill_max_req': None, 'full_prefill_prefix_chunk_tokens': None, 'max_seq_len': None}, 'prefill': {'backend': 'disabled', 'max_bs': 8192, 'bs': [4, 8, 12, 16, 20, 24, 28, 32, 48, 64, 80, 96, 112, 128, 144, 160, 176, 192, 208, 224, 240, 256, 288, 320, 352, 384, 416, 448, 480, 512, 576, 640, 704, 768, 832, 896, 960, 1024, 1280, 1536, 1792, 2048, 2304, 2560, 2816, 3072, 3328, 3584, 3840, 4096, 4608, 5120, 5632, 6144, 6656, 7168, 7680, 8192], 'tc_compiler': 'eager', 'max_context_size': None, 'full_prefill_max_req': None, 'full_prefill_prefix_chunk_tokens': None, 'max_seq_len': None}}, 'cuda_graph_backend_decode': 'breakable', 'cuda_graph_backend_prefill': 'disabled', 'cuda_graph_max_bs_decode': 1, 'cuda_graph_max_bs_prefill': None, 'cuda_graph_bs_decode': [1], 'cuda_graph_bs_prefill': None, 'cuda_graph_prefill_max_context': None, 'disable_prefill_cuda_graph': False, 'disable_decode_cuda_graph': False, 'disable_cuda_graph': True, 'disable_cuda_graph_padding': False, 'enable_profile_cuda_graph': False, 'enable_cudagraph_gc': False, 'debug_cuda_graph': False, 'enable_layerwise_nvtx_marker': False, 'enable_nccl_nvls': False, 'enable_symm_mem': False, 'triton_attention_reduce_in_fp32': False, 'triton_attention_num_kv_splits': 8, 'triton_attention_split_tile_size': None, 'flashinfer_mla_disable_ragged': False, 'enable_fused_qk_norm_rope': False, 'enable_precise_embedding_interpolation': False, 'enable_fused_moe_sum_all_reduce': False, 'enable_deepseek_v4_fp4_indexer': False, 'disable_custom_all_reduce': False, 'enable_mscclpp': False, 'enable_torch_symm_mem': False, 'enable_scattered_sconv': False, 'pre_warm_nccl': False, 'boundary_reduction': 'ar', 'enable_quant_communications': False, 'enable_flashinfer_allreduce_fusion': False, 'enforce_disable_flashinfer_allreduce_fusion': False, 'flashinfer_allreduce_fusion_backend': None, 'enable_aiter_allreduce_fusion': False, 'enable_torch_compile': False, 'enable_torch_compile_debug_mode': False, 'torch_compile_max_bs': 32, 'speculative_algorithm': 'EAGLE', 'uno_lora_path': None, 'speculative_draft_model_path': 'nvidia/Qwen3.8-Flash-Next-FP4-Local', 'speculative_draft_model_revision': 'b9ce18a6887e18c089fdea8509a33e63429a3300', 'speculative_draft_load_format': 'qwen38_mtp', 'speculative_num_steps': 2, 'speculative_eagle_topk': 1, 'speculative_num_draft_tokens': 3, 'speculative_dflash_block_size': None, 'speculative_dspark_block_size': None, 'speculative_dspark_sps_table_path': None, 'speculative_dspark_confidence_sts_path': None, 'speculative_dspark_align_verify_tokens_to_graph_tier': False, 'speculative_accept_threshold_single': 1.0, 'speculative_accept_threshold_acc': 1.0, 'speculative_use_rejection_sampling': False, 'speculative_token_map': None, 'speculative_attention_mode': 'prefill', 'speculative_draft_attention_backend': None, 'speculative_dsa_topk_backend': 'sgl-kernel', 'speculative_draft_kv_cache_dtype': 'fp8_e4m3', 'speculative_draft_window_size': None, 'speculative_moe_runner_backend': 'triton', 'speculative_moe_a2a_backend': None, 'speculative_enable_w4a4_mxfp4_megamoe': None, 'speculative_draft_model_quantization': None, '_speculative_draft_quantization_explicitly_set': False, 'speculative_skip_dp_mlp_sync': False, 'enable_multi_layer_eagle': False, 'speculative_adaptive': False, 'speculative_adaptive_config': None, 'decoupled_spec_bind_endpoint': None, 'decoupled_spec_connect_endpoints': None, 'decoupled_spec_rank': None, 'decoupled_spec_role': 'null', 'spec_trace_dir': None, 'speculative_ngram_min_bfs_breadth': 1, 'speculative_ngram_max_bfs_breadth': 10, 'speculative_ngram_match_type': 'BFS', 'speculative_ngram_max_trie_depth': 18, 'speculative_ngram_capacity': 10000000, 'speculative_ngram_external_corpus_path': None, 'speculative_ngram_external_sam_budget': 0, 'speculative_ngram_external_corpus_max_tokens': 10000000, 'ep_size': 1, 'moe_a2a_backend': 'none', 'enable_w4a4_mxfp4_megamoe': False, 'deepep_v2_mode': 'direct', 'moe_runner_backend': 'flashinfer_cutlass', 'flashinfer_mxfp4_moe_precision': 'default', 'deepep_mode': 'auto', 'fuseep_mode': 2, 'deepep_dispatcher_output_dtype': 'auto', 'ep_num_redundant_experts': 0, 'ep_dispatch_algorithm': None, 'init_expert_location': 'trivial', 'enable_eplb': False, 'eplb_algorithm': 'auto', 'eplb_rebalance_num_iterations': 1000, 'eplb_rebalance_layers_per_chunk': None, 'eplb_min_rebalancing_utilization_threshold': 1.0, 'expert_distribution_recorder_mode': None, 'expert_distribution_recorder_buffer_size': 1000, 'expert_balancedness_report_mode': 'off', 'deepep_config': None, 'moe_dense_tp_size': None, 'elastic_ep_backend': None, 'enable_elastic_expert_backup': False, 'mooncake_ib_device': None, 'enable_waterfill': False, 'ep_join_mode': None, 'ep_join_rank_offset': 0, 'elastic_ep_initial_size': None, 'max_ep_size': None, 'elastic_ep_scale_timeout': 600, 'disable_flashinfer_cutlass_moe_fp4_allgather': False, 'disable_shared_experts_fusion': True, 'enforce_shared_experts_fusion': False, 'max_mamba_cache_size': 10, 'mamba_ssm_dtype': 'bfloat16', 'mamba_max_states_per_path': -1, 'enable_mamba_cache_stochastic_rounding': False, 'mamba_cache_philox_rounds': 0, 'mamba_full_memory_ratio': 0.22, 'mamba_radix_cache_strategy': 'extra_buffer', 'uses_mamba_radix_cache': True, 'mamba_track_interval': 256, 'enable_int8_mamba_checkpoint': False, 'int8_mamba_ckpt_size': None, 'linear_attn_backend': 'triton', 'linear_attn_decode_backend': None, 'linear_attn_prefill_backend': None, 'linear_attn_verify_backend': None, 'enable_linear_replayssm': False, 'linear_replayssm_cache_len': 16, 'enable_linear_replayssm_spec': False, 'enable_hierarchical_cache': True, 'hicache_host_memory_mode': 'cache', 'hicache_ratio': 6.0, 'hicache_size': 0, 'hicache_write_policy': 'write_through', 'hicache_io_backend': 'direct', 'hicache_mem_layout': 'page_first_direct', 'hicache_storage_backend': None, 'hicache_storage_prefetch_policy': 'timeout', 'hicache_storage_backend_extra_config': None, 'hicache_storage_prefetch_retry_poll_interval': 8, 'hicache_storage_prefetch_retry_max_attempts': 8, 'enable_unified_cache_external_linker': False, 'unified_cache_external_linker_backend': 'mooncake', 'enable_hisparse': False, 'hisparse_config': None, 'enable_broadcast_mm_inputs_process': False, 'enable_prefix_mm_cache': False, 'mm_enable_dp_encoder': False, 'mm_process_config': {}, 'mm_processor_worker_num': 0, 'mm_io_worker_num': 0, 'allowed_media_domains': [], 'media_url_max_file_size_mb': 64, 'mm_preprocess_cache_size_mb': None, 'trust_mm_content_hashes': False, 'limit_mm_data_per_request': None, 'enable_mm_global_cache': False, 'image_processor_backend': 'auto', 'mm_global_cache_backend': 'mooncake', 'disable_fast_image_processor': False, 'mm_feature_transport': 'cpu', 'enable_lora': None, 'enable_lora_overlap_loading': None, 'max_lora_rank': None, 'lora_target_modules': None, 'lora_paths': None, 'max_loaded_loras': None, 'max_loras_per_batch': 8, 'lora_eviction_policy': 'lru', 'lora_backend': 'csgmv', 'max_lora_chunk_size': 16, 'experts_shared_outer_loras': None, 'lora_use_virtual_experts': False, 'lora_strict_loading': False, 'lora_drain_wait_threshold': 0.0, 'enable_two_batch_overlap': False, 'enable_single_batch_overlap': False, 'tbo_token_distribution_threshold': 0.48, 'cpu_offload_gb': 0, 'offload_group_size': -1, 'offload_num_in_group': 1, 'offload_prefetch_step': 1, 'offload_mode': 'cpu', 'enable_lmcache': False, 'lmcache_config_file': None, 'enable_flexkv': False, 'flexkv_config_file': None, 'kt_weight_path': None, 'kt_method': 'AMXINT4', 'kt_cpuinfer': None, 'kt_threadpool_count': 2, 'kt_num_gpu_experts': None, 'kt_max_deferred_experts_per_token': None, 'dllm_algorithm': None, 'dllm_algorithm_config': None, 'dllm_fdfo': True, 'disaggregation_mode': 'null', 'disaggregation_transfer_backend': 'mooncake', 'disaggregation_bootstrap_port': 8998, 'disaggregation_ib_device': None, 'disaggregation_decode_enable_radix_cache': False, 'disaggregation_decode_enable_offload_kvcache': False, 'disaggregation_decode_retraction_backup': None, 'num_reserved_decode_tokens': 512, 'disaggregation_decode_extra_slots': None, 'disaggregation_decode_polling_interval': 1, 'optimistic_prefill_attempts': 0, 'encoder_only': False, 'language_only': True, 'language_model_only': False, 'encoder_transfer_backend': 'zmq_to_scheduler', 'encoder_urls': ['http://vit:8000'], 'encoder_bootstrap_port': 8997, 'encoder_register_urls': [], 'enable_adaptive_dispatch_to_encoder': False, 'enable_pdmux': False, 'pdmux_config_path': None, 'sm_group_num': 8, 'startup_weight_load_mode': 'serial', 'custom_weight_loader': [], 'weight_loader_disable_mmap': False, 'weight_loader_prefetch_checkpoints': False, 'weight_loader_prefetch_num_threads': 4, 'weight_loader_drop_cache_after_load': False, 'remote_instance_weight_loader_seed_instance_ip': None, 'remote_instance_weight_loader_seed_instance_service_port': None, 'remote_instance_weight_loader_send_weights_group_ports': None, 'remote_instance_weight_loader_backend': 'nccl', 'remote_instance_weight_loader_start_seed_via_transfer_engine': False, 'engine_info_bootstrap_port': 6789, 'modelexpress_config': None, 'download_dir': '/prod/huggingface/hub', 'model_checksum': None, 'delete_ckpt_after_loading': False, 'decrypted_config_file': None, 'decrypted_draft_config_file': None, 'checkpoint_engine_wait_weights_before_ready': False, 'enable_prefill_delayer': False, 'prefill_delayer_max_delay_passes': 30, 'prefill_delayer_token_usage_low_watermark': None, 'prefill_delayer_forward_passes_buckets': None, 'prefill_delayer_wait_seconds_buckets': None, 'prefill_delayer_queue_min_ratio': None, 'prefill_delayer_max_delay_ms': None, 'min_free_slots_delay': None, 'enable_deterministic_inference': False, 'rl_on_policy_target': None, 'kv_canary': 'none', 'kv_canary_real_data': 'none', 'kv_canary_sweep_interval': 0, 'enable_dynamic_batch_tokenizer': False, 'dynamic_batch_tokenizer_batch_size': 32, 'dynamic_batch_tokenizer_batch_timeout': 0.002, 'enable_tokenizer_batch_encode': False, 'disable_tokenizer_batch_decode': False, 'debug_tensor_dump_output_folder': None, 'debug_tensor_dump_layers': None, 'debug_tensor_dump_input_file': None, 'enable_memory_saver': False, 'enable_weights_cpu_backup': False, 'enable_draft_weights_cpu_backup': False, 'enable_custom_logit_processor': False, 'enable_return_hidden_states': False, 'return_hidden_states_mode': None, 'enable_return_routed_experts': False, 'enable_return_indexer_topk': False, 'sampling_mask_max_tokens': 4096, 'disable_outlines_disk_cache': False, 'enable_mis': False, 'weight_cache_mode': 'off', 'weight_cache_socket': None, 'weight_cache_timeout': 1800, 'forward_hooks': None, 'msprobe_dump_config': None, 'ple_offload_embedding': True, 'ple_offload_backend': 'pinned', 'ple_offload_dir': None, 'disaggregation_enable_kv_checksum': False, 'enable_pd_role_switch': False, 'speculative_domino_candidate_pool_size': 2048, 'flashinfer_a2a_dispatch_type': None, 'cuda_graph_max_seq_len_prefill': None, 'prefill_kv_cache_dequant_dtype': 'auto', 'dsv4_attn_backend': 'auto', 'otlp_service_name': None, '_radix_eviction_policy_explicitly_set': False, 'hicache_host_memory_fraction': None, 'enable_linker_mla_dedup': False, '_swa_full_tokens_ratio_explicitly_set': False, 'swa_prefix_tails': None, 'enable_encoder_swa_bounded_replay': False, 'enable_decoder_swa_bounded_replay': None, 'enable_response_store': False, 'disaggregation_decode_host_receive_threshold': 1.0, 'qsa_indexer_dtype': 'auto', 'disaggregation_decode_allocation_policy': 'early', 'speculative_boundary_reduction': 'ar', 'speculative_use_block_verification': False, 'speculative_draft_sink_size': None, 'disable_aiter_allreduce_fusion_in_prefill': False, 'disable_aiter_allreduce_fusion_in_decode': False, 'monokernel_backend': None, 'dsa_triton_union': 0, 'enable_dsa_fused_indexer': None, 'enable_cp_tp_group_sharing': False, 'enable_watermark': False, 'watermark_config': '<redacted>', 'watermark_key': '<redacted>', 'watermark_key_b': '<redacted>', 'watermark_context_window': 4, 'watermark_mixing_probability': 0.5, 'watermark_max_probability': 1.0, 'watermark_default_enabled': False, 'watermark_enforce_all': False, 'grpc_response_timeout_secs': 300}
+/opt/sglang/lib/python3.12/site-packages/torch/jit/_script.py:1491: FutureWarning: `torch.jit.script` is deprecated. Please switch to `torch.compile` or `torch.export`.
+  warnings.warn(
+/opt/sglang/lib/python3.12/site-packages/torch/jit/_script.py:1643: FutureWarning: `torch.jit.interface` is deprecated. Please use `torch.compile` instead.
+  warnings.warn(
+[transformers] Unrecognized keys in `rope_parameters` for 'rope_type'='default': {'mrope_section', 'mrope_interleaved'}
+[2026-10-19 00:12:22] Init parallel begin.
+[2026-10-19 00:12:22] Init parallel ends. elapsed=0.12 s
+/opt/sglang/lib/python3.12/site-packages/torch/jit/_script.py:1491: FutureWarning: `torch.jit.script` is deprecated. Please switch to `torch.compile` or `torch.export`.
+  warnings.warn(
+/opt/sglang/lib/python3.12/site-packages/torch/jit/_script.py:1491: FutureWarning: `torch.jit.script` is deprecated. Please switch to `torch.compile` or `torch.export`.
+  warnings.warn(
+[2026-10-19 00:12:23] Multimodal data loading enabled with 16 worker threads (auto).
+[2026-10-19 00:12:23] EncoderBootstrapServer starting on 0.0.0.0:8997 (health_check every 0.0s, timeout 2.0s)
+[2026-10-19 00:12:23] EPD MMReceiver: using transport_mode=http
+/opt/sglang/lib/python3.12/site-packages/torch/jit/_script.py:1643: FutureWarning: `torch.jit.interface` is deprecated. Please use `torch.compile` instead.
+  warnings.warn(
+[2026-10-19 00:12:23] Multimodal data loading enabled with 16 worker threads (auto).
+[2026-10-19 00:12:23] Using default HuggingFace chat template with detected content format: openai
+[2026-10-19 00:12:23] Auto-detected template features: reasoning_config=ReasoningToggleConfig(toggle_param='enable_thinking', default_enabled=True, special_case=None, effort_kwarg=None), reasoning_parser=qwen3, tool_call_parser=qwen3_coder
+[2026-10-19 00:12:24] Multimodal data loading enabled with 16 worker threads (auto).
+[2026-10-19 00:12:24] Memory baseline taken. mem usage=0.00 GB
+/opt/sglang/lib/python3.12/site-packages/torch/jit/_script.py:1491: FutureWarning: `torch.jit.script` is deprecated. Please switch to `torch.compile` or `torch.export`.
+  warnings.warn(
+[2026-10-19 00:12:25] Load weight begin. avail mem=30.66 GB
+[2026-10-19 00:12:25] Detected ModelOpt FP8 checkpoint. The format is experimental and subject to change.
+[2026-10-19 00:12:25] Detected fp8 checkpoint.
+[2026-10-19 00:12:25] Detected fp8 checkpoint.
+[2026-10-19 00:12:25] Detected nvfp4 checkpoint.
+[2026-10-19 00:12:25] Detected nvfp4 checkpoint.
+[2026-10-19 00:12:25] using attn output gate!
+[2026-10-19 00:12:26] Qwen38 startup model construction: seconds=1.189 mapped_token_embedding=True source=/workspace/sglang/python/sglang/srt/model_loader/qwen38_nvfp4_cache_loader.py
+[2026-10-19 00:12:26] Qwen38 startup cache plan: {"available_bytes": 77885816832, "budget": 99928030212, "cleanup": {"in_use": 0, "removed_bytes": 0, "removed_files": 0}, "expert_bytes": 67948507140, "ple_bytes": 28800138240, "ram_budget": 134662219985, "reserve_bytes": 39972242227, "reusable_bytes": 96748645380, "tier": "both", "tmpfs_budget": 99928030212}
+[2026-10-19 00:12:26] Qwen38 startup expert source ready: mode=shared_thp GiB=63.28 seconds=0.014 cache_hit=True
+[2026-10-19 00:12:27] Qwen38 mapped token embedding: 1212.5 MiB host, register 0.184s
+[2026-10-19 00:12:28] FP4 PLE packed cache hit: path=/root/.cache/sglang/ple/fp4-ple-v1-bb51b7c3cde80405e6a7f68ad3264373.bin bytes=28800138240 seconds=0.005
+[2026-10-19 00:12:28] Qwen38 startup shared PLE ready: GiB=26.82 cache_hit=True prepare_seconds=0.000 register_seconds=0.218
+[2026-10-19 00:12:28] FP4 PLE host preparation: backend=pinned cached=True allocate_seconds=0.218 load_seconds=0.000
+[2026-10-19 00:12:28] FP4 PLE pinned ready: rows=320001536 row_bytes=90 table=26.82 GiB; packed GPU gather
+[2026-10-19 00:12:28] Qwen38 startup checkpoint load and postprocess: seconds=1.761
+[2026-10-19 00:12:28] GPU 0 has not joined an NVLink fabric clique; probing local FABRIC allocation support
+[2026-10-19 00:12:28] CUDA VMM FABRIC backing unavailable on device 0; trying fallback: cuMemCreate(FABRIC probe): <CUresult.CUDA_ERROR_INVALID_VALUE: 1>
+[2026-10-19 00:12:28] CUDA VMM selected POSIX_FD backing for device 0
+[2026-10-19 00:12:28] KvVmmArena[173_0] ready: device=0 reserved_va=63.5 GiB granularity=2048 KiB handle_type=POSIX_FD
+[2026-10-19 00:12:28] Qwen38 prefill arena borrows 512 expert slots from pool tail
+[2026-10-19 00:12:28] Expert-pack shared THP cache retained for warm restarts
+[2026-10-19 00:12:28] Qwen38 startup runtime reserve: seconds=0.568 decode_cache_MiB=16827.59 prefill_arena_MiB=0.00 borrowed_prefill_arena_MiB=1350.00
+[2026-10-19 00:12:29] Qwen38 B12X W4A16 enabled: BF16 decode/verify 1..3 tokens; other shapes use Triton W4A16
+[2026-10-19 00:12:29] Qwen38 cache activation mode: prefill=W4A4 CUTLASS decode/verify=W4A16; W4A16 chunk=16
+[2026-10-19 00:12:29] Using FP8 KV cache but no scaling factors provided. Defaulting to scaling factors of 1.0.
+[2026-10-19 00:12:29] Load weight end. elapsed=4.52 s, type=Qwen4ExpForConditionalGeneration, quant=modelopt_mixed, quant_algo=MIXED_PRECISION, avail mem=8.41 GB, mem usage=22.25 GB.
+[2026-10-19 00:12:29] Using draft model load_format: 'qwen38_mtp'
+[2026-10-19 00:12:29] Memory baseline taken. mem usage=0.00 GB
+[2026-10-19 00:12:29] Load weight begin. avail mem=8.41 GB
+[2026-10-19 00:12:30] Detected ModelOpt FP8 checkpoint. The format is experimental and subject to change.
+[2026-10-19 00:12:30] Detected fp8 checkpoint.
+[2026-10-19 00:12:30] Detected fp8 checkpoint.
+[2026-10-19 00:12:30] Detected nvfp4 checkpoint.
+[2026-10-19 00:12:30] Detected nvfp4 checkpoint.
+[2026-10-19 00:12:31] Qwen38 MTP expert activation: w4a4
+[2026-10-19 00:12:31] Using FP8 KV cache but no scaling factors provided. Defaulting to scaling factors of 1.0.
+[2026-10-19 00:12:31] Load weight end. elapsed=1.36 s, type=Qwen4ExpForCausalLMMTP, quant=modelopt_mixed, quant_algo=MIXED_PRECISION, avail mem=6.93 GB, mem usage=1.48 GB.
+[2026-10-19 00:12:31] Mamba Cache is allocated. max_mamba_cache_size: 10, conv_state size: 0.02GB, ssm_state size: 0.58GB intermediate_ssm_state_cache size: 0.32GB intermediate_conv_window_cache size: 0.01GB
+[2026-10-19 00:12:32] Warmed fused Mamba slot copy kernel in 213.869 ms
+[2026-10-19 00:12:32] KvVmmArena[173_1] ready: device=0 reserved_va=3.3 GiB granularity=2048 KiB handle_type=POSIX_FD
+[2026-10-19 00:12:32] KV Cache is allocated. dtype: torch.float8_e4m3fn, #tokens: 220032, K size: 1.26 GB, V size: 1.26 GB
+[2026-10-19 00:12:32] Qwen38 adaptive KV stages=(80000, 160000, 220032) expert budgets=[7001, 6635, 6382]
+[2026-10-19 00:12:32] QSA compressed indexer cache dtype: torch.bfloat16 (pending ring torch.bfloat16)
+[2026-10-19 00:12:32] Memory pool end. avail mem=3.30 GB
+[2026-10-19 00:12:32] KV Cache is allocated. dtype: torch.float8_e4m3fn, #tokens: 220032, K size: 0.10 GB, V size: 0.10 GB
+[2026-10-19 00:12:32] QSA compressed indexer cache dtype: torch.bfloat16 (pending ring torch.bfloat16)
+[2026-10-19 00:12:32] Memory pool end. avail mem=3.09 GB
+[2026-10-19 00:12:32] Linear attention kernel backend: decode=triton, prefill=triton, verify=triton
+[2026-10-19 00:12:32] Using hybrid linear attention backend for hybrid GDN models.
+[2026-10-19 00:12:32] GDN kernel dispatcher: decode=TritonGDNKernel, extend=TritonGDNKernel, verify=TritonGDNKernel packed_decode=True
+[2026-10-19 00:12:32] Using QSA for sparse full-attention layers.
+[2026-10-19 00:12:32] Linear attention kernel backend: decode=triton, prefill=triton, verify=triton
+[2026-10-19 00:12:32] Using hybrid linear attention backend for hybrid GDN models.
+[2026-10-19 00:12:32] GDN kernel dispatcher: decode=TritonGDNKernel, extend=TritonGDNKernel, verify=TritonGDNKernel packed_decode=True
+[2026-10-19 00:12:32] Using QSA for sparse full-attention layers.
+[2026-10-19 00:12:32] QSA MTP index sharing enabled: draft decode steps reuse the draft-extend selection for layers [0]
+[2026-10-19 00:12:32] Running FlashInfer autotune with cache: /root/.cache/sglang/flashinfer/autotune/0.7.2/sm120/7136095e509abffa/rank_tp0_pp0_dp0.json
+[2026-10-19 00:12:33] FlashInfer autotune completed.
+[2026-10-19 00:12:33] Disable prefill CUDA graph because cuda_graph_config resolved prefill.backend='disabled' (e.g. via --cuda-graph-backend-prefill=disabled or auto-disable rules).
+[2026-10-19 00:12:33] Capture target verify CUDA graph begin. backend=breakable, num_tokens_per_req=3, avail mem=2.53 GB
+
+  0%|          | 0/1 [00:00<?, ?it/s]
+Capturing batches (bs=1 avail_mem=2.53 GB):   0%|          | 0/1 [00:00<?, ?it/s]
+Capturing batches (bs=1 avail_mem=2.53 GB): 100%|██████████| 1/1 [00:00<00:00,  4.42it/s]
+Capturing batches (bs=1 avail_mem=2.53 GB): 100%|██████████| 1/1 [00:00<00:00,  4.42it/s]
+[2026-10-19 00:12:34] Capture target verify CUDA graph end. bs=[1], elapsed=1.24 s, mem usage=0.06 GB, avail mem=2.47 GB.
+[2026-10-19 00:12:34] Disable prefill CUDA graph because cuda_graph_config resolved prefill.backend='disabled' (e.g. via --cuda-graph-backend-prefill=disabled or auto-disable rules).
+[2026-10-19 00:12:34] Capture draft decode CUDA graph begin. backend=breakable, num_tokens_per_req=1, bs=[1], avail mem=2.47 GB
+
+  0%|          | 0/1 [00:00<?, ?it/s]
+Capturing batches (bs=1 avail_mem=2.47 GB):   0%|          | 0/1 [00:00<?, ?it/s][2026-10-19 00:12:34] Running FlashInfer autotune with cache: /root/.cache/sglang/flashinfer/autotune/0.7.2/sm120/98871fddb1070220/rank_tp0_pp0_dp0.json
+[TensorRT-LLM][INFO] Set logger level to INFO
+[2026-10-19 00:12:35] FlashInfer autotune completed.
+
+Capturing batches (bs=1 avail_mem=2.47 GB): 100%|██████████| 1/1 [00:00<00:00,  2.89it/s]
+Capturing batches (bs=1 avail_mem=2.47 GB): 100%|██████████| 1/1 [00:00<00:00,  2.89it/s]
+[2026-10-19 00:12:35] Capture draft decode CUDA graph end. elapsed=1.35 s, mem usage=0.24 GB, avail mem=2.23 GB.
+[2026-10-19 00:12:35] Capture draft extend CUDA graph begin. backend=breakable, num_tokens_per_req=3, bs=[1], avail mem=2.23 GB
+
+  0%|          | 0/1 [00:00<?, ?it/s]
+Capturing batches (bs=1 avail_mem=2.23 GB):   0%|          | 0/1 [00:00<?, ?it/s][2026-10-19 00:12:36] Running FlashInfer autotune with cache: /root/.cache/sglang/flashinfer/autotune/0.7.2/sm120/98871fddb1070220/rank_tp0_pp0_dp0.json
+[2026-10-19 00:12:36] FlashInfer autotune completed.
+
+Capturing batches (bs=1 avail_mem=2.23 GB): 100%|██████████| 1/1 [00:00<00:00, 48.77it/s]
+[2026-10-19 00:12:36] Capture draft extend CUDA graph end. elapsed=1.04 s, mem usage=0.14 GB, avail mem=2.09 GB.
+[2026-10-19 00:12:36] max_total_num_tokens=220032, chunked_prefill_size=8192, max_prefill_tokens=16384, max_running_requests=1, context_len=220000, available_gpu_mem=2.09 GB
+[2026-10-19 00:12:36] Init Unified Radix Cache. Components: (<ComponentType.FULL: 0>, <ComponentType.MAMBA: 2>). Tree Core: UnifiedTreeCore
+[2026-10-19 00:12:36] Allocating kv hierarchical KV host pool: 1320256 tokens, 17.58 GB host memory, packed MTP KV layers: target_layers=12, draft_layers=1, total_layers=13.
+[2026-10-19 00:12:39] Allocating 3.60 GB host memory for hierarchical Mamba cache (layout=page_first_direct).
+[2026-10-19 00:12:40] NPU HiCache Mamba state transfer mode: sync torch fallback.
+[2026-10-19 00:12:40] Allocating 1.10 GB host memory for V4 paged pool 'qsa_indexer' (layers=13, pages=20629, item_bytes=4096, layout=page_first_direct).
+[2026-10-19 00:12:40] Attached hybrid pool stack to UnifiedRadixCache: pools=KV + MAMBA + INDEXER, transfer_layer_id_max=48
+[2026-10-19 00:12:40] Tree cache initialized: source=default impl=UnifiedRadixCache hybrid_swa=False hybrid_ssm=True hicache_attached=True
+[2026-10-19 00:12:40] EPD MMReceiver: using transport_mode=http
+[2026-10-19 00:12:40] Scheduler TP rank 0 reuses ZMQ embedding port 37807
+[2026-10-19 00:12:40] Multimodal data loading enabled with 16 worker threads (auto).
+[2026-10-19 00:12:40] Engine startup timings (s): load_weight=5.88, kv_cache_allocation=0.76, scheduler_e2e=18.76, cuda_graph={prefill=0.00, decode=0.00, target_verify=1.24, draft_prefill=0.00, draft_decode=1.35, draft_extend=1.04}, tokenizer_e2e=24.58
+[2026-10-19 00:12:40] INFO:     Started server process [97]
+[2026-10-19 00:12:40] INFO:     Waiting for application startup.
+[2026-10-19 00:12:40] Using default chat sampling params from model generation config: {'temperature': 1.0, 'top_k': 20, 'top_p': 0.95}
+[2026-10-19 00:12:40] Running warmup qwen38_first_prefill
+[2026-10-19 00:12:43] Prefill batch, #new-seq: 1, #new-token: 4224, #cached-token: 0, full token usage: 0.02, mamba usage: 0.10, #running-req: 0, #queue-req: 0, #pending-token: 0, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 1680.40
+[2026-10-19 00:12:43] Qwen38 offload warmup: prefill=4224 decode=1 elapsed=2.522s
+[2026-10-19 00:12:43] Warmup ended
+[2026-10-19 00:12:43] INFO:     Application startup complete.
+[2026-10-19 00:12:43] INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+[2026-10-19 00:12:43] INFO:     172.19.0.1:38104 - "GET /health HTTP/1.1" 503 Service Unavailable
+[2026-10-19 00:12:44] INFO:     127.0.0.1:53628 - "GET /model_info HTTP/1.1" 200 OK
+[2026-10-19 00:12:44] Prefill batch, #new-seq: 1, #new-token: 6, #cached-token: 0, full token usage: 0.00, mamba usage: 0.30, #running-req: 0, #queue-req: 0, #pending-token: 0, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 14.56
+[2026-10-19 00:12:44] INFO:     127.0.0.1:53636 - "POST /generate HTTP/1.1" 200 OK
+[2026-10-19 00:12:45] INFO:     127.0.0.1:53642 - "POST /freeze_gc HTTP/1.1" 200 OK
+[2026-10-19 00:12:45] The server is fired up and ready to roll!
+[2026-10-19 00:12:45] Prefill batch, #new-seq: 1, #new-token: 1, #cached-token: 0, full token usage: 0.00, mamba usage: 0.00, #running-req: 0, #queue-req: 0, #pending-token: 0, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 11.55
+[2026-10-19 00:12:47] Prefill batch, #new-seq: 1, #new-token: 1, #cached-token: 0, full token usage: 0.00, mamba usage: 0.00, #running-req: 0, #queue-req: 0, #pending-token: 0, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 9.80
+[2026-10-19 00:12:48] INFO:     172.19.0.1:38118 - "GET /health HTTP/1.1" 200 OK
+[2026-10-19 00:12:49] Prefill batch, #new-seq: 1, #new-token: 1, #cached-token: 0, full token usage: 0.00, mamba usage: 0.00, #running-req: 0, #queue-req: 0, #pending-token: 0, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 9.86
+[2026-10-19 00:12:50] INFO:     172.19.0.1:38134 - "GET /health HTTP/1.1" 200 OK
+[2026-10-19 00:12:51] Prefill batch, #new-seq: 1, #new-token: 1, #cached-token: 0, full token usage: 0.00, mamba usage: 0.00, #running-req: 0, #queue-req: 0, #pending-token: 0, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 9.86
+[2026-10-19 00:12:52] INFO:     172.19.0.1:53470 - "GET /health HTTP/1.1" 200 OK
+[2026-10-19 00:12:53] Prefill batch, #new-seq: 1, #new-token: 1, #cached-token: 0, full token usage: 0.00, mamba usage: 0.00, #running-req: 0, #queue-req: 0, #pending-token: 0, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 9.87
+[2026-10-19 00:12:54] INFO:     172.19.0.1:53486 - "GET /health HTTP/1.1" 200 OK
+[2026-10-19 00:12:55] Prefill batch, #new-seq: 1, #new-token: 1, #cached-token: 0, full token usage: 0.00, mamba usage: 0.00, #running-req: 0, #queue-req: 0, #pending-token: 0, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 9.78
+[2026-10-19 00:12:56] INFO:     172.19.0.1:53492 - "GET /health HTTP/1.1" 200 OK
+[2026-10-19 00:12:57] Triton kernel '_pack_qsa_prefill_kv' device-loaded after serving started (free device mem: 0.02 GiB). Pre-load it during engine init to avoid CUDA OOM.
+[2026-10-19 00:12:57] Triton kernel '_sparse_gqa_chunk_prefill' device-loaded after serving started (free device mem: 0.02 GiB). Pre-load it during engine init to avoid CUDA OOM.
+[rank0]:[W1019 00:12:57.664798757 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:12:57.711956658 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 2621440, total: 33766572032).
+[2026-10-19 00:12:59] Prefill batch, #new-seq: 1, #new-token: 8192, #cached-token: 0, full token usage: 0.07, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 65808, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 2773.25
+[rank0]:[W1019 00:12:59.062247851 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[2026-10-19 00:13:00] Prefill batch, #new-seq: 1, #new-token: 8192, #cached-token: 0, full token usage: 0.11, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 57616, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 2860.71
+[rank0]:[W1019 00:13:00.480429758 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:00.506419035 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 2621440, total: 33766572032).
+[rank0]:[W1019 00:13:00.556252195 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 2621440, total: 33766572032).
+[rank0]:[W1019 00:13:00.602374645 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 2621440, total: 33766572032).
+[rank0]:[W1019 00:13:00.628853324 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 2621440, total: 33766572032).
+[rank0]:[W1019 00:13:00.684926119 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 2621440, total: 33766572032).
+[rank0]:[W1019 00:13:00.770507767 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 2621440, total: 33766572032).
+[rank0]:[W1019 00:13:00.896471531 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 2621440, total: 33766572032).
+[rank0]:[W1019 00:13:01.026502977 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 2621440, total: 33766572032).
+[rank0]:[W1019 00:13:01.062769559 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 2621440, total: 33766572032).
+[rank0]:[W1019 00:13:01.096937473 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 2621440, total: 33766572032).
+[rank0]:[W1019 00:13:01.131113757 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 2621440, total: 33766572032).
+[rank0]:[W1019 00:13:01.167986951 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 2621440, total: 33766572032).
+[rank0]:[W1019 00:13:01.258593230 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 2621440, total: 33766572032).
+[rank0]:[W1019 00:13:01.310226177 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 2621440, total: 33766572032).
+[rank0]:[W1019 00:13:01.429531905 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 2621440, total: 33766572032).
+[rank0]:[W1019 00:13:01.527203304 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 2621440, total: 33766572032).
+[2026-10-19 00:13:01] Prefill batch, #new-seq: 1, #new-token: 8192, #cached-token: 0, full token usage: 0.15, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 49424, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 2789.15
+[rank0]:[W1019 00:13:02.006410287 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 17301504, total: 33766572032).
+[rank0]:[W1019 00:13:02.032183597 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:02.062229556 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[2026-10-19 00:13:03] Prefill batch, #new-seq: 1, #new-token: 8192, #cached-token: 0, full token usage: 0.19, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 41232, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 2762.52
+[rank0]:[W1019 00:13:03.476839821 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 17301504, total: 33766572032).
+[rank0]:[W1019 00:13:03.488715561 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 2621440, total: 33766572032).
+[rank0]:[W1019 00:13:03.508884618 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 2621440, total: 33766572032).
+[rank0]:[W1019 00:13:03.532797646 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 2621440, total: 33766572032).
+[rank0]:[W1019 00:13:03.586069749 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 2621440, total: 33766572032).
+[rank0]:[W1019 00:13:03.611418916 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 2621440, total: 33766572032).
+[rank0]:[W1019 00:13:04.923672426 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 2097152 bytes (free: 524288, total: 33766572032).
+[2026-10-19 00:13:04] Prefill batch, #new-seq: 1, #new-token: 8192, #cached-token: 0, full token usage: 0.22, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 33040, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 2760.85
+[rank0]:[W1019 00:13:05.005971937 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 17301504, total: 33766572032).
+[2026-10-19 00:13:06] Prefill batch, #new-seq: 1, #new-token: 8192, #cached-token: 0, full token usage: 0.26, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 24848, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 2766.37
+[rank0]:[W1019 00:13:06.470492024 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 17301504, total: 33766572032).
+[rank0]:[W1019 00:13:06.482340931 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 2621440, total: 33766572032).
+[rank0]:[W1019 00:13:06.502835791 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 2621440, total: 33766572032).
+[rank0]:[W1019 00:13:06.576996404 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 2621440, total: 33766572032).
+[rank0]:[W1019 00:13:06.602652907 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 2621440, total: 33766572032).
+[rank0]:[W1019 00:13:06.707049699 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 2621440, total: 33766572032).
+[2026-10-19 00:13:07] Prefill batch, #new-seq: 1, #new-token: 8192, #cached-token: 0, full token usage: 0.30, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 16656, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 2754.88
+[rank0]:[W1019 00:13:08.011273573 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 17301504, total: 33766572032).
+[rank0]:[W1019 00:13:08.035514790 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:08.187617714 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:08.400860929 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:08.436466944 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:08.471912650 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:08.506771562 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:08.548575240 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:08.587494550 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:08.625128778 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:08.670700567 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[2026-10-19 00:13:09] Prefill batch, #new-seq: 1, #new-token: 8192, #cached-token: 0, full token usage: 0.34, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 8464, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 2681.25
+[2026-10-19 00:13:09] Prefill batch, #new-seq: 1, #new-token: 8192, #cached-token: 0, full token usage: 0.34, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 272, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 5213.92
+[2026-10-19 00:13:09] Qwen38 returned expert loan: KV=160000 expert slots=6635
+[2026-10-19 00:13:09] Triton kernel '_small_copy_kernel' device-loaded after serving started (free device mem: 0.04 GiB). Pre-load it during engine init to avoid CUDA OOM.
+[2026-10-19 00:13:09] Triton kernel '_sparse_gqa_chunk_prefill' device-loaded after serving started (free device mem: 0.04 GiB). Pre-load it during engine init to avoid CUDA OOM.
+[2026-10-19 00:13:10] Prefill batch, #new-seq: 1, #new-token: 272, #cached-token: 0, full token usage: 0.34, mamba usage: 0.50, #running-req: 0, #queue-req: 0, #pending-token: 0, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 291.79
+[2026-10-19 00:13:10] INFO:     172.19.0.1:53500 - "POST /generate HTTP/1.1" 200 OK
+[rank0]:[W1019 00:13:10.705495219 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[2026-10-19 00:13:10] Endpoint '/get_server_info' is deprecated and will be removed in a future version. Please use '/server_info' instead.
+[2026-10-19 00:13:12] INFO:     172.19.0.1:59136 - "GET /get_server_info HTTP/1.1" 200 OK
+[rank0]:[W1019 00:13:12.081307181 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 2621440, total: 33766572032).
+[2026-10-19 00:13:13] Prefill batch, #new-seq: 1, #new-token: 8192, #cached-token: 73984, full token usage: 0.41, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 87824, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 2920.51
+[rank0]:[W1019 00:13:13.460705899 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:13.482081740 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).
+[rank0]:[W1019 00:13:13.697796821 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).
+[2026-10-19 00:13:14] Prefill batch, #new-seq: 1, #new-token: 8192, #cached-token: 0, full token usage: 0.45, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 79632, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 2882.85
+[rank0]:[W1019 00:13:14.910785229 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:14.931830678 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 4718592, total: 33766572032).
+[rank0]:[W1019 00:13:15.071213727 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 4718592, total: 33766572032).
+[rank0]:[W1019 00:13:15.119326362 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 4718592, total: 33766572032).
+[rank0]:[W1019 00:13:15.169274658 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 4718592, total: 33766572032).
+[rank0]:[W1019 00:13:15.188007295 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 4718592, total: 33766572032).
+[rank0]:[W1019 00:13:15.216688886 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 4718592, total: 33766572032).
+[rank0]:[W1019 00:13:15.287177452 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 4718592, total: 33766572032).
+[rank0]:[W1019 00:13:15.329217348 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 4718592, total: 33766572032).
+[2026-10-19 00:13:16] Prefill batch, #new-seq: 1, #new-token: 8192, #cached-token: 0, full token usage: 0.49, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 71440, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 2815.87
+[rank0]:[W1019 00:13:16.377662750 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[2026-10-19 00:13:17] Prefill batch, #new-seq: 1, #new-token: 8192, #cached-token: 0, full token usage: 0.52, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 63248, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 2801.68
+[2026-10-19 00:13:19] Prefill batch, #new-seq: 1, #new-token: 8192, #cached-token: 0, full token usage: 0.56, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 55056, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 2826.09
+[rank0]:[W1019 00:13:20.739730158 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 2097152 bytes (free: 524288, total: 33766572032).
+[2026-10-19 00:13:20] Prefill batch, #new-seq: 1, #new-token: 8192, #cached-token: 0, full token usage: 0.60, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 46864, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 2780.98
+[rank0]:[W1019 00:13:20.801518342 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:20.822188245 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 4718592, total: 33766572032).
+[rank0]:[W1019 00:13:20.843348071 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 4718592, total: 33766572032).
+[rank0]:[W1019 00:13:20.898434060 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 4718592, total: 33766572032).
+[2026-10-19 00:13:22] Prefill batch, #new-seq: 1, #new-token: 8192, #cached-token: 0, full token usage: 0.63, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 38672, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 2767.00
+[rank0]:[W1019 00:13:22.282805957 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 2621440, total: 33766572032).
+[rank0]:[W1019 00:13:22.333555096 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 4718592, total: 33766572032).
+[rank0]:[W1019 00:13:22.354397300 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).
+[rank0]:[W1019 00:13:22.393607036 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).
+[rank0]:[W1019 00:13:22.415940428 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).
+[rank0]:[W1019 00:13:22.494355530 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).
+[rank0]:[W1019 00:13:22.525058864 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).
+[rank0]:[W1019 00:13:22.543433824 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).
+[rank0]:[W1019 00:13:22.572124099 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).
+[rank0]:[W1019 00:13:22.641833564 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).
+[rank0]:[W1019 00:13:22.671041870 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).
+[rank0]:[W1019 00:13:22.747276905 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).
+[rank0]:[W1019 00:13:22.779910204 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).
+[rank0]:[W1019 00:13:22.811400560 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).
+[rank0]:[W1019 00:13:22.845407226 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).
+[rank0]:[W1019 00:13:22.901710697 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).
+[rank0]:[W1019 00:13:22.934171409 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).
+[rank0]:[W1019 00:13:23.962152348 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).
+[rank0]:[W1019 00:13:23.117911490 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).
+[rank0]:[W1019 00:13:23.168442871 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).
+[rank0]:[W1019 00:13:23.259130841 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).
+[rank0]:[W1019 00:13:23.440832738 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).
+[rank0]:[W1019 00:13:23.571426436 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).
+[rank0]:[W1019 00:13:23.601723605 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).
+[rank0]:[W1019 00:13:23.629986065 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).
+[rank0]:[W1019 00:13:23.702480160 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).
+[rank0]:[W1019 00:13:23.733809421 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).
+[rank0]:[W1019 00:13:23.770578154 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).
+[rank0]:[W1019 00:13:23.805319849 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).
+[2026-10-19 00:13:23] Prefill batch, #new-seq: 1, #new-token: 8192, #cached-token: 0, full token usage: 0.67, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 30480, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 2625.62
+[rank0]:[W1019 00:13:23.948384043 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:24.977657680 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 4718592, total: 33766572032).
+[rank0]:[W1019 00:13:24.069073417 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 4718592, total: 33766572032).
+[rank0]:[W1019 00:13:24.092536641 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 4718592, total: 33766572032).
+[rank0]:[W1019 00:13:24.266570913 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 4718592, total: 33766572032).
+[rank0]:[W1019 00:13:24.397179717 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 4718592, total: 33766572032).
+[rank0]:[W1019 00:13:24.428745654 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 4718592, total: 33766572032).
+[2026-10-19 00:13:25] Prefill batch, #new-seq: 1, #new-token: 8192, #cached-token: 0, full token usage: 0.71, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 22288, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 2577.00
+[2026-10-19 00:13:25] Prefill batch, #new-seq: 1, #new-token: 8192, #cached-token: 0, full token usage: 0.71, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 14096, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 5219.24
+[2026-10-19 00:13:25] Qwen38 returned expert loan: KV=220032 expert slots=6382
+[rank0]:[W1019 00:13:25.503565303 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 17301504, total: 33766572032).
+[rank0]:[W1019 00:13:25.530975194 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:25.571080707 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:25.696044328 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:25.728729205 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:27.564322261 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 13107200, total: 33766572032).
+[2026-10-19 00:13:28] Prefill batch, #new-seq: 1, #new-token: 8192, #cached-token: 0, full token usage: 0.77, mamba usage: 0.50, #running-req: 0, #queue-req: 0, #pending-token: 5904, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 2414.32
+[2026-10-19 00:13:30] Prefill batch, #new-seq: 1, #new-token: 5904, #cached-token: 0, full token usage: 0.77, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 0, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 1843.93
+[2026-10-19 00:13:30] INFO:     172.19.0.1:59130 - "POST /generate HTTP/1.1" 200 OK
+[2026-10-19 00:13:30] Reset HybridReqToTokenPool
+[2026-10-19 00:13:30] Cache flushed successfully!
+[2026-10-19 00:13:30] INFO:     172.19.0.1:60098 - "POST /flush_cache HTTP/1.1" 200 OK
+[2026-10-19 00:13:31] Prefill batch, #new-seq: 1, #new-token: 3, #cached-token: 0, full token usage: 0.00, mamba usage: 0.30, #running-req: 0, #queue-req: 0, #pending-token: 0, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 11.81
+[2026-10-19 00:13:31] Qwen38 reborrowed KV tail: KV=80000 expert slots=7001
+[2026-10-19 00:13:31] INFO:     172.19.0.1:60104 - "POST /generate HTTP/1.1" 200 OK
+[rank0]:[W1019 00:13:31.568525416 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:33.186445127 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:33.238197950 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:33.338210721 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:33.367054064 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:33.396763222 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:33.490226627 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:33.521928558 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:33.593708973 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:33.729464428 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:33.765067832 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:33.799834507 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:33.897208454 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:33.927647198 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:34.975779200 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:34.022154234 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:34.052798247 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:34.162333949 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:34.210910891 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:34.249785648 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:34.282300014 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:34.440043576 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:34.567386397 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:34.607224552 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:34.639290941 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[2026-10-19 00:13:34] Prefill batch, #new-seq: 1, #new-token: 8192, #cached-token: 0, full token usage: 0.07, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 65808, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 2550.22
+[rank0]:[W1019 00:13:34.809075256 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 17301504, total: 33766572032).
+[rank0]:[W1019 00:13:34.834444407 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:34.865137607 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:34.891520123 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:35.992706935 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[2026-10-19 00:13:36] Prefill batch, #new-seq: 1, #new-token: 8192, #cached-token: 0, full token usage: 0.11, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 57616, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 2614.06
+[rank0]:[W1019 00:13:36.328347996 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 17301504, total: 33766572032).
+[rank0]:[W1019 00:13:36.353702215 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:36.379364801 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:36.410394723 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[2026-10-19 00:13:37] Prefill batch, #new-seq: 1, #new-token: 8192, #cached-token: 0, full token usage: 0.15, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 49424, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 2641.46
+[rank0]:[W1019 00:13:37.916554504 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 17301504, total: 33766572032).
+[rank0]:[W1019 00:13:37.928003205 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:37.948314606 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:38.973697708 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:38.004924623 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:39.441384105 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 2097152 bytes (free: 524288, total: 33766572032).
+[2026-10-19 00:13:39] Prefill batch, #new-seq: 1, #new-token: 8192, #cached-token: 0, full token usage: 0.19, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 41232, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 2581.78
+[rank0]:[W1019 00:13:39.557530310 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 17301504, total: 33766572032).
+[rank0]:[W1019 00:13:39.582835991 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:39.615135751 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:39.642188965 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:39.667938524 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:39.695051033 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:39.730279699 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:39.902596280 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:39.937313674 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:40.978199369 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:40.023156920 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:40.068509492 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:40.116823718 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:40.157217721 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:40.347417028 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:40.395680678 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:40.438085025 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:40.475138522 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:40.507642681 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:40.552859703 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:40.605262101 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:40.821996752 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:40.856279472 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:40.896953825 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:40.930214599 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:41.963157297 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:41.998962289 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:41.037244402 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[2026-10-19 00:13:41] Prefill batch, #new-seq: 1, #new-token: 8192, #cached-token: 0, full token usage: 0.22, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 33040, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 2478.74
+[rank0]:[W1019 00:13:41.254248279 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 15204352, total: 33766572032).
+[rank0]:[W1019 00:13:41.279667378 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:41.356444597 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:41.436341108 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:41.465225165 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:41.523081542 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:41.560323840 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:41.689556089 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:41.735182646 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:41.780582770 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:41.930375721 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:42.057455619 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:42.106116851 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:42.349469468 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:42.545769646 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:42.586890936 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:42.620162207 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:42.653151599 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[rank0]:[W1019 00:13:42.688958355 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 524288, total: 33766572032).
+[2026-10-19 00:13:42] Prefill batch, #new-seq: 1, #new-token: 8192, #cached-token: 0, full token usage: 0.26, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 24848, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 2425.70
+[rank0]:[W1019 00:13:43.965919400 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 17301504, total: 33766572032).
+[rank0]:[W1019 00:13:43.020347579 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:43.047755920 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:43.074335590 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:43.100851965 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:43.137166089 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:43.172275441 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:43.195131482 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:43.228631080 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:43.266752483 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:43.359402668 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:43.401374581 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:43.486671270 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:43.571637102 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:43.641208163 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:43.741946070 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:43.896393929 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:43.929159151 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:44.973532222 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:44.029735309 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:44.146473029 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:44.316452250 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:44.445411815 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:44.543713081 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:44.588113073 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[2026-10-19 00:13:44] Prefill batch, #new-seq: 1, #new-token: 8192, #cached-token: 0, full token usage: 0.30, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 16656, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 2418.09
+[rank0]:[W1019 00:13:44.672250546 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 15204352, total: 33766572032).
+[rank0]:[W1019 00:13:44.684508217 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:44.704588022 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:44.729924656 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[rank0]:[W1019 00:13:44.763803531 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 19398656, total: 33766572032).
+[2026-10-19 00:13:46] Prefill batch, #new-seq: 1, #new-token: 8192, #cached-token: 0, full token usage: 0.34, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 8464, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 2431.39
+[2026-10-19 00:13:46] Prefill batch, #new-seq: 1, #new-token: 8192, #cached-token: 0, full token usage: 0.34, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 272, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 4913.08
+[2026-10-19 00:13:46] Qwen38 returned expert loan: KV=160000 expert slots=6635
+[2026-10-19 00:13:47] Prefill batch, #new-seq: 1, #new-token: 272, #cached-token: 0, full token usage: 0.34, mamba usage: 0.50, #running-req: 0, #queue-req: 0, #pending-token: 0, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 299.09
+[2026-10-19 00:13:47] INFO:     172.19.0.1:60120 - "POST /generate HTTP/1.1" 200 OK
+[2026-10-19 00:13:51] Reset HybridReqToTokenPool
+[2026-10-19 00:13:51] Cache flushed successfully!
+[2026-10-19 00:13:51] INFO:     172.19.0.1:53302 - "POST /flush_cache HTTP/1.1" 200 OK
+[2026-10-19 00:13:58] Endpoint '/get_server_info' is deprecated and will be removed in a future version. Please use '/server_info' instead.
+[2026-10-19 00:13:58] INFO:     172.19.0.1:53314 - "GET /get_server_info HTTP/1.1" 200 OK
+[2026-10-19 00:13:58] INFO:     172.19.0.1:53330 - "POST /generate HTTP/1.1" 200 OK
+[2026-10-19 00:13:59] Prefill batch, #new-seq: 1, #new-token: 15, #cached-token: 0, full token usage: 0.00, mamba usage: 0.30, #running-req: 0, #queue-req: 0, #pending-token: 0, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 68.47
+[2026-10-19 00:13:59] Qwen38 reborrowed KV tail: KV=80000 expert slots=7001
+[2026-10-19 00:14:01] INFO:     172.19.0.1:42324 - "POST /generate HTTP/1.1" 200 OK
+[2026-10-19 00:14:01] Prefill batch, #new-seq: 1, #new-token: 16, #cached-token: 0, full token usage: 0.00, mamba usage: 0.30, #running-req: 0, #queue-req: 0, #pending-token: 0, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 61.82
+[2026-10-19 00:14:03] INFO:     172.19.0.1:42336 - "POST /generate HTTP/1.1" 200 OK
+[2026-10-19 00:14:03] Prefill batch, #new-seq: 1, #new-token: 14, #cached-token: 0, full token usage: 0.00, mamba usage: 0.30, #running-req: 0, #queue-req: 0, #pending-token: 0, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 38.12
+[2026-10-19 00:14:05] Endpoint '/get_server_info' is deprecated and will be removed in a future version. Please use '/server_info' instead.
+[2026-10-19 00:14:05] INFO:     172.19.0.1:42348 - "GET /get_server_info HTTP/1.1" 200 OK
+[2026-10-19 00:14:05] INFO:     172.19.0.1:42362 - "POST /generate HTTP/1.1" 200 OK
+[2026-10-19 00:14:05] Prefill batch, #new-seq: 1, #new-token: 15, #cached-token: 0, full token usage: 0.00, mamba usage: 0.30, #running-req: 0, #queue-req: 0, #pending-token: 0, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 56.84
+[2026-10-19 00:14:07] INFO:     172.19.0.1:42370 - "POST /generate HTTP/1.1" 200 OK
+[2026-10-19 00:14:07] Prefill batch, #new-seq: 1, #new-token: 16, #cached-token: 0, full token usage: 0.00, mamba usage: 0.30, #running-req: 0, #queue-req: 0, #pending-token: 0, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 64.44
+[2026-10-19 00:14:07] Qwen38ExpertCacheStats[periodic] {"adaptive_analysis_seconds":0.0,"adaptive_cache_interval":4096,"adaptive_cache_mode":"rebalance","adaptive_cache_window":512,"adaptive_evaluations":0,"adaptive_evicted_experts":0,"adaptive_last_evaluation":null,"adaptive_last_rebalance_seconds":0.0,"adaptive_migrated_experts":0,"adaptive_rebalances":0,"adaptive_sample_drops":0,"arena_invocations":1776,"arena_loads":1776,"avg_route_tokens_per_run":6234.825,"borrowed_prefill_arena":true,"borrowed_restore_experts":1682,"borrowed_restore_runs":7,"cache_event_count":378942,"cache_hit_rate":0.8324466541053777,"cache_invocations":17424,"cache_policy":"lfu","cache_protected_fraction":0.7,"cache_slots_total":7001,"decode_alpha_h2d_calls_avoided":126986,"decode_device_gate":true,"decode_device_gate_copy_bytes":166200422400,"decode_device_gate_copy_calls":13777,"decode_device_gate_hits":3502,"decode_device_gate_invocations":17279,"decode_hit_fast_path":true,"decode_hit_fast_path_invocations":0,"decode_shared_fill_overlap_invocations":16991,"expert_loan_budgets":[7001,6635,6382],"expert_physical_bytes":19363004416,"fused_decode_plan":true,"fused_decode_plan_invocations":17279,"h2d_copy_calls":1054718,"hits":315449,"host_plan_allocations":21,"kv_cache_stages":[80000,160000,220000],"layer_cache_slots":[147,147,147,147,147,147,147,147,147,147,147,147,147,146,146,146,146,146,146,146,146,146,146,146,146,146,146,146,146,146,145,145,145,145,145,145,145,145,145,145,145,145,145,145,145,145,144,144],"layer_hits":[6220,6497,6612,6970,7006,6969,6627,6785,6523,6572,6643,6658,6980,6527,6883,5981,6448,6834,7005,6792,6832,6819,6697,6383,6670,6657,6806,6663,6953,6715,6761,5911,6325,6655,6862,6590,6371,6907,6792,5757,5803,6168,6881,6064,5988,6012,6232,6643],"layer_misses":[3849,2536,2234,844,1265,1611,2086,2022,970,787,1321,1067,1696,1289,1063,457,673,1016,1919,1221,1167,1684,2619,808,1003,853,1234,1009,1378,1182,1099,443,691,981,1949,1072,921,1287,2247,566,684,915,1259,814,1186,1264,1469,1783],"misses":63493,"packed_decode":"packed","packed_prefill":"packed","packed_transport":{"decode_experts":3380,"descriptor_h2d_calls_runtime":0,"descriptor_table_uploads":343,"direct_copy_calls_saved":10140,"payload_bytes":9345024000,"scatter_calls":3380,"target_refreshes":7},"prefill_arena":true,"prefill_copy_mode":"auto","prefill_copy_stats":{"__qwen38_columns_v1__":48,"columns":{"dense":[1,1,1,1,1,1,1,1,1,2,1,1,1,2,3,10,10,8,2,2,2,2,2,2,2,10,2,7,2,7,10,12,8,2,2,2,2,2,2,1,1,2,1,2,1,1,1,1],"heuristic_dense":[0,0,0,0,0,0,0,0,0,1,0,0,0,1,2,9,9,7,1,1,1,1,1,1,1,9,1,6,1,6,9,11,7,1,1,1,1,1,1,0,0,1,0,1,0,0,0,0],"host_missing":[4602,4821,5530,6058,5685,5966,7216,7173,7309,9291,8317,10076,9291,10539,11325,11457,11374,11865,10587,11646,11453,11301,9751,9364,10431,11602,11205,11810,10962,11790,11825,11752,11521,11698,11031,10892,9497,10173,10325,9491,9709,10491,8941,10665,12048,10992,8261,9356],"missing":[7805,7770,8493,8847,8643,8945,10454,10403,10195,12307,11257,13103,12763,13712,14638,14572,14507,15268,14374,15023,15069,15095,13678,12748,13818,15002,14710,15115,14870,15257,15429,14845,14804,15368,15085,14414,12848,13826,14215,12639,12888,14006,12561,14084,12353,11273,8475,9590],"missing_runs":[3404,3458,3866,3883,3586,3717,4105,4118,3938,3996,4096,3772,4101,3699,3595,3572,3465,3255,3916,3504,3602,3806,4187,3958,3826,3554,3459,3429,3827,3226,3258,3319,3559,3302,3783,3697,4024,3971,4066,3983,3962,3894,4162,3756,3554,3881,4234,4160],"reuse_candidates":[3073,2828,2808,2604,2785,2781,3031,2978,2608,2695,2640,2690,3171,2785,2915,2696,2711,2991,3413,2959,3197,3413,3570,2944,2984,2959,3081,2867,3504,3030,3153,2640,2827,3223,3623,3092,2997,3281,3556,2769,2773,3112,3295,3062,0,0,0,0],"sparse":[36,36,36,36,36,36,36,36,36,35,36,36,36,35,34,27,27,29,35,35,35,35,35,35,35,27,35,30,35,30,27,25,29,35,35,35,35,35,35,36,36,35,36,35,36,36,36,36]},"common":{"forced_dense":0,"resident":0,"startup_dense":1}},"prefill_dense_startup_tokens":128,"prefill_h2d_bytes":1386805574336,"prefill_host_dispatch_seconds":7.113399600144476,"prefill_reuse_cache":true,"prefill_reuse_d2d_bytes":356380986392,"prefill_reused_experts":128899,"prefill_seed_cache":true,"prefill_seed_runs":129,"prefill_tokens_seen":248302,"resident_alphas":true,"route_token_count":119708640,"route_trace_events":0,"run_invocations":19200,"slots_per_layer":133,"staging_batches":5254,"transferred_bytes":1567001624784,"warm_decode_cache":false,"warmed_experts":17611,"warmup_d2d_bytes":48691033688,"warmup_runs":129}
+[2026-10-19 00:14:09] INFO:     172.19.0.1:42376 - "POST /generate HTTP/1.1" 200 OK
+[2026-10-19 00:14:09] Prefill batch, #new-seq: 1, #new-token: 14, #cached-token: 0, full token usage: 0.00, mamba usage: 0.30, #running-req: 0, #queue-req: 0, #pending-token: 0, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 38.05
+[2026-10-19 00:14:09] Decode batch, #running-req: 1, #full token: 64, full token usage: 0.00, mamba num: 3, mamba usage: 0.30, accept len: 2.42, accept rate: 0.71, waiting-image-req: 0, cuda graph: True, gen throughput (token/s): 10.80, #queue-req: 0
+[2026-10-19 00:14:11] Endpoint '/get_server_info' is deprecated and will be removed in a future version. Please use '/server_info' instead.
+[2026-10-19 00:14:11] INFO:     172.19.0.1:33552 - "GET /get_server_info HTTP/1.1" 200 OK
+[2026-10-19 00:14:11] INFO:     172.19.0.1:33558 - "POST /generate HTTP/1.1" 200 OK
+[2026-10-19 00:14:12] Prefill batch, #new-seq: 1, #new-token: 15, #cached-token: 0, full token usage: 0.00, mamba usage: 0.30, #running-req: 0, #queue-req: 0, #pending-token: 0, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 57.65
+[2026-10-19 00:14:13] INFO:     172.19.0.1:33572 - "POST /generate HTTP/1.1" 200 OK
+[2026-10-19 00:14:14] Prefill batch, #new-seq: 1, #new-token: 16, #cached-token: 0, full token usage: 0.00, mamba usage: 0.30, #running-req: 0, #queue-req: 0, #pending-token: 0, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 61.12
+[2026-10-19 00:14:15] INFO:     172.19.0.1:33576 - "POST /generate HTTP/1.1" 200 OK
+[2026-10-19 00:14:16] Prefill batch, #new-seq: 1, #new-token: 14, #cached-token: 0, full token usage: 0.00, mamba usage: 0.30, #running-req: 0, #queue-req: 0, #pending-token: 0, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 35.50
+[2026-10-19 00:14:30] Endpoint '/get_server_info' is deprecated and will be removed in a future version. Please use '/server_info' instead.
+[2026-10-19 00:14:30] INFO:     172.19.0.1:49918 - "GET /get_server_info HTTP/1.1" 200 OK
+[2026-10-19 00:14:30] Profiling starts. Traces will be saved to: /prod/homelab-llm/models/profiles (with profile id: 1792340070.9033964)
+USDT:2026-10-19 00:14:30 173:173 SyncActivityProfilerHandler.cpp:39] profiler_start
+[2026-10-19 00:14:30] INFO:     172.19.0.1:49920 - "POST /start_profile HTTP/1.1" 200 OK
+[2026-10-19 00:14:30] Endpoint '/get_server_info' is deprecated and will be removed in a future version. Please use '/server_info' instead.
+[2026-10-19 00:14:30] INFO:     172.19.0.1:49926 - "GET /get_server_info HTTP/1.1" 200 OK
+[2026-10-19 00:14:31] Prefill batch, #new-seq: 1, #new-token: 15, #cached-token: 0, full token usage: 0.00, mamba usage: 0.30, #running-req: 0, #queue-req: 0, #pending-token: 0, waiting-image-req: 0, cuda graph: False, input throughput (token/s): 41.99
+[2026-10-19 00:14:31] Qwen38ExpertCacheStats[periodic] {"adaptive_analysis_seconds":0.0,"adaptive_cache_interval":4096,"adaptive_cache_mode":"rebalance","adaptive_cache_window":512,"adaptive_evaluations":0,"adaptive_evicted_experts":0,"adaptive_last_evaluation":null,"adaptive_last_rebalance_seconds":0.0,"adaptive_migrated_experts":0,"adaptive_rebalances":0,"adaptive_sample_drops":0,"arena_invocations":1920,"arena_loads":1920,"avg_route_tokens_per_run":3133.15,"borrowed_prefill_arena":true,"borrowed_restore_experts":3218,"borrowed_restore_runs":10,"cache_event_count":793625,"cache_hit_rate":0.8401650653646243,"cache_invocations":36480,"cache_policy":"lfu","cache_protected_fraction":0.7,"cache_slots_total":7001,"decode_alpha_h2d_calls_avoided":253698,"decode_device_gate":true,"decode_device_gate_copy_bytes":333700300800,"decode_device_gate_copy_calls":28915,"decode_device_gate_hits":7324,"decode_device_gate_invocations":36239,"decode_hit_fast_path":true,"decode_hit_fast_path_invocations":0,"decode_shared_fill_overlap_invocations":35951,"expert_loan_budgets":[7001,6635,6382],"expert_physical_bytes":19363004416,"fused_decode_plan":true,"fused_decode_plan_invocations":36239,"h2d_copy_calls":1091343,"hits":666776,"host_plan_allocations":21,"kv_cache_stages":[80000,160000,220000],"layer_cache_slots":[147,147,147,147,147,147,147,147,147,147,147,147,147,146,146,146,146,146,146,146,146,146,146,146,146,146,146,146,146,146,145,145,145,145,145,145,145,145,145,145,145,145,145,145,145,145,144,144],"layer_hits":[13085,13472,13771,14698,14754,14609,13981,14160,13702,13785,13999,13962,14706,13759,14575,12615,13618,14498,14620,14320,14408,14369,14339,13563,13991,13993,14373,14133,14659,14117,14317,12450,13401,14050,14408,13896,13534,14441,14445,12239,12313,13184,14571,12871,13077,13073,13430,14442],"layer_misses":[8295,5695,4837,1634,2584,3466,4314,4361,1900,1419,2741,2091,3458,2588,2012,641,1073,1859,4061,2316,2220,3362,5340,1459,1942,1545,2439,1914,2858,2338,2038,677,1116,1870,4006,2130,1806,2611,4629,1014,1277,1765,2552,1567,2224,2373,2968,3464],"misses":126849,"packed_decode":"packed","packed_prefill":"packed","packed_transport":{"decode_experts":6153,"descriptor_h2d_calls_runtime":0,"descriptor_table_uploads":343,"direct_copy_calls_saved":18459,"payload_bytes":17011814400,"scatter_calls":6153,"target_refreshes":7},"prefill_arena":true,"prefill_copy_mode":"auto","prefill_copy_stats":{"__qwen38_columns_v1__":48,"columns":{"dense":[1,1,1,1,1,1,1,1,1,2,1,1,1,2,3,10,10,8,2,2,2,2,2,2,2,10,2,7,2,7,10,12,8,2,2,2,2,2,2,1,1,2,1,2,1,1,1,1],"heuristic_dense":[0,0,0,0,0,0,0,0,0,1,0,0,0,1,2,9,9,7,1,1,1,1,1,1,1,9,1,6,1,6,9,11,7,1,1,1,1,1,1,0,0,1,0,1,0,0,0,0],"host_missing":[4795,4941,5630,6124,5752,6081,7334,7296,7355,9347,8373,10132,9389,10609,11414,11486,11413,11934,10683,11713,11541,11391,9900,9430,10502,11665,11274,11882,11074,11861,11908,11804,11561,11768,11132,10958,9573,10267,10458,9539,9798,10592,9040,10755,12248,11169,8443,9556],"missing":[8130,8020,8702,8986,8807,9181,10710,10651,10343,12467,11402,13236,12989,13833,14824,14724,14657,15413,14589,15148,15257,15311,13977,12911,13981,15164,14868,15249,15087,15373,15600,14997,14936,15518,15299,14539,13017,14036,14493,12794,13069,14203,12790,14257,12553,11450,8657,9790],"missing_runs":[3571,3571,3957,3945,3652,3822,4219,4231,3983,4051,4152,3827,4186,3768,3680,3601,3503,3319,4005,3563,3686,3895,4321,4021,3892,3613,3527,3500,3932,3293,3336,3371,3599,3370,3873,3760,4094,4060,4187,4030,4050,3983,4252,3842,3727,4035,4402,4334],"reuse_candidates":[3205,2958,2917,2677,2882,2902,3169,3103,2710,2799,2729,2767,3299,2836,3012,2819,2822,3067,3532,3017,3297,3539,3720,3041,3076,3058,3170,2929,3609,3075,3241,2740,2919,3303,3736,3151,3090,3397,3701,2876,2865,3208,3425,3145,0,0,0,0],"sparse":[39,39,39,39,39,39,39,39,39,38,39,39,39,38,37,30,30,32,38,38,38,38,38,38,38,30,38,33,38,33,30,28,32,38,38,38,38,38,38,39,39,38,39,38,39,39,39,39]},"common":{"forced_dense":0,"resident":0,"startup_dense":1}},"prefill_dense_startup_tokens":128,"prefill_h2d_bytes":1399039849736,"prefill_host_dispatch_seconds":7.2714668058324605,"prefill_reuse_cache":true,"prefill_reuse_d2d_bytes":368598672944,"prefill_reused_experts":133318,"prefill_seed_cache":true,"prefill_seed_runs":129,"prefill_tokens_seen":248348,"resident_alphas":true,"route_token_count":120312960,"route_trace_events":0,"run_invocations":38400,"slots_per_layer":133,"staging_batches":9563,"transferred_bytes":1758649314072,"warm_decode_cache":false,"warmed_experts":17611,"warmup_d2d_bytes":48691033688,"warmup_runs":129}
+[2026-10-19 00:14:31] Stop profiling...
+USDT:2026-10-19 00:14:31 173:173 SyncActivityProfilerHandler.cpp:46] profiler_stop

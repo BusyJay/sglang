@@ -18,6 +18,7 @@ from .cache_cost_replay import read_sweeps
 
 def worker(args):
     import torch
+
     from sglang.srt.layers.moe.qwen38_cache_threaded import Qwen38ThreadedExpertRuntime
     from sglang.srt.model_loader.qwen38_nvfp4_pack.format import (
         REQUIRED_TENSORS,
@@ -152,7 +153,11 @@ def worker(args):
                 raise ValueError("invalid migration target capacity")
             runtime.adaptive_target = target
             migration_started = time.perf_counter()
-            runtime._maybe_rebalance()
+            runtime.enqueue_adaptive_snapshot()
+            # Standalone replay has no scheduler result fence. Complete its
+            # snapshot explicitly before invoking the result-boundary callback.
+            torch.cuda.current_stream(runtime.device).synchronize()
+            runtime.adaptive_after_result()
             runtime.synchronize()
             migration_wall_s = time.perf_counter() - migration_started
             if runtime.layer_cache_slots != target:

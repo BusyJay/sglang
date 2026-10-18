@@ -2022,6 +2022,17 @@ class Scheduler(
                 self._record_scheduler_state_for_paused_engine()
                 continue
 
+            # At a cache maintenance boundary consume the queued result BEFORE allocating
+            # the next batch. This reorders its existing copy_done wait; it
+            # does not introduce a second synchronization.
+            maintenance_result_processed = False
+            if (
+                self.result_queue
+                and self.token_to_kv_pool_allocator.cache_maintenance_needs_result()
+            ):
+                pop_and_process()
+                maintenance_result_processed = True
+
             # Get the next batch to run
             plan = self.get_next_batch_to_run(
                 running_batch=self.running_batch, last_batch=self.last_batch
@@ -2035,7 +2046,7 @@ class Scheduler(
 
             # If we do not need to overlap the current batch with the last batch,
             # we can process the last batch immediately.
-            if disable_overlap_for_batch:
+            if disable_overlap_for_batch and not maintenance_result_processed:
                 pop_and_process()
                 # Opportunistic flush at the disable_overlap sync boundary:
                 # forward_stream is idle (prev forward drained, next not launched),
@@ -2058,7 +2069,7 @@ class Scheduler(
 
             # Process the last batch
             if self.last_batch:
-                if not disable_overlap_for_batch:
+                if not disable_overlap_for_batch and not maintenance_result_processed:
                     pop_and_process()
             elif batch is None:
                 # When the server is idle, do self-check and re-init some states
@@ -4582,6 +4593,11 @@ class Scheduler(
             for req in batch.reqs:
                 self.maybe_send_cached_prefix_chunk(req)
 
+        self.token_to_kv_pool_allocator.cache_maintenance_before_forward(
+            (self.chunked_prefill_size or self.max_prefill_tokens)
+            if batch.forward_mode.is_extend()
+            else batch.batch_size() * (get_spec().speculative_num_draft_tokens or 1)
+        )
         # Run forward
         if self.is_generation:
             if self.enable_overlap:
@@ -4861,6 +4877,7 @@ class Scheduler(
 
         self._maybe_report_active_ranks()
 
+        self.token_to_kv_pool_allocator.cache_maintenance_bind_result(ret)
         return ret
 
     def _maybe_report_active_ranks(self) -> None:
@@ -5031,6 +5048,7 @@ class Scheduler(
         elif batch.forward_mode.is_idle():
             self.batch_result_processor.process_batch_result_idle(batch, result)
 
+        self.token_to_kv_pool_allocator.cache_maintenance_after_result(result)
         # Submit this batch's queued host backups before the next scheduler step.
         self.tree_cache.flush_pending_backups()
 
