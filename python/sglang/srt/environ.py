@@ -1122,6 +1122,8 @@ class Envs:
     # ===================================================================
     # FlashInfer, FlashMLA, and TRT-LLM
     # ===================================================================
+    # Experimental cached NVFP4 W4A16 launch adapter, pinned to FlashInfer 0.7.2.
+    SGLANG_OPT_QWEN38_B12X_PREPARED_LAUNCH = EnvBool(False)
     SGLANG_IS_FLASHINFER_AVAILABLE = EnvBool(True)
     SGLANG_FLASHINFER_USE_PAGED = EnvBool(False)
     # Default to the pick from flashinfer
