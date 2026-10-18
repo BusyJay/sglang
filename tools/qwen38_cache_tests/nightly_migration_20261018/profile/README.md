@@ -7,7 +7,7 @@
 
 ## 结论与建议优先级
 
-1. **优先看 expert cache miss 的 mapped-host fill。** 两次轻量采样中，它占
+1. **优先看 expert cache miss 的 mapped-host fill。** A/C 两次轻量采样中，它占
    target verify GPU 时间窗口的 **38.1%–47.9%**，每个 verify 共
    **7.34–10.94 ms**。其中 **6.47–9.71 ms** 没有与其他已记录 GPU 工作重叠。
    这是时间线观察，不等于消除 fill 就能直接节省同样时长。
@@ -64,6 +64,24 @@ B12X launch、CUDA API、aten 的 CPU 时间有嵌套，不能再相加。
 `_small_m_direct_supported` 为 1536 次，即 2 次/launch。
 `compile_plan.__call__` 是已编译程序的调用路径，函数名和调用次数不代表每次都在 JIT 编译。
 
+## 新请求补采 D 与业务请求边界澄清
+
+第三次采样后的日志空档，经用户确认是业务推理已经结束；用户随后重新发起请求。
+之前仅凭 GPU 空闲、没有新 decode 日志和单次 event 同步栈，推断为 scheduler
+卡住，依据不足，已撤回该判断。没有重启或取消任何请求。
+
+新请求上于 **16:14:30** 开始采集 16 个 verify，**16:14:32** 导出完成。
+导出后 **16:14:33 / 16:14:42** 均观察到新的 decode 日志，分别为
+62.42 / 77.68 token/s（前者窗口含采样/导出开销），确认业务继续推进。
+
+D 的 CPU verify 均值 18.19 ms，GPU 窗口均值 22.87 ms；mapped-host fill
+11.06 ms/verify，占 GPU 窗口 48.4%，其中 9.78 ms 未与其他已记录 GPU 工作重叠。
+MXFP8 GEMM 去重后 3.48 ms，B12X GPU 2.93 ms，B12X launch CPU inclusive
+6.04 ms。瓶颈排序与 A/C 一致。
+
+原始数据是 `live-new-request-16steps.trace.json.gz`，统计见
+`new-request-analysis.json`，采样前配置见 `new-request-server.json`。
+
 ## 为什么普通 HtoD memcpy 统计看不到主要搬运
 
 `python/sglang/kernels/jit/csrc/moe/qwen38_expert_cache.cu` 的
@@ -109,7 +127,11 @@ B12X launch、CUDA API、aten 的 CPU 时间有嵌套，不能再相加。
 约 0.08 GiB。附近也有低吞吐窗口。本次 trace 没有覆盖该加载瞬间，
 无法把停顿归因于它；建议后续单独调查 QSA 新形状懒加载/预热和显存余量。
 
-采样期间服务持续运行，所有 capture 都由 `num_steps` 自动结束。
+采样未重启容器，所有 capture 都由 `num_steps` 自动结束。
+第三次采样后的 decode 日志空档，经用户确认是该业务请求已经结束，
+随后用户发起了新请求。GPU 空闲和没有新 decode 日志不能单独证明 scheduler 卡住；
+单次线程栈停在 `copy_done.synchronize()` 也不能证明持续死锁。
+新请求已观察到持续 decode，并补采了轻量 profile D。
 stack trace 导出需要约 11 秒，轻量 trace 导出约 3 秒，相关时间已记录。
 这些 profiler/导出窗口的日志吞吐包含观察开销，不能当线上稳定性能基线。
 
@@ -118,6 +140,7 @@ stack trace 导出需要约 11 秒，轻量 trace 导出约 3 秒，相关时间
 - `live-24steps.trace.json.gz`：A，原始 CPU/GPU trace。
 - `live-stacks-16steps.trace.json.gz`：B，原始 trace、完整 Python 栈和 shape。
 - `live-confirm-32steps.trace.json.gz`：C，第二次轻量采样。
+- `live-new-request-16steps.trace.json.gz`：D，用户重新发起请求后的轻量采样。
 - `live-analysis.json`、`stack-analysis.json`、`confirm-analysis.json`：
   每组 kernel/CPU/API 统计、重叠、每步时长，保留原始 kernel 名称。
 - `live-server.json`、`stack-server.json`、`confirm-server.json`：采样前运行配置。
