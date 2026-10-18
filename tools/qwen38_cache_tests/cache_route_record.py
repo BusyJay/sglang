@@ -62,12 +62,17 @@ def install():
     original = Qwen38ThreadedExpertRuntime.run
     recorder = None
     owner = None
+    # An isolated server can execute synthetic verify calls during graph setup.
+    # Arm only after readiness, immediately before the one recorded request.
+    arm_path = os.environ.get("QWEN38_ROUTE_RECORD_ARM")
 
     def record(
         self, layer_id, topk_ids, execute, *, execution_phase=None, during_fill=None
     ):
         nonlocal recorder, owner
-        if execution_phase == "verify":
+        if execution_phase == "verify" and (
+            arm_path is None or Path(arm_path).exists()
+        ):
             if recorder is None:
                 recorder = RouteRecorder(
                     path,

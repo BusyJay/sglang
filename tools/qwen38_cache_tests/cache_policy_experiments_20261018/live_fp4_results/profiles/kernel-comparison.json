@@ -1,0 +1,58 @@
+{
+  "lfu": {
+    "total_kernel_us": 70227.572,
+    "kernel_count": 1152,
+    "kernels": [
+      {
+        "name": "void (anonymous namespace)::mailbox_fill_kernel<true>(int const*, long const*, int, int const volatile*)",
+        "calls": 384,
+        "total_us": 59379.236,
+        "mean_us": 154.63342708333332,
+        "gpu_share_pct": 84.55259709106845
+      },
+      {
+        "name": "(anonymous namespace)::decode_plan_kernel(int const*, int*, int*, int*, int*, float*, long*, long*, long*, int*, int, int, int, float, int, int, bool, long*, int*, int)",
+        "calls": 384,
+        "total_us": 10316.775,
+        "mean_us": 26.866601562499998,
+        "gpu_share_pct": 14.690490794698126
+      },
+      {
+        "name": "(anonymous namespace)::alpha_scatter_kernel(float const*, float const*, float*, float*, int const*, int, int)",
+        "calls": 384,
+        "total_us": 531.561,
+        "mean_us": 1.3842734375,
+        "gpu_share_pct": 0.7569121142334239
+      }
+    ],
+    "gpu_span_us": 70990.06298828125
+  },
+  "lru": {
+    "total_kernel_us": 124515.131,
+    "kernel_count": 1152,
+    "kernels": [
+      {
+        "name": "void (anonymous namespace)::mailbox_fill_kernel<true>(int const*, long const*, int, int const volatile*)",
+        "calls": 384,
+        "total_us": 73149.37,
+        "mean_us": 190.49315104166666,
+        "gpu_share_pct": 58.74737424482171
+      },
+      {
+        "name": "(anonymous namespace)::decode_plan_kernel(int const*, int*, int*, int*, int*, float*, long*, long*, long*, int*, int, int, int, float, int, int, bool, long*, int*, int)",
+        "calls": 384,
+        "total_us": 50828.506,
+        "mean_us": 132.36590104166666,
+        "gpu_share_pct": 40.821148073963805
+      },
+      {
+        "name": "(anonymous namespace)::alpha_scatter_kernel(float const*, float const*, float*, float*, int const*, int, int)",
+        "calls": 384,
+        "total_us": 537.255,
+        "mean_us": 1.3991015625,
+        "gpu_share_pct": 0.4314776812145023
+      }
+    ],
+    "gpu_span_us": 125253.17602539062
+  }
+}

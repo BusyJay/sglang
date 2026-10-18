@@ -18,7 +18,6 @@ from .cache_cost_replay import read_sweeps
 
 def worker(args):
     import torch
-
     from sglang.srt.layers.moe.qwen38_cache_threaded import Qwen38ThreadedExpertRuntime
     from sglang.srt.model_loader.qwen38_nvfp4_pack.format import (
         REQUIRED_TENSORS,
@@ -77,6 +76,12 @@ def worker(args):
                     records.append(row)
         if len(records) != len(sweeps) * manifest.num_layers:
             raise ValueError("record/sweep count mismatch")
+        if args.correctness:
+            # Payload readback is deliberately separate from performance data.
+            # Keep the full warm prefix, then check every layer/tensor for a
+            # bounded set of sweeps rather than repeatedly copying hundreds of GB.
+            sweeps = sweeps[: args.warmup + args.correctness_sweeps]
+            records = records[: len(sweeps) * manifest.num_layers]
         routes = [
             torch.tensor(r["routes"], dtype=torch.int32, device="cuda") for r in records
         ]
@@ -122,13 +127,23 @@ def worker(args):
         runtime.synchronize()
         before = runtime.stats_snapshot()
         started = time.perf_counter()
-        for ids, row in zip(routes[boundary:], records[boundary:]):
+        for index, (ids, row) in enumerate(
+            zip(routes[boundary:], records[boundary:]), 1
+        ):
             runtime.run(
                 row["layer"],
                 ids,
                 lambda prepared: execute(prepared, row),
                 execution_phase="verify",
             )
+            if args.correctness and index % (manifest.num_layers * 16) == 0:
+                print(
+                    "payload-checked sweeps:",
+                    index // manifest.num_layers,
+                    "/",
+                    len(sweeps) - args.warmup,
+                    flush=True,
+                )
         runtime.synchronize()
         elapsed = time.perf_counter() - started
         after = runtime.stats_snapshot()
@@ -139,6 +154,10 @@ def worker(args):
             "h2d_copy_calls",
             "decode_direct_misses",
             "decode_direct_hits",
+            "decode_device_gate_invocations",
+            "decode_device_gate_hits",
+            "decode_device_gate_copy_bytes",
+            "decode_device_gate_copy_calls",
         ]
         delta = {
             k: after[k] - before[k]
@@ -189,6 +208,7 @@ def main():
     p.add_argument("--layout", type=Path)
     p.add_argument("--rounds", type=int, default=3)
     p.add_argument("--correctness", action="store_true")
+    p.add_argument("--correctness-sweeps", type=int, default=16)
     p.add_argument(
         "--output",
         type=Path,
@@ -199,6 +219,8 @@ def main():
     p.add_argument("--policy", choices=["lfu", "lru", "slru"], default="lfu")
     p.add_argument("--protected-fraction", type=float, default=0.7)
     args = p.parse_args()
+    if args.correctness_sweeps < 1:
+        p.error("positive correctness sweep count required")
     if args.worker:
         worker(args)
         return
@@ -244,9 +266,14 @@ def main():
                 command.extend(["--layout", str(args.layout)])
             if args.correctness:
                 command.append("--correctness")
+                command.extend(["--correctness-sweeps", str(args.correctness_sweeps)])
             with output.with_suffix(".log").open("w") as log:
                 subprocess.run(
-                    command, stdout=log, stderr=subprocess.STDOUT, check=True
+                    command,
+                    stdout=log,
+                    stderr=subprocess.STDOUT,
+                    check=True,
+                    timeout=900,
                 )
             runs.append(
                 dict(repeat=repeat, policy=policy, fraction=fraction, file=output.name)

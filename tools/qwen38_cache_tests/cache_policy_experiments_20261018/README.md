@@ -15,9 +15,15 @@ Python (adapt repository paths to your existing image):
 ```bash
 export QWEN38_ROUTE_RECORD_PATH=/results/verify-routes.jsonl
 export QWEN38_ROUTE_RECORD_SWEEPS=2048
+export QWEN38_ROUTE_RECORD_ARM=/results/verify-routes.armed
 export PYTHONPATH=/workspace/sglang/tools/qwen38_cache_tests/cache_policy_experiments_20261018/record_overlay:/workspace/sglang/python:/workspace/sglang
 # Start the normal server using your existing launcher and send ONE request.
 ```
+
+Use a fresh, initially absent arm path. After the isolated server is ready,
+create that file immediately before sending the single recording request.
+This excludes synthetic verify calls made during graph setup. The route tape
+must still be absent before arming. Never expose this worker to business traffic.
 
 The overlay wraps only the target threaded runtime entry point and records
 `execution_phase=verify` before remapping. Original per-token ID order and
@@ -85,7 +91,7 @@ First run exact payload checks, then run separate timing processes:
 ```bash
 python -m tools.qwen38_cache_tests.cache_transport_replay \
   --trace /results/verify-routes.jsonl --manifest /data/pack/manifest.json \
-  --budget 6390 --warmup 128 --rounds 1 --correctness \
+  --budget 6390 --warmup 128 --rounds 1 --correctness --correctness-sweeps 16 \
   --output /results/policy-parity
 python -m tools.qwen38_cache_tests.cache_transport_replay \
   --trace /results/verify-routes.jsonl --manifest /data/pack/manifest.json \
@@ -99,6 +105,8 @@ All policies retain actual GPU planner/remapping, fill and runtime events;
 miss plans intentionally differ because they are the algorithm's outcome.
 Timing synchronizes only at interval boundaries. Correctness mode compares
 all routed payload tensors with the source pack and is excluded from timing.
+It checks every layer and tensor for the first 16 sweeps after the complete
+warmup prefix by default; raise `--correctness-sweeps` for a larger payload audit.
 To compare layouts for one policy, use `--worker --policy lfu --layout layout.json`
 with fresh output files; the declared budget must exactly match the layout.
 Archive the per-run reports and compare wall time, miss counters and bytes.
@@ -108,8 +116,8 @@ inspect complete before/after snapshots rather than only transferred_bytes.
 This is TRANSPORT ONLY: no B12X compute, shared expert, attention, GDN or draft
 execution is timed. Prepared-launch optimization therefore cannot be evaluated
 with this harness. No full-model graph segmentation or state restoration is
-claimed. Local host has no GPU: this new GPU runner has passed CPU import/syntax
-checks but real-pack execution is pending user validation. Cold compilation or
+claimed. The transfer package initially contained CPU import/syntax checks only.
+Local GPU results are now documented in [LIVE_REPORT.md](LIVE_REPORT.md). Cold compilation or
 shape paths not touched by warmup can still enter the interval; inspect logs.
 
 ## First offline results on archived real verify routes
@@ -149,7 +157,8 @@ and calibration must reflect that actual transport. Overlap opportunity belongs
 to the model dependency chain, which this transport-only replay omits.
 
 CPU validation: existing 334 regressions and four new recording/cost invariants passed.
-New GPU replay passed imports/syntax only; hardware execution remains pending.
+The original transfer was CPU-only; subsequent real-pack GPU replay and payload
+validation are documented in [LIVE_REPORT.md](LIVE_REPORT.md).
 
 CPU regressions, complete result JSONs, chosen LFU layouts and a small transfer
 package accompany this experiment. No GPU performance result is claimed here.

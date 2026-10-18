@@ -1,0 +1,21 @@
+Triage View
+Mode: single-trace
+Framework: SGLang
+Input traces: /home/user/workspace/prod/homelab-llm/models/cache-policy-live-20261018-r2/profiles/lfu-decode.trace.json
+
+Kernel Table
+##### decode
+| Kernel | Category | GPU time | Share | Launches | Python location (site share) | CPU op |
+| --- | --- | ---: | ---: | ---: | --- | --- |
+| void (anonymous namespace)::mailbox_fill_kernel<true> | memory | 59.38 ms | 84.6% | 384 | python/sglang/srt/layers/moe/qwen38_cache_mailbox.py:203 submit_fill | cudaLaunchKernel |
+| (anonymous namespace)::decode_plan_kernel(int const*, int*, int*, int*, int*, float*, long*, long*, long*, int*, int, int, int, float, int, int, bool, long*, int*, int) | other | 10.32 ms | 14.7% | 384 | python/sglang/srt/layers/moe/qwen38_cache_mailbox.py:131 run | cudaLaunchKernel |
+
+Overlap Opportunity Table
+| Priority | Verdict | Kernel | Python scope | Formal signal | Dep risk | Recommendation |
+| --- | --- | --- | --- | --- | --- | --- |
+| - | - | No rows cleared the 1.0% reporting bar. Use mapping/formal mode for overlap attribution. | - | - | - | - |
+
+Fuse Opportunity Table
+| Pattern | Confidence | Related GPU time | Share | Evidence kernels | Current kernel Python location | Candidate fused Python path | Rationale |
+| --- | --- | ---: | ---: | --- | --- | --- | --- |
+| No medium-confidence source-backed fusion opportunity matched this trace. | - | - | - | - | - | - | - |
