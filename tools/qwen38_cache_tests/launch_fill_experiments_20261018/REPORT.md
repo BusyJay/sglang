@@ -82,6 +82,11 @@ CPU 提交优化没有收益；原先以此解释服务结果的因果推断撤�
 不能排除被噪声掩盖的真实收益，也没有建立“无实际收益”的等效性结论。
 当前 CTA=8 是临时沿用；没有回退镜像、合并代码或既有 B12X 后端。
 
+当前开关由挂载的 `sglang-fp4-local.sh` 显式 export，已从活动 YAML 删除。
+修改脚本后普通 `docker restart homelab-llm` 即生效，旧容器中的同名环境值会被覆盖。
+具体位置及核验方法见 [部署说明](deployment/README.md)。历史 A/B 的 YAML override
+记录保留为原始证据，不再用于当前测试脚本。
+
 ## Fill、DMA 与 prefill 的选择依据
 
 `results/fill-prefill-overlap.json.gz` 含 684 个 fill、270 个独立 GEMM 重叠、108 个
