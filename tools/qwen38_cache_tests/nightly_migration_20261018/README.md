@@ -122,3 +122,9 @@ Configuration lives under `/home/user/workspace/prod/homelab-llm` in
 `models/fp4-local.yml`, `models/catalog.json` and
 `home-jay/remote-mapping/llm/sglang-fp4-local.sh`. The pre-migration copies are
 under `model-backups/nightly-b12x-20261018`. Continue using `./llmctl fp4-local`.
+
+## Live profiling follow-up
+
+2026-10-18: CPU/GPU traces from running production requests, overlap-aware
+analysis, Python stacks/shapes and review directions are in [profile/README.md](profile/README.md).
+This follow-up preserves the deployed runtime implementation and configuration.
