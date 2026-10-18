@@ -50,14 +50,27 @@ def worker(args):
             "capacity must hold 3-token top-k bound and fit experts; arena excluded"
         )
     pack = Qwen38ExpertPack(manifest)
-    runtime = Qwen38ThreadedExpertRuntime(
+    migration_ready = getattr(args, "migration_ready", False)
+    if getattr(args, "migrate_layout", None) and not migration_ready:
+        raise ValueError("migration requires --migration-ready for every candidate")
+
+    class ReplayRuntime(Qwen38ThreadedExpertRuntime):
+        def _sample_position(self, layer, topk_ids):
+            # Layouts were selected using training data only. Keep the actual
+            # adaptive pool/migration path, without asynchronous reselection.
+            if migration_ready:
+                return None
+            return super()._sample_position(layer, topk_ids)
+
+    runtime = ReplayRuntime(
         pack,
         torch.device("cuda"),
         slots_per_layer=min(layout),
         layer_cache_slots=layout,
         cache_policy="lfu" if args.policy == "lfu" else "slru",
         cache_protected_fraction=0 if args.policy == "lru" else args.protected_fraction,
-        adaptive_cache=False,
+        adaptive_cache=migration_ready,
+        adaptive_cache_mode="sample",
         stats_log_interval=0,
     )
     try:
@@ -125,6 +138,25 @@ def worker(args):
                 row["layer"], ids, lambda prepared: None, execution_phase="verify"
             )
         runtime.synchronize()
+        prefix_stats = runtime.stats_snapshot()
+        migration_wall_s = 0.0
+        if getattr(args, "migrate_layout", None):
+            target = json.loads(args.migrate_layout.read_text())
+            if len(target) != len(layout) or sum(target) != args.budget:
+                raise ValueError("migration target must preserve the exact budget")
+            if any(
+                type(c) is not int
+                or not 3 * manifest.top_k <= c <= manifest.num_experts
+                for c in target
+            ):
+                raise ValueError("invalid migration target capacity")
+            runtime.adaptive_target = target
+            migration_started = time.perf_counter()
+            runtime._maybe_rebalance()
+            runtime.synchronize()
+            migration_wall_s = time.perf_counter() - migration_started
+            if runtime.layer_cache_slots != target:
+                raise RuntimeError("migration did not install requested layout")
         before = runtime.stats_snapshot()
         started = time.perf_counter()
         for index, (ids, row) in enumerate(
@@ -172,6 +204,11 @@ def worker(args):
             policy=args.policy,
             protected_fraction=args.protected_fraction,
             layout=layout,
+            final_layout=list(runtime.layer_cache_slots),
+            migration_ready=migration_ready,
+            migration_wall_s=migration_wall_s,
+            inclusive_wall_s=None if args.correctness else elapsed + migration_wall_s,
+            prefix_stats=prefix_stats,
             budget=args.budget,
             warmup_sweeps=args.warmup,
             measured_sweeps=len(sweeps) - args.warmup,
@@ -206,6 +243,8 @@ def main():
     p.add_argument("--budget", type=int, default=6390)
     p.add_argument("--warmup", type=int, default=128)
     p.add_argument("--layout", type=Path)
+    p.add_argument("--migration-ready", action="store_true")
+    p.add_argument("--migrate-layout", type=Path)
     p.add_argument("--rounds", type=int, default=3)
     p.add_argument("--correctness", action="store_true")
     p.add_argument("--correctness-sweeps", type=int, default=16)
@@ -264,6 +303,10 @@ def main():
                 command.extend(["--case", args.case])
             if args.layout:
                 command.extend(["--layout", str(args.layout)])
+            if args.migration_ready:
+                command.append("--migration-ready")
+            if args.migrate_layout:
+                command.extend(["--migrate-layout", str(args.migrate_layout)])
             if args.correctness:
                 command.append("--correctness")
                 command.extend(["--correctness-sweeps", str(args.correctness_sweeps)])

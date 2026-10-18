@@ -1,5 +1,10 @@
 # Reproducible cache-policy and fill-cost experiments
 
+Local GPU reports: [eviction policies](LIVE_REPORT.md) and
+[capacity allocation with real migration](CAPACITY_REPORT.md). The capacity
+supplement fixes LFU, trains on a common prefix, migrates the actual uniform
+cache, and measures held-out transport plus migration cost with five repeats.
+
 Production behavior is unchanged. Three separate tools are supplied:
 record target verify routes; replay policies on CPU with isolated fill-cost
 estimates; replay actual planner/fill with the real pack on GPU. A fixed route

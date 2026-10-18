@@ -1,5 +1,7 @@
 # FP4-Local cache 策略实测：固定路由与真实 GPU 搬运
 
+容量分配的后续 GPU 对照已补齐，见 [CAPACITY_REPORT.md](CAPACITY_REPORT.md)：固定 LFU，比较均匀布局、现网分配器及两个 patch 目标，包含真实迁移暂停和迁移后留出段。本文保留最初淘汰策略实验结果。
+
 结论：**在本次两份固定路由上，当前实现的衰减 LFU 最快。** SLRU(0.8) 是最接近的候选，但仍多耗时约 32%–33%；LRU 多耗时约 60%–63%。差异明显超过这批测量的重复噪声。没有据此切换线上淘汰算法。
 
 新包原始提交 `3baf2f484d61c9bdfecfbca87ff81cd3e88e5ce5` 已从 `6b7af74a22` 快进合入 `qwen3.8-flash-next-offload`。本提交另保存录制与实验集成修正、原始结果和诊断 trace。模型运行代码与 CUDA kernel 没有修改。语言服务已恢复、HTTP health=200，ViT 未重启；原生产启动脚本 SHA256 与实验前相同，prepared=1、fill CTA=adaptive 仍生效。
