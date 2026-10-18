@@ -77,12 +77,17 @@ class DecodeMissMailbox:
         # Every transport shares the pack's one private source mapping. CUDA
         # materializes COW pages once; no second read-only mapping is retained.
         from sglang.srt.layers.moe.qwen38_observation import observe
+
         with observe("source_mapping", device=runtime.device, startup=True):
             self.pack_mapping = runtime.pack.cuda_source_mapping()
         self.pack_view = torch.frombuffer(self.pack_mapping, dtype=torch.uint8)
         with torch.cuda.device(runtime.device):
-            with observe("host_register_and_device_pointer", device=runtime.device,
-                         startup=True, source_bytes=self.pack_view.nbytes):
+            with observe(
+                "host_register_and_device_pointer",
+                device=runtime.device,
+                startup=True,
+                source_bytes=self.pack_view.nbytes,
+            ):
                 self.pack_address = _module().mailbox_register(self.pack_view)
         with observe("discard_source_cache", device=runtime.device, startup=True):
             runtime.pack.discard_source_file_cache()
@@ -244,10 +249,12 @@ class DecodeMissMailbox:
         # The watchdog never submits CUDA work.
         self.failed[0] = 1
 
-    def refresh_targets(self):
+    def refresh_targets(self, *, non_blocking=False):
         r = self.runtime
-        self.layouts = {
-            layer: torch.tensor(
+        self.upload_hosts = []
+        self.layouts = {}
+        for layer in self.sizes:
+            table = torch.tensor(
                 [
                     [
                         r.caches[layer][name].data_ptr(),
@@ -257,10 +264,13 @@ class DecodeMissMailbox:
                     for name, size in zip(r.decode_copy_names, self.sizes[layer])
                 ],
                 dtype=torch.int64,
-                device=r.device,
+                device="cpu" if non_blocking else r.device,
+                pin_memory=non_blocking,
             )
-            for layer in self.sizes
-        }
+            if non_blocking:
+                self.upload_hosts.append(table)
+                table = table.to(r.device, non_blocking=True)
+            self.layouts[layer] = table
 
     @property
     def device_bytes(self):

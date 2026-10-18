@@ -95,6 +95,7 @@ class QSATokenToKVPool(HybridLinearKVPool):
         quant_method=None,
         post_capture_active: bool = False,
         qsa_indexer_dtype: torch.dtype = torch.bfloat16,
+        staged_expert_runtime=None,
     ):
         if page_size <= 1 or page_size % qsa_compress_ratio != 0:
             raise ValueError(
@@ -126,7 +127,17 @@ class QSATokenToKVPool(HybridLinearKVPool):
             full_kv_pool_class=full_kv_pool_class,
             quant_method=quant_method,
             post_capture_active=post_capture_active,
+            staged_initial_tokens=(
+                staged_expert_runtime.kv_cache_stages[0]
+                if staged_expert_runtime is not None
+                else None
+            ),
         )
+        self.staged_expert_runtime = staged_expert_runtime
+        if staged_expert_runtime is not None:
+            from sglang.srt.mem_cache.qwen38_kv_stages import prepare_expert_loan
+
+            prepare_expert_loan(staged_expert_runtime, self.full_kv_pool)
         if (
             min(
                 qsa_index_kv_heads,

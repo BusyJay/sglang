@@ -605,6 +605,32 @@ class VmmReservation:
         self._mappings.append((address, size, handle))
         return handle
 
+    def release_mapping(self, offset: int, size: int) -> None:
+        """Release an entire owned mapping after the caller has drained readers.
+
+        Partial-handle unmapping is deliberately unsupported (including GB300).
+        """
+        if self._closed:
+            raise RuntimeError("VmmReservation.release_mapping after close")
+        address = self.base + int(offset)
+        index = next(
+            (
+                i
+                for i, (va, span, _) in enumerate(self._mappings)
+                if va == address and span == int(size)
+            ),
+            None,
+        )
+        if index is None:
+            raise ValueError("release requires an exact existing mapping")
+        _, span, handle = self._mappings[index]
+        drv = _get_cuda_driver()
+        check_drv(drv.cuMemUnmap(address, span), "cuMemUnmap(release)")
+        # Once unmapped, teardown must not attempt to unmap it again.
+        self._mappings.pop(index)
+        if handle is not None:
+            check_drv(drv.cuMemRelease(handle), "cuMemRelease(release)")
+
     def map_existing(self, offset: int, size: int, handle) -> None:
         """Map a caller-owned physical allocation into this reservation."""
         if self._closed:

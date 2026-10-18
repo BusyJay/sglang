@@ -57,7 +57,7 @@ class AdaptiveMetadataBuffers:
                 tensor.fill_(-1 if name in ("lookup", "keys") else 0)
         return state
 
-    def restore(self, layer, state, records):
+    def restore(self, layer, state, records, *, non_blocking=False):
         """Stage policy on CPU, then copy into existing GPU storage."""
         host = self.host[layer]
         for name, tensor in host.items():
@@ -70,7 +70,7 @@ class AdaptiveMetadataBuffers:
             host["generation"][slot] = 1
         host["clock"][0] = max((record[2] for record in records), default=0)
         for name, tensor in host.items():
-            state[name].copy_(tensor[: state[name].numel()])
+            state[name].copy_(tensor[: state[name].numel()], non_blocking=non_blocking)
 
     def nbytes(self):
         return sum(

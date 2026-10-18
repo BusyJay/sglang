@@ -346,6 +346,8 @@ class GenerateReqInput:
     # Snapshot of encoder URLs at the time tokenizer-side computed
     # ``num_items_assigned``.
     encoder_urls: Optional[List[str]] = None
+    # Internal: immutable media descriptions for scheduler-side cache lookup.
+    deferred_encoder_items: Optional[List[Dict[str, Any]]] = None
 
     # Multimodal tiling controls (extensions)
     max_dynamic_patch: Optional[int] = None
@@ -1150,6 +1152,8 @@ class TokenizedGenerateReqInput(BaseReq, kw_only=True):
     # encoder_idx assignments stay consistent in the scheduler subprocess.
     # Internal IPC only.
     encoder_urls: Optional[List[str]] = None
+    # Internal: immutable media descriptions for scheduler-side cache lookup.
+    deferred_encoder_items: Optional[List[Dict[str, Any]]] = None
 
     # Pre-computed delimiter indices for multi-item scoring
     multi_item_delimiter_indices: Optional[List[int]] = None

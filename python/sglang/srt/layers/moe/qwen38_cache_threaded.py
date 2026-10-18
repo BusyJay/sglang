@@ -145,6 +145,9 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         self.packed_transport = None
         self.profiler = None
         super().__init__(pack, device, **kwargs)
+        # Extra adaptive/borrowed slots are a cache budget, not a reason to
+        # switch short prefills away from the batched arena transport.
+        self.prefill_layer_slots = tuple(self.layer_cache_slots)
         if not isinstance(adaptive_cache, bool):
             raise ValueError("adaptive_cache must be a boolean")
         self.adaptive_cache = adaptive_cache
@@ -236,6 +239,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         self.adaptive_samples = None
         self.adaptive_worker = None
         self.adaptive_target = None
+        self.adaptive_pending = None
         self.adaptive_lock = threading.Lock()
         self.adaptive_rebalances = 0
         self.adaptive_sample_drops = 0
@@ -274,9 +278,22 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         if self.adaptive_cache:
             budget = sum(self.layer_cache_slots)
             first = self.manifest.tensors[0]
-            self.cache_pool = {}
+            if getattr(self, "kv_cache_stages", None):
+                from sglang.srt.layers.moe.qwen38_staged_pool import StagedExpertPool
+
+                self.staged_pool = StagedExpertPool(
+                    self.manifest,
+                    self.device,
+                    self.layer_cache_slots,
+                    getattr(self, "adaptive_min_slots", self.manifest.top_k),
+                )
+                self.cache_pool = self.staged_pool.pool_views(budget)
+            else:
+                self.cache_pool = {}
             for name in REQUIRED_TENSORS:
                 memory_mark(probe, "adaptive.pool." + name + ".before")
+                if hasattr(self, "staged_pool"):
+                    continue
                 self.cache_pool[name] = torch.zeros(
                     (budget, *first[name].shape[1:]),
                     dtype=getattr(torch, first[name].dtype),
@@ -302,6 +319,8 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
                 self.manifest.num_experts,
                 budget - (self.manifest.num_layers - 1) * minimum,
             )
+            if hasattr(self, "staged_pool"):
+                maximum = self.manifest.num_experts
             self.adaptive_metadata = AdaptiveMetadataBuffers(
                 self.manifest.num_layers,
                 self.manifest.num_experts,
@@ -315,7 +334,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
             self.adaptive_samples = queue.Queue(maxsize=4096)
         if (
             self.prefill_arena
-            and self.cache_pool is not None
+            and self.cache_pool
             and os.getenv("SGLANG_QWEN38_BORROW_PREFILL_ARENA", "1") == "1"
             and budget >= self.manifest.num_experts
         ):
@@ -407,6 +426,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
 
     def _host_range(self, kind):
         from sglang.srt.layers.moe.qwen38_observation import observe
+
         return (
             self.profiler.host_range(kind)
             if self.profiler is not None
@@ -489,7 +509,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         )
         return (cycle, index) if index < self.adaptive_cache_window else None
 
-    def _migrate_pool(self, target):
+    def _migrate_pool(self, target, snapshot):
         from sglang.srt.layers.moe.qwen38_cache_adaptive import relocate_slots
 
         old_offsets = []
@@ -504,10 +524,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         retained = {}
         occupied = evicted = 0
         for layer, new_slots in enumerate(target):
-            state = self.device_states[layer]
-            keys = state["keys"].cpu().tolist()
-            frequency = state["frequency"].cpu().tolist()
-            ages = state["ages"].cpu().tolist()
+            keys, frequency, ages = snapshot[layer]
             residents = [slot for slot, expert in enumerate(keys) if expert >= 0]
             occupied += len(residents)
             residents.sort(key=lambda slot: (-frequency[slot], -ages[slot]))
@@ -533,14 +550,17 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
     def _restore_device_policy(self, retained):
         for layer, records in retained.items():
             state = self.device_states[layer]
-            self.adaptive_metadata.restore(layer, state, records)
+            self.adaptive_metadata.restore(layer, state, records, non_blocking=True)
 
     def _registered_prefill_enabled(self):
-        return (os.getenv("SGLANG_QWEN38_PREFILL_REGISTERED_DMA", "1") == "1"
-                and self.miss_mailbox is not None)
+        return (
+            os.getenv("SGLANG_QWEN38_PREFILL_REGISTERED_DMA", "1") == "1"
+            and self.miss_mailbox is not None
+        )
 
     def _registered_prefill_copy(self, layer, runs):
         from sglang.kernels.ops.moe.qwen38_expert_cache import _module
+
         with self._host_range("registered_prefill_enqueue"):
             with torch.cuda.stream(self.transfer):
                 # pack_view/arena belong to the runtime and remain alive until drain.
@@ -550,9 +570,11 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
                     row_bytes = record.nbytes // self.manifest.num_experts
                     for first, end in runs:
                         begin = record.offset + first * row_bytes
-                        count = (end-first) * row_bytes
-                        target = self.arena[name][first:end].reshape(-1).view(torch.uint8)
-                        _module().registered_copy(target, source[begin:begin+count])
+                        count = (end - first) * row_bytes
+                        target = (
+                            self.arena[name][first:end].reshape(-1).view(torch.uint8)
+                        )
+                        _module().registered_copy(target, source[begin : begin + count])
                         self.transferred_bytes += count
                         self.h2d_copy_calls += 1
                 self.ready = torch.cuda.Event()
@@ -560,7 +582,9 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
 
     def _fill_arena(self, layer_id):
         if self._registered_prefill_enabled():
-            return self._registered_prefill_copy(layer_id, [(0, self.manifest.num_experts)])
+            return self._registered_prefill_copy(
+                layer_id, [(0, self.manifest.num_experts)]
+            )
         return super()._fill_arena(layer_id)
 
     def _fill_arena_selected(self, layer, experts):
@@ -729,6 +753,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
                         continue
                     with self.adaptive_lock:
                         current = list(self.layer_cache_slots)
+                        budget = sum(current)
                     request = dict(
                         routes=routes,
                         current=current,
@@ -737,7 +762,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
                         min_slots=getattr(
                             self, "adaptive_min_slots", self.manifest.top_k
                         ),
-                        budget=next(iter(self.cache_pool.values())).shape[0],
+                        budget=budget,
                         policy=self.cache_policy,
                         protected_fraction=self.cache_protected_fraction,
                     )
@@ -766,7 +791,11 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
                         and self.adaptive_cache_mode == "rebalance"
                     ):
                         with self.adaptive_lock:
-                            self.adaptive_target = reply["target"]
+                            if (
+                                self.layer_cache_slots == current
+                                and self.adaptive_pending is None
+                            ):
+                                self.adaptive_target = reply["target"]
             except BaseException:
                 logger.exception("Disabling adaptive expert-cache analysis")
                 self.adaptive_cache = False
@@ -777,7 +806,179 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
                     release()
                 self.adaptive_samples.task_done()
 
-    def _maybe_rebalance(self):
+    def initialize_staged_layout(self):
+        """Publish initial adaptive budget after target KV construction."""
+        from sglang.srt.mem_cache.qwen38_kv_stages import distribute_slots
+
+        budget = self.staged_pool.budgets[0]
+        target = distribute_slots(
+            self.layer_cache_slots,
+            budget,
+            getattr(self, "adaptive_min_slots", self.manifest.top_k),
+            self.manifest.num_experts,
+        )
+        self.cache_pool = self.staged_pool.pool_views(budget)
+        self._assign_pool_views(target)
+        self.migration_scratch = {
+            name: torch.empty_like(pool[0]) for name, pool in self.cache_pool.items()
+        }
+        self._refresh_staged_arena()
+        self.layer_cache_slots = list(target)
+        self.max_layer_slots = max(target)
+        self.device_states.clear()
+        for layer in range(self.manifest.num_layers):
+            self.policies[layer] = LayerExpertCachePolicy(
+                self.manifest.num_experts, target[layer]
+            )
+            self._state(layer)
+        if self.miss_mailbox is not None:
+            self.miss_mailbox.refresh_targets()
+        if self.packed_transport is not None:
+            self.packed_transport.refresh_targets()
+        self.pending_kv_stage = None
+        self.staged_trim_enqueued = False
+
+    def _refresh_staged_arena(self):
+        if self.borrowed_arena:
+            self.arena = {
+                name: tensor[-self.manifest.num_experts :]
+                for name, tensor in self.cache_pool.items()
+            }
+
+    def grow_staged_layout(self, index):
+        """Publish newly backed expert slots after KV tail release."""
+        from sglang.srt.mem_cache.qwen38_kv_stages import distribute_slots
+
+        budget = self.staged_pool.budgets[index]
+        target = distribute_slots(
+            self.layer_cache_slots,
+            budget,
+            getattr(self, "adaptive_min_slots", self.manifest.top_k),
+            self.manifest.num_experts,
+        )
+        with self.adaptive_lock, self.lock:
+            self.adaptive_target = None
+            borrowed = set(self.borrowed_layers)
+            self.borrowed_records = None
+            self.borrowed_layers = {}
+            self.arena_layer = None
+            self.arena_residents = set()
+            self.arena_last_use = None
+            old = list(self.layer_cache_slots)
+            offset_old = offset_new = 0
+            for layer, slots in enumerate(target):
+                state = self.device_states[layer]
+                if offset_old != offset_new or layer in borrowed:
+                    self.device_states[layer] = self.adaptive_metadata.reset(
+                        layer, slots
+                    )
+                    self.slot_ready[layer] = [None] * slots
+                    self.slot_last_use[layer] = [None] * slots
+                else:
+                    for name in ("keys", "frequency", "ages", "generation"):
+                        full = self.adaptive_metadata.device[layer][name]
+                        full[old[layer] : slots].fill_(-1 if name == "keys" else 0)
+                        state[name] = full[:slots]
+                    state["plan"] = self.adaptive_metadata.device[layer]["plan"][
+                        : 4 + 4 * slots
+                    ]
+                    state["prefill_plan"] = self.adaptive_metadata.device[layer][
+                        "prefill_plan"
+                    ][: state["counts"].numel() + slots]
+                    self.slot_ready[layer] += [None] * (slots - old[layer])
+                    self.slot_last_use[layer] += [None] * (slots - old[layer])
+                self.policies[layer] = LayerExpertCachePolicy(
+                    self.manifest.num_experts, slots
+                )
+                offset_old += old[layer]
+                offset_new += slots
+            self.cache_pool = self.staged_pool.pool_views(budget)
+            self._assign_pool_views(target)
+            self._refresh_staged_arena()
+            self.layer_cache_slots = list(target)
+            self.max_layer_slots = max(target)
+            self.gate_warmed_layers.clear()
+            if self.miss_mailbox is not None:
+                self.miss_mailbox.refresh_targets(non_blocking=True)
+            if self.packed_transport is not None:
+                self.packed_transport.refresh_targets(non_blocking=True)
+            stream = torch.cuda.current_stream(self.device)
+            self.metadata_stream.wait_stream(stream)
+            self.transfer.wait_stream(stream)
+
+    def enqueue_staged_trim(self):
+        """Shrink/repartition behind current readers, without a new host wait.
+
+        Layers whose pool offsets change are invalidated rather than migrated.
+        Unchanged prefix layers preserve policy and payload in place.
+        """
+        from sglang.srt.mem_cache.qwen38_kv_stages import distribute_slots
+
+        index = self.pending_kv_stage
+        if index is None or self.staged_trim_enqueued:
+            return
+        budget = self.staged_pool.budgets[index]
+        target = distribute_slots(
+            self.layer_cache_slots,
+            budget,
+            getattr(self, "adaptive_min_slots", self.manifest.top_k),
+            self.manifest.num_experts,
+        )
+        borrowed = set(self.borrowed_layers)
+        self.borrowed_records = None
+        self.borrowed_layers = {}
+        self.arena_layer = None
+        self.arena_residents = set()
+        self.arena_last_use = None
+        old_offset = new_offset = 0
+        with self.adaptive_lock:
+            self.adaptive_target = None
+            for layer, slots in enumerate(target):
+                state = self.device_states[layer]
+                old_slots = self.layer_cache_slots[layer]
+                if old_offset != new_offset or layer in borrowed:
+                    self.device_states[layer] = self.adaptive_metadata.reset(
+                        layer, slots
+                    )
+                    self.slot_ready[layer] = [None] * slots
+                    self.slot_last_use[layer] = [None] * slots
+                else:
+                    state["lookup"].masked_fill_(state["lookup"] >= slots, -1)
+                    for name in ("keys", "frequency", "ages", "generation"):
+                        state[name] = state[name][:slots]
+                    state["plan"] = state["plan"][: 4 + 4 * slots]
+                    state["prefill_plan"] = state["prefill_plan"][
+                        : state["counts"].numel() + slots
+                    ]
+                    self.slot_ready[layer] = self.slot_ready[layer][:slots]
+                    self.slot_last_use[layer] = self.slot_last_use[layer][:slots]
+                self.policies[layer] = LayerExpertCachePolicy(
+                    self.manifest.num_experts, slots
+                )
+                old_offset += old_slots
+                new_offset += slots
+            self.cache_pool = self.staged_pool.pool_views(budget)
+            self._assign_pool_views(target)
+            self._refresh_staged_arena()
+            self.layer_cache_slots = list(target)
+            self.max_layer_slots = max(target)
+            self.gate_warmed_layers.clear()
+            # Address tables upload on this stream before result completion.
+            if self.miss_mailbox is not None:
+                self.miss_mailbox.refresh_targets(non_blocking=True)
+            if self.packed_transport is not None:
+                self.packed_transport.refresh_targets(non_blocking=True)
+            stream = torch.cuda.current_stream(self.device)
+            self.metadata_stream.wait_stream(stream)
+            self.transfer.wait_stream(stream)
+        self.staged_trim_done = torch.cuda.Event()
+        self.staged_trim_done.record(stream)
+        self.staged_trim_enqueued = True
+
+    def enqueue_adaptive_snapshot(self):
+        """Read policy behind this batch, covered by its existing result fence."""
+        if self.borrowed_records is not None or self.adaptive_pending is not None:
+            return
         with self.adaptive_lock:
             target = self.adaptive_target
             self.adaptive_target = None
@@ -796,65 +997,86 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
                 raise ValueError(
                     "invalid adaptive layout or incomplete verify active-set capacity"
                 )
-            with self.lock:
-                try:
-                    self._return_arena()
-                    started = time.perf_counter()
-                    self.jobs.join()
-                    self.metadata_stream.synchronize()
-                    self.transfer.synchronize()
-                    torch.cuda.synchronize(self.device)
-                    old = self.layer_cache_slots
-                    retained, migrated, evicted = self._migrate_pool(target)
-                    self._assign_pool_views(target)
-                    if self.miss_mailbox is not None:
-                        self.miss_mailbox.refresh_targets()
-                    if self.packed_transport is not None:
-                        self.packed_transport.refresh_targets()
-                    self.layer_cache_slots = list(target)
-                    self.max_layer_slots = max(target)
-                    self.policies = {
-                        layer: LayerExpertCachePolicy(self.manifest.num_experts, slots)
-                        for layer, slots in enumerate(target)
-                    }
-                    self.device_states.clear()
-                    self.slot_ready.clear()
-                    self.slot_last_use.clear()
-                    self.warm_ready.clear()
-                    self.layer_computed.clear()
-                    for layer in range(self.manifest.num_layers):
-                        self._state(layer)
-                    self._restore_device_policy(retained)
-                    if self.cache_policy == "slru":
-                        for layer, state in self.device_states.items():
-                            # Retention sorting puts protected residents first.
-                            # Shrinking also shrinks the protected-segment bound.
-                            state["frequency"][
-                                int(target[layer] * self.cache_protected_fraction) :
-                            ].zero_()
-                    self.metadata_stream.wait_stream(
-                        torch.cuda.current_stream(self.device)
+            stream = torch.cuda.current_stream(self.device)
+            for layer, state in self.device_states.items():
+                for name in ("keys", "frequency", "ages"):
+                    self.adaptive_metadata.host[layer][name][
+                        : state[name].numel()
+                    ].copy_(state[name], non_blocking=True)
+            done = torch.cuda.Event()
+            done.record(stream)
+            self.adaptive_pending = (list(target), stream, done)
+
+    def adaptive_after_result(self):
+        """Apply after result processing, submitting all writes on the old stream."""
+        pending = self.adaptive_pending
+        if pending is None:
+            return
+        target, stream, done = pending
+        # Query only: unsupported result paths without an existing completion
+        # wait defer publication. Never create a host wait for maintenance.
+        if not done.query():
+            self.poisoned = True
+            raise RuntimeError("adaptive snapshot was not covered by result completion")
+        with self.adaptive_lock, self.lock, torch.no_grad(), torch.cuda.stream(stream):
+            try:
+                started = time.perf_counter()
+                old = list(self.layer_cache_slots)
+                # Consume every D2H buffer before restore overwrites them.
+                snapshot = [
+                    tuple(
+                        self.adaptive_metadata.host[layer][name][:slots].tolist()
+                        for name in ("keys", "frequency", "ages")
                     )
-                    self.transfer.wait_stream(torch.cuda.current_stream(self.device))
-                    torch.cuda.current_stream(self.device).synchronize()
-                except BaseException:
-                    self.poisoned = True
-                    raise
-                self.adaptive_rebalances += 1
-                # A different runner capacity may allocate/load new kernels.
-                self.gate_warmed_layers.clear()
-                self.adaptive_migrated_experts += migrated
-                self.adaptive_evicted_experts += evicted
-                self.adaptive_last_rebalance_seconds = time.perf_counter() - started
-                logger.info(
-                    "Qwen38 adaptive cache: layer slots %s -> %s; "
-                    "migrated=%d evicted=%d pause=%.3fs",
-                    old,
-                    target,
-                    migrated,
-                    evicted,
-                    self.adaptive_last_rebalance_seconds,
-                )
+                    for layer, slots in enumerate(old)
+                ]
+                retained, migrated, evicted = self._migrate_pool(target, snapshot)
+                self._assign_pool_views(target)
+                if hasattr(self, "staged_pool"):
+                    self._refresh_staged_arena()
+                if self.miss_mailbox is not None:
+                    self.miss_mailbox.refresh_targets(non_blocking=True)
+                if self.packed_transport is not None:
+                    self.packed_transport.refresh_targets(non_blocking=True)
+                self.layer_cache_slots = list(target)
+                self.max_layer_slots = max(target)
+                self.policies = {
+                    layer: LayerExpertCachePolicy(self.manifest.num_experts, slots)
+                    for layer, slots in enumerate(target)
+                }
+                self.device_states.clear()
+                self.slot_ready.clear()
+                self.slot_last_use.clear()
+                self.warm_ready.clear()
+                self.layer_computed.clear()
+                for layer in range(self.manifest.num_layers):
+                    self._state(layer)
+                self._restore_device_policy(retained)
+                if self.cache_policy == "slru":
+                    for layer, state in self.device_states.items():
+                        state["frequency"][
+                            int(target[layer] * self.cache_protected_fraction) :
+                        ].zero_()
+                self.metadata_stream.wait_stream(stream)
+                self.transfer.wait_stream(stream)
+            except BaseException:
+                self.poisoned = True
+                raise
+            self.adaptive_pending = None
+            self.adaptive_rebalances += 1
+            self.gate_warmed_layers.clear()
+            self.adaptive_migrated_experts += migrated
+            self.adaptive_evicted_experts += evicted
+            self.adaptive_last_rebalance_seconds = time.perf_counter() - started
+            logger.info(
+                "Qwen38 adaptive cache: layer slots %s -> %s; "
+                "migrated=%d evicted=%d enqueue=%.3fs",
+                old,
+                target,
+                migrated,
+                evicted,
+                self.adaptive_last_rebalance_seconds,
+            )
 
     def stats_snapshot(self):
         if getattr(self, "miss_mailbox", None) is not None:
@@ -863,6 +1085,10 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         result["decode_shared_fill_overlap_invocations"] = getattr(
             getattr(self, "miss_mailbox", None), "overlap_invocations", 0
         )
+        if hasattr(self, "staged_pool"):
+            result["kv_cache_stages"] = self.kv_cache_stages
+            result["expert_loan_budgets"] = getattr(self, "expert_loan_budgets", None)
+            result["expert_physical_bytes"] = self.staged_pool.arena.backed_bytes
         result["borrowed_prefill_arena"] = self.borrowed_arena
         result["borrowed_restore_runs"] = self.borrowed_restore_runs
         result["borrowed_restore_experts"] = self.borrowed_restore_experts
@@ -892,7 +1118,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
             layer_cache_slots=list(self.layer_cache_slots),
             cache_slots_total=(
                 next(iter(self.cache_pool.values())).shape[0]
-                if self.cache_pool is not None
+                if self.cache_pool
                 else sum(self.layer_cache_slots)
             ),
             layer_hits=list(self.layer_hits),
@@ -1175,6 +1401,11 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
                     self.adaptive_process.kill()
                     self.adaptive_process.wait()
                 self.adaptive_process.stdout.close()
+            if hasattr(self, "staged_pool"):
+                self.caches.clear()
+                self.cache_pool = None
+                self.arena = None
+                self.staged_pool.close()
 
     def memory_budget(self):
         result = super().memory_budget()
@@ -1224,6 +1455,12 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         )
         return result
 
+    def _use_prefill_arena(self, layer_id, route_bound):
+        capacity = self.slots_for_layer(layer_id)
+        if self.prefill_arena:
+            capacity = min(capacity, self.prefill_layer_slots[layer_id])
+        return route_bound > capacity
+
     def _dense_startup_prefill(self, layer_id, arena, tokens):
         if not arena:
             return False
@@ -1241,8 +1478,30 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
     def run(
         self, layer_id, topk_ids, execute, *, execution_phase=None, during_fill=None
     ):
-        if self.adaptive_cache and self.adaptive_target is not None:
-            self._maybe_rebalance()
+        result = self._run(
+            layer_id,
+            topk_ids,
+            execute,
+            execution_phase=execution_phase,
+            during_fill=during_fill,
+        )
+        if layer_id == self.manifest.num_layers - 1:
+            if hasattr(self, "staged_pool"):
+                self.enqueue_staged_trim()
+                loan = getattr(self, "kv_loan", None)
+                if loan is not None:
+                    loan.enqueue_reborrow_probe()
+            if (
+                self.adaptive_cache
+                and getattr(self, "pending_kv_stage", None) is None
+                and not getattr(self, "kv_reborrow_probe", False)
+            ):
+                self.enqueue_adaptive_snapshot()
+        return result
+
+    def _run(
+        self, layer_id, topk_ids, execute, *, execution_phase=None, during_fill=None
+    ):
         with self.lock, torch.no_grad(), torch.cuda.device(self.device):
             self._raise_error()
             publication = getattr(self, "sample_publication", None)
@@ -1269,7 +1528,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
             if topk_ids.shape[1] != self.manifest.top_k:
                 raise ValueError("top-k differs from the pack")
             capacity = self.slots_for_layer(layer_id)
-            arena = topk_ids.numel() > capacity
+            arena = self._use_prefill_arena(layer_id, topk_ids.numel())
             force_dense = execution_phase != "verify" and self._dense_startup_prefill(
                 layer_id, arena, topk_ids.shape[0]
             )

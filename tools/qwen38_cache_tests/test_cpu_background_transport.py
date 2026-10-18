@@ -351,15 +351,17 @@ class TestBackgroundTransport(unittest.TestCase):
         runtime.adaptive_min_slots = 4
         runtime.cache_pool = {"weight": SimpleNamespace(shape=(8, 1))}
         runtime._migrate_pool = mock.Mock()
+        runtime.borrowed_records = None
+        runtime.adaptive_pending = None
         for target in ([3, 5], [4, 5], [4], [4, True]):
             runtime.adaptive_target = target
             with self.assertRaises(ValueError):
-                runtime._maybe_rebalance()
+                runtime.enqueue_adaptive_snapshot()
         runtime._migrate_pool.assert_not_called()
         runtime.adaptive_min_slots = 2
         runtime.adaptive_target = [3, 3]
         with self.assertRaises(ValueError):
-            runtime._maybe_rebalance()
+            runtime.enqueue_adaptive_snapshot()
         runtime._migrate_pool.assert_not_called()
 
     def test_poisoned_runtime_rejects_new_work(self):

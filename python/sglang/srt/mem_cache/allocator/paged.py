@@ -163,10 +163,56 @@ class PagedTokenToKVPoolAllocator(BaseTokenToKVPoolAllocator):
                 torch.cuda.synchronize()
             except Exception:
                 pass
+        self.backed_num_pages = self.num_pages
+        self.staged_loan = None
         self.clear()
+        from sglang.srt.mem_cache.qwen38_kv_stages import attach_staged_loan
+
+        self.staged_loan = attach_staged_loan(self, kvcache)
+        self.expert_runtime = getattr(kvcache, "expert_cache_runtime", None)
+        self.maintenance_result = None
+
+    def prepare_staged_allocation(self, reserve):
+        if self.staged_loan is not None:
+            self.staged_loan.prepare(reserve)
+
+    def cache_maintenance_needs_result(self):
+        return (
+            self.staged_loan is not None
+            and (
+                self.staged_loan.runtime.pending_kv_stage is not None
+                or self.staged_loan.runtime.kv_reborrow_probe
+            )
+        ) or (
+            self.expert_runtime is not None
+            and self.expert_runtime.adaptive_pending is not None
+        )
+
+    def cache_maintenance_before_forward(self, reserve):
+        if self.staged_loan is not None:
+            self.staged_loan.before_forward(reserve)
+
+    def cache_maintenance_bind_result(self, result):
+        if self.cache_maintenance_needs_result() and self.maintenance_result is None:
+            self.maintenance_result = result
+
+    def cache_maintenance_after_result(self, result):
+        if result is not self.maintenance_result:
+            return
+        if self.staged_loan is not None:
+            self.staged_loan.after_result()
+        if self.expert_runtime is not None:
+            self.expert_runtime.adaptive_after_result()
+        if not self.cache_maintenance_needs_result():
+            self.maintenance_result = None
 
     def available_size(self):
-        return (len(self.free_pages) + self.num_staged_pages) * self.page_size
+        # Admission may count the reclaimable loan. Allocation must first
+        # return its physical backing through prepare_staged_allocation().
+        loan_pages = self.num_pages - self.backed_num_pages
+        return (
+            len(self.free_pages) + self.num_staged_pages + loan_pages
+        ) * self.page_size
 
     def get_all_free_pages(self):
         return torch.cat((self.free_pages, *self.staged_pages))
@@ -185,6 +231,13 @@ class PagedTokenToKVPoolAllocator(BaseTokenToKVPoolAllocator):
                 "The allocation size should be page-aligned"
             )
 
+        if self.staged_loan is not None and not self.staged_loan.fits_allocation(
+            need_size
+        ):
+            # Large host-prefix loads fall back to recomputing chunked prefill.
+            # Admission may count the loan, but no unbacked page is exposed.
+            return None
+        self.prepare_staged_allocation(need_size)
         num_pages = need_size // self.page_size
         if num_pages > len(self.free_pages):
             self.merge_and_sort_free()
@@ -219,6 +272,7 @@ class PagedTokenToKVPoolAllocator(BaseTokenToKVPoolAllocator):
         bs = len(prefix_lens)
         # Strict upper bound on num_new_pages: one request's page count grows
         # by less than extend_len / page_size + 1, so the sum is below this.
+        self.prepare_staged_allocation(extend_num_tokens + (bs - 1) * self.page_size)
         max_new_pages = extend_num_tokens // self.page_size + bs + 1
         if max_new_pages > len(self.free_pages):
             self.merge_and_sort_free()
@@ -288,6 +342,7 @@ class PagedTokenToKVPoolAllocator(BaseTokenToKVPoolAllocator):
             )
 
         bs = len(seq_lens)
+        self.prepare_staged_allocation(bs)
         if bs > len(self.free_pages):
             self.merge_and_sort_free()
 
@@ -395,7 +450,7 @@ class PagedTokenToKVPoolAllocator(BaseTokenToKVPoolAllocator):
     def clear(self):
         # The padded slot 0 is used for writing dummy outputs from padded tokens.
         self.free_pages = torch.arange(
-            1, self.num_pages + 1, dtype=torch.int64, device=self.device
+            1, self.backed_num_pages + 1, dtype=torch.int64, device=self.device
         )
         self.free_group = None
         self.free_page_ids_group = []

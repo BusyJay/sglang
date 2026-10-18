@@ -1,0 +1,174 @@
+{
+  "arms": {
+    "original": {
+      "n": 9,
+      "median": {
+        "decode_tokens_per_second": 101.04742779884388,
+        "e2e_tokens_per_second": 88.14191610349933,
+        "ttft_s": 0.2880414150422439
+      },
+      "by_case": {
+        "0": {
+          "decode_tokens_per_second": 94.30266425084135,
+          "e2e_tokens_per_second": 81.42739426372277,
+          "ttft_s": 0.2888600379228592
+        },
+        "1": {
+          "decode_tokens_per_second": 104.4788891470958,
+          "e2e_tokens_per_second": 91.909429523406,
+          "ttft_s": 0.2608352390816435
+        },
+        "2": {
+          "decode_tokens_per_second": 97.40839020863454,
+          "e2e_tokens_per_second": 85.31108060441201,
+          "ttft_s": 0.2897114899242297
+        }
+      }
+    },
+    "pre-transport-fix": {
+      "n": 9,
+      "median": {
+        "decode_tokens_per_second": 104.14640628235294,
+        "e2e_tokens_per_second": 90.18602886759932,
+        "ttft_s": 0.2873863289132714
+      },
+      "by_case": {
+        "0": {
+          "decode_tokens_per_second": 100.7590761505608,
+          "e2e_tokens_per_second": 87.89518527509054,
+          "ttft_s": 0.2775591289391741
+        },
+        "1": {
+          "decode_tokens_per_second": 107.2514072359696,
+          "e2e_tokens_per_second": 93.40951674977359,
+          "ttft_s": 0.27607482695020735
+        },
+        "2": {
+          "decode_tokens_per_second": 104.14640628235294,
+          "e2e_tokens_per_second": 86.47290050555462,
+          "ttft_s": 0.38635824795346707
+        }
+      }
+    },
+    "final": {
+      "n": 9,
+      "median": {
+        "decode_tokens_per_second": 103.29278950342946,
+        "e2e_tokens_per_second": 90.1125995957458,
+        "ttft_s": 0.2793195649283007
+      },
+      "by_case": {
+        "0": {
+          "decode_tokens_per_second": 97.34529850444748,
+          "e2e_tokens_per_second": 85.97989588542625,
+          "ttft_s": 0.2694415559526533
+        },
+        "1": {
+          "decode_tokens_per_second": 107.71855610715176,
+          "e2e_tokens_per_second": 93.37998640919727,
+          "ttft_s": 0.2835404729703441
+        },
+        "2": {
+          "decode_tokens_per_second": 101.15288085243463,
+          "e2e_tokens_per_second": 89.05027817151533,
+          "ttft_s": 0.2708476899424568
+        }
+      }
+    }
+  },
+  "prefill_diagnostics": {
+    "original-prefill-case2": {
+      "cpu_ms": 196.565174,
+      "gpu_window_ms": 198.93739306640626,
+      "copies": {
+        "Memcpy HtoD (Pageable -> Device)": {
+          "calls": 6,
+          "ms": 0.001566,
+          "bytes": 32
+        },
+        "Memcpy DtoH (Device -> Pinned)": {
+          "calls": 110,
+          "ms": 0.08355200000000003,
+          "bytes": 599361
+        },
+        "Memcpy DtoD (Device -> Device)": {
+          "calls": 149,
+          "ms": 0.12898599999999996,
+          "bytes": 1511747
+        },
+        "Memcpy DtoH (Device -> Pageable)": {
+          "calls": 19,
+          "ms": 0.019582000000000002,
+          "bytes": 3720
+        },
+        "Memcpy HtoD (Pinned -> Device)": {
+          "calls": 8592,
+          "ms": 92.43698300000268,
+          "bytes": 4293746824
+        }
+      }
+    },
+    "prefill-case2": {
+      "cpu_ms": 334.63478999999995,
+      "gpu_window_ms": 335.3076599121094,
+      "copies": {
+        "Memcpy HtoD (Pageable -> Device)": {
+          "calls": 6,
+          "ms": 0.0015029999999999998,
+          "bytes": 32
+        },
+        "Memcpy DtoH (Device -> Pinned)": {
+          "calls": 110,
+          "ms": 0.08770899999999991,
+          "bytes": 350997
+        },
+        "Memcpy DtoD (Device -> Device)": {
+          "calls": 53,
+          "ms": 0.04303700000000001,
+          "bytes": 1387691
+        },
+        "Memcpy DtoH (Device -> Pageable)": {
+          "calls": 15,
+          "ms": 0.013567000000000001,
+          "bytes": 1592
+        },
+        "Memcpy HtoD (Pinned -> Device)": {
+          "calls": 956,
+          "ms": 98.47892000000009,
+          "bytes": 2643148800
+        }
+      }
+    },
+    "fixed-prefill-case2": {
+      "cpu_ms": 220.978428,
+      "gpu_window_ms": 222.24402294921876,
+      "copies": {
+        "Memcpy HtoD (Pageable -> Device)": {
+          "calls": 6,
+          "ms": 0.0015359999999999998,
+          "bytes": 32
+        },
+        "Memcpy DtoH (Device -> Pinned)": {
+          "calls": 110,
+          "ms": 0.1087960000000001,
+          "bytes": 639821
+        },
+        "Memcpy DtoD (Device -> Device)": {
+          "calls": 149,
+          "ms": 0.13161399999999998,
+          "bytes": 1514191
+        },
+        "Memcpy DtoH (Device -> Pageable)": {
+          "calls": 19,
+          "ms": 0.019806,
+          "bytes": 3904
+        },
+        "Memcpy HtoD (Pinned -> Device)": {
+          "calls": 6198,
+          "ms": 65.92522600000089,
+          "bytes": 3077231304
+        }
+      }
+    }
+  }
+}

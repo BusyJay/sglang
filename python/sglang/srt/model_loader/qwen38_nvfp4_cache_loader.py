@@ -69,6 +69,7 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             "sglang_commit",
             "cache_slots_per_layer",
             "cache_slots_total",
+            "kv_cache_stages",
             "prefill_arena",
             "runtime_mode",
             "stats_log_interval",
@@ -187,6 +188,16 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             raise ValueError("decode_hit_fast_path must be a JSON boolean")
         if type(config.get("decode_device_gate", True)) is not bool:
             raise ValueError("decode_device_gate must be a JSON boolean")
+        from sglang.srt.mem_cache.qwen38_kv_stages import validate_stages
+
+        stages = validate_stages(config.get("kv_cache_stages"))
+        if stages and (
+            not config.get("adaptive_cache", False)
+            or config.get("runtime_mode", "sync") != "threaded"
+        ):
+            raise ValueError(
+                "kv_cache_stages requires adaptive_cache and threaded runtime"
+            )
         self.config = config
         self.manifest = load_manifest(manifest_path)
         self.manifest.validate_cutlass_layout()
@@ -310,8 +321,8 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                             parallel.tp_size == 1 and parallel.attn_tp_size == 1
                         )
                     if mapped_embedding:
-                        text_config._qwen38_mapped_token_embedding = find_token_embedding(
-                            weight_files
+                        text_config._qwen38_mapped_token_embedding = (
+                            find_token_embedding(weight_files)
                         )
                     construct_started = time.perf_counter()
                     try:
@@ -495,6 +506,7 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                     raise ValueError(
                         "adaptive MTP cache must fit the full verify route bound in every layer"
                     )
+            runtime.kv_cache_stages = self.config.get("kv_cache_stages")
             reserve_started = time.perf_counter()
             runtime.reserve()
             budget = runtime.memory_budget()

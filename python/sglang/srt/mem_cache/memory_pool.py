@@ -2220,7 +2220,13 @@ class MHATokenToKVPool(KVCache):
         quant_method=None,
         post_capture_active: bool = False,
         allocation_label: Optional[str] = None,
+        staged_initial_tokens: Optional[int] = None,
     ):
+        self.staged_initial_tokens = (
+            (staged_initial_tokens + page_size - 1) // page_size * page_size
+            if staged_initial_tokens is not None
+            else None
+        )
         self.k_buffer = None
         self.v_buffer = None
         if post_capture_active:
@@ -2383,6 +2389,14 @@ class MHATokenToKVPool(KVCache):
         return not isinstance(self.quant_method, UnquantizedKVCacheMethod)
 
     def _create_buffers(self):
+        if self.staged_initial_tokens is not None and (
+            self.post_capture_active
+            or self.is_quantized_kv_cache
+            or self.kv_cache_layout != "nhd"
+        ):
+            raise ValueError(
+                "staged KV backing requires unquantized NHD storage and fixed sizing"
+            )
         if self.is_quantized_kv_cache:
             if self.post_capture_active:
                 raise NotImplementedError(
@@ -2396,8 +2410,10 @@ class MHATokenToKVPool(KVCache):
             self.native_v_scale_buffer = None
             self.dq_k_buffer = None
             self.dq_v_buffer = None
-            if self.post_capture_active:
+            if self.post_capture_active or self.staged_initial_tokens is not None:
                 self._alloc_post_capture_buffers()
+                if self.staged_initial_tokens is not None:
+                    self._post_capture_owner.finalize(self.staged_initial_tokens)
             else:
                 self._create_buffers_normal()
         self._kv_buffer_descs = self._build_kv_buffer_descs()
@@ -4182,6 +4198,7 @@ class HybridLinearKVPool(KVCache):
         # full-attention layers instead of constructing one internally.
         full_kv_pool: Optional[KVCache] = None,
         post_capture_active: bool = False,
+        staged_initial_tokens: Optional[int] = None,
     ):
         self.size = size
         self.dtype = dtype
@@ -4212,6 +4229,8 @@ class HybridLinearKVPool(KVCache):
             post_capture_kwargs = (
                 {"post_capture_active": True} if post_capture_active else {}
             )
+            if staged_initial_tokens is not None:
+                post_capture_kwargs["staged_initial_tokens"] = staged_initial_tokens
             self.full_kv_pool = TokenToKVPoolClass(
                 size=size,
                 page_size=self.page_size,

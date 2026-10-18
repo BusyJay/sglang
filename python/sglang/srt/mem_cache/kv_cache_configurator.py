@@ -101,7 +101,6 @@ from sglang.srt.runtime_context import (
     get_disagg,
     get_exec,
     get_memory,
-    get_model,
     get_mm,
     get_model,
     get_parallel,
@@ -203,7 +202,11 @@ def mm_runtime_reservation_gb(
     the KV budget so it doesn't have to fit in the runtime slack."""
     if not is_multimodal:
         return 0.0
-    reserved_mb = envs.SGLANG_VLM_CACHE_SIZE_MB.get()
+    from sglang.srt.disaggregation.encoder.replay_cache import (
+        gpu_embedding_cache_size_mb,
+    )
+
+    reserved_mb = gpu_embedding_cache_size_mb()
     if mm_feature_transport in ("cuda_ipc", "cuda_vmm"):
         reserved_mb += envs.SGLANG_MM_FEATURE_CACHE_MB.get()
     if reserved_mb > 0:
@@ -2368,6 +2371,22 @@ class KVCacheConfigurator:
                 num_request_slots=req_to_token_pool.req_to_token.shape[0],
                 qsa_indexer_dtype=resolve_qsa_indexer_dtype(qsa_indexer_dtype),
             )
+        runtime = getattr(self.model, "qwen38_expert_runtime", None)
+        if not self.is_draft_worker and getattr(runtime, "kv_cache_stages", None):
+            if qsa_profile is None or quant_method is not None:
+                raise ValueError(
+                    "kv_cache_stages requires target QSA with unquantized KV storage"
+                )
+            from sglang.srt.mem_cache.qwen38_kv_stages import page_capacities
+
+            if (
+                max_total_num_tokens
+                != page_capacities(runtime.kv_cache_stages, self.pool_page_size)[-1]
+            ):
+                raise ValueError(
+                    "final KV stage must be page-aligned and match the pool capacity"
+                )
+            extra_args["staged_expert_runtime"] = runtime
         token_to_kv_pool = pool_class(
             page_size=self.pool_page_size,
             size=max_total_num_tokens,
@@ -2388,6 +2407,8 @@ class KVCacheConfigurator:
             post_capture_active=self.post_capture_kv_active and quant_method is None,
             **extra_args,
         )
+        if not self.is_draft_worker and getattr(runtime, "adaptive_cache", False):
+            token_to_kv_pool.expert_cache_runtime = runtime
         return token_to_kv_pool
 
     def _hybrid_full_attention_pool_class(
@@ -2788,6 +2809,39 @@ class KVCacheConfigurator:
         If constraints change the value, the configurator re-runs and re-aligns.
         """
         user_limit = get_schedule().max_total_tokens
+        runtime = getattr(self.model, "qwen38_expert_runtime", None)
+        stages = getattr(runtime, "kv_cache_stages", None)
+        if stages and not self.is_draft_worker:
+            chunk = get_schedule().chunked_prefill_size
+            if chunk is None or not 0 < chunk < stages[0] // 2:
+                raise ValueError(
+                    "kv_cache_stages requires chunked prefill smaller than half the initial stage"
+                )
+            if get_schedule().enable_mixed_chunk or get_memory().enable_unified_memory:
+                raise ValueError(
+                    "kv_cache_stages requires a fixed paged QSA pool without mixed chunks"
+                )
+            if self.post_capture_kv_active:
+                raise ValueError(
+                    "kv_cache_stages cannot combine with post-capture KV sizing"
+                )
+            from sglang.srt.mem_cache.qwen38_kv_stages import page_capacities
+
+            required = page_capacities(stages, self.pool_page_size)[-1]
+            if token_capacity < required:
+                raise ValueError(
+                    f"profiled KV budget ({token_capacity} tokens) cannot fit the "
+                    f"final kv_cache_stages capacity ({required} tokens)"
+                )
+            if user_limit is not None and user_limit < stages[-1]:
+                raise ValueError(
+                    "max_total_tokens is smaller than final kv_cache_stages capacity"
+                )
+            token_capacity = required
+            if user_limit is not None and user_limit < token_capacity:
+                raise ValueError(
+                    "max_total_tokens must cover the page-rounded final KV stage"
+                )
 
         # Apply user-specified upper bound
         if user_limit is not None:

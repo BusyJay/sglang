@@ -96,6 +96,18 @@ class KvVmmArena:
         self._committed_by_offset[offset] = want
         self._range_backed += add
 
+    def release_tail(self, offset: int, keep_bytes: int) -> None:
+        """Return exact extension handles, keeping an earlier commit boundary."""
+        keep = self._align(keep_bytes)
+        previous = self._committed_by_offset.get(offset, 0)
+        if keep > previous:
+            raise ValueError("release_tail cannot grow a range")
+        if keep == previous:
+            return
+        self._allocation.release_mapping(offset + keep, previous - keep)
+        self._committed_by_offset[offset] = keep
+        self._range_backed -= previous - keep
+
     @property
     def backed_bytes(self) -> int:
         """Total physically-backed bytes (sum of scattered per-buffer ranges)."""
@@ -251,6 +263,13 @@ class KvVmmBufferOwner:
             [s.desc.prefix_span_bytes(num_tokens, self.page_size) for s in self._specs]
         )
 
+    def capacity_backed_bytes(self, num_tokens: int) -> int:
+        """Physical bytes required by a serving capacity, including slot zero."""
+        return sum(
+            self._arena._align(s.desc.final_span_bytes(num_tokens, self.page_size))
+            for s in self._specs
+        )
+
     def finalize(self, final_num_tokens: int) -> None:
         """Back each buffer's final advertised span; set the final serving capacity."""
         final = int(final_num_tokens)
@@ -265,6 +284,32 @@ class KvVmmBufferOwner:
         self._final_num_tokens = final
 
     # -- accessors / teardown -------------------------------------------------
+
+    def shrink_capacity(self, capacity: int) -> None:
+        """Release complete extension mappings after their readers finish."""
+        spans = [s.desc.final_span_bytes(capacity, self.page_size) for s in self._specs]
+        for spec, span in zip(self._specs, spans):
+            keep = self._arena._align(self._check_span(spec, span))
+            # A serving stage can have multiple exact extensions, including
+            # the startup slot-zero and initial-prefix mappings.
+            while spec.backed_to > keep:
+                mappings = self._arena._allocation._mappings
+                tail = next(
+                    (
+                        m
+                        for m in mappings
+                        if m[0] + m[1]
+                        == self._arena.base + spec.offset + spec.backed_to
+                    ),
+                    None,
+                )
+                if tail is None or tail[0] < self._arena.base + spec.offset + keep:
+                    raise ValueError("KV shrink must match an existing stage boundary")
+                self._arena.release_tail(
+                    spec.offset, tail[0] - self._arena.base - spec.offset
+                )
+                spec.backed_to = self._arena._committed_by_offset[spec.offset]
+        self._final_num_tokens = capacity
 
     @property
     def backed_bytes(self) -> int:

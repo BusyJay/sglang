@@ -1,0 +1,2415 @@
+{
+  "server_info": {
+    "model_path": "nvidia/Qwen3.8-Flash-Next-FP4-Local",
+    "tokenizer_path": "nvidia/Qwen3.8-Flash-Next-FP4-Local",
+    "tokenizer_mode": "auto",
+    "tokenizer_backend": "huggingface",
+    "tokenizer_worker_num": 1,
+    "detokenizer_worker_num": 1,
+    "skip_tokenizer_init": false,
+    "load_format": "qwen38_nvfp4_cache",
+    "model_loader_extra_config": "{\"manifest_path\":\"/root/.cache/sglang/qwen38-fp4-local/b9ce18a6887e18c089fdea8509a33e63429a3300/manifest.json\",\"checkpoint_revision\":\"b9ce18a6887e18c089fdea8509a33e63429a3300\",\"sglang_commit\":\"acd9c47fed94afe9c753631e4f88df58ca3f676f+fp4-local-59db23b7bae46aa9\",\"cache_slots_total\":6382,\"prefill_arena\":true,\"runtime_mode\":\"threaded\",\"stats_log_interval\":19200,\"adaptive_cache\":true,\"kv_cache_stages\":[80000,160000,220000],\"preallocate_gdn_proj\":true,\"async_pack_prefetch\":true,\"packed_decode\":\"packed\",\"packed_prefill\":\"packed\"}",
+    "trust_remote_code": true,
+    "context_length": 220000,
+    "is_embedding": false,
+    "enable_multimodal": null,
+    "revision": "b9ce18a6887e18c089fdea8509a33e63429a3300",
+    "model_impl": "auto",
+    "model_config_parser": "auto",
+    "json_model_override_args": "{}",
+    "dtype": "auto",
+    "quantization": null,
+    "quantization_param_path": null,
+    "kv_cache_dtype": "fp8_e4m3",
+    "enable_fp32_lm_head": false,
+    "modelopt_quant": null,
+    "modelopt_checkpoint_restore_path": null,
+    "modelopt_checkpoint_save_path": null,
+    "modelopt_export_path": null,
+    "quantize_and_serve": false,
+    "rl_quant_profile": null,
+    "enable_tf32_matmul": false,
+    "mem_fraction_static": 0.9,
+    "max_running_requests": 1,
+    "max_queued_requests": null,
+    "max_total_tokens": null,
+    "chunked_prefill_size": 8192,
+    "prefill_decode_interval": 0,
+    "enable_dynamic_chunking": false,
+    "max_prefill_tokens": 16384,
+    "prefill_max_requests": null,
+    "schedule_policy": "fcfs",
+    "enable_priority_scheduling": false,
+    "disable_priority_preemption": false,
+    "default_priority_value": null,
+    "abort_on_priority_when_disabled": false,
+    "schedule_low_priority_values_first": false,
+    "priority_scheduling_preemption_threshold": 10,
+    "retraction_policy": "length",
+    "schedule_conservativeness": 1.0,
+    "page_size": 64,
+    "c128_page_size": 16,
+    "swa_full_tokens_ratio": 0.8,
+    "disable_hybrid_swa_memory": false,
+    "radix_eviction_policy": "lru",
+    "radix_eviction_policy_config": null,
+    "prefill_only_disable_kv_cache": false,
+    "disable_radix_cache": false,
+    "enable_page_major_kv_layout": false,
+    "enable_unified_memory": false,
+    "disable_chunked_prefix_cache": false,
+    "disable_overlap_schedule": false,
+    "num_continuous_decode_steps": 1,
+    "scheduler_recv_interval": 1,
+    "enable_mixed_chunk": false,
+    "nccl_port": null,
+    "dist_timeout": null,
+    "dist_init_addr": null,
+    "gated_launch_port": null,
+    "nnodes": 1,
+    "node_rank": 0,
+    "tp_size": 1,
+    "dcp_size": 1,
+    "pp_size": 1,
+    "pp_max_micro_batch_size": null,
+    "pp_async_batch_depth": 0,
+    "dp_size": 1,
+    "attn_dp_size": 1,
+    "load_balance_method": "round_robin",
+    "attn_cp_size": 1,
+    "moe_dp_size": 1,
+    "dwdp_size": 1,
+    "dcp_comm_backend": "ag_rs",
+    "dcp_replicate_q_proj": null,
+    "enable_prefill_cp": false,
+    "cp_strategy": null,
+    "enable_dsa_cache_layer_split": false,
+    "enable_cp_decode_attn_tp": false,
+    "enable_kv_cache_sharding": false,
+    "enable_dp_attention": false,
+    "enable_dp_attention_local_control_broadcast": false,
+    "enable_dp_lm_head": false,
+    "enable_tp_lm_head_all_to_all": false,
+    "enable_attn_tp_input_scattered": false,
+    "enable_shared_experts_attn_tp": false,
+    "shared_experts_tp_size": null,
+    "enable_dense_mlp_attn_tp": false,
+    "enable_layernorm_sp": false,
+    "disable_attn_tp_gather": false,
+    "enable_p2p_check": false,
+    "device": "cuda",
+    "base_gpu_id": 0,
+    "gpu_id_step": 1,
+    "random_seed": 703816093,
+    "mlx_enable_sampling": false,
+    "watchdog_timeout": 300,
+    "soft_watchdog_timeout": null,
+    "sleep_on_idle": true,
+    "use_ray": false,
+    "custom_sigquit_handler": null,
+    "numa_node": null,
+    "gc_threshold": null,
+    "host": "0.0.0.0",
+    "port": 8001,
+    "fastapi_root_path": "",
+    "smg_grpc_mode": false,
+    "grpc_mode": false,
+    "grpc_port": null,
+    "grpc_worker_threads": 4,
+    "sidecar": null,
+    "sidecar_args": null,
+    "skip_server_warmup": false,
+    "warmups": "qwen38_first_prefill",
+    "enable_http2": false,
+    "http2_max_concurrent_streams": 200,
+    "http2_initial_connection_window_size": 1048576,
+    "ssl_keyfile": null,
+    "ssl_certfile": null,
+    "ssl_ca_certs": null,
+    "ssl_keyfile_password": null,
+    "enable_ssl_refresh": false,
+    "api_key": null,
+    "admin_api_key": null,
+    "served_model_name": "nvidia/Qwen3.8-Flash-Next-FP4-Local",
+    "weight_version": "default",
+    "chat_template": null,
+    "trust_request_chat_template": false,
+    "hf_chat_template_name": null,
+    "completion_template": null,
+    "file_storage_path": null,
+    "enable_cache_report": true,
+    "return_input_ids": false,
+    "return_output_ids": false,
+    "reasoning_parser": "qwen3",
+    "default_chat_template_kwargs": null,
+    "strip_thinking_cache": false,
+    "enable_strict_thinking": false,
+    "tool_call_parser": "qwen3_coder",
+    "tool_server": null,
+    "sampling_defaults": "model",
+    "asr_max_buffer_seconds": 60,
+    "asr_max_concurrent_sessions": 32,
+    "preferred_sampling_params": null,
+    "allow_auto_truncate": false,
+    "stream_interval": 1,
+    "batch_notify_size": 16,
+    "stream_response_default_include_usage": false,
+    "incremental_streaming_output": false,
+    "enable_streaming_session": false,
+    "enable_session_radix_cache": false,
+    "log_level": "info",
+    "log_level_http": null,
+    "log_requests": false,
+    "log_requests_level": 2,
+    "log_requests_format": "text",
+    "log_requests_target": null,
+    "uvicorn_access_log_exclude_prefixes": [],
+    "crash_dump_folder": null,
+    "show_time_cost": false,
+    "enable_metrics": false,
+    "smg_http_sidecar_port": null,
+    "enable_mfu_metrics": false,
+    "enable_metrics_for_all_schedulers": false,
+    "load_snapshot_publish_interval": 15,
+    "tokenizer_metrics_custom_labels_header": "x-custom-labels",
+    "tokenizer_metrics_allowed_custom_labels": null,
+    "extra_metric_labels": null,
+    "bucket_time_to_first_token": null,
+    "bucket_inter_token_latency": null,
+    "bucket_e2e_request_latency": null,
+    "prompt_tokens_buckets": null,
+    "generation_tokens_buckets": null,
+    "gc_warning_threshold_secs": 0.0,
+    "decode_log_interval": 400,
+    "enable_request_time_stats_logging": false,
+    "kv_events_config": null,
+    "load_publish_endpoint": null,
+    "enable_forward_pass_metrics": false,
+    "forward_pass_metrics_worker_id": "",
+    "forward_pass_metrics_ipc_name": null,
+    "enable_trace": false,
+    "trace_modules": "request",
+    "otlp_traces_endpoint": "localhost:4317",
+    "export_metrics_to_file": false,
+    "export_metrics_to_file_dir": null,
+    "stat_loggers": null,
+    "constrained_json_whitespace_pattern": null,
+    "constrained_json_disable_any_whitespace": false,
+    "constrained_json_max_whitespace_cnt": null,
+    "attention_backend": "flashinfer",
+    "decode_attention_backend": null,
+    "enable_lean_attention": null,
+    "prefill_attention_backend": null,
+    "sampling_backend": "flashinfer",
+    "grammar_backend": "xgrammar",
+    "radix_cache_backend": null,
+    "mm_attention_backend": null,
+    "fp8_gemm_runner_backend": "auto",
+    "fp4_gemm_runner_backend": "auto",
+    "bf16_gemm_backend": "auto",
+    "dsa_prefill_backend": null,
+    "dsv4_prefill_backend": "auto",
+    "dsa_decode_backend": null,
+    "dsa_paged_mqa_logits_backend": "auto",
+    "dsa_topk_backend": "sgl-kernel",
+    "disable_flashinfer_autotune": false,
+    "flashinfer_autotune_skip_ops": null,
+    "mamba_backend": "triton",
+    "cuda_graph_config": {
+      "decode": {
+        "backend": "breakable",
+        "max_bs": 1,
+        "bs": [
+          1
+        ],
+        "tc_compiler": "eager",
+        "max_context_size": null,
+        "full_prefill_max_req": null,
+        "full_prefill_prefix_chunk_tokens": null,
+        "max_seq_len": null
+      },
+      "prefill": {
+        "backend": "disabled",
+        "max_bs": 8192,
+        "bs": [
+          4,
+          8,
+          12,
+          16,
+          20,
+          24,
+          28,
+          32,
+          48,
+          64,
+          80,
+          96,
+          112,
+          128,
+          144,
+          160,
+          176,
+          192,
+          208,
+          224,
+          240,
+          256,
+          288,
+          320,
+          352,
+          384,
+          416,
+          448,
+          480,
+          512,
+          576,
+          640,
+          704,
+          768,
+          832,
+          896,
+          960,
+          1024,
+          1280,
+          1536,
+          1792,
+          2048,
+          2304,
+          2560,
+          2816,
+          3072,
+          3328,
+          3584,
+          3840,
+          4096,
+          4608,
+          5120,
+          5632,
+          6144,
+          6656,
+          7168,
+          7680,
+          8192
+        ],
+        "tc_compiler": "eager",
+        "max_context_size": null,
+        "full_prefill_max_req": null,
+        "full_prefill_prefix_chunk_tokens": null,
+        "max_seq_len": null
+      }
+    },
+    "cuda_graph_backend_decode": "breakable",
+    "cuda_graph_backend_prefill": "disabled",
+    "cuda_graph_max_bs_decode": 1,
+    "cuda_graph_max_bs_prefill": null,
+    "cuda_graph_bs_decode": [
+      1
+    ],
+    "cuda_graph_bs_prefill": null,
+    "cuda_graph_prefill_max_context": null,
+    "disable_prefill_cuda_graph": false,
+    "disable_decode_cuda_graph": false,
+    "disable_cuda_graph": true,
+    "disable_cuda_graph_padding": false,
+    "enable_profile_cuda_graph": false,
+    "enable_cudagraph_gc": false,
+    "debug_cuda_graph": false,
+    "enable_layerwise_nvtx_marker": false,
+    "enable_nccl_nvls": false,
+    "enable_symm_mem": false,
+    "triton_attention_reduce_in_fp32": false,
+    "triton_attention_num_kv_splits": 8,
+    "triton_attention_split_tile_size": null,
+    "flashinfer_mla_disable_ragged": false,
+    "enable_fused_qk_norm_rope": false,
+    "enable_precise_embedding_interpolation": false,
+    "enable_fused_moe_sum_all_reduce": false,
+    "enable_deepseek_v4_fp4_indexer": false,
+    "disable_custom_all_reduce": false,
+    "enable_mscclpp": false,
+    "enable_torch_symm_mem": false,
+    "enable_scattered_sconv": false,
+    "pre_warm_nccl": false,
+    "boundary_reduction": "ar",
+    "enable_quant_communications": false,
+    "enable_flashinfer_allreduce_fusion": false,
+    "enforce_disable_flashinfer_allreduce_fusion": false,
+    "flashinfer_allreduce_fusion_backend": null,
+    "enable_aiter_allreduce_fusion": false,
+    "enable_torch_compile": false,
+    "enable_torch_compile_debug_mode": false,
+    "torch_compile_max_bs": 32,
+    "speculative_algorithm": "EAGLE",
+    "uno_lora_path": null,
+    "speculative_draft_model_path": "nvidia/Qwen3.8-Flash-Next-FP4-Local",
+    "speculative_draft_model_revision": "b9ce18a6887e18c089fdea8509a33e63429a3300",
+    "speculative_draft_load_format": "qwen38_mtp",
+    "speculative_num_steps": 2,
+    "speculative_eagle_topk": 1,
+    "speculative_num_draft_tokens": 3,
+    "speculative_dflash_block_size": null,
+    "speculative_dspark_block_size": null,
+    "speculative_dspark_sps_table_path": null,
+    "speculative_dspark_confidence_sts_path": null,
+    "speculative_dspark_align_verify_tokens_to_graph_tier": false,
+    "speculative_accept_threshold_single": 1.0,
+    "speculative_accept_threshold_acc": 1.0,
+    "speculative_use_rejection_sampling": false,
+    "speculative_token_map": null,
+    "speculative_attention_mode": "prefill",
+    "speculative_draft_attention_backend": null,
+    "speculative_dsa_topk_backend": "sgl-kernel",
+    "speculative_draft_kv_cache_dtype": "fp8_e4m3",
+    "speculative_draft_window_size": null,
+    "speculative_moe_runner_backend": "triton",
+    "speculative_moe_a2a_backend": null,
+    "speculative_enable_w4a4_mxfp4_megamoe": null,
+    "speculative_draft_model_quantization": null,
+    "_speculative_draft_quantization_explicitly_set": false,
+    "speculative_skip_dp_mlp_sync": false,
+    "enable_multi_layer_eagle": false,
+    "speculative_adaptive": false,
+    "speculative_adaptive_config": null,
+    "decoupled_spec_bind_endpoint": null,
+    "decoupled_spec_connect_endpoints": null,
+    "decoupled_spec_rank": null,
+    "decoupled_spec_role": "null",
+    "spec_trace_dir": null,
+    "speculative_ngram_min_bfs_breadth": 1,
+    "speculative_ngram_max_bfs_breadth": 10,
+    "speculative_ngram_match_type": "BFS",
+    "speculative_ngram_max_trie_depth": 18,
+    "speculative_ngram_capacity": 10000000,
+    "speculative_ngram_external_corpus_path": null,
+    "speculative_ngram_external_sam_budget": 0,
+    "speculative_ngram_external_corpus_max_tokens": 10000000,
+    "ep_size": 1,
+    "moe_a2a_backend": "none",
+    "enable_w4a4_mxfp4_megamoe": false,
+    "deepep_v2_mode": "direct",
+    "moe_runner_backend": "flashinfer_cutlass",
+    "flashinfer_mxfp4_moe_precision": "default",
+    "deepep_mode": "auto",
+    "fuseep_mode": 2,
+    "deepep_dispatcher_output_dtype": "auto",
+    "ep_num_redundant_experts": 0,
+    "ep_dispatch_algorithm": null,
+    "init_expert_location": "trivial",
+    "enable_eplb": false,
+    "eplb_algorithm": "auto",
+    "eplb_rebalance_num_iterations": 1000,
+    "eplb_rebalance_layers_per_chunk": null,
+    "eplb_min_rebalancing_utilization_threshold": 1.0,
+    "expert_distribution_recorder_mode": null,
+    "expert_distribution_recorder_buffer_size": 1000,
+    "expert_balancedness_report_mode": "off",
+    "deepep_config": null,
+    "moe_dense_tp_size": null,
+    "elastic_ep_backend": null,
+    "enable_elastic_expert_backup": false,
+    "mooncake_ib_device": null,
+    "enable_waterfill": false,
+    "ep_join_mode": null,
+    "ep_join_rank_offset": 0,
+    "elastic_ep_initial_size": null,
+    "max_ep_size": null,
+    "elastic_ep_scale_timeout": 600,
+    "disable_flashinfer_cutlass_moe_fp4_allgather": false,
+    "disable_shared_experts_fusion": true,
+    "enforce_shared_experts_fusion": false,
+    "max_mamba_cache_size": 10,
+    "mamba_ssm_dtype": "bfloat16",
+    "mamba_max_states_per_path": -1,
+    "enable_mamba_cache_stochastic_rounding": false,
+    "mamba_cache_philox_rounds": 0,
+    "mamba_full_memory_ratio": 0.22,
+    "mamba_radix_cache_strategy": "extra_buffer",
+    "uses_mamba_radix_cache": true,
+    "mamba_track_interval": 256,
+    "enable_int8_mamba_checkpoint": false,
+    "int8_mamba_ckpt_size": null,
+    "linear_attn_backend": "triton",
+    "linear_attn_decode_backend": null,
+    "linear_attn_prefill_backend": null,
+    "linear_attn_verify_backend": null,
+    "enable_linear_replayssm": false,
+    "linear_replayssm_cache_len": 16,
+    "enable_linear_replayssm_spec": false,
+    "enable_hierarchical_cache": true,
+    "hicache_host_memory_mode": "cache",
+    "hicache_ratio": 6.0,
+    "hicache_size": 0,
+    "hicache_write_policy": "write_through",
+    "hicache_io_backend": "direct",
+    "hicache_mem_layout": "page_first_direct",
+    "hicache_storage_backend": null,
+    "hicache_storage_prefetch_policy": "timeout",
+    "hicache_storage_backend_extra_config": null,
+    "hicache_storage_prefetch_retry_poll_interval": 8,
+    "hicache_storage_prefetch_retry_max_attempts": 8,
+    "enable_unified_cache_external_linker": false,
+    "unified_cache_external_linker_backend": "mooncake",
+    "enable_hisparse": false,
+    "hisparse_config": null,
+    "enable_broadcast_mm_inputs_process": false,
+    "enable_prefix_mm_cache": false,
+    "mm_enable_dp_encoder": false,
+    "mm_process_config": {},
+    "mm_processor_worker_num": 0,
+    "mm_io_worker_num": 0,
+    "allowed_media_domains": [],
+    "media_url_max_file_size_mb": 64,
+    "mm_preprocess_cache_size_mb": null,
+    "trust_mm_content_hashes": false,
+    "limit_mm_data_per_request": null,
+    "enable_mm_global_cache": false,
+    "image_processor_backend": "auto",
+    "mm_global_cache_backend": "mooncake",
+    "disable_fast_image_processor": false,
+    "mm_feature_transport": "cpu",
+    "enable_lora": null,
+    "enable_lora_overlap_loading": null,
+    "max_lora_rank": null,
+    "lora_target_modules": null,
+    "lora_paths": null,
+    "max_loaded_loras": null,
+    "max_loras_per_batch": 8,
+    "lora_eviction_policy": "lru",
+    "lora_backend": "csgmv",
+    "max_lora_chunk_size": 16,
+    "experts_shared_outer_loras": null,
+    "lora_use_virtual_experts": false,
+    "lora_strict_loading": false,
+    "lora_drain_wait_threshold": 0.0,
+    "enable_two_batch_overlap": false,
+    "enable_single_batch_overlap": false,
+    "tbo_token_distribution_threshold": 0.48,
+    "cpu_offload_gb": 0,
+    "offload_group_size": -1,
+    "offload_num_in_group": 1,
+    "offload_prefetch_step": 1,
+    "offload_mode": "cpu",
+    "enable_lmcache": false,
+    "lmcache_config_file": null,
+    "enable_flexkv": false,
+    "flexkv_config_file": null,
+    "kt_weight_path": null,
+    "kt_method": "AMXINT4",
+    "kt_cpuinfer": null,
+    "kt_threadpool_count": 2,
+    "kt_num_gpu_experts": null,
+    "kt_max_deferred_experts_per_token": null,
+    "dllm_algorithm": null,
+    "dllm_algorithm_config": null,
+    "dllm_fdfo": true,
+    "disaggregation_mode": "null",
+    "disaggregation_transfer_backend": "mooncake",
+    "disaggregation_bootstrap_port": 8998,
+    "disaggregation_ib_device": null,
+    "disaggregation_decode_enable_radix_cache": false,
+    "disaggregation_decode_enable_offload_kvcache": false,
+    "disaggregation_decode_retraction_backup": null,
+    "num_reserved_decode_tokens": 512,
+    "disaggregation_decode_extra_slots": null,
+    "disaggregation_decode_polling_interval": 1,
+    "optimistic_prefill_attempts": 0,
+    "encoder_only": false,
+    "language_only": true,
+    "language_model_only": false,
+    "encoder_transfer_backend": "zmq_to_scheduler",
+    "encoder_urls": [
+      "http://vit:8000"
+    ],
+    "encoder_bootstrap_port": 8997,
+    "encoder_register_urls": [],
+    "enable_adaptive_dispatch_to_encoder": false,
+    "enable_pdmux": false,
+    "pdmux_config_path": null,
+    "sm_group_num": 8,
+    "startup_weight_load_mode": "serial",
+    "custom_weight_loader": [],
+    "weight_loader_disable_mmap": false,
+    "weight_loader_prefetch_checkpoints": false,
+    "weight_loader_prefetch_num_threads": 4,
+    "weight_loader_drop_cache_after_load": false,
+    "remote_instance_weight_loader_seed_instance_ip": null,
+    "remote_instance_weight_loader_seed_instance_service_port": null,
+    "remote_instance_weight_loader_send_weights_group_ports": null,
+    "remote_instance_weight_loader_backend": "nccl",
+    "remote_instance_weight_loader_start_seed_via_transfer_engine": false,
+    "engine_info_bootstrap_port": 6789,
+    "modelexpress_config": null,
+    "download_dir": "/prod/huggingface/hub",
+    "model_checksum": null,
+    "delete_ckpt_after_loading": false,
+    "decrypted_config_file": null,
+    "decrypted_draft_config_file": null,
+    "checkpoint_engine_wait_weights_before_ready": false,
+    "enable_prefill_delayer": false,
+    "prefill_delayer_max_delay_passes": 30,
+    "prefill_delayer_token_usage_low_watermark": null,
+    "prefill_delayer_forward_passes_buckets": null,
+    "prefill_delayer_wait_seconds_buckets": null,
+    "prefill_delayer_queue_min_ratio": null,
+    "prefill_delayer_max_delay_ms": null,
+    "min_free_slots_delay": null,
+    "enable_deterministic_inference": false,
+    "rl_on_policy_target": null,
+    "kv_canary": "none",
+    "kv_canary_real_data": "none",
+    "kv_canary_sweep_interval": 0,
+    "enable_dynamic_batch_tokenizer": false,
+    "dynamic_batch_tokenizer_batch_size": 32,
+    "dynamic_batch_tokenizer_batch_timeout": 0.002,
+    "enable_tokenizer_batch_encode": false,
+    "disable_tokenizer_batch_decode": false,
+    "debug_tensor_dump_output_folder": null,
+    "debug_tensor_dump_layers": null,
+    "debug_tensor_dump_input_file": null,
+    "enable_memory_saver": false,
+    "enable_weights_cpu_backup": false,
+    "enable_draft_weights_cpu_backup": false,
+    "enable_custom_logit_processor": false,
+    "enable_return_hidden_states": false,
+    "return_hidden_states_mode": null,
+    "enable_return_routed_experts": false,
+    "enable_return_indexer_topk": false,
+    "sampling_mask_max_tokens": 4096,
+    "disable_outlines_disk_cache": false,
+    "enable_mis": false,
+    "weight_cache_mode": "off",
+    "weight_cache_socket": null,
+    "weight_cache_timeout": 1800,
+    "forward_hooks": null,
+    "msprobe_dump_config": null,
+    "ple_offload_embedding": true,
+    "ple_offload_backend": "pinned",
+    "ple_offload_dir": null,
+    "disaggregation_enable_kv_checksum": false,
+    "enable_pd_role_switch": false,
+    "speculative_domino_candidate_pool_size": 2048,
+    "flashinfer_a2a_dispatch_type": null,
+    "cuda_graph_max_seq_len_prefill": null,
+    "prefill_kv_cache_dequant_dtype": "auto",
+    "dsv4_attn_backend": "auto",
+    "otlp_service_name": null,
+    "_radix_eviction_policy_explicitly_set": false,
+    "hicache_host_memory_fraction": null,
+    "enable_linker_mla_dedup": false,
+    "_swa_full_tokens_ratio_explicitly_set": false,
+    "swa_prefix_tails": null,
+    "enable_encoder_swa_bounded_replay": false,
+    "enable_decoder_swa_bounded_replay": null,
+    "enable_response_store": false,
+    "disaggregation_decode_host_receive_threshold": 1.0,
+    "qsa_indexer_dtype": "auto",
+    "disaggregation_decode_allocation_policy": "early",
+    "speculative_boundary_reduction": "ar",
+    "speculative_use_block_verification": false,
+    "speculative_draft_sink_size": null,
+    "disable_aiter_allreduce_fusion_in_prefill": false,
+    "disable_aiter_allreduce_fusion_in_decode": false,
+    "monokernel_backend": null,
+    "dsa_triton_union": 0,
+    "enable_dsa_fused_indexer": null,
+    "enable_cp_tp_group_sharing": false,
+    "enable_watermark": false,
+    "watermark_config": "<redacted>",
+    "watermark_key": "<redacted>",
+    "watermark_key_b": "<redacted>",
+    "watermark_context_window": 4,
+    "watermark_mixing_probability": 0.5,
+    "watermark_max_probability": 1.0,
+    "watermark_default_enabled": false,
+    "watermark_enforce_all": false,
+    "grpc_response_timeout_secs": 300,
+    "launch_command": "--warmups qwen38_first_prefill --enable-hierarchical-cache --hicache-ratio 6 --hicache-mem-layout page_first_direct --hicache-io-backend direct --hicache-write-policy write_through --speculative-algorithm NEXTN --speculative-draft-load-format qwen38_mtp --speculative-draft-kv-cache-dtype fp8_e4m3 --speculative-num-steps 2 --speculative-eagle-topk 1 --speculative-num-draft-tokens 3 --trust-remote-code --model-path nvidia/Qwen3.8-Flash-Next-FP4-Local --served-model-name nvidia/Qwen3.8-Flash-Next-FP4-Local --revision b9ce18a6887e18c089fdea8509a33e63429a3300 --download-dir /prod/huggingface/hub --load-format qwen38_nvfp4_cache --model-loader-extra-config {\"manifest_path\":\"/root/.cache/sglang/qwen38-fp4-local/b9ce18a6887e18c089fdea8509a33e63429a3300/manifest.json\",\"checkpoint_revision\":\"b9ce18a6887e18c089fdea8509a33e63429a3300\",\"sglang_commit\":\"acd9c47fed94afe9c753631e4f88df58ca3f676f+fp4-local-59db23b7bae46aa9\",\"cache_slots_total\":6382,\"prefill_arena\":true,\"runtime_mode\":\"threaded\",\"stats_log_interval\":19200,\"adaptive_cache\":true,\"kv_cache_stages\":[80000,160000,220000],\"preallocate_gdn_proj\":true,\"async_pack_prefetch\":true,\"packed_decode\":\"packed\",\"packed_prefill\":\"packed\"} --language-only --ple-offload-embedding --ple-offload-backend pinned --disable-shared-experts-fusion --moe-runner-backend flashinfer_cutlass --kv-cache-dtype fp8_e4m3 --mamba-ssm-dtype bfloat16 --mamba-full-memory-ratio 0.22 --max-mamba-cache-size 10 --context-length 220000 --chunked-prefill-size 8192 --mem-fraction-static 0.90 --max-running-requests 1 --cuda-graph-backend-prefill=disabled --cuda-graph-backend-decode=breakable --cuda-graph-bs-decode 1 --cuda-graph-max-bs-decode 1 --enable-cache-report --decode-log-interval 400 --reasoning-parser qwen3 --tool-call-parser qwen3_coder --sleep-on-idle --encoder-urls http://vit:8000 --host 0.0.0.0 --port 8001",
+    "status": "ready",
+    "max_total_num_tokens": 220032,
+    "max_req_input_len": 219994,
+    "startup_time": {
+      "load_weight": 5.870136715937406,
+      "kv_cache_allocation": 0.7625674030277878,
+      "scheduler_e2e": 28.392619026009925,
+      "cuda_graph": {
+        "prefill": 0.0,
+        "decode": 0.0,
+        "target_verify": 1.2414692650781944,
+        "draft_prefill": 0.0,
+        "draft_decode": 2.6558391749858856,
+        "draft_extend": 1.1012037390610203
+      },
+      "tokenizer_e2e": 34.375857625040226
+    },
+    "kv_events": null,
+    "internal_states": [
+      {
+        "model_path": "nvidia/Qwen3.8-Flash-Next-FP4-Local",
+        "tokenizer_path": "nvidia/Qwen3.8-Flash-Next-FP4-Local",
+        "tokenizer_mode": "auto",
+        "tokenizer_backend": "huggingface",
+        "tokenizer_worker_num": 1,
+        "detokenizer_worker_num": 1,
+        "skip_tokenizer_init": false,
+        "load_format": "qwen38_nvfp4_cache",
+        "model_loader_extra_config": "{\"manifest_path\":\"/root/.cache/sglang/qwen38-fp4-local/b9ce18a6887e18c089fdea8509a33e63429a3300/manifest.json\",\"checkpoint_revision\":\"b9ce18a6887e18c089fdea8509a33e63429a3300\",\"sglang_commit\":\"acd9c47fed94afe9c753631e4f88df58ca3f676f+fp4-local-59db23b7bae46aa9\",\"cache_slots_total\":6382,\"prefill_arena\":true,\"runtime_mode\":\"threaded\",\"stats_log_interval\":19200,\"adaptive_cache\":true,\"kv_cache_stages\":[80000,160000,220000],\"preallocate_gdn_proj\":true,\"async_pack_prefetch\":true,\"packed_decode\":\"packed\",\"packed_prefill\":\"packed\"}",
+        "trust_remote_code": true,
+        "context_length": 220000,
+        "is_embedding": false,
+        "enable_multimodal": null,
+        "revision": "b9ce18a6887e18c089fdea8509a33e63429a3300",
+        "model_impl": "auto",
+        "model_config_parser": "auto",
+        "json_model_override_args": "{}",
+        "dtype": "auto",
+        "quantization": null,
+        "quantization_param_path": null,
+        "kv_cache_dtype": "fp8_e4m3",
+        "enable_fp32_lm_head": false,
+        "modelopt_quant": null,
+        "modelopt_checkpoint_restore_path": null,
+        "modelopt_checkpoint_save_path": null,
+        "modelopt_export_path": null,
+        "quantize_and_serve": false,
+        "rl_quant_profile": null,
+        "enable_tf32_matmul": false,
+        "mem_fraction_static": 0.9,
+        "max_running_requests": 1,
+        "max_queued_requests": null,
+        "max_total_tokens": null,
+        "chunked_prefill_size": 8192,
+        "prefill_decode_interval": 0,
+        "enable_dynamic_chunking": false,
+        "max_prefill_tokens": 16384,
+        "prefill_max_requests": null,
+        "schedule_policy": "fcfs",
+        "enable_priority_scheduling": false,
+        "disable_priority_preemption": false,
+        "default_priority_value": null,
+        "abort_on_priority_when_disabled": false,
+        "schedule_low_priority_values_first": false,
+        "priority_scheduling_preemption_threshold": 10,
+        "retraction_policy": "length",
+        "schedule_conservativeness": 1.0,
+        "page_size": 64,
+        "c128_page_size": 16,
+        "swa_full_tokens_ratio": 0.8,
+        "disable_hybrid_swa_memory": false,
+        "radix_eviction_policy": "lru",
+        "radix_eviction_policy_config": null,
+        "prefill_only_disable_kv_cache": false,
+        "disable_radix_cache": false,
+        "enable_page_major_kv_layout": false,
+        "enable_unified_memory": false,
+        "disable_chunked_prefix_cache": true,
+        "disable_overlap_schedule": false,
+        "num_continuous_decode_steps": 1,
+        "scheduler_recv_interval": 1,
+        "enable_mixed_chunk": false,
+        "nccl_port": null,
+        "dist_timeout": null,
+        "dist_init_addr": null,
+        "gated_launch_port": null,
+        "nnodes": 1,
+        "node_rank": 0,
+        "tp_size": 1,
+        "dcp_size": 1,
+        "pp_size": 1,
+        "pp_max_micro_batch_size": 1,
+        "pp_async_batch_depth": 0,
+        "dp_size": 1,
+        "attn_dp_size": 1,
+        "load_balance_method": "round_robin",
+        "attn_cp_size": 1,
+        "moe_dp_size": 1,
+        "dwdp_size": 1,
+        "dcp_comm_backend": "ag_rs",
+        "dcp_replicate_q_proj": null,
+        "enable_prefill_cp": false,
+        "cp_strategy": null,
+        "enable_dsa_cache_layer_split": false,
+        "enable_cp_decode_attn_tp": false,
+        "enable_kv_cache_sharding": false,
+        "enable_dp_attention": false,
+        "enable_dp_attention_local_control_broadcast": false,
+        "enable_dp_lm_head": false,
+        "enable_tp_lm_head_all_to_all": false,
+        "enable_attn_tp_input_scattered": false,
+        "enable_shared_experts_attn_tp": false,
+        "shared_experts_tp_size": null,
+        "enable_dense_mlp_attn_tp": false,
+        "enable_layernorm_sp": false,
+        "disable_attn_tp_gather": false,
+        "enable_p2p_check": false,
+        "device": "cuda",
+        "base_gpu_id": 0,
+        "gpu_id_step": 1,
+        "random_seed": 703816093,
+        "mlx_enable_sampling": false,
+        "watchdog_timeout": 300,
+        "soft_watchdog_timeout": null,
+        "sleep_on_idle": true,
+        "use_ray": false,
+        "numa_node": null,
+        "gc_threshold": null,
+        "host": "0.0.0.0",
+        "port": 8001,
+        "fastapi_root_path": "",
+        "smg_grpc_mode": false,
+        "grpc_mode": false,
+        "grpc_port": null,
+        "grpc_worker_threads": 4,
+        "sidecar": null,
+        "sidecar_args": null,
+        "skip_server_warmup": false,
+        "warmups": "qwen38_first_prefill",
+        "enable_http2": false,
+        "http2_max_concurrent_streams": 200,
+        "http2_initial_connection_window_size": 1048576,
+        "ssl_keyfile": null,
+        "ssl_certfile": null,
+        "ssl_ca_certs": null,
+        "ssl_keyfile_password": null,
+        "enable_ssl_refresh": false,
+        "api_key": null,
+        "admin_api_key": null,
+        "served_model_name": "nvidia/Qwen3.8-Flash-Next-FP4-Local",
+        "weight_version": "default",
+        "chat_template": null,
+        "trust_request_chat_template": false,
+        "hf_chat_template_name": null,
+        "completion_template": null,
+        "file_storage_path": null,
+        "enable_cache_report": true,
+        "return_input_ids": false,
+        "return_output_ids": false,
+        "reasoning_parser": "qwen3",
+        "default_chat_template_kwargs": null,
+        "strip_thinking_cache": false,
+        "enable_strict_thinking": false,
+        "tool_call_parser": "qwen3_coder",
+        "tool_server": null,
+        "sampling_defaults": "model",
+        "asr_max_buffer_seconds": 60,
+        "asr_max_concurrent_sessions": 32,
+        "preferred_sampling_params": null,
+        "allow_auto_truncate": false,
+        "stream_interval": 1,
+        "batch_notify_size": 16,
+        "stream_response_default_include_usage": false,
+        "incremental_streaming_output": false,
+        "enable_streaming_session": false,
+        "enable_session_radix_cache": false,
+        "log_level": "info",
+        "log_level_http": null,
+        "log_requests": false,
+        "log_requests_level": 2,
+        "log_requests_format": "text",
+        "log_requests_target": null,
+        "uvicorn_access_log_exclude_prefixes": [],
+        "crash_dump_folder": null,
+        "show_time_cost": false,
+        "enable_metrics": false,
+        "smg_http_sidecar_port": null,
+        "enable_mfu_metrics": false,
+        "enable_metrics_for_all_schedulers": false,
+        "load_snapshot_publish_interval": 15,
+        "tokenizer_metrics_custom_labels_header": "x-custom-labels",
+        "tokenizer_metrics_allowed_custom_labels": null,
+        "extra_metric_labels": null,
+        "bucket_time_to_first_token": null,
+        "bucket_inter_token_latency": null,
+        "bucket_e2e_request_latency": null,
+        "prompt_tokens_buckets": null,
+        "generation_tokens_buckets": null,
+        "gc_warning_threshold_secs": 0.0,
+        "decode_log_interval": 400,
+        "enable_request_time_stats_logging": false,
+        "kv_events_config": null,
+        "load_publish_endpoint": null,
+        "enable_forward_pass_metrics": false,
+        "forward_pass_metrics_worker_id": "",
+        "forward_pass_metrics_ipc_name": null,
+        "enable_trace": false,
+        "trace_modules": "request",
+        "otlp_traces_endpoint": "localhost:4317",
+        "export_metrics_to_file": false,
+        "export_metrics_to_file_dir": null,
+        "stat_loggers": null,
+        "constrained_json_whitespace_pattern": null,
+        "constrained_json_disable_any_whitespace": false,
+        "constrained_json_max_whitespace_cnt": null,
+        "attention_backend": "flashinfer",
+        "decode_attention_backend": null,
+        "enable_lean_attention": null,
+        "prefill_attention_backend": null,
+        "sampling_backend": "flashinfer",
+        "grammar_backend": "xgrammar",
+        "radix_cache_backend": null,
+        "mm_attention_backend": null,
+        "fp8_gemm_runner_backend": "auto",
+        "fp4_gemm_runner_backend": "auto",
+        "bf16_gemm_backend": "auto",
+        "dsa_prefill_backend": null,
+        "dsv4_prefill_backend": "auto",
+        "dsa_decode_backend": null,
+        "dsa_paged_mqa_logits_backend": "auto",
+        "dsa_topk_backend": "sgl-kernel",
+        "disable_flashinfer_autotune": false,
+        "flashinfer_autotune_skip_ops": null,
+        "mamba_backend": "triton",
+        "cuda_graph_config": {
+          "decode": {
+            "backend": "breakable",
+            "max_bs": 1,
+            "bs": [
+              1
+            ],
+            "tc_compiler": "eager",
+            "max_context_size": null,
+            "full_prefill_max_req": null,
+            "full_prefill_prefix_chunk_tokens": null,
+            "max_seq_len": null
+          },
+          "prefill": {
+            "backend": "disabled",
+            "max_bs": 8192,
+            "bs": [
+              4,
+              8,
+              12,
+              16,
+              20,
+              24,
+              28,
+              32,
+              48,
+              64,
+              80,
+              96,
+              112,
+              128,
+              144,
+              160,
+              176,
+              192,
+              208,
+              224,
+              240,
+              256,
+              288,
+              320,
+              352,
+              384,
+              416,
+              448,
+              480,
+              512,
+              576,
+              640,
+              704,
+              768,
+              832,
+              896,
+              960,
+              1024,
+              1280,
+              1536,
+              1792,
+              2048,
+              2304,
+              2560,
+              2816,
+              3072,
+              3328,
+              3584,
+              3840,
+              4096,
+              4608,
+              5120,
+              5632,
+              6144,
+              6656,
+              7168,
+              7680,
+              8192
+            ],
+            "tc_compiler": "eager",
+            "max_context_size": null,
+            "full_prefill_max_req": null,
+            "full_prefill_prefix_chunk_tokens": null,
+            "max_seq_len": null
+          }
+        },
+        "cuda_graph_backend_decode": "breakable",
+        "cuda_graph_backend_prefill": "disabled",
+        "cuda_graph_max_bs_decode": 1,
+        "cuda_graph_max_bs_prefill": null,
+        "cuda_graph_bs_decode": [
+          1
+        ],
+        "cuda_graph_bs_prefill": null,
+        "cuda_graph_prefill_max_context": null,
+        "disable_prefill_cuda_graph": false,
+        "disable_decode_cuda_graph": false,
+        "disable_cuda_graph": true,
+        "disable_cuda_graph_padding": false,
+        "enable_profile_cuda_graph": false,
+        "enable_cudagraph_gc": false,
+        "debug_cuda_graph": false,
+        "enable_layerwise_nvtx_marker": false,
+        "enable_nccl_nvls": false,
+        "enable_symm_mem": false,
+        "triton_attention_reduce_in_fp32": false,
+        "triton_attention_num_kv_splits": 8,
+        "triton_attention_split_tile_size": null,
+        "flashinfer_mla_disable_ragged": false,
+        "enable_fused_qk_norm_rope": false,
+        "enable_precise_embedding_interpolation": false,
+        "enable_fused_moe_sum_all_reduce": false,
+        "enable_deepseek_v4_fp4_indexer": false,
+        "disable_custom_all_reduce": false,
+        "enable_mscclpp": false,
+        "enable_torch_symm_mem": false,
+        "enable_scattered_sconv": false,
+        "pre_warm_nccl": false,
+        "boundary_reduction": "ar",
+        "enable_quant_communications": false,
+        "enable_flashinfer_allreduce_fusion": false,
+        "enforce_disable_flashinfer_allreduce_fusion": false,
+        "flashinfer_allreduce_fusion_backend": null,
+        "enable_aiter_allreduce_fusion": false,
+        "enable_torch_compile": false,
+        "enable_torch_compile_debug_mode": false,
+        "torch_compile_max_bs": 32,
+        "speculative_algorithm": "EAGLE",
+        "uno_lora_path": null,
+        "speculative_draft_model_path": "nvidia/Qwen3.8-Flash-Next-FP4-Local",
+        "speculative_draft_model_revision": "b9ce18a6887e18c089fdea8509a33e63429a3300",
+        "speculative_draft_load_format": "qwen38_mtp",
+        "speculative_num_steps": 2,
+        "speculative_eagle_topk": 1,
+        "speculative_num_draft_tokens": 3,
+        "speculative_dflash_block_size": null,
+        "speculative_dspark_block_size": null,
+        "speculative_dspark_sps_table_path": null,
+        "speculative_dspark_confidence_sts_path": null,
+        "speculative_dspark_align_verify_tokens_to_graph_tier": false,
+        "speculative_accept_threshold_single": 1.0,
+        "speculative_accept_threshold_acc": 1.0,
+        "speculative_use_rejection_sampling": false,
+        "speculative_token_map": null,
+        "speculative_attention_mode": "prefill",
+        "speculative_draft_attention_backend": null,
+        "speculative_dsa_topk_backend": "sgl-kernel",
+        "speculative_draft_kv_cache_dtype": "fp8_e4m3",
+        "speculative_draft_window_size": null,
+        "speculative_moe_runner_backend": "triton",
+        "speculative_moe_a2a_backend": null,
+        "speculative_enable_w4a4_mxfp4_megamoe": null,
+        "speculative_draft_model_quantization": null,
+        "_speculative_draft_quantization_explicitly_set": false,
+        "speculative_skip_dp_mlp_sync": false,
+        "enable_multi_layer_eagle": false,
+        "speculative_adaptive": false,
+        "speculative_adaptive_config": null,
+        "decoupled_spec_bind_endpoint": null,
+        "decoupled_spec_connect_endpoints": null,
+        "decoupled_spec_rank": null,
+        "decoupled_spec_role": "null",
+        "spec_trace_dir": null,
+        "speculative_ngram_min_bfs_breadth": 1,
+        "speculative_ngram_max_bfs_breadth": 10,
+        "speculative_ngram_match_type": "BFS",
+        "speculative_ngram_max_trie_depth": 18,
+        "speculative_ngram_capacity": 10000000,
+        "speculative_ngram_external_corpus_path": null,
+        "speculative_ngram_external_sam_budget": 0,
+        "speculative_ngram_external_corpus_max_tokens": 10000000,
+        "ep_size": 1,
+        "moe_a2a_backend": "none",
+        "enable_w4a4_mxfp4_megamoe": false,
+        "deepep_v2_mode": "direct",
+        "moe_runner_backend": "flashinfer_cutlass",
+        "flashinfer_mxfp4_moe_precision": "default",
+        "deepep_mode": "auto",
+        "fuseep_mode": 2,
+        "deepep_dispatcher_output_dtype": "auto",
+        "ep_num_redundant_experts": 0,
+        "ep_dispatch_algorithm": null,
+        "init_expert_location": "trivial",
+        "enable_eplb": false,
+        "eplb_algorithm": "auto",
+        "eplb_rebalance_num_iterations": 1000,
+        "eplb_rebalance_layers_per_chunk": null,
+        "eplb_min_rebalancing_utilization_threshold": 1.0,
+        "expert_distribution_recorder_mode": null,
+        "expert_distribution_recorder_buffer_size": 1000,
+        "expert_balancedness_report_mode": "off",
+        "deepep_config": null,
+        "moe_dense_tp_size": null,
+        "elastic_ep_backend": null,
+        "enable_elastic_expert_backup": false,
+        "mooncake_ib_device": null,
+        "enable_waterfill": false,
+        "ep_join_mode": null,
+        "ep_join_rank_offset": 0,
+        "elastic_ep_initial_size": null,
+        "max_ep_size": null,
+        "elastic_ep_scale_timeout": 600,
+        "disable_flashinfer_cutlass_moe_fp4_allgather": false,
+        "disable_shared_experts_fusion": true,
+        "enforce_shared_experts_fusion": false,
+        "max_mamba_cache_size": 10,
+        "mamba_ssm_dtype": "bfloat16",
+        "mamba_max_states_per_path": -1,
+        "enable_mamba_cache_stochastic_rounding": false,
+        "mamba_cache_philox_rounds": 0,
+        "mamba_full_memory_ratio": 0.22,
+        "mamba_radix_cache_strategy": "extra_buffer",
+        "uses_mamba_radix_cache": true,
+        "mamba_track_interval": 256,
+        "enable_int8_mamba_checkpoint": false,
+        "int8_mamba_ckpt_size": null,
+        "linear_attn_backend": "triton",
+        "linear_attn_decode_backend": null,
+        "linear_attn_prefill_backend": null,
+        "linear_attn_verify_backend": null,
+        "enable_linear_replayssm": false,
+        "linear_replayssm_cache_len": 16,
+        "enable_linear_replayssm_spec": false,
+        "enable_hierarchical_cache": true,
+        "hicache_host_memory_mode": "cache",
+        "hicache_ratio": 6.0,
+        "hicache_size": 0,
+        "hicache_write_policy": "write_through",
+        "hicache_io_backend": "direct",
+        "hicache_mem_layout": "page_first_direct",
+        "hicache_storage_backend": null,
+        "hicache_storage_prefetch_policy": "timeout",
+        "hicache_storage_backend_extra_config": null,
+        "hicache_storage_prefetch_retry_poll_interval": 8,
+        "hicache_storage_prefetch_retry_max_attempts": 8,
+        "enable_unified_cache_external_linker": false,
+        "unified_cache_external_linker_backend": "mooncake",
+        "enable_hisparse": false,
+        "hisparse_config": null,
+        "enable_broadcast_mm_inputs_process": false,
+        "enable_prefix_mm_cache": false,
+        "mm_enable_dp_encoder": false,
+        "mm_process_config": {},
+        "mm_processor_worker_num": 0,
+        "mm_io_worker_num": 0,
+        "allowed_media_domains": [],
+        "media_url_max_file_size_mb": 64,
+        "mm_preprocess_cache_size_mb": null,
+        "trust_mm_content_hashes": false,
+        "limit_mm_data_per_request": null,
+        "enable_mm_global_cache": false,
+        "image_processor_backend": "auto",
+        "mm_global_cache_backend": "mooncake",
+        "disable_fast_image_processor": false,
+        "mm_feature_transport": "cpu",
+        "enable_lora": null,
+        "enable_lora_overlap_loading": null,
+        "max_lora_rank": null,
+        "lora_target_modules": null,
+        "lora_paths": null,
+        "max_loaded_loras": null,
+        "max_loras_per_batch": 8,
+        "lora_eviction_policy": "lru",
+        "lora_backend": "csgmv",
+        "max_lora_chunk_size": 16,
+        "experts_shared_outer_loras": null,
+        "lora_use_virtual_experts": false,
+        "lora_strict_loading": false,
+        "lora_drain_wait_threshold": 0.0,
+        "enable_two_batch_overlap": false,
+        "enable_single_batch_overlap": false,
+        "tbo_token_distribution_threshold": 0.48,
+        "cpu_offload_gb": 0,
+        "offload_group_size": -1,
+        "offload_num_in_group": 1,
+        "offload_prefetch_step": 1,
+        "offload_mode": "cpu",
+        "enable_lmcache": false,
+        "lmcache_config_file": null,
+        "enable_flexkv": false,
+        "flexkv_config_file": null,
+        "kt_weight_path": null,
+        "kt_method": "AMXINT4",
+        "kt_cpuinfer": null,
+        "kt_threadpool_count": 2,
+        "kt_num_gpu_experts": null,
+        "kt_max_deferred_experts_per_token": null,
+        "dllm_algorithm": null,
+        "dllm_algorithm_config": null,
+        "dllm_fdfo": true,
+        "disaggregation_mode": "null",
+        "disaggregation_transfer_backend": "mooncake",
+        "disaggregation_bootstrap_port": 8998,
+        "disaggregation_ib_device": null,
+        "disaggregation_decode_enable_radix_cache": false,
+        "disaggregation_decode_enable_offload_kvcache": false,
+        "disaggregation_decode_retraction_backup": "cpu_tensor",
+        "num_reserved_decode_tokens": 512,
+        "disaggregation_decode_extra_slots": null,
+        "disaggregation_decode_polling_interval": 1,
+        "optimistic_prefill_attempts": 0,
+        "encoder_only": false,
+        "language_only": true,
+        "language_model_only": false,
+        "encoder_transfer_backend": "zmq_to_scheduler",
+        "encoder_urls": [
+          "http://vit:8000"
+        ],
+        "encoder_bootstrap_port": 8997,
+        "encoder_register_urls": [],
+        "enable_adaptive_dispatch_to_encoder": false,
+        "enable_pdmux": false,
+        "pdmux_config_path": null,
+        "sm_group_num": 8,
+        "startup_weight_load_mode": "serial",
+        "custom_weight_loader": [],
+        "weight_loader_disable_mmap": false,
+        "weight_loader_prefetch_checkpoints": false,
+        "weight_loader_prefetch_num_threads": 4,
+        "weight_loader_drop_cache_after_load": false,
+        "remote_instance_weight_loader_seed_instance_ip": null,
+        "remote_instance_weight_loader_seed_instance_service_port": null,
+        "remote_instance_weight_loader_send_weights_group_ports": null,
+        "remote_instance_weight_loader_backend": "nccl",
+        "remote_instance_weight_loader_start_seed_via_transfer_engine": false,
+        "engine_info_bootstrap_port": 6789,
+        "modelexpress_config": null,
+        "download_dir": "/prod/huggingface/hub",
+        "model_checksum": null,
+        "delete_ckpt_after_loading": false,
+        "decrypted_config_file": null,
+        "decrypted_draft_config_file": null,
+        "checkpoint_engine_wait_weights_before_ready": false,
+        "enable_prefill_delayer": false,
+        "prefill_delayer_max_delay_passes": 30,
+        "prefill_delayer_token_usage_low_watermark": null,
+        "prefill_delayer_forward_passes_buckets": null,
+        "prefill_delayer_wait_seconds_buckets": null,
+        "prefill_delayer_queue_min_ratio": null,
+        "prefill_delayer_max_delay_ms": null,
+        "min_free_slots_delay": null,
+        "enable_deterministic_inference": false,
+        "rl_on_policy_target": null,
+        "kv_canary": "none",
+        "kv_canary_real_data": "none",
+        "kv_canary_sweep_interval": 0,
+        "enable_dynamic_batch_tokenizer": false,
+        "dynamic_batch_tokenizer_batch_size": 32,
+        "dynamic_batch_tokenizer_batch_timeout": 0.002,
+        "enable_tokenizer_batch_encode": false,
+        "disable_tokenizer_batch_decode": false,
+        "debug_tensor_dump_output_folder": null,
+        "debug_tensor_dump_layers": null,
+        "debug_tensor_dump_input_file": null,
+        "enable_memory_saver": false,
+        "enable_weights_cpu_backup": false,
+        "enable_draft_weights_cpu_backup": false,
+        "enable_custom_logit_processor": false,
+        "enable_return_hidden_states": false,
+        "return_hidden_states_mode": null,
+        "enable_return_routed_experts": false,
+        "enable_return_indexer_topk": false,
+        "sampling_mask_max_tokens": 4096,
+        "disable_outlines_disk_cache": false,
+        "enable_mis": false,
+        "weight_cache_mode": "off",
+        "weight_cache_socket": null,
+        "weight_cache_timeout": 1800,
+        "forward_hooks": null,
+        "msprobe_dump_config": null,
+        "ple_offload_embedding": true,
+        "ple_offload_backend": "pinned",
+        "ple_offload_dir": null,
+        "disaggregation_enable_kv_checksum": false,
+        "enable_pd_role_switch": false,
+        "speculative_domino_candidate_pool_size": 2048,
+        "flashinfer_a2a_dispatch_type": null,
+        "cuda_graph_max_seq_len_prefill": null,
+        "prefill_kv_cache_dequant_dtype": "auto",
+        "dsv4_attn_backend": "auto",
+        "otlp_service_name": null,
+        "_radix_eviction_policy_explicitly_set": false,
+        "hicache_host_memory_fraction": null,
+        "enable_linker_mla_dedup": false,
+        "_swa_full_tokens_ratio_explicitly_set": false,
+        "swa_prefix_tails": null,
+        "enable_encoder_swa_bounded_replay": false,
+        "enable_decoder_swa_bounded_replay": null,
+        "enable_response_store": false,
+        "disaggregation_decode_host_receive_threshold": 1.0,
+        "qsa_indexer_dtype": "auto",
+        "disaggregation_decode_allocation_policy": "early",
+        "speculative_boundary_reduction": "ar",
+        "speculative_use_block_verification": false,
+        "speculative_draft_sink_size": null,
+        "disable_aiter_allreduce_fusion_in_prefill": false,
+        "disable_aiter_allreduce_fusion_in_decode": false,
+        "monokernel_backend": null,
+        "dsa_triton_union": 0,
+        "enable_dsa_fused_indexer": null,
+        "enable_cp_tp_group_sharing": false,
+        "enable_watermark": false,
+        "watermark_config": "<redacted>",
+        "watermark_key": "<redacted>",
+        "watermark_key_b": "<redacted>",
+        "watermark_context_window": 4,
+        "watermark_mixing_probability": 0.5,
+        "watermark_max_probability": 1.0,
+        "watermark_default_enabled": false,
+        "watermark_enforce_all": false,
+        "grpc_response_timeout_secs": 300,
+        "world_size": 1,
+        "startup_time": {
+          "load_weight": 5.870136715937406,
+          "kv_cache_allocation": 0.7625674030277878,
+          "scheduler_e2e": 28.392619026009925,
+          "cuda_graph": {
+            "prefill": 0.0,
+            "decode": 0.0,
+            "target_verify": 1.2414692650781944,
+            "draft_prefill": 0.0,
+            "draft_decode": 2.6558391749858856,
+            "draft_extend": 1.1012037390610203
+          }
+        },
+        "effective_max_running_requests_per_dp": 1,
+        "last_gen_throughput": 0.0,
+        "memory_usage": {
+          "weight": 22.25,
+          "kvcache": 2.676,
+          "startup_available": 2.086,
+          "token_capacity": 220032,
+          "token_capacity_swa": null,
+          "graph": {
+            "prefill": 0.0,
+            "decode": 0.0,
+            "target_verify": 0.061,
+            "draft_prefill": 0.0,
+            "draft_decode": 0.238,
+            "draft_extend": 0.141
+          }
+        },
+        "decode_cuda_graph_bs": [],
+        "decode_cuda_graph_memory_gb": 0.44
+      }
+    ],
+    "version": "0.0.0.dev1+gb234b5c32",
+    "frontend": "python"
+  },
+  "cases": [
+    {
+      "case": 0,
+      "wall_s": 2.184419992961921,
+      "meta_info": {
+        "id": "[REDACTED REQUEST ID]",
+        "finish_reason": {
+          "type": "length",
+          "length": 192
+        },
+        "prompt_tokens": 15,
+        "weight_version": "default",
+        "num_retractions": 0,
+        "reasoning_tokens": 0,
+        "completion_tokens": 192,
+        "cached_tokens": 0,
+        "weight_versions": [
+          {
+            "version": "default",
+            "start": 0,
+            "end": 192
+          }
+        ],
+        "cached_tokens_details": null,
+        "dp_rank": null,
+        "e2e_latency": 2.183543661958538,
+        "spec_accept_rate": 0.6566265060240963,
+        "spec_accept_length": 2.3132530120481927,
+        "spec_num_correct_drafts": 109,
+        "spec_num_proposed_drafts": 166,
+        "spec_verify_ct": 83,
+        "spec_correct_drafts_histogram": [
+          20,
+          17,
+          46
+        ]
+      },
+      "e2e_tokens_per_second": 87.89518527509054,
+      "ttft_s": 0.2775591289391741,
+      "decode_tokens_per_second": 100.16836954763404,
+      "stream_points": [
+        [
+          0.2775591289391741,
+          1
+        ],
+        [
+          0.30866299697663635,
+          2
+        ],
+        [
+          0.33941682102158666,
+          3
+        ],
+        [
+          0.37208369094878435,
+          6
+        ],
+        [
+          0.40919398597907275,
+          9
+        ],
+        [
+          0.44008571293670684,
+          12
+        ],
+        [
+          0.47371166094671935,
+          15
+        ],
+        [
+          0.5053947139531374,
+          18
+        ],
+        [
+          0.5393622469855472,
+          21
+        ],
+        [
+          0.5748311049537733,
+          24
+        ],
+        [
+          0.6034481240203604,
+          25
+        ],
+        [
+          0.6308263369137421,
+          26
+        ],
+        [
+          0.6573774559656158,
+          27
+        ],
+        [
+          0.6846395540051162,
+          30
+        ],
+        [
+          0.7127379949670285,
+          33
+        ],
+        [
+          0.7354381430195644,
+          36
+        ],
+        [
+          0.7662584959762171,
+          37
+        ],
+        [
+          0.7912375329760835,
+          40
+        ],
+        [
+          0.8209173359209672,
+          42
+        ],
+        [
+          0.8529837139649317,
+          44
+        ],
+        [
+          0.8807807289995253,
+          47
+        ],
+        [
+          0.9041883759200573,
+          49
+        ],
+        [
+          0.9242085999576375,
+          52
+        ],
+        [
+          0.9466877869563177,
+          54
+        ],
+        [
+          0.9669640309875831,
+          56
+        ],
+        [
+          0.9841849380172789,
+          57
+        ],
+        [
+          1.0070929969660938,
+          60
+        ],
+        [
+          1.0280707199126482,
+          62
+        ],
+        [
+          1.0540861419867724,
+          63
+        ],
+        [
+          1.0698506229091436,
+          66
+        ],
+        [
+          1.0906018859241158,
+          67
+        ],
+        [
+          1.1097657280042768,
+          70
+        ],
+        [
+          1.1306605649879202,
+          73
+        ],
+        [
+          1.1521399059565738,
+          76
+        ],
+        [
+          1.1717361189657822,
+          79
+        ],
+        [
+          1.1977608809247613,
+          80
+        ],
+        [
+          1.218589109950699,
+          83
+        ],
+        [
+          1.2403105909470469,
+          86
+        ],
+        [
+          1.258024096954614,
+          88
+        ],
+        [
+          1.2768623529700562,
+          91
+        ],
+        [
+          1.29962838802021,
+          94
+        ],
+        [
+          1.32095450500492,
+          96
+        ],
+        [
+          1.3408671449869871,
+          97
+        ],
+        [
+          1.3574144809972495,
+          99
+        ],
+        [
+          1.3753233079332858,
+          100
+        ],
+        [
+          1.3924971969099715,
+          101
+        ],
+        [
+          1.410204472951591,
+          104
+        ],
+        [
+          1.4265428090002388,
+          105
+        ],
+        [
+          1.4436443810118362,
+          107
+        ],
+        [
+          1.4675311569590122,
+          110
+        ],
+        [
+          1.487149479915388,
+          113
+        ],
+        [
+          1.503434126963839,
+          115
+        ],
+        [
+          1.5206512549193576,
+          116
+        ],
+        [
+          1.5375713449902833,
+          119
+        ],
+        [
+          1.5561824010219425,
+          121
+        ],
+        [
+          1.577023820951581,
+          124
+        ],
+        [
+          1.602002489962615,
+          127
+        ],
+        [
+          1.6223378819413483,
+          130
+        ],
+        [
+          1.6411422709934413,
+          133
+        ],
+        [
+          1.6605199949117377,
+          136
+        ],
+        [
+          1.6889531139750034,
+          138
+        ],
+        [
+          1.7151620899094269,
+          139
+        ],
+        [
+          1.7335093589499593,
+          140
+        ],
+        [
+          1.7611848809756339,
+          141
+        ],
+        [
+          1.7776231829775497,
+          144
+        ],
+        [
+          1.7950486519839615,
+          145
+        ],
+        [
+          1.8108882809756324,
+          148
+        ],
+        [
+          1.8334490659181029,
+          151
+        ],
+        [
+          1.8527656319784,
+          154
+        ],
+        [
+          1.8791835489682853,
+          157
+        ],
+        [
+          1.9030522969551384,
+          160
+        ],
+        [
+          1.9274152329890057,
+          162
+        ],
+        [
+          1.9507912329863757,
+          165
+        ],
+        [
+          1.9702143649337813,
+          168
+        ],
+        [
+          1.995698211947456,
+          171
+        ],
+        [
+          2.0147497509606183,
+          173
+        ],
+        [
+          2.0360681799938902,
+          174
+        ],
+        [
+          2.0630777010228485,
+          177
+        ],
+        [
+          2.0891761910170317,
+          180
+        ],
+        [
+          2.1081464829621837,
+          182
+        ],
+        [
+          2.124749977956526,
+          184
+        ],
+        [
+          2.1449739049421623,
+          187
+        ],
+        [
+          2.1646575659979135,
+          190
+        ],
+        [
+          2.184348676004447,
+          192
+        ]
+      ]
+    },
+    {
+      "case": 1,
+      "wall_s": 2.1289328559068963,
+      "meta_info": {
+        "id": "[REDACTED REQUEST ID]",
+        "finish_reason": {
+          "type": "length",
+          "length": 192
+        },
+        "prompt_tokens": 16,
+        "weight_version": "default",
+        "num_retractions": 0,
+        "reasoning_tokens": 0,
+        "completion_tokens": 192,
+        "cached_tokens": 0,
+        "weight_versions": [
+          {
+            "version": "default",
+            "start": 0,
+            "end": 192
+          }
+        ],
+        "cached_tokens_details": null,
+        "dp_rank": null,
+        "e2e_latency": 2.1275803049793467,
+        "spec_accept_rate": 0.69375,
+        "spec_accept_length": 2.4,
+        "spec_num_correct_drafts": 111,
+        "spec_num_proposed_drafts": 160,
+        "spec_verify_ct": 80,
+        "spec_correct_drafts_histogram": [
+          17,
+          15,
+          48
+        ]
+      },
+      "e2e_tokens_per_second": 90.18602886759932,
+      "ttft_s": 0.27607482695020735,
+      "decode_tokens_per_second": 103.08719252852248,
+      "stream_points": [
+        [
+          0.27607482695020735,
+          1
+        ],
+        [
+          0.308402145979926,
+          2
+        ],
+        [
+          0.33964749192819,
+          3
+        ],
+        [
+          0.37057651195209473,
+          6
+        ],
+        [
+          0.401068622013554,
+          9
+        ],
+        [
+          0.4260921309469268,
+          12
+        ],
+        [
+          0.4522795589873567,
+          15
+        ],
+        [
+          0.4811797389993444,
+          17
+        ],
+        [
+          0.5034819559659809,
+          20
+        ],
+        [
+          0.5268956460058689,
+          23
+        ],
+        [
+          0.5563938599079847,
+          26
+        ],
+        [
+          0.5805569159565493,
+          29
+        ],
+        [
+          0.601132248993963,
+          30
+        ],
+        [
+          0.6175038749352098,
+          33
+        ],
+        [
+          0.6402893419144675,
+          36
+        ],
+        [
+          0.6658432679250836,
+          39
+        ],
+        [
+          0.6858913640026003,
+          42
+        ],
+        [
+          0.7070403819670901,
+          43
+        ],
+        [
+          0.7279172919224948,
+          45
+        ],
+        [
+          0.7486726669594646,
+          48
+        ],
+        [
+          0.7683840380050242,
+          51
+        ],
+        [
+          0.7871559190098196,
+          54
+        ],
+        [
+          0.8124001889955252,
+          57
+        ],
+        [
+          0.8357100819703192,
+          60
+        ],
+        [
+          0.8521958439378068,
+          62
+        ],
+        [
+          0.8715124219888821,
+          65
+        ],
+        [
+          0.8978929009754211,
+          68
+        ],
+        [
+          0.9198635329958051,
+          70
+        ],
+        [
+          0.944064917974174,
+          73
+        ],
+        [
+          0.9649997859960422,
+          76
+        ],
+        [
+          0.9873900399543345,
+          79
+        ],
+        [
+          1.0051272759446874,
+          81
+        ],
+        [
+          1.0237048359122127,
+          84
+        ],
+        [
+          1.0427574859932065,
+          86
+        ],
+        [
+          1.0635752079542726,
+          88
+        ],
+        [
+          1.0823166409973055,
+          91
+        ],
+        [
+          1.1040245349286124,
+          92
+        ],
+        [
+          1.1241603170055896,
+          95
+        ],
+        [
+          1.1437855609692633,
+          98
+        ],
+        [
+          1.1661279469262809,
+          101
+        ],
+        [
+          1.1895538459066302,
+          104
+        ],
+        [
+          1.2173250149935484,
+          107
+        ],
+        [
+          1.2363668449688703,
+          110
+        ],
+        [
+          1.2567541159223765,
+          111
+        ],
+        [
+          1.2850322329904884,
+          114
+        ],
+        [
+          1.3046951160067692,
+          117
+        ],
+        [
+          1.3234995759557933,
+          120
+        ],
+        [
+          1.3423980519874021,
+          123
+        ],
+        [
+          1.363369887927547,
+          126
+        ],
+        [
+          1.3812589779263362,
+          129
+        ],
+        [
+          1.398279557004571,
+          131
+        ],
+        [
+          1.4225701689720154,
+          132
+        ],
+        [
+          1.4450232709059492,
+          133
+        ],
+        [
+          1.4665360549697652,
+          135
+        ],
+        [
+          1.489864149945788,
+          136
+        ],
+        [
+          1.5136716229608282,
+          139
+        ],
+        [
+          1.5367341689998284,
+          142
+        ],
+        [
+          1.557465106016025,
+          143
+        ],
+        [
+          1.5796796689974144,
+          144
+        ],
+        [
+          1.5995534239336848,
+          147
+        ],
+        [
+          1.6406782339327037,
+          150
+        ],
+        [
+          1.6505877019371837,
+          151
+        ],
+        [
+          1.6682312740013003,
+          152
+        ],
+        [
+          1.6893217059550807,
+          154
+        ],
+        [
+          1.7151776700047776,
+          155
+        ],
+        [
+          1.7376773699652404,
+          157
+        ],
+        [
+          1.7565861969487742,
+          160
+        ],
+        [
+          1.7746934589231387,
+          163
+        ],
+        [
+          1.796594624989666,
+          165
+        ],
+        [
+          1.8252952859038487,
+          168
+        ],
+        [
+          1.8566571999108419,
+          170
+        ],
+        [
+          1.877543780952692,
+          173
+        ],
+        [
+          1.9068795439088717,
+          176
+        ],
+        [
+          1.9398330089170486,
+          179
+        ],
+        [
+          1.9747964869020507,
+          181
+        ],
+        [
+          2.003743066918105,
+          184
+        ],
+        [
+          2.0402711669448763,
+          187
+        ],
+        [
+          2.0618599569424987,
+          189
+        ],
+        [
+          2.0871338059660047,
+          190
+        ],
+        [
+          2.1051935099530965,
+          191
+        ],
+        [
+          2.128875308902934,
+          192
+        ]
+      ]
+    },
+    {
+      "case": 2,
+      "wall_s": 2.2203487899387255,
+      "meta_info": {
+        "id": "[REDACTED REQUEST ID]",
+        "finish_reason": {
+          "type": "length",
+          "length": 192
+        },
+        "prompt_tokens": 14,
+        "weight_version": "default",
+        "num_retractions": 0,
+        "reasoning_tokens": 0,
+        "completion_tokens": 192,
+        "cached_tokens": 0,
+        "weight_versions": [
+          {
+            "version": "default",
+            "start": 0,
+            "end": 192
+          }
+        ],
+        "cached_tokens_details": null,
+        "dp_rank": null,
+        "e2e_latency": 2.219341713003814,
+        "spec_accept_rate": 0.7215189873417721,
+        "spec_accept_length": 2.430379746835443,
+        "spec_num_correct_drafts": 114,
+        "spec_num_proposed_drafts": 158,
+        "spec_verify_ct": 79,
+        "spec_correct_drafts_histogram": [
+          14,
+          16,
+          49
+        ]
+      },
+      "e2e_tokens_per_second": 86.47290050555462,
+      "ttft_s": 0.38635824795346707,
+      "decode_tokens_per_second": 104.14640628235294,
+      "stream_points": [
+        [
+          0.38635824795346707,
+          1
+        ],
+        [
+          0.3968339319108054,
+          2
+        ],
+        [
+          0.42405853897798806,
+          5
+        ],
+        [
+          0.4454157199943438,
+          6
+        ],
+        [
+          0.46931324095930904,
+          7
+        ],
+        [
+          0.4919135879026726,
+          10
+        ],
+        [
+          0.5160468489630148,
+          13
+        ],
+        [
+          0.5339149129576981,
+          15
+        ],
+        [
+          0.5577559960074723,
+          18
+        ],
+        [
+          0.5748787010088563,
+          20
+        ],
+        [
+          0.5905967379221693,
+          23
+        ],
+        [
+          0.6204175619641319,
+          26
+        ],
+        [
+          0.6429601019481197,
+          29
+        ],
+        [
+          0.6624104159418494,
+          32
+        ],
+        [
+          0.6825789689319208,
+          35
+        ],
+        [
+          0.7141658460022882,
+          38
+        ],
+        [
+          0.736485545989126,
+          41
+        ],
+        [
+          0.7709904549410567,
+          44
+        ],
+        [
+          0.7947699709329754,
+          46
+        ],
+        [
+          0.825481585925445,
+          48
+        ],
+        [
+          0.8555051309522241,
+          51
+        ],
+        [
+          0.883718863944523,
+          54
+        ],
+        [
+          0.9072804698953405,
+          56
+        ],
+        [
+          0.9263553199125454,
+          59
+        ],
+        [
+          0.9590828669024631,
+          62
+        ],
+        [
+          0.9873560089617968,
+          63
+        ],
+        [
+          1.0092279579257593,
+          64
+        ],
+        [
+          1.0298766299383715,
+          67
+        ],
+        [
+          1.0622922509210184,
+          70
+        ],
+        [
+          1.0842962539754808,
+          73
+        ],
+        [
+          1.1085751279024407,
+          75
+        ],
+        [
+          1.1289130139630288,
+          78
+        ],
+        [
+          1.1516433059005067,
+          81
+        ],
+        [
+          1.1754658799618483,
+          84
+        ],
+        [
+          1.2027595529798418,
+          87
+        ],
+        [
+          1.2272211499512196,
+          90
+        ],
+        [
+          1.2484861660050228,
+          92
+        ],
+        [
+          1.2697608809685335,
+          93
+        ],
+        [
+          1.290639514918439,
+          95
+        ],
+        [
+          1.311895671999082,
+          97
+        ],
+        [
+          1.3306097489548847,
+          98
+        ],
+        [
+          1.3501469909679145,
+          101
+        ],
+        [
+          1.3731308029964566,
+          103
+        ],
+        [
+          1.398378576966934,
+          106
+        ],
+        [
+          1.4234284498961642,
+          109
+        ],
+        [
+          1.4570920380065218,
+          112
+        ],
+        [
+          1.4816693708999082,
+          115
+        ],
+        [
+          1.4990835349308327,
+          117
+        ],
+        [
+          1.5237379149766639,
+          118
+        ],
+        [
+          1.5445849589304999,
+          121
+        ],
+        [
+          1.5642393958987668,
+          124
+        ],
+        [
+          1.5923240369884297,
+          127
+        ],
+        [
+          1.6195569839328527,
+          129
+        ],
+        [
+          1.6464720559306443,
+          130
+        ],
+        [
+          1.6731889959191903,
+          131
+        ],
+        [
+          1.693219385924749,
+          134
+        ],
+        [
+          1.7161204919684678,
+          137
+        ],
+        [
+          1.7337480469141155,
+          140
+        ],
+        [
+          1.7552416030084714,
+          143
+        ],
+        [
+          1.7743785330094397,
+          145
+        ],
+        [
+          1.7959067079937086,
+          148
+        ],
+        [
+          1.8203145479783416,
+          149
+        ],
+        [
+          1.838215010939166,
+          151
+        ],
+        [
+          1.8599276879103854,
+          154
+        ],
+        [
+          1.882350374944508,
+          155
+        ],
+        [
+          1.9151593999704346,
+          158
+        ],
+        [
+          1.9457432529889047,
+          161
+        ],
+        [
+          1.9671563130104914,
+          164
+        ],
+        [
+          1.9890011249808595,
+          167
+        ],
+        [
+          2.009511913987808,
+          170
+        ],
+        [
+          2.0367012839997187,
+          173
+        ],
+        [
+          2.059474495006725,
+          174
+        ],
+        [
+          2.0774516039527953,
+          177
+        ],
+        [
+          2.101548127946444,
+          179
+        ],
+        [
+          2.1192375399405137,
+          180
+        ],
+        [
+          2.1358925770036876,
+          183
+        ],
+        [
+          2.1565394409699365,
+          186
+        ],
+        [
+          2.1761184809729457,
+          188
+        ],
+        [
+          2.198735838988796,
+          191
+        ],
+        [
+          2.2203149519627914,
+          192
+        ]
+      ]
+    }
+  ]
+}

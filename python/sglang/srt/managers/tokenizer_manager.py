@@ -1639,6 +1639,7 @@ class TokenizerManager(TokenizerControlMixin, TokenizerManagerScoreMixin):
                 multi_item_delimiter_indices=obj.multi_item_delimiter_indices,
                 token_indices_to_pool=obj.token_indices_to_pool,
                 encoder_urls=obj.encoder_urls,
+                deferred_encoder_items=obj.deferred_encoder_items,
             )
         elif isinstance(obj, EmbeddingReqInput):
             # Resolve unresolved embed overrides now that input_ids are available
@@ -3946,6 +3947,8 @@ class TokenizerManager(TokenizerControlMixin, TokenizerManagerScoreMixin):
                         if state is not None:
                             time_stats_json = state.time_stats.encode_json()
 
+                    if self.mm_receiver.prepare_replay_dispatch(obj):
+                        return
                     dispatch_ready = self.mm_receiver.send_encode_request(
                         obj,
                         time_stats_json=time_stats_json,
