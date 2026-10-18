@@ -1,0 +1,360 @@
+[
+  {
+    "name": "short-first",
+    "elapsed": 3.199494045926258,
+    "start": "Start profiling.\n",
+    "stop": "Stop profiling. This will take some time.\n",
+    "response": {
+      "text": "[REDACTED]",
+      "output_ids": "[REDACTED OUTPUT_IDS: 32 ITEMS]",
+      "meta_info": {
+        "id": "[REDACTED REQUEST ID]",
+        "finish_reason": {
+          "type": "length",
+          "length": 32
+        },
+        "prompt_tokens": 9,
+        "weight_version": "default",
+        "num_retractions": 0,
+        "reasoning_tokens": 0,
+        "completion_tokens": 32,
+        "cached_tokens": 0,
+        "weight_versions": [
+          {
+            "version": "default",
+            "start": 0,
+            "end": 32
+          }
+        ],
+        "cached_tokens_details": null,
+        "dp_rank": null,
+        "e2e_latency": 0.7166615660535172,
+        "spec_accept_rate": 0.7916666666666666,
+        "spec_accept_length": 2.6666666666666665,
+        "spec_num_correct_drafts": 19,
+        "spec_num_proposed_drafts": 24,
+        "spec_verify_ct": 12,
+        "spec_correct_drafts_histogram": [
+          2,
+          1,
+          9
+        ],
+        "response_sent_to_client_ts": 1792342597.0170164
+      }
+    }
+  },
+  {
+    "name": "long-74000",
+    "elapsed": 13.824889309005812,
+    "start": "Start profiling.\n",
+    "stop": "Stop profiling. This will take some time.\n",
+    "response": {
+      "text": "[REDACTED]",
+      "output_ids": "[REDACTED OUTPUT_IDS: 32 ITEMS]",
+      "meta_info": {
+        "id": "[REDACTED REQUEST ID]",
+        "finish_reason": {
+          "type": "length",
+          "length": 32
+        },
+        "prompt_tokens": 74000,
+        "weight_version": "default",
+        "num_retractions": 0,
+        "reasoning_tokens": 0,
+        "completion_tokens": 32,
+        "cached_tokens": 0,
+        "weight_versions": [
+          {
+            "version": "default",
+            "start": 0,
+            "end": 32
+          }
+        ],
+        "cached_tokens_details": null,
+        "dp_rank": null,
+        "e2e_latency": 13.326063488028012,
+        "spec_accept_rate": 1.0,
+        "spec_accept_length": 2.909090909090909,
+        "spec_num_correct_drafts": 22,
+        "spec_num_proposed_drafts": 22,
+        "spec_verify_ct": 11,
+        "spec_correct_drafts_histogram": [
+          0,
+          0,
+          11
+        ],
+        "response_sent_to_client_ts": 1792342612.942219
+      }
+    }
+  },
+  {
+    "name": "long-170000",
+    "elapsed": 17.705575614003465,
+    "start": "Start profiling.\n",
+    "stop": "Stop profiling. This will take some time.\n",
+    "response": {
+      "text": "[REDACTED]",
+      "output_ids": "[REDACTED OUTPUT_IDS: 32 ITEMS]",
+      "meta_info": {
+        "id": "[REDACTED REQUEST ID]",
+        "finish_reason": {
+          "type": "length",
+          "length": 32
+        },
+        "prompt_tokens": 170000,
+        "weight_version": "default",
+        "num_retractions": 0,
+        "reasoning_tokens": 0,
+        "completion_tokens": 32,
+        "cached_tokens": 73984,
+        "weight_versions": [
+          {
+            "version": "default",
+            "start": 0,
+            "end": 32
+          }
+        ],
+        "cached_tokens_details": {
+          "device": 73984,
+          "host": 0
+        },
+        "dp_rank": null,
+        "e2e_latency": 17.22519302694127,
+        "spec_accept_rate": 1.0,
+        "spec_accept_length": 2.909090909090909,
+        "spec_num_correct_drafts": 22,
+        "spec_num_proposed_drafts": 22,
+        "spec_verify_ct": 11,
+        "spec_correct_drafts_histogram": [
+          0,
+          0,
+          11
+        ],
+        "response_sent_to_client_ts": 1792342630.8502822
+      }
+    }
+  },
+  {
+    "name": "short-after-flush",
+    "elapsed": 1.2175676439655945,
+    "start": "Start profiling.\n",
+    "stop": "Stop profiling. This will take some time.\n",
+    "response": {
+      "text": "[REDACTED]",
+      "output_ids": "[REDACTED OUTPUT_IDS: 32 ITEMS]",
+      "meta_info": {
+        "id": "[REDACTED REQUEST ID]",
+        "finish_reason": {
+          "type": "length",
+          "length": 32
+        },
+        "prompt_tokens": 9,
+        "weight_version": "default",
+        "num_retractions": 0,
+        "reasoning_tokens": 0,
+        "completion_tokens": 32,
+        "cached_tokens": 0,
+        "weight_versions": [
+          {
+            "version": "default",
+            "start": 0,
+            "end": 32
+          }
+        ],
+        "cached_tokens_details": null,
+        "dp_rank": null,
+        "e2e_latency": 1.0153097370639443,
+        "spec_accept_rate": 0.7307692307692307,
+        "spec_accept_length": 2.4615384615384617,
+        "spec_num_correct_drafts": 19,
+        "spec_num_proposed_drafts": 26,
+        "spec_verify_ct": 13,
+        "spec_correct_drafts_histogram": [
+          2,
+          3,
+          8
+        ],
+        "response_sent_to_client_ts": 1792342632.4800553
+      }
+    }
+  },
+  {
+    "name": "repeat-74000",
+    "elapsed": 13.998258344014175,
+    "start": "Start profiling.\n",
+    "stop": "Stop profiling. This will take some time.\n",
+    "response": {
+      "text": "[REDACTED]",
+      "output_ids": "[REDACTED OUTPUT_IDS: 32 ITEMS]",
+      "meta_info": {
+        "id": "[REDACTED REQUEST ID]",
+        "finish_reason": {
+          "type": "length",
+          "length": 32
+        },
+        "prompt_tokens": 74000,
+        "weight_version": "default",
+        "num_retractions": 0,
+        "reasoning_tokens": 0,
+        "completion_tokens": 32,
+        "cached_tokens": 0,
+        "weight_versions": [
+          {
+            "version": "default",
+            "start": 0,
+            "end": 32
+          }
+        ],
+        "cached_tokens_details": null,
+        "dp_rank": null,
+        "e2e_latency": 13.530313068069518,
+        "spec_accept_rate": 1.0,
+        "spec_accept_length": 2.909090909090909,
+        "spec_num_correct_drafts": 22,
+        "spec_num_proposed_drafts": 22,
+        "spec_verify_ct": 11,
+        "spec_correct_drafts_histogram": [
+          0,
+          0,
+          11
+        ],
+        "response_sent_to_client_ts": 1792342646.359458
+      }
+    }
+  },
+  {
+    "name": "repeat-170000",
+    "elapsed": 17.713749766000547,
+    "start": "Start profiling.\n",
+    "stop": "Stop profiling. This will take some time.\n",
+    "response": {
+      "text": "[REDACTED]",
+      "output_ids": "[REDACTED OUTPUT_IDS: 32 ITEMS]",
+      "meta_info": {
+        "id": "[REDACTED REQUEST ID]",
+        "finish_reason": {
+          "type": "length",
+          "length": 32
+        },
+        "prompt_tokens": 170000,
+        "weight_version": "default",
+        "num_retractions": 0,
+        "reasoning_tokens": 0,
+        "completion_tokens": 32,
+        "cached_tokens": 73984,
+        "weight_versions": [
+          {
+            "version": "default",
+            "start": 0,
+            "end": 32
+          }
+        ],
+        "cached_tokens_details": {
+          "device": 73984,
+          "host": 0
+        },
+        "dp_rank": null,
+        "e2e_latency": 16.97283149906434,
+        "spec_accept_rate": 1.0,
+        "spec_accept_length": 2.909090909090909,
+        "spec_num_correct_drafts": 22,
+        "spec_num_proposed_drafts": 22,
+        "spec_verify_ct": 11,
+        "spec_correct_drafts_histogram": [
+          0,
+          0,
+          11
+        ],
+        "response_sent_to_client_ts": 1792342663.97244
+      }
+    }
+  },
+  {
+    "name": "short-after-second-flush",
+    "elapsed": 1.2005832000868395,
+    "start": "Start profiling.\n",
+    "stop": "Stop profiling. This will take some time.\n",
+    "response": {
+      "text": "[REDACTED]",
+      "output_ids": "[REDACTED OUTPUT_IDS: 32 ITEMS]",
+      "meta_info": {
+        "id": "[REDACTED REQUEST ID]",
+        "finish_reason": {
+          "type": "length",
+          "length": 32
+        },
+        "prompt_tokens": 9,
+        "weight_version": "default",
+        "num_retractions": 0,
+        "reasoning_tokens": 0,
+        "completion_tokens": 32,
+        "cached_tokens": 0,
+        "weight_versions": [
+          {
+            "version": "default",
+            "start": 0,
+            "end": 32
+          }
+        ],
+        "cached_tokens_details": null,
+        "dp_rank": null,
+        "e2e_latency": 1.016329136909917,
+        "spec_accept_rate": 0.7692307692307693,
+        "spec_accept_length": 2.4615384615384617,
+        "spec_num_correct_drafts": 20,
+        "spec_num_proposed_drafts": 26,
+        "spec_verify_ct": 13,
+        "spec_correct_drafts_histogram": [
+          2,
+          2,
+          9
+        ],
+        "response_sent_to_client_ts": 1792342665.8719199
+      }
+    }
+  },
+  {
+    "name": "short-repeat",
+    "elapsed": 0.6804345629643649,
+    "start": "Start profiling.\n",
+    "stop": "Stop profiling. This will take some time.\n",
+    "response": {
+      "text": "[REDACTED]",
+      "output_ids": "[REDACTED OUTPUT_IDS: 32 ITEMS]",
+      "meta_info": {
+        "id": "[REDACTED REQUEST ID]",
+        "finish_reason": {
+          "type": "length",
+          "length": 32
+        },
+        "prompt_tokens": 9,
+        "weight_version": "default",
+        "num_retractions": 0,
+        "reasoning_tokens": 0,
+        "completion_tokens": 32,
+        "cached_tokens": 0,
+        "weight_versions": [
+          {
+            "version": "default",
+            "start": 0,
+            "end": 32
+          }
+        ],
+        "cached_tokens_details": null,
+        "dp_rank": null,
+        "e2e_latency": 0.4655246160691604,
+        "spec_accept_rate": 0.7692307692307693,
+        "spec_accept_length": 2.4615384615384617,
+        "spec_num_correct_drafts": 20,
+        "spec_num_proposed_drafts": 26,
+        "spec_verify_ct": 13,
+        "spec_correct_drafts_histogram": [
+          2,
+          2,
+          9
+        ],
+        "response_sent_to_client_ts": 1792342666.670742
+      }
+    }
+  }
+]

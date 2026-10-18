@@ -1,0 +1,922 @@
+{
+  "idle-final": {
+    "source": "/home/user/workspace/prod/homelab-llm/models/startup-memory/full-audit-20261019/idle-final/1792342667.0630178-TP-0-memory.pickle",
+    "driver_free": 2108162048,
+    "driver_total": 33766572032,
+    "physical_reserved_union": 10263461888,
+    "physical_segment_sum": 10263461888,
+    "ordinary_reserved": 10215227392,
+    "vmm_backed": 20382220288,
+    "outside_allocator_and_vmm": 1012727808,
+    "physical_states": {
+      "active_allocated": 10115628032,
+      "inactive": 147833856
+    },
+    "pools": {
+      "(0, 0)": {
+        "reserved": 10215227392,
+        "allocated": 10114890752,
+        "inactive": 100336640,
+        "pending": 0
+      },
+      "(0, 3)": {
+        "reserved": 48234496,
+        "allocated": 737280,
+        "inactive": 47497216,
+        "pending": 0
+      }
+    },
+    "vmm_arenas": [
+      {
+        "owner": "stack.self.Scheduler[139660185713456].token_to_kv_pool_allocator.expert_runtime.staged_pool.arena",
+        "base": 89657442304,
+        "reserved": 68151148544,
+        "backed": 19375587328,
+        "granularity": 2097152,
+        "ranges": {
+          "0": 11479810048,
+          "40265318400": 5739905024,
+          "60397977600": 1436549120,
+          "65431142400": 719323136
+        },
+        "pool_id": [
+          0,
+          1
+        ],
+        "closed": false
+      },
+      {
+        "owner": "stack.self.Scheduler[139660185713456].token_to_kv_pool_allocator._kvcache.full_kv_pool._post_capture_owner._arena",
+        "base": 157840048128,
+        "reserved": 3525312512,
+        "backed": 1006632960,
+        "granularity": 2097152,
+        "ranges": {
+          "0": 41943040,
+          "113246208": 41943040,
+          "226492416": 41943040,
+          "339738624": 41943040,
+          "452984832": 41943040,
+          "566231040": 41943040,
+          "679477248": 41943040,
+          "792723456": 41943040,
+          "905969664": 41943040,
+          "1019215872": 41943040,
+          "1132462080": 41943040,
+          "1245708288": 41943040,
+          "1358954496": 41943040,
+          "1472200704": 41943040,
+          "1585446912": 41943040,
+          "1698693120": 41943040,
+          "1811939328": 41943040,
+          "1925185536": 41943040,
+          "2038431744": 41943040,
+          "2151677952": 41943040,
+          "2264924160": 41943040,
+          "2378170368": 41943040,
+          "2491416576": 41943040,
+          "2604662784": 41943040
+        },
+        "pool_id": [
+          0,
+          2
+        ],
+        "closed": false
+      }
+    ],
+    "unknown_owner_bytes": 241513472,
+    "unknown_owner_count": 123,
+    "trace_actions": {
+      "snapshot": 1
+    },
+    "trace_action_bytes": {
+      "snapshot": 80781261824
+    },
+    "nvidia_smi": "174, sglang::scheduler, 29956 MiB, GPU-REDACTED\n"
+  },
+  "long-170000": {
+    "source": "/home/user/workspace/prod/homelab-llm/models/startup-memory/full-audit-20261019/long-170000/1792342630.852234-TP-0-memory.pickle",
+    "driver_free": 526909440,
+    "driver_total": 33766572032,
+    "physical_reserved_union": 11844714496,
+    "physical_segment_sum": 11844714496,
+    "ordinary_reserved": 11796480000,
+    "vmm_backed": 20382220288,
+    "outside_allocator_and_vmm": 1012727808,
+    "physical_states": {
+      "active_allocated": 10237916672,
+      "inactive": 1606797824
+    },
+    "pools": {
+      "(0, 0)": {
+        "reserved": 11796480000,
+        "allocated": 10237179392,
+        "inactive": 1559300608,
+        "pending": 0
+      },
+      "(0, 3)": {
+        "reserved": 48234496,
+        "allocated": 737280,
+        "inactive": 47497216,
+        "pending": 0
+      }
+    },
+    "vmm_arenas": [
+      {
+        "owner": "stack.self.Scheduler[139660185713456].token_to_kv_pool_allocator.expert_runtime.staged_pool.arena",
+        "base": 89657442304,
+        "reserved": 68151148544,
+        "backed": 17664311296,
+        "granularity": 2097152,
+        "ranges": {
+          "0": 10466885632,
+          "40265318400": 5234491392,
+          "60397977600": 1308622848,
+          "65431142400": 654311424
+        },
+        "pool_id": [
+          0,
+          1
+        ],
+        "closed": false
+      },
+      {
+        "owner": "stack.self.Scheduler[139660185713456].token_to_kv_pool_allocator._kvcache.full_kv_pool._post_capture_owner._arena",
+        "base": 157840048128,
+        "reserved": 3525312512,
+        "backed": 2717908992,
+        "granularity": 2097152,
+        "ranges": {
+          "0": 113246208,
+          "113246208": 113246208,
+          "226492416": 113246208,
+          "339738624": 113246208,
+          "452984832": 113246208,
+          "566231040": 113246208,
+          "679477248": 113246208,
+          "792723456": 113246208,
+          "905969664": 113246208,
+          "1019215872": 113246208,
+          "1132462080": 113246208,
+          "1245708288": 113246208,
+          "1358954496": 113246208,
+          "1472200704": 113246208,
+          "1585446912": 113246208,
+          "1698693120": 113246208,
+          "1811939328": 113246208,
+          "1925185536": 113246208,
+          "2038431744": 113246208,
+          "2151677952": 113246208,
+          "2264924160": 113246208,
+          "2378170368": 113246208,
+          "2491416576": 113246208,
+          "2604662784": 113246208
+        },
+        "pool_id": [
+          0,
+          2
+        ],
+        "closed": false
+      }
+    ],
+    "unknown_owner_bytes": 241513472,
+    "unknown_owner_count": 123,
+    "trace_actions": {
+      "alloc": 32857,
+      "free_requested": 33105,
+      "free_completed": 33105,
+      "segment_map": 388,
+      "segment_unmap": 545
+    },
+    "trace_action_bytes": {
+      "alloc": 1293598572444,
+      "free_requested": 1294838317585,
+      "free_completed": 1294838317585,
+      "segment_map": 122603700224,
+      "segment_unmap": 122976993280
+    },
+    "nvidia_smi": "174, sglang::scheduler, 31464 MiB, GPU-REDACTED\n"
+  },
+  "long-74000": {
+    "source": "/home/user/workspace/prod/homelab-llm/models/startup-memory/full-audit-20261019/long-74000/1792342612.9437792-TP-0-memory.pickle",
+    "driver_free": 2621440,
+    "driver_total": 33766572032,
+    "physical_reserved_union": 12369002496,
+    "physical_segment_sum": 12369002496,
+    "ordinary_reserved": 12320768000,
+    "vmm_backed": 20382220288,
+    "outside_allocator_and_vmm": 1012727808,
+    "physical_states": {
+      "active_allocated": 10143234048,
+      "inactive": 2225768448
+    },
+    "pools": {
+      "(0, 0)": {
+        "reserved": 12320768000,
+        "allocated": 10142496768,
+        "inactive": 2178271232,
+        "pending": 0
+      },
+      "(0, 3)": {
+        "reserved": 48234496,
+        "allocated": 737280,
+        "inactive": 47497216,
+        "pending": 0
+      }
+    },
+    "vmm_arenas": [
+      {
+        "owner": "stack.self.Scheduler[139660185713456].token_to_kv_pool_allocator.expert_runtime.staged_pool.arena",
+        "base": 89657442304,
+        "reserved": 68151148544,
+        "backed": 18368954368,
+        "granularity": 2097152,
+        "ranges": {
+          "0": 10884218880,
+          "40265318400": 5442109440,
+          "60397977600": 1361051648,
+          "65431142400": 681574400
+        },
+        "pool_id": [
+          0,
+          1
+        ],
+        "closed": false
+      },
+      {
+        "owner": "stack.self.Scheduler[139660185713456].token_to_kv_pool_allocator._kvcache.full_kv_pool._post_capture_owner._arena",
+        "base": 157840048128,
+        "reserved": 3525312512,
+        "backed": 2013265920,
+        "granularity": 2097152,
+        "ranges": {
+          "0": 83886080,
+          "113246208": 83886080,
+          "226492416": 83886080,
+          "339738624": 83886080,
+          "452984832": 83886080,
+          "566231040": 83886080,
+          "679477248": 83886080,
+          "792723456": 83886080,
+          "905969664": 83886080,
+          "1019215872": 83886080,
+          "1132462080": 83886080,
+          "1245708288": 83886080,
+          "1358954496": 83886080,
+          "1472200704": 83886080,
+          "1585446912": 83886080,
+          "1698693120": 83886080,
+          "1811939328": 83886080,
+          "1925185536": 83886080,
+          "2038431744": 83886080,
+          "2151677952": 83886080,
+          "2264924160": 83886080,
+          "2378170368": 83886080,
+          "2491416576": 83886080,
+          "2604662784": 83886080
+        },
+        "pool_id": [
+          0,
+          2
+        ],
+        "closed": false
+      }
+    ],
+    "unknown_owner_bytes": 263169024,
+    "unknown_owner_count": 180,
+    "trace_actions": {
+      "free_requested": 33018,
+      "free_completed": 33018,
+      "alloc": 33051,
+      "segment_map": 347,
+      "segment_unmap": 566
+    },
+    "trace_action_bytes": {
+      "free_requested": 1184837931242,
+      "free_completed": 1184837931242,
+      "alloc": 1183806870941,
+      "segment_map": 143883501568,
+      "segment_unmap": 143772352512
+    },
+    "nvidia_smi": "174, sglang::scheduler, 31964 MiB, GPU-REDACTED\n"
+  },
+  "repeat-170000": {
+    "source": "/home/user/workspace/prod/homelab-llm/models/startup-memory/full-audit-20261019/repeat-170000/1792342663.9743793-TP-0-memory.pickle",
+    "driver_free": 63438848,
+    "driver_total": 33766572032,
+    "physical_reserved_union": 12308185088,
+    "physical_segment_sum": 12308185088,
+    "ordinary_reserved": 12259950592,
+    "vmm_backed": 20382220288,
+    "outside_allocator_and_vmm": 1012727808,
+    "physical_states": {
+      "active_allocated": 10237916672,
+      "inactive": 2070268416
+    },
+    "pools": {
+      "(0, 0)": {
+        "reserved": 12259950592,
+        "allocated": 10237179392,
+        "inactive": 2022771200,
+        "pending": 0
+      },
+      "(0, 3)": {
+        "reserved": 48234496,
+        "allocated": 737280,
+        "inactive": 47497216,
+        "pending": 0
+      }
+    },
+    "vmm_arenas": [
+      {
+        "owner": "stack.self.Scheduler[139660185713456].token_to_kv_pool_allocator.expert_runtime.staged_pool.arena",
+        "base": 89657442304,
+        "reserved": 68151148544,
+        "backed": 17664311296,
+        "granularity": 2097152,
+        "ranges": {
+          "0": 10466885632,
+          "40265318400": 5234491392,
+          "60397977600": 1308622848,
+          "65431142400": 654311424
+        },
+        "pool_id": [
+          0,
+          1
+        ],
+        "closed": false
+      },
+      {
+        "owner": "stack.self.Scheduler[139660185713456].token_to_kv_pool_allocator._kvcache.full_kv_pool._post_capture_owner._arena",
+        "base": 157840048128,
+        "reserved": 3525312512,
+        "backed": 2717908992,
+        "granularity": 2097152,
+        "ranges": {
+          "0": 113246208,
+          "113246208": 113246208,
+          "226492416": 113246208,
+          "339738624": 113246208,
+          "452984832": 113246208,
+          "566231040": 113246208,
+          "679477248": 113246208,
+          "792723456": 113246208,
+          "905969664": 113246208,
+          "1019215872": 113246208,
+          "1132462080": 113246208,
+          "1245708288": 113246208,
+          "1358954496": 113246208,
+          "1472200704": 113246208,
+          "1585446912": 113246208,
+          "1698693120": 113246208,
+          "1811939328": 113246208,
+          "1925185536": 113246208,
+          "2038431744": 113246208,
+          "2151677952": 113246208,
+          "2264924160": 113246208,
+          "2378170368": 113246208,
+          "2491416576": 113246208,
+          "2604662784": 113246208
+        },
+        "pool_id": [
+          0,
+          2
+        ],
+        "closed": false
+      }
+    ],
+    "unknown_owner_bytes": 241513472,
+    "unknown_owner_count": 123,
+    "trace_actions": {
+      "free_completed": 33241,
+      "free_requested": 33240,
+      "alloc": 33145,
+      "segment_map": 168,
+      "segment_unmap": 206
+    },
+    "trace_action_bytes": {
+      "free_completed": 1309892292554,
+      "free_requested": 1309841960906,
+      "alloc": 1308852262332,
+      "segment_map": 54418997248,
+      "segment_unmap": 54368665600
+    },
+    "nvidia_smi": "174, sglang::scheduler, 31906 MiB, GPU-REDACTED\n"
+  },
+  "repeat-74000": {
+    "source": "/home/user/workspace/prod/homelab-llm/models/startup-memory/full-audit-20261019/repeat-74000/1792342646.3608885-TP-0-memory.pickle",
+    "driver_free": 524288,
+    "driver_total": 33766572032,
+    "physical_reserved_union": 12371099648,
+    "physical_segment_sum": 12371099648,
+    "ordinary_reserved": 12322865152,
+    "vmm_backed": 20382220288,
+    "outside_allocator_and_vmm": 1012727808,
+    "physical_states": {
+      "active_allocated": 10121247744,
+      "inactive": 2249851904
+    },
+    "pools": {
+      "(0, 0)": {
+        "reserved": 12322865152,
+        "allocated": 10120510464,
+        "inactive": 2202354688,
+        "pending": 0
+      },
+      "(0, 3)": {
+        "reserved": 48234496,
+        "allocated": 737280,
+        "inactive": 47497216,
+        "pending": 0
+      }
+    },
+    "vmm_arenas": [
+      {
+        "owner": "stack.self.Scheduler[139660185713456].token_to_kv_pool_allocator.expert_runtime.staged_pool.arena",
+        "base": 89657442304,
+        "reserved": 68151148544,
+        "backed": 18368954368,
+        "granularity": 2097152,
+        "ranges": {
+          "0": 10884218880,
+          "40265318400": 5442109440,
+          "60397977600": 1361051648,
+          "65431142400": 681574400
+        },
+        "pool_id": [
+          0,
+          1
+        ],
+        "closed": false
+      },
+      {
+        "owner": "stack.self.Scheduler[139660185713456].token_to_kv_pool_allocator._kvcache.full_kv_pool._post_capture_owner._arena",
+        "base": 157840048128,
+        "reserved": 3525312512,
+        "backed": 2013265920,
+        "granularity": 2097152,
+        "ranges": {
+          "0": 83886080,
+          "113246208": 83886080,
+          "226492416": 83886080,
+          "339738624": 83886080,
+          "452984832": 83886080,
+          "566231040": 83886080,
+          "679477248": 83886080,
+          "792723456": 83886080,
+          "905969664": 83886080,
+          "1019215872": 83886080,
+          "1132462080": 83886080,
+          "1245708288": 83886080,
+          "1358954496": 83886080,
+          "1472200704": 83886080,
+          "1585446912": 83886080,
+          "1698693120": 83886080,
+          "1811939328": 83886080,
+          "1925185536": 83886080,
+          "2038431744": 83886080,
+          "2151677952": 83886080,
+          "2264924160": 83886080,
+          "2378170368": 83886080,
+          "2491416576": 83886080,
+          "2604662784": 83886080
+        },
+        "pool_id": [
+          0,
+          2
+        ],
+        "closed": false
+      }
+    ],
+    "unknown_owner_bytes": 241513472,
+    "unknown_owner_count": 123,
+    "trace_actions": {
+      "free_requested": 33194,
+      "free_completed": 33194,
+      "alloc": 33104,
+      "segment_map": 204,
+      "segment_unmap": 304
+    },
+    "trace_action_bytes": {
+      "free_requested": 1188463377668,
+      "free_completed": 1188463377668,
+      "alloc": 1186748338881,
+      "segment_map": 77378617344,
+      "segment_unmap": 77372325888
+    },
+    "nvidia_smi": "174, sglang::scheduler, 31966 MiB, GPU-REDACTED\n"
+  },
+  "short-after-flush": {
+    "source": "/home/user/workspace/prod/homelab-llm/models/startup-memory/full-audit-20261019/short-after-flush/1792342632.4814332-TP-0-memory.pickle",
+    "driver_free": 1957167104,
+    "driver_total": 33766572032,
+    "physical_reserved_union": 10414456832,
+    "physical_segment_sum": 10414456832,
+    "ordinary_reserved": 10366222336,
+    "vmm_backed": 20382220288,
+    "outside_allocator_and_vmm": 1012727808,
+    "physical_states": {
+      "active_allocated": 10115324928,
+      "inactive": 299131904
+    },
+    "pools": {
+      "(0, 0)": {
+        "reserved": 10366222336,
+        "allocated": 10114587648,
+        "inactive": 251634688,
+        "pending": 0
+      },
+      "(0, 3)": {
+        "reserved": 48234496,
+        "allocated": 737280,
+        "inactive": 47497216,
+        "pending": 0
+      }
+    },
+    "vmm_arenas": [
+      {
+        "owner": "stack.self.Scheduler[139660185713456].token_to_kv_pool_allocator.expert_runtime.staged_pool.arena",
+        "base": 89657442304,
+        "reserved": 68151148544,
+        "backed": 19375587328,
+        "granularity": 2097152,
+        "ranges": {
+          "0": 11479810048,
+          "40265318400": 5739905024,
+          "60397977600": 1436549120,
+          "65431142400": 719323136
+        },
+        "pool_id": [
+          0,
+          1
+        ],
+        "closed": false
+      },
+      {
+        "owner": "stack.self.Scheduler[139660185713456].token_to_kv_pool_allocator._kvcache.full_kv_pool._post_capture_owner._arena",
+        "base": 157840048128,
+        "reserved": 3525312512,
+        "backed": 1006632960,
+        "granularity": 2097152,
+        "ranges": {
+          "0": 41943040,
+          "113246208": 41943040,
+          "226492416": 41943040,
+          "339738624": 41943040,
+          "452984832": 41943040,
+          "566231040": 41943040,
+          "679477248": 41943040,
+          "792723456": 41943040,
+          "905969664": 41943040,
+          "1019215872": 41943040,
+          "1132462080": 41943040,
+          "1245708288": 41943040,
+          "1358954496": 41943040,
+          "1472200704": 41943040,
+          "1585446912": 41943040,
+          "1698693120": 41943040,
+          "1811939328": 41943040,
+          "1925185536": 41943040,
+          "2038431744": 41943040,
+          "2151677952": 41943040,
+          "2264924160": 41943040,
+          "2378170368": 41943040,
+          "2491416576": 41943040,
+          "2604662784": 41943040
+        },
+        "pool_id": [
+          0,
+          2
+        ],
+        "closed": false
+      }
+    ],
+    "unknown_owner_bytes": 241513472,
+    "unknown_owner_count": 123,
+    "trace_actions": {
+      "snapshot": 1,
+      "alloc": 5520,
+      "free_requested": 5551,
+      "free_completed": 5551,
+      "segment_map": 3
+    },
+    "trace_action_bytes": {
+      "snapshot": 80903578624,
+      "alloc": 395089116,
+      "free_requested": 517719051,
+      "free_completed": 517719051,
+      "segment_map": 6291456
+    },
+    "nvidia_smi": "174, sglang::scheduler, 30100 MiB, GPU-REDACTED\n"
+  },
+  "short-after-second-flush": {
+    "source": "/home/user/workspace/prod/homelab-llm/models/startup-memory/full-audit-20261019/short-after-second-flush/1792342665.8733256-TP-0-memory.pickle",
+    "driver_free": 1959264256,
+    "driver_total": 33766572032,
+    "physical_reserved_union": 10412359680,
+    "physical_segment_sum": 10412359680,
+    "ordinary_reserved": 10364125184,
+    "vmm_backed": 20382220288,
+    "outside_allocator_and_vmm": 1012727808,
+    "physical_states": {
+      "active_allocated": 10115324928,
+      "inactive": 297034752
+    },
+    "pools": {
+      "(0, 0)": {
+        "reserved": 10364125184,
+        "allocated": 10114587648,
+        "inactive": 249537536,
+        "pending": 0
+      },
+      "(0, 3)": {
+        "reserved": 48234496,
+        "allocated": 737280,
+        "inactive": 47497216,
+        "pending": 0
+      }
+    },
+    "vmm_arenas": [
+      {
+        "owner": "stack.self.Scheduler[139660185713456].token_to_kv_pool_allocator.expert_runtime.staged_pool.arena",
+        "base": 89657442304,
+        "reserved": 68151148544,
+        "backed": 19375587328,
+        "granularity": 2097152,
+        "ranges": {
+          "0": 11479810048,
+          "40265318400": 5739905024,
+          "60397977600": 1436549120,
+          "65431142400": 719323136
+        },
+        "pool_id": [
+          0,
+          1
+        ],
+        "closed": false
+      },
+      {
+        "owner": "stack.self.Scheduler[139660185713456].token_to_kv_pool_allocator._kvcache.full_kv_pool._post_capture_owner._arena",
+        "base": 157840048128,
+        "reserved": 3525312512,
+        "backed": 1006632960,
+        "granularity": 2097152,
+        "ranges": {
+          "0": 41943040,
+          "113246208": 41943040,
+          "226492416": 41943040,
+          "339738624": 41943040,
+          "452984832": 41943040,
+          "566231040": 41943040,
+          "679477248": 41943040,
+          "792723456": 41943040,
+          "905969664": 41943040,
+          "1019215872": 41943040,
+          "1132462080": 41943040,
+          "1245708288": 41943040,
+          "1358954496": 41943040,
+          "1472200704": 41943040,
+          "1585446912": 41943040,
+          "1698693120": 41943040,
+          "1811939328": 41943040,
+          "1925185536": 41943040,
+          "2038431744": 41943040,
+          "2151677952": 41943040,
+          "2264924160": 41943040,
+          "2378170368": 41943040,
+          "2491416576": 41943040,
+          "2604662784": 41943040
+        },
+        "pool_id": [
+          0,
+          2
+        ],
+        "closed": false
+      }
+    ],
+    "unknown_owner_bytes": 241513472,
+    "unknown_owner_count": 123,
+    "trace_actions": {
+      "snapshot": 1,
+      "alloc": 5520,
+      "free_requested": 5551,
+      "free_completed": 5551,
+      "segment_map": 1
+    },
+    "trace_action_bytes": {
+      "snapshot": 80903578624,
+      "alloc": 395089116,
+      "free_requested": 517719051,
+      "free_completed": 517719051,
+      "segment_map": 2097152
+    },
+    "nvidia_smi": "174, sglang::scheduler, 30098 MiB, GPU-REDACTED\n"
+  },
+  "short-first": {
+    "source": "/home/user/workspace/prod/homelab-llm/models/startup-memory/full-audit-20261019/short-first/1792342597.047797-TP-0-memory.pickle",
+    "driver_free": 2131230720,
+    "driver_total": 33766572032,
+    "physical_reserved_union": 10242490368,
+    "physical_segment_sum": 10242490368,
+    "ordinary_reserved": 10194255872,
+    "vmm_backed": 20382220288,
+    "outside_allocator_and_vmm": 1010630656,
+    "physical_states": {
+      "active_allocated": 10095008256,
+      "inactive": 147481088,
+      "active_pending_free": 1024
+    },
+    "pools": {
+      "(0, 0)": {
+        "reserved": 10194255872,
+        "allocated": 10094270976,
+        "inactive": 99983872,
+        "pending": 1024
+      },
+      "(0, 3)": {
+        "reserved": 48234496,
+        "allocated": 737280,
+        "inactive": 47497216,
+        "pending": 0
+      }
+    },
+    "vmm_arenas": [
+      {
+        "owner": "stack.self.Scheduler[139660185713456].token_to_kv_pool_allocator.expert_runtime.staged_pool.arena",
+        "base": 89657442304,
+        "reserved": 68151148544,
+        "backed": 19375587328,
+        "granularity": 2097152,
+        "ranges": {
+          "0": 11479810048,
+          "40265318400": 5739905024,
+          "60397977600": 1436549120,
+          "65431142400": 719323136
+        },
+        "pool_id": [
+          0,
+          1
+        ],
+        "closed": false
+      },
+      {
+        "owner": "stack.self.Scheduler[139660185713456].token_to_kv_pool_allocator._kvcache.full_kv_pool._post_capture_owner._arena",
+        "base": 157840048128,
+        "reserved": 3525312512,
+        "backed": 1006632960,
+        "granularity": 2097152,
+        "ranges": {
+          "0": 41943040,
+          "113246208": 41943040,
+          "226492416": 41943040,
+          "339738624": 41943040,
+          "452984832": 41943040,
+          "566231040": 41943040,
+          "679477248": 41943040,
+          "792723456": 41943040,
+          "905969664": 41943040,
+          "1019215872": 41943040,
+          "1132462080": 41943040,
+          "1245708288": 41943040,
+          "1358954496": 41943040,
+          "1472200704": 41943040,
+          "1585446912": 41943040,
+          "1698693120": 41943040,
+          "1811939328": 41943040,
+          "1925185536": 41943040,
+          "2038431744": 41943040,
+          "2151677952": 41943040,
+          "2264924160": 41943040,
+          "2378170368": 41943040,
+          "2491416576": 41943040,
+          "2604662784": 41943040
+        },
+        "pool_id": [
+          0,
+          2
+        ],
+        "closed": false
+      }
+    ],
+    "unknown_owner_bytes": 242280448,
+    "unknown_owner_count": 182,
+    "trace_actions": {
+      "snapshot": 1,
+      "alloc": 5417,
+      "free_requested": 5388,
+      "free_completed": 5386,
+      "segment_map": 3
+    },
+    "trace_action_bytes": {
+      "snapshot": 80760413696,
+      "alloc": 407242787,
+      "free_requested": 407026674,
+      "free_completed": 407026658,
+      "segment_map": 6291456
+    },
+    "nvidia_smi": "174, sglang::scheduler, 29934 MiB, GPU-REDACTED\n"
+  },
+  "short-repeat": {
+    "source": "/home/user/workspace/prod/homelab-llm/models/startup-memory/full-audit-20261019/short-repeat/1792342666.672201-TP-0-memory.pickle",
+    "driver_free": 2106064896,
+    "driver_total": 33766572032,
+    "physical_reserved_union": 10265559040,
+    "physical_segment_sum": 10265559040,
+    "ordinary_reserved": 10217324544,
+    "vmm_backed": 20382220288,
+    "outside_allocator_and_vmm": 1012727808,
+    "physical_states": {
+      "active_allocated": 10115617280,
+      "inactive": 149941760
+    },
+    "pools": {
+      "(0, 0)": {
+        "reserved": 10217324544,
+        "allocated": 10114880000,
+        "inactive": 102444544,
+        "pending": 0
+      },
+      "(0, 3)": {
+        "reserved": 48234496,
+        "allocated": 737280,
+        "inactive": 47497216,
+        "pending": 0
+      }
+    },
+    "vmm_arenas": [
+      {
+        "owner": "stack.self.Scheduler[139660185713456].token_to_kv_pool_allocator.expert_runtime.staged_pool.arena",
+        "base": 89657442304,
+        "reserved": 68151148544,
+        "backed": 19375587328,
+        "granularity": 2097152,
+        "ranges": {
+          "0": 11479810048,
+          "40265318400": 5739905024,
+          "60397977600": 1436549120,
+          "65431142400": 719323136
+        },
+        "pool_id": [
+          0,
+          1
+        ],
+        "closed": false
+      },
+      {
+        "owner": "stack.self.Scheduler[139660185713456].token_to_kv_pool_allocator._kvcache.full_kv_pool._post_capture_owner._arena",
+        "base": 157840048128,
+        "reserved": 3525312512,
+        "backed": 1006632960,
+        "granularity": 2097152,
+        "ranges": {
+          "0": 41943040,
+          "113246208": 41943040,
+          "226492416": 41943040,
+          "339738624": 41943040,
+          "452984832": 41943040,
+          "566231040": 41943040,
+          "679477248": 41943040,
+          "792723456": 41943040,
+          "905969664": 41943040,
+          "1019215872": 41943040,
+          "1132462080": 41943040,
+          "1245708288": 41943040,
+          "1358954496": 41943040,
+          "1472200704": 41943040,
+          "1585446912": 41943040,
+          "1698693120": 41943040,
+          "1811939328": 41943040,
+          "1925185536": 41943040,
+          "2038431744": 41943040,
+          "2151677952": 41943040,
+          "2264924160": 41943040,
+          "2378170368": 41943040,
+          "2491416576": 41943040,
+          "2604662784": 41943040
+        },
+        "pool_id": [
+          0,
+          2
+        ],
+        "closed": false
+      }
+    ],
+    "unknown_owner_bytes": 241513472,
+    "unknown_owner_count": 123,
+    "trace_actions": {
+      "snapshot": 1,
+      "alloc": 5417,
+      "free_requested": 5362,
+      "free_completed": 5362,
+      "segment_map": 1
+    },
+    "trace_action_bytes": {
+      "snapshot": 80780969472,
+      "alloc": 407242787,
+      "free_requested": 406985345,
+      "free_completed": 406985345,
+      "segment_map": 2097152
+    },
+    "nvidia_smi": "174, sglang::scheduler, 29958 MiB, GPU-REDACTED\n"
+  }
+}

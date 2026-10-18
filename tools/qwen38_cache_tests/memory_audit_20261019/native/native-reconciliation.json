@@ -1,0 +1,195 @@
+{
+  "sqlite": "/tmp/qwen38-native-memory.sqlite",
+  "mapped_live_bytes": 30255611904,
+  "allocator_plus_vmm_bytes": 30255611904,
+  "unexplained_mapped_bytes": 0,
+  "outstanding_handles": 583,
+  "outstanding_maps": 583,
+  "cuda_malloc_live": [
+    {
+      "start": 31069529573,
+      "globalPid": 281478583812096,
+      "deviceId": 0,
+      "contextId": 1,
+      "address": 161365360640,
+      "pc": 0,
+      "bytes": 1024,
+      "memKind": 2,
+      "memoryOperationType": 0,
+      "name": null,
+      "correlationId": 325170,
+      "streamId": null,
+      "localMemoryPoolAddress": null,
+      "localMemoryPoolReleaseThreshold": null,
+      "localMemoryPoolSize": null,
+      "localMemoryPoolUtilizedSize": null,
+      "importedMemoryPoolAddress": null,
+      "importedMemoryPoolProcessId": null,
+      "api": "cudaMalloc_v3020"
+    },
+    {
+      "start": 31069539493,
+      "globalPid": 281478583812096,
+      "deviceId": 0,
+      "contextId": 1,
+      "address": 161365361664,
+      "pc": 0,
+      "bytes": 131072,
+      "memKind": 2,
+      "memoryOperationType": 0,
+      "name": null,
+      "correlationId": 325179,
+      "streamId": null,
+      "localMemoryPoolAddress": null,
+      "localMemoryPoolReleaseThreshold": null,
+      "localMemoryPoolSize": null,
+      "localMemoryPoolUtilizedSize": null,
+      "importedMemoryPoolAddress": null,
+      "importedMemoryPoolProcessId": null,
+      "api": "cudaMalloc_v3020"
+    },
+    {
+      "start": 31069583643,
+      "globalPid": 281478583812096,
+      "deviceId": 0,
+      "contextId": 1,
+      "address": 161367457792,
+      "pc": 0,
+      "bytes": 8388608,
+      "memKind": 2,
+      "memoryOperationType": 0,
+      "name": null,
+      "correlationId": 325188,
+      "streamId": null,
+      "localMemoryPoolAddress": null,
+      "localMemoryPoolReleaseThreshold": null,
+      "localMemoryPoolSize": null,
+      "localMemoryPoolUtilizedSize": null,
+      "importedMemoryPoolAddress": null,
+      "importedMemoryPoolProcessId": null,
+      "api": "cudaMalloc_v3020"
+    }
+  ],
+  "allocation_totals": [
+    {
+      "api": "cuMemSetAccess",
+      "operation": 0,
+      "count": 998,
+      "bytes": 42926604288
+    },
+    {
+      "api": "cuMemUnmap",
+      "operation": 1,
+      "count": 415,
+      "bytes": 12670992384
+    },
+    {
+      "api": "cudaMalloc_v3020",
+      "operation": 0,
+      "count": 3,
+      "bytes": 8520704
+    }
+  ],
+  "api_results": [
+    {
+      "api": "cuDeviceTotalMem_v2",
+      "result": 0,
+      "count": 10
+    },
+    {
+      "api": "cuMemAddressFree",
+      "result": 0,
+      "count": 15
+    },
+    {
+      "api": "cuMemAddressReserve",
+      "result": 0,
+      "count": 31
+    },
+    {
+      "api": "cuMemCreate",
+      "result": 0,
+      "count": 999
+    },
+    {
+      "api": "cuMemCreate",
+      "result": 1,
+      "count": 1
+    },
+    {
+      "api": "cuMemGetAllocationGranularity",
+      "result": 0,
+      "count": 3
+    },
+    {
+      "api": "cuMemHostGetDevicePointer_v2",
+      "result": 0,
+      "count": 1
+    },
+    {
+      "api": "cuMemMap",
+      "result": 0,
+      "count": 998
+    },
+    {
+      "api": "cuMemRelease",
+      "result": 0,
+      "count": 416
+    },
+    {
+      "api": "cuMemSetAccess",
+      "result": 0,
+      "count": 530
+    },
+    {
+      "api": "cuMemUnmap",
+      "result": 0,
+      "count": 415
+    },
+    {
+      "api": "cuModuleGetFunction",
+      "result": 0,
+      "count": 90
+    },
+    {
+      "api": "cuModuleGetLoadingMode",
+      "result": 0,
+      "count": 10
+    },
+    {
+      "api": "cuModuleLoad",
+      "result": 0,
+      "count": 4
+    },
+    {
+      "api": "cuModuleLoadData",
+      "result": 0,
+      "count": 86
+    },
+    {
+      "api": "cudaFreeHost_v3020",
+      "result": 0,
+      "count": 2
+    },
+    {
+      "api": "cudaFree_v3020",
+      "result": 0,
+      "count": 2
+    },
+    {
+      "api": "cudaHostAlloc_v3020",
+      "result": 0,
+      "count": 602
+    },
+    {
+      "api": "cudaMalloc_v3020",
+      "result": 0,
+      "count": 3
+    },
+    {
+      "api": "cudaMemGetInfo_v3020",
+      "result": 0,
+      "count": 104
+    }
+  ]
+}

@@ -28,6 +28,7 @@ import torch.nn.functional as F
 from sglang.srt.runtime_context import (
     get_device,
     get_exec,
+    get_model,
     get_parallel,
     get_resources,
 )
@@ -767,6 +768,18 @@ def compute_initial_expert_location_metadata(
     model_config: ModelConfig,
     moe_ep_rank: int,
 ) -> Optional[ExpertLocationMetadata]:
+    if (
+        get_model().load_format == "qwen38_nvfp4_cache"
+        and get_parallel().ep_size == 1
+        and not get_exec().moe.enable_eplb
+        and get_exec().moe.ep_num_redundant_experts == 0
+        and get_exec().moe.init_expert_location == "trivial"
+        and get_exec().moe.expert_distribution_recorder_mode is None
+    ):
+        # The host cache routes logical expert IDs directly. Its identity map
+        # is never read, but padding it to [48, 512, 512] costs 96 MiB on GPU
+        # before weight loading and KV sizing (plus an equally large CPU copy).
+        return None
     data = get_exec().moe.init_expert_location
     if data == "trivial":
         return ExpertLocationMetadata.init_trivial(model_config, moe_ep_rank)

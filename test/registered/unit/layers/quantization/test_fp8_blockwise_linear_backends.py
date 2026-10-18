@@ -247,6 +247,35 @@ class TestMxfp8LinearBackends(_LinearBackendCheck):
     def _run(self, backend: str):
         self._check_backend(backend, _mxfp8_backends(), MXFP8_SHAPES, self._build_layer)
 
+    def test_cutlass_padded_weight_shares_logical_storage_after_reload(self):
+        if get_device_sm() not in (100, 103, 120):
+            self.skipTest("CUTLASS MXFP8 is unavailable")
+        with mock.patch.object(fp8_utils, "FP8_GEMM_RUNNER_BACKEND",
+                               Fp8GemmRunnerBackend.FLASHINFER_CUTLASS):
+            layer, _ = self._build_layer(96, 2560)
+            parameter = layer.weight
+            padded_pointer = None
+            for _ in range(2):
+                # Exercise the real loader and postprocess path twice, including
+                # the copy into an already installed compute parameter.
+                replacement = torch.randn((96, 2560), device="cuda", dtype=torch.bfloat16) / 10
+                weight, scales, dequant = _quantize_mxfp8(replacement)
+                load_linear_weights(layer, weight=weight, weight_scale_inv=scales)
+                layer.quant_method.process_weights_after_loading(layer)
+                self.assertIs(layer.weight, parameter)
+                self.assertEqual(layer.weight.shape, (96, 2560))
+                self.assertEqual(layer.weight.untyped_storage().data_ptr(),
+                                 layer.weight_mxfp8_padded.untyped_storage().data_ptr())
+                if padded_pointer is not None:
+                    self.assertEqual(layer.weight_mxfp8_padded.data_ptr(), padded_pointer)
+                padded_pointer = layer.weight_mxfp8_padded.data_ptr()
+                torch.testing.assert_close(layer.weight.view(torch.uint8), weight.view(torch.uint8))
+                self.assertEqual(torch.count_nonzero(
+                    layer.weight_mxfp8_padded[96:].float()).item(), 0)
+                x = torch.randn((5, 2560), device="cuda", dtype=torch.bfloat16) / 10
+                output, _ = layer(x)
+                assert_output_close(self, output, x.float() @ dequant.T, rtol=5e-2, atol=1e-1)
+
     def test_flashinfer_trtllm(self):
         self._run("flashinfer_trtllm")
 
