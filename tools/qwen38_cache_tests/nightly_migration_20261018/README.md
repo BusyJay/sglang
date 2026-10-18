@@ -1,5 +1,13 @@
 # FP4-Local nightly migration — 2026-10-18
 
+Follow-up launch/fill patch evaluation is recorded in
+[`../launch_fill_experiments_20261018/REPORT.md`](../launch_fill_experiments_20261018/REPORT.md).
+Fifteen fresh-worker A/B runs did not establish a stable short/long-context
+throughput gain from prepared launch or adaptive CTA. Both remain at the
+baseline settings (prepared off, CTA 8); the new image and B12X remain in use.
+That report also records recoverable allocator OOM retries during 40k prefill
+and a new selected-configuration profile.
+
 The live `fp4-local` language worker and remote ViT now use
 `swallow-sglang:nightly-dev-20261018-b234b5c3`, image ID
 `sha256:f4f3b73ba30219458bcbe3fd824837a2552f686a345fde0cd102c80139f8f3e0`.
@@ -27,12 +35,13 @@ fixes and profile commits above. Legacy `nvfp4` is preserved at
 `codex/nvfp4-backup-20261018`, checked out in
 `/home/jay/workspace/sglang-nvfp4-backup-20261018`; its preset mounts that directory.
 
-This branch/config correction did not restart either serving container.
-The existing containers retain their original bind mount from
-`/home/jay/workspace/sglang-nightly-b12x` at `f2466a3774`, which contains the same
-runtime implementation. That worktree is retained only for the current live
-containers; subsequent development uses the primary branch. The next normal
-container recreation will apply the configured primary source directory.
+The branch/config correction itself did not restart either serving container;
+at that point they retained the original migration worktree mount at
+`/home/jay/workspace/sglang-nightly-b12x` (`f2466a3774`). Subsequent recreation
+applied `/home/jay/workspace/sglang` as the live source for both containers.
+The migration worktree is now historical; development and serving use the
+primary checkout. The later launch/fill experiments recreated only the language
+worker and preserved the running ViT.
 Historical measurements and deployment snapshots retain their original paths.
 Current preset snapshots are in `deployment/branch-layout-20261018/`.
 The `fp4-local-a4` preset inherits the new image/source; its launcher explicitly

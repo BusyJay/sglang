@@ -1,0 +1,152 @@
+[
+  {
+    "run": "service/0-baseline",
+    "allocation_retry_warnings": 23,
+    "first_warning": "[rank0]:[W1018 17:09:42.212576346 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).",
+    "fatal_python_oom": false,
+    "late_device_load_warnings": [
+      "[2026-10-18 17:09:42] Triton kernel '_pack_qsa_prefill_kv' device-loaded after serving started (free device mem: 0.03 GiB). Pre-load it during engine init to avoid CUDA OOM.",
+      "[2026-10-18 17:09:42] Triton kernel '_sparse_gqa_chunk_prefill' device-loaded after serving started (free device mem: 0.03 GiB). Pre-load it during engine init to avoid CUDA OOM."
+    ]
+  },
+  {
+    "run": "service/0-prepared",
+    "allocation_retry_warnings": 23,
+    "first_warning": "[rank0]:[W1018 17:11:24.746828073 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).",
+    "fatal_python_oom": false,
+    "late_device_load_warnings": [
+      "[2026-10-18 17:11:24] Triton kernel '_pack_qsa_prefill_kv' device-loaded after serving started (free device mem: 0.03 GiB). Pre-load it during engine init to avoid CUDA OOM.",
+      "[2026-10-18 17:11:24] Triton kernel '_sparse_gqa_chunk_prefill' device-loaded after serving started (free device mem: 0.03 GiB). Pre-load it during engine init to avoid CUDA OOM."
+    ]
+  },
+  {
+    "run": "service/0-prepared-adaptive",
+    "allocation_retry_warnings": 23,
+    "first_warning": "[rank0]:[W1018 17:13:06.235680771 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).",
+    "fatal_python_oom": false,
+    "late_device_load_warnings": [
+      "[2026-10-18 17:13:06] Triton kernel '_pack_qsa_prefill_kv' device-loaded after serving started (free device mem: 0.03 GiB). Pre-load it during engine init to avoid CUDA OOM.",
+      "[2026-10-18 17:13:06] Triton kernel '_sparse_gqa_chunk_prefill' device-loaded after serving started (free device mem: 0.03 GiB). Pre-load it during engine init to avoid CUDA OOM."
+    ]
+  },
+  {
+    "run": "service/1-baseline",
+    "allocation_retry_warnings": 23,
+    "first_warning": "[rank0]:[W1018 17:18:10.083426758 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).",
+    "fatal_python_oom": false,
+    "late_device_load_warnings": [
+      "[2026-10-18 17:18:10] Triton kernel '_pack_qsa_prefill_kv' device-loaded after serving started (free device mem: 0.03 GiB). Pre-load it during engine init to avoid CUDA OOM.",
+      "[2026-10-18 17:18:10] Triton kernel '_sparse_gqa_chunk_prefill' device-loaded after serving started (free device mem: 0.03 GiB). Pre-load it during engine init to avoid CUDA OOM."
+    ]
+  },
+  {
+    "run": "service/1-prepared",
+    "allocation_retry_warnings": 23,
+    "first_warning": "[rank0]:[W1018 17:16:28.259574965 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).",
+    "fatal_python_oom": false,
+    "late_device_load_warnings": [
+      "[2026-10-18 17:16:28] Triton kernel '_pack_qsa_prefill_kv' device-loaded after serving started (free device mem: 0.03 GiB). Pre-load it during engine init to avoid CUDA OOM.",
+      "[2026-10-18 17:16:28] Triton kernel '_sparse_gqa_chunk_prefill' device-loaded after serving started (free device mem: 0.03 GiB). Pre-load it during engine init to avoid CUDA OOM."
+    ]
+  },
+  {
+    "run": "service/1-prepared-adaptive",
+    "allocation_retry_warnings": 23,
+    "first_warning": "[rank0]:[W1018 17:14:46.961077787 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).",
+    "fatal_python_oom": false,
+    "late_device_load_warnings": [
+      "[2026-10-18 17:14:45] Triton kernel '_pack_qsa_prefill_kv' device-loaded after serving started (free device mem: 0.03 GiB). Pre-load it during engine init to avoid CUDA OOM.",
+      "[2026-10-18 17:14:45] Triton kernel '_sparse_gqa_chunk_prefill' device-loaded after serving started (free device mem: 0.03 GiB). Pre-load it during engine init to avoid CUDA OOM."
+    ]
+  },
+  {
+    "run": "service/2-baseline",
+    "allocation_retry_warnings": 23,
+    "first_warning": "[rank0]:[W1018 17:19:52.733859403 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).",
+    "fatal_python_oom": false,
+    "late_device_load_warnings": [
+      "[2026-10-18 17:19:52] Triton kernel '_pack_qsa_prefill_kv' device-loaded after serving started (free device mem: 0.03 GiB). Pre-load it during engine init to avoid CUDA OOM.",
+      "[2026-10-18 17:19:52] Triton kernel '_sparse_gqa_chunk_prefill' device-loaded after serving started (free device mem: 0.03 GiB). Pre-load it during engine init to avoid CUDA OOM."
+    ]
+  },
+  {
+    "run": "service/2-prepared",
+    "allocation_retry_warnings": 23,
+    "first_warning": "[rank0]:[W1018 17:21:34.576772222 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).",
+    "fatal_python_oom": false,
+    "late_device_load_warnings": [
+      "[2026-10-18 17:21:34] Triton kernel '_pack_qsa_prefill_kv' device-loaded after serving started (free device mem: 0.03 GiB). Pre-load it during engine init to avoid CUDA OOM.",
+      "[2026-10-18 17:21:34] Triton kernel '_sparse_gqa_chunk_prefill' device-loaded after serving started (free device mem: 0.03 GiB). Pre-load it during engine init to avoid CUDA OOM."
+    ]
+  },
+  {
+    "run": "service/2-prepared-adaptive",
+    "allocation_retry_warnings": 23,
+    "first_warning": "[rank0]:[W1018 17:23:15.123880276 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).",
+    "fatal_python_oom": false,
+    "late_device_load_warnings": [
+      "[2026-10-18 17:23:15] Triton kernel '_pack_qsa_prefill_kv' device-loaded after serving started (free device mem: 0.03 GiB). Pre-load it during engine init to avoid CUDA OOM.",
+      "[2026-10-18 17:23:15] Triton kernel '_sparse_gqa_chunk_prefill' device-loaded after serving started (free device mem: 0.03 GiB). Pre-load it during engine init to avoid CUDA OOM."
+    ]
+  },
+  {
+    "run": "service-cta-only/0-adaptive",
+    "allocation_retry_warnings": 23,
+    "first_warning": "[rank0]:[W1018 18:09:39.855148743 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).",
+    "fatal_python_oom": false,
+    "late_device_load_warnings": [
+      "[2026-10-18 18:09:39] Triton kernel '_pack_qsa_prefill_kv' device-loaded after serving started (free device mem: 0.03 GiB). Pre-load it during engine init to avoid CUDA OOM.",
+      "[2026-10-18 18:09:39] Triton kernel '_sparse_gqa_chunk_prefill' device-loaded after serving started (free device mem: 0.03 GiB). Pre-load it during engine init to avoid CUDA OOM."
+    ]
+  },
+  {
+    "run": "service-cta-only/0-baseline",
+    "allocation_retry_warnings": 23,
+    "first_warning": "[rank0]:[W1018 18:07:59.358400149 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).",
+    "fatal_python_oom": false,
+    "late_device_load_warnings": [
+      "[2026-10-18 18:07:59] Triton kernel '_pack_qsa_prefill_kv' device-loaded after serving started (free device mem: 0.03 GiB). Pre-load it during engine init to avoid CUDA OOM.",
+      "[2026-10-18 18:07:59] Triton kernel '_sparse_gqa_chunk_prefill' device-loaded after serving started (free device mem: 0.03 GiB). Pre-load it during engine init to avoid CUDA OOM."
+    ]
+  },
+  {
+    "run": "service-cta-only/1-adaptive",
+    "allocation_retry_warnings": 23,
+    "first_warning": "[rank0]:[W1018 18:11:22.786686343 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).",
+    "fatal_python_oom": false,
+    "late_device_load_warnings": [
+      "[2026-10-18 18:11:22] Triton kernel '_pack_qsa_prefill_kv' device-loaded after serving started (free device mem: 0.03 GiB). Pre-load it during engine init to avoid CUDA OOM.",
+      "[2026-10-18 18:11:22] Triton kernel '_sparse_gqa_chunk_prefill' device-loaded after serving started (free device mem: 0.03 GiB). Pre-load it during engine init to avoid CUDA OOM."
+    ]
+  },
+  {
+    "run": "service-cta-only/1-baseline",
+    "allocation_retry_warnings": 23,
+    "first_warning": "[rank0]:[W1018 18:13:05.044416381 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).",
+    "fatal_python_oom": false,
+    "late_device_load_warnings": [
+      "[2026-10-18 18:13:05] Triton kernel '_pack_qsa_prefill_kv' device-loaded after serving started (free device mem: 0.03 GiB). Pre-load it during engine init to avoid CUDA OOM.",
+      "[2026-10-18 18:13:05] Triton kernel '_sparse_gqa_chunk_prefill' device-loaded after serving started (free device mem: 0.03 GiB). Pre-load it during engine init to avoid CUDA OOM."
+    ]
+  },
+  {
+    "run": "service-cta-only/2-adaptive",
+    "allocation_retry_warnings": 23,
+    "first_warning": "[rank0]:[W1018 18:16:28.104998589 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).",
+    "fatal_python_oom": false,
+    "late_device_load_warnings": [
+      "[2026-10-18 18:16:28] Triton kernel '_pack_qsa_prefill_kv' device-loaded after serving started (free device mem: 0.03 GiB). Pre-load it during engine init to avoid CUDA OOM.",
+      "[2026-10-18 18:16:28] Triton kernel '_sparse_gqa_chunk_prefill' device-loaded after serving started (free device mem: 0.03 GiB). Pre-load it during engine init to avoid CUDA OOM."
+    ]
+  },
+  {
+    "run": "service-cta-only/2-baseline",
+    "allocation_retry_warnings": 23,
+    "first_warning": "[rank0]:[W1018 18:14:46.626007730 CUDACachingAllocator.cpp:528] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 6815744, total: 33766572032).",
+    "fatal_python_oom": false,
+    "late_device_load_warnings": [
+      "[2026-10-18 18:14:46] Triton kernel '_pack_qsa_prefill_kv' device-loaded after serving started (free device mem: 0.03 GiB). Pre-load it during engine init to avoid CUDA OOM.",
+      "[2026-10-18 18:14:46] Triton kernel '_sparse_gqa_chunk_prefill' device-loaded after serving started (free device mem: 0.03 GiB). Pre-load it during engine init to avoid CUDA OOM."
+    ]
+  }
+]
