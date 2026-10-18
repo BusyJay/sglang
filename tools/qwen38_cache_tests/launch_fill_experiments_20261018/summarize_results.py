@@ -34,6 +34,26 @@ def metrics(rows):
     }
 
 
+def baseline_variation(rows):
+    result = []
+    for case in sorted({v["case"] for v in rows}):
+        sample = [v for v in rows if v["case"] == case]
+        rates = [v["decode_tokens_per_second"] for v in sample]
+        accepts = [v["meta_info"]["spec_accept_length"] for v in sample]
+        result.append(
+            {
+                "case": case,
+                "independent_workers": len(sample),
+                "decode_tokens_per_second": rates,
+                "range_pct_of_median": 100
+                * (max(rates) - min(rates))
+                / statistics.median(rates),
+                "accept_lengths": accepts,
+            }
+        )
+    return result
+
+
 def block(root, expected_runs):
     manifest = read_json(root / "manifest.json")
     assert len(manifest["runs"]) == expected_runs
@@ -63,6 +83,10 @@ def block(root, expected_runs):
                 "text_sha256": hashlib.sha256(canary["text"].encode()).hexdigest(),
             }
         )
+    variation = {
+        stage: baseline_variation(variants["baseline"][stage])
+        for stage in ["short", "long"]
+    }
     for record in variants.values():
         for stage in ["short", "long"]:
             record[stage] = metrics(record[stage])
@@ -79,7 +103,12 @@ def block(root, expected_runs):
                 v[stage]["delta_vs_same_round_baseline_pct"] = 100 * (
                     v[stage][m] / b[stage][m] - 1
                 )
-    return {"variants": variants, "canaries": canaries, "runs": manifest["runs"]}
+    return {
+        "variants": variants,
+        "canaries": canaries,
+        "runs": manifest["runs"],
+        "baseline_variation": variation,
+    }
 
 
 def main():
@@ -90,13 +119,26 @@ def main():
         "limits": [
             "Three fresh workers per candidate; short has three prompts per worker, long one.",
             "Approx verify ms = accept length / sustained tokens per second; streaming boundary effects remain.",
-            "MTP output and routing vary even for baseline repeats; no bit-identical full-model claim.",
+            "Baseline outputs and acceptance differ; route/miss trajectory equality was not recorded or verified.",
             "Single request, synthetic repeated-text long context, not every production workload.",
         ],
+        "evidence_assessment": {
+            "optimization_effect": "not_identified",
+            "observed_deltas_are_causal_estimates": False,
+            "independent_workers_per_candidate": 3,
+            "short_requests_per_worker": 3,
+            "mtp_proposals_and_acceptance_sequence": "not_controlled_or_verified",
+            "expert_cache_initial_state": "not_checkpointed",
+            "per_step_routes_miss_plans_and_h2d_bytes": "not_recorded",
+            "prefix_cached_tokens_zero_proves_equal_expert_cache": False,
+            "accept_length_normalization_controls_routes_or_misses": False,
+            "profile_proves_cpu_savings_cannot_help": False,
+            "deployment_selection": "temporary_baseline_pending_controlled_measurement",
+        },
     }
     (root / "service-summary.json").write_text(json.dumps(result, indent=2) + "\n")
     for name, group in result.items():
-        if isinstance(group, dict):
+        if isinstance(group, dict) and "variants" in group:
             for variant, v in group["variants"].items():
                 print(
                     name,

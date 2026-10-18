@@ -2,9 +2,10 @@
 
 Follow-up launch/fill patch evaluation is recorded in
 [`../launch_fill_experiments_20261018/REPORT.md`](../launch_fill_experiments_20261018/REPORT.md).
-Fifteen fresh-worker A/B runs did not establish a stable short/long-context
-throughput gain from prepared launch or adaptive CTA. Both remain at the
-baseline settings (prepared off, CTA 8); the new image and B12X remain in use.
+The fifteen fresh-worker runs did not match MTP and expert-cache trajectories;
+their observed throughput differences do not identify an optimization effect
+or establish ineffectiveness. Baseline settings (prepared off, CTA 8) are
+temporary pending controlled measurement; the new image and B12X remain in use.
 That report also records recoverable allocator OOM retries during 40k prefill
 and a new selected-configuration profile.
 

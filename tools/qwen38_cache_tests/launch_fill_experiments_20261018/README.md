@@ -3,7 +3,11 @@
 GPU and service experiments completed on the actual Swallow image:
 see [REPORT.md](REPORT.md) and `results/` for the selection, 15 fresh-worker
 service runs, numerical checks, memory warnings and the final profile.
-Selected deployment: prepared launch **off**, fill CTA **8**, prefill **auto**.
+Methodology correction: the free-generation service runs did not match MTP
+or expert-cache trajectories and do not identify the optimization effect.
+Prepared launch **off**, fill CTA **8**, prefill **auto** is a temporary deployment
+state, not evidence that the optimizations are ineffective. See
+[CONTROLLED_PROTOCOL.md](CONTROLLED_PROTOCOL.md) for the unexecuted retest plan.
 The remaining sections preserve the package author's original experiment plan.
 
 Base: `bed9c124a2e7b627bbdf84ae6e92265e79160f76`. Image:
