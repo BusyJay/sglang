@@ -1,5 +1,11 @@
 # B12X launch, decode fill and prefill transport experiments
 
+GPU and service experiments completed on the actual Swallow image:
+see [REPORT.md](REPORT.md) and `results/` for the selection, 15 fresh-worker
+service runs, numerical checks, memory warnings and the final profile.
+Selected deployment: prepared launch **off**, fill CTA **8**, prefill **auto**.
+The remaining sections preserve the package author's original experiment plan.
+
 Base: `bed9c124a2e7b627bbdf84ae6e92265e79160f76`. Image:
 `lmsysorg/sglang:nightly-dev-20261018-b234b5c3`, tested local image ID
 `sha256:bfef46e5a45a815f8c2f88a722980baf47b71a8689b89c6cc738f596ceeaf47c`.

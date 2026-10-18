@@ -1,0 +1,562 @@
+{
+  "status": "passed",
+  "gpu": "NVIDIA GeForce RTX 5090 D",
+  "torch": "2.14.1+cu130",
+  "scratch_bytes_per_layer": 151040,
+  "migration": true,
+  "reports": [
+    {
+      "tokens": 1,
+      "pattern": "disjoint",
+      "ids_dtype": "torch.int32",
+      "max_abs_error": 0.0001220703125,
+      "graph_replay": true,
+      "b12x_graph_replay": {
+        "median_ms": 0.02796800062060356,
+        "p95_ms": 0.02937600016593933,
+        "peak_scratch_bytes": 0
+      },
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.17156799882650375,
+        "p95_ms": 0.18198400735855103,
+        "peak_scratch_bytes": 5120
+      },
+      "triton_fused": {
+        "median_ms": 0.12035199999809265,
+        "p95_ms": 0.12937599420547485,
+        "peak_scratch_bytes": 171520
+      }
+    },
+    {
+      "tokens": 1,
+      "pattern": "disjoint",
+      "ids_dtype": "torch.int64",
+      "max_abs_error": 6.103515625e-05,
+      "graph_replay": true,
+      "b12x_graph_replay": {
+        "median_ms": 0.029071999713778496,
+        "p95_ms": 0.030368000268936157,
+        "peak_scratch_bytes": 0
+      },
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.16868799924850464,
+        "p95_ms": 0.17958399653434753,
+        "peak_scratch_bytes": 5120
+      },
+      "triton_fused": {
+        "median_ms": 0.12126399949193001,
+        "p95_ms": 0.12467200309038162,
+        "peak_scratch_bytes": 171520
+      }
+    },
+    {
+      "tokens": 1,
+      "pattern": "overlap",
+      "ids_dtype": "torch.int32",
+      "max_abs_error": 0.0001220703125,
+      "graph_replay": true,
+      "b12x_graph_replay": {
+        "median_ms": 0.02792000025510788,
+        "p95_ms": 0.029440000653266907,
+        "peak_scratch_bytes": 0
+      },
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.16939199715852737,
+        "p95_ms": 0.17974400520324707,
+        "peak_scratch_bytes": 5120
+      },
+      "triton_fused": {
+        "median_ms": 0.12144000083208084,
+        "p95_ms": 0.12758399546146393,
+        "peak_scratch_bytes": 171520
+      }
+    },
+    {
+      "tokens": 1,
+      "pattern": "overlap",
+      "ids_dtype": "torch.int64",
+      "max_abs_error": 0.0001220703125,
+      "graph_replay": true,
+      "b12x_graph_replay": {
+        "median_ms": 0.029695999808609486,
+        "p95_ms": 0.03081599995493889,
+        "peak_scratch_bytes": 0
+      },
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.16843199729919434,
+        "p95_ms": 0.18188799917697906,
+        "peak_scratch_bytes": 5120
+      },
+      "triton_fused": {
+        "median_ms": 0.12161600217223167,
+        "p95_ms": 0.12726399302482605,
+        "peak_scratch_bytes": 171520
+      }
+    },
+    {
+      "tokens": 1,
+      "pattern": "invalid",
+      "ids_dtype": "torch.int32",
+      "max_abs_error": 6.103515625e-05,
+      "graph_replay": true,
+      "b12x_graph_replay": {
+        "median_ms": 0.027728000655770302,
+        "p95_ms": 0.02844800055027008,
+        "peak_scratch_bytes": 0
+      },
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.16764800250530243,
+        "p95_ms": 0.18192000687122345,
+        "peak_scratch_bytes": 5120
+      },
+      "triton_fused": {
+        "median_ms": 0.12215999886393547,
+        "p95_ms": 0.12723200023174286,
+        "peak_scratch_bytes": 171520
+      }
+    },
+    {
+      "tokens": 1,
+      "pattern": "invalid",
+      "ids_dtype": "torch.int64",
+      "max_abs_error": 0.0001220703125,
+      "graph_replay": true,
+      "b12x_graph_replay": {
+        "median_ms": 0.028384000062942505,
+        "p95_ms": 0.029664000496268272,
+        "peak_scratch_bytes": 0
+      },
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.1677599996328354,
+        "p95_ms": 0.17769600450992584,
+        "peak_scratch_bytes": 5120
+      },
+      "triton_fused": {
+        "median_ms": 0.12195199728012085,
+        "p95_ms": 0.12435200065374374,
+        "peak_scratch_bytes": 171520
+      }
+    },
+    {
+      "tokens": 1,
+      "pattern": "all_invalid",
+      "ids_dtype": "torch.int32",
+      "max_abs_error": 0.0,
+      "graph_replay": true,
+      "b12x_graph_replay": {
+        "median_ms": 0.022175999358296394,
+        "p95_ms": 0.023903999477624893,
+        "peak_scratch_bytes": 0
+      },
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.1613440066576004,
+        "p95_ms": 0.16972799599170685,
+        "peak_scratch_bytes": 5120
+      },
+      "triton_fused": {
+        "median_ms": 0.1178400032222271,
+        "p95_ms": 0.12310399860143661,
+        "peak_scratch_bytes": 171520
+      }
+    },
+    {
+      "tokens": 1,
+      "pattern": "all_invalid",
+      "ids_dtype": "torch.int64",
+      "max_abs_error": 0.0,
+      "graph_replay": true,
+      "b12x_graph_replay": {
+        "median_ms": 0.02393599972128868,
+        "p95_ms": 0.024351999163627625,
+        "peak_scratch_bytes": 0
+      },
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.1616319939494133,
+        "p95_ms": 0.17372800409793854,
+        "peak_scratch_bytes": 5120
+      },
+      "triton_fused": {
+        "median_ms": 0.11764800176024437,
+        "p95_ms": 0.1231359988451004,
+        "peak_scratch_bytes": 171520
+      }
+    },
+    {
+      "tokens": 2,
+      "pattern": "disjoint",
+      "ids_dtype": "torch.int32",
+      "max_abs_error": 0.0001220703125,
+      "graph_replay": true,
+      "b12x_graph_replay": {
+        "median_ms": 0.03972800076007843,
+        "p95_ms": 0.04105599969625473,
+        "peak_scratch_bytes": 0
+      },
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.17908799648284912,
+        "p95_ms": 0.18624000251293182,
+        "peak_scratch_bytes": 10240
+      },
+      "triton_fused": {
+        "median_ms": 0.07860799878835678,
+        "p95_ms": 0.08441600203514099,
+        "peak_scratch_bytes": 240640
+      }
+    },
+    {
+      "tokens": 2,
+      "pattern": "disjoint",
+      "ids_dtype": "torch.int64",
+      "max_abs_error": 0.0001220703125,
+      "graph_replay": true,
+      "b12x_graph_replay": {
+        "median_ms": 0.04016000032424927,
+        "p95_ms": 0.04064000025391579,
+        "peak_scratch_bytes": 0
+      },
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.17815999686717987,
+        "p95_ms": 0.18828800320625305,
+        "peak_scratch_bytes": 10240
+      },
+      "triton_fused": {
+        "median_ms": 0.07895999774336815,
+        "p95_ms": 0.081727996468544,
+        "peak_scratch_bytes": 240640
+      }
+    },
+    {
+      "tokens": 2,
+      "pattern": "overlap",
+      "ids_dtype": "torch.int32",
+      "max_abs_error": 3.0517578125e-05,
+      "graph_replay": true,
+      "b12x_graph_replay": {
+        "median_ms": 0.03995199874043465,
+        "p95_ms": 0.04070400074124336,
+        "peak_scratch_bytes": 0
+      },
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.1796960011124611,
+        "p95_ms": 0.1876160055398941,
+        "peak_scratch_bytes": 10240
+      },
+      "triton_fused": {
+        "median_ms": 0.0793440006673336,
+        "p95_ms": 0.08454400300979614,
+        "peak_scratch_bytes": 240640
+      }
+    },
+    {
+      "tokens": 2,
+      "pattern": "overlap",
+      "ids_dtype": "torch.int64",
+      "max_abs_error": 6.103515625e-05,
+      "graph_replay": true,
+      "b12x_graph_replay": {
+        "median_ms": 0.03964800015091896,
+        "p95_ms": 0.040672000497579575,
+        "peak_scratch_bytes": 0
+      },
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.17878400534391403,
+        "p95_ms": 0.18892799317836761,
+        "peak_scratch_bytes": 10240
+      },
+      "triton_fused": {
+        "median_ms": 0.07926400005817413,
+        "p95_ms": 0.0833280012011528,
+        "peak_scratch_bytes": 240640
+      }
+    },
+    {
+      "tokens": 2,
+      "pattern": "invalid",
+      "ids_dtype": "torch.int32",
+      "max_abs_error": 7.62939453125e-05,
+      "graph_replay": true,
+      "b12x_graph_replay": {
+        "median_ms": 0.03860799968242645,
+        "p95_ms": 0.04064000025391579,
+        "peak_scratch_bytes": 0
+      },
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.178336001932621,
+        "p95_ms": 0.1860799938440323,
+        "peak_scratch_bytes": 10240
+      },
+      "triton_fused": {
+        "median_ms": 0.08004799857735634,
+        "p95_ms": 0.08531200140714645,
+        "peak_scratch_bytes": 240640
+      }
+    },
+    {
+      "tokens": 2,
+      "pattern": "invalid",
+      "ids_dtype": "torch.int64",
+      "max_abs_error": 6.103515625e-05,
+      "graph_replay": true,
+      "b12x_graph_replay": {
+        "median_ms": 0.03996799886226654,
+        "p95_ms": 0.04070400074124336,
+        "peak_scratch_bytes": 0
+      },
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.17908799648284912,
+        "p95_ms": 0.1870719939470291,
+        "peak_scratch_bytes": 10240
+      },
+      "triton_fused": {
+        "median_ms": 0.08028800040483475,
+        "p95_ms": 0.08643200248479843,
+        "peak_scratch_bytes": 240640
+      }
+    },
+    {
+      "tokens": 2,
+      "pattern": "all_invalid",
+      "ids_dtype": "torch.int32",
+      "max_abs_error": 0.0,
+      "graph_replay": true,
+      "b12x_graph_replay": {
+        "median_ms": 0.03846399858593941,
+        "p95_ms": 0.0395519994199276,
+        "peak_scratch_bytes": 0
+      },
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.177776001393795,
+        "p95_ms": 0.18649600446224213,
+        "peak_scratch_bytes": 10240
+      },
+      "triton_fused": {
+        "median_ms": 0.07529599964618683,
+        "p95_ms": 0.08079999685287476,
+        "peak_scratch_bytes": 240640
+      }
+    },
+    {
+      "tokens": 2,
+      "pattern": "all_invalid",
+      "ids_dtype": "torch.int64",
+      "max_abs_error": 0.0,
+      "graph_replay": true,
+      "b12x_graph_replay": {
+        "median_ms": 0.03835200145840645,
+        "p95_ms": 0.03964800015091896,
+        "peak_scratch_bytes": 0
+      },
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.177824005484581,
+        "p95_ms": 0.18729600310325623,
+        "peak_scratch_bytes": 10240
+      },
+      "triton_fused": {
+        "median_ms": 0.07526399940252304,
+        "p95_ms": 0.08025600016117096,
+        "peak_scratch_bytes": 240640
+      }
+    },
+    {
+      "tokens": 3,
+      "pattern": "disjoint",
+      "ids_dtype": "torch.int32",
+      "max_abs_error": 0.0001220703125,
+      "graph_replay": true,
+      "b12x_graph_replay": {
+        "median_ms": 0.052480001002550125,
+        "p95_ms": 0.05299200117588043,
+        "peak_scratch_bytes": 0
+      },
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.1903039962053299,
+        "p95_ms": 0.19705599546432495,
+        "peak_scratch_bytes": 15360
+      },
+      "triton_fused": {
+        "median_ms": 0.10489600151777267,
+        "p95_ms": 0.10940799862146378,
+        "peak_scratch_bytes": 360960
+      }
+    },
+    {
+      "tokens": 3,
+      "pattern": "disjoint",
+      "ids_dtype": "torch.int64",
+      "max_abs_error": 0.0001220703125,
+      "graph_replay": true,
+      "b12x_graph_replay": {
+        "median_ms": 0.05236800014972687,
+        "p95_ms": 0.05299200117588043,
+        "peak_scratch_bytes": 0
+      },
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.19113599509000778,
+        "p95_ms": 0.19952000677585602,
+        "peak_scratch_bytes": 15360
+      },
+      "triton_fused": {
+        "median_ms": 0.10548799857497215,
+        "p95_ms": 0.11004800349473953,
+        "peak_scratch_bytes": 360960
+      }
+    },
+    {
+      "tokens": 3,
+      "pattern": "overlap",
+      "ids_dtype": "torch.int32",
+      "max_abs_error": 3.0517578125e-05,
+      "graph_replay": true,
+      "b12x_graph_replay": {
+        "median_ms": 0.05244800075888634,
+        "p95_ms": 0.05337600037455559,
+        "peak_scratch_bytes": 0
+      },
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.19123200327157974,
+        "p95_ms": 0.20047999918460846,
+        "peak_scratch_bytes": 15360
+      },
+      "triton_fused": {
+        "median_ms": 0.1051040031015873,
+        "p95_ms": 0.107744000852108,
+        "peak_scratch_bytes": 360960
+      }
+    },
+    {
+      "tokens": 3,
+      "pattern": "overlap",
+      "ids_dtype": "torch.int64",
+      "max_abs_error": 1.52587890625e-05,
+      "graph_replay": true,
+      "b12x_graph_replay": {
+        "median_ms": 0.05270399898290634,
+        "p95_ms": 0.0533440001308918,
+        "peak_scratch_bytes": 0
+      },
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.19067200273275375,
+        "p95_ms": 0.20211200416088104,
+        "peak_scratch_bytes": 15360
+      },
+      "triton_fused": {
+        "median_ms": 0.10598400235176086,
+        "p95_ms": 0.11011199653148651,
+        "peak_scratch_bytes": 360960
+      }
+    },
+    {
+      "tokens": 3,
+      "pattern": "invalid",
+      "ids_dtype": "torch.int32",
+      "max_abs_error": 6.103515625e-05,
+      "graph_replay": true,
+      "b12x_graph_replay": {
+        "median_ms": 0.05233599990606308,
+        "p95_ms": 0.05299200117588043,
+        "peak_scratch_bytes": 0
+      },
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.19118399918079376,
+        "p95_ms": 0.2011519968509674,
+        "peak_scratch_bytes": 15360
+      },
+      "triton_fused": {
+        "median_ms": 0.10523200035095215,
+        "p95_ms": 0.10972800105810165,
+        "peak_scratch_bytes": 360960
+      }
+    },
+    {
+      "tokens": 3,
+      "pattern": "invalid",
+      "ids_dtype": "torch.int64",
+      "max_abs_error": 6.103515625e-05,
+      "graph_replay": true,
+      "b12x_graph_replay": {
+        "median_ms": 0.05225599929690361,
+        "p95_ms": 0.05302400141954422,
+        "peak_scratch_bytes": 0
+      },
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.19064000248908997,
+        "p95_ms": 0.1990080028772354,
+        "peak_scratch_bytes": 15360
+      },
+      "triton_fused": {
+        "median_ms": 0.10585600137710571,
+        "p95_ms": 0.10899200290441513,
+        "peak_scratch_bytes": 360960
+      }
+    },
+    {
+      "tokens": 3,
+      "pattern": "all_invalid",
+      "ids_dtype": "torch.int32",
+      "max_abs_error": 0.0,
+      "graph_replay": true,
+      "b12x_graph_replay": {
+        "median_ms": 0.04726400040090084,
+        "p95_ms": 0.04886399954557419,
+        "peak_scratch_bytes": 0
+      },
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.18592000007629395,
+        "p95_ms": 0.1977279931306839,
+        "peak_scratch_bytes": 15360
+      },
+      "triton_fused": {
+        "median_ms": 0.10289600118994713,
+        "p95_ms": 0.1090560033917427,
+        "peak_scratch_bytes": 360960
+      }
+    },
+    {
+      "tokens": 3,
+      "pattern": "all_invalid",
+      "ids_dtype": "torch.int64",
+      "max_abs_error": 0.0,
+      "graph_replay": true,
+      "b12x_graph_replay": {
+        "median_ms": 0.04811199940741062,
+        "p95_ms": 0.0490880012512207,
+        "peak_scratch_bytes": 0
+      },
+      "alternate_stream": true,
+      "b12x": {
+        "median_ms": 0.1871360018849373,
+        "p95_ms": 0.1987520009279251,
+        "peak_scratch_bytes": 15360
+      },
+      "triton_fused": {
+        "median_ms": 0.10345599800348282,
+        "p95_ms": 0.10787200182676315,
+        "peak_scratch_bytes": 360960
+      }
+    }
+  ],
+  "scope": "Synthetic resident cache; excludes planner/fill/model/service"
+}

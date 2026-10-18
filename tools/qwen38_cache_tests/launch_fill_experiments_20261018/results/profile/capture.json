@@ -1,0 +1,19 @@
+{
+  "trace": "selected-decode-1792318828.477386-TP-0.trace.json.gz",
+  "server_trace_timestamp": 1792318828.477386,
+  "warmup_min_completion_tokens": 64,
+  "start_payload": {
+    "num_steps": 16,
+    "activities": [
+      "CPU",
+      "GPU"
+    ],
+    "with_stack": true,
+    "record_shapes": false,
+    "profile_prefix": "selected-decode"
+  },
+  "control_http_status": 200,
+  "client_issue": "Initial helper parsed the successful plain-text /start_profile response as JSON. Parser fixed; server completed and saved the existing trace. No recapture was necessary.",
+  "request_completion_evidence": "Server log Decode batch full token=1024 after profiler export; request response metadata was not saved by the initial helper.",
+  "macro_measurement": false
+}

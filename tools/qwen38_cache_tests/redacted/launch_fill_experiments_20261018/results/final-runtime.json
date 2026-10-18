@@ -1,0 +1,48 @@
+{
+  "checked_at": "2026-10-18T18:24:41.307193+08:00",
+  "containers": [
+    {
+      "name": "/homelab-llm",
+      "id": "3df9fac3017017908c2a7f53810e12cfdcb39583d609286888a471dd29651a1e",
+      "image": "swallow-sglang:nightly-dev-20261018-b234b5c3",
+      "image_id": "sha256:f4f3b73ba30219458bcbe3fd824837a2552f686a345fde0cd102c80139f8f3e0",
+      "status": "running",
+      "started_at": "2026-10-18T10:19:35.016072767Z",
+      "restart_count": 0,
+      "source_mounts": [
+        {
+          "Type": "bind",
+          "Source": "/home/user/workspace/sglang",
+          "Destination": "/workspace/sglang",
+          "Mode": "ro",
+          "RW": false,
+          "Propagation": "rprivate"
+        }
+      ],
+      "selected_environment": {
+        "SGLANG_OPT_QWEN38_B12X_PREPARED_LAUNCH": "0",
+        "SGLANG_QWEN38_FILL_CTA": "8"
+      }
+    },
+    {
+      "name": "/homelab-vit",
+      "id": "66df4b4e94abfdd049a0d70a7c3c9d23857cbdd36a1aab242dd04c5901f714a9",
+      "image": "swallow-sglang:nightly-dev-20261018-b234b5c3",
+      "image_id": "sha256:f4f3b73ba30219458bcbe3fd824837a2552f686a345fde0cd102c80139f8f3e0",
+      "status": "running",
+      "started_at": "2026-10-18T08:22:31.293019135Z",
+      "restart_count": 0,
+      "source_mounts": [
+        {
+          "Type": "bind",
+          "Source": "/home/user/workspace/sglang",
+          "Destination": "/workspace/sglang",
+          "Mode": "ro",
+          "RW": false,
+          "Propagation": "rprivate"
+        }
+      ],
+      "selected_environment": {}
+    }
+  ]
+}

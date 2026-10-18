@@ -1,0 +1,76 @@
+{
+  "fill_gpu_ms": {
+    "1": {
+      "mapped_cta_8": 0.08847200311720371,
+      "mapped_adaptive": 0.08814400061964989,
+      "mapped_cta_5": 0.10405600257217884,
+      "dma_known_plan": 0.08343199826776981,
+      "dma_coalesced_plan": 0.08391200192272663,
+      "dma_plan_readback": 0.10202400013804436
+    },
+    "2": {
+      "mapped_cta_8": 0.14925599843263626,
+      "mapped_adaptive": 0.13436799868941307,
+      "mapped_cta_5": 0.13396000489592552,
+      "dma_known_plan": 0.1666719950735569,
+      "dma_coalesced_plan": 0.16547999531030655,
+      "dma_plan_readback": 0.1894720047712326
+    },
+    "3": {
+      "mapped_cta_8": 0.22154399752616882,
+      "mapped_adaptive": 0.20705599710345268,
+      "mapped_cta_5": 0.19087999686598778,
+      "dma_known_plan": 0.2500640004873276,
+      "dma_coalesced_plan": 0.24667999893426895,
+      "dma_plan_readback": 0.2768559977412224
+    },
+    "4": {
+      "mapped_cta_8": 0.2727680057287216,
+      "mapped_adaptive": 0.2656959965825081,
+      "mapped_cta_5": 0.25436799973249435,
+      "dma_known_plan": 0.3355120047926903,
+      "dma_coalesced_plan": 0.32316800206899643,
+      "dma_plan_readback": 0.3670159950852394
+    },
+    "6": {
+      "mapped_cta_8": 0.4179520010948181,
+      "mapped_adaptive": 0.3692080080509186,
+      "mapped_cta_5": 0.3848959878087044,
+      "dma_known_plan": 0.5044399946928024,
+      "dma_coalesced_plan": 0.49268799275159836,
+      "dma_plan_readback": 0.5476479977369308
+    },
+    "10": {
+      "mapped_cta_8": 0.6785920113325119,
+      "mapped_adaptive": 0.6084399968385696,
+      "mapped_cta_5": 0.6636160165071487,
+      "dma_known_plan": 0.8554240018129349,
+      "dma_coalesced_plan": 0.8170239925384521,
+      "dma_plan_readback": 0.9108719974756241
+    },
+    "30": {
+      "mapped_cta_8": 2.077623963356018,
+      "mapped_adaptive": 2.0759999752044678,
+      "mapped_cta_5": 2.007200002670288,
+      "dma_known_plan": 2.484111964702606,
+      "dma_coalesced_plan": 2.32723206281662,
+      "dma_plan_readback": 2.638711988925934
+    }
+  },
+  "bulk": {
+    "median_gpu_ms": 33.35180854797363,
+    "p95_gpu_ms": 34.47782516479492,
+    "wall_ms_per_call": 32.96390320174396,
+    "layer_bytes": 1415577600,
+    "round_48_layers_bytes": 67947724800,
+    "sustained_GB_s": 42.443803248744864,
+    "min_48_layer_copy_ms": 1600.8868103027344,
+    "two_layer_compute_window_ms": 0.49200712500000005,
+    "required_GB_s_for_26_263ms_round": 2587.2034725659673
+  },
+  "checks": {
+    "fill": 684,
+    "overlap": 270,
+    "prefill": 108
+  }
+}
