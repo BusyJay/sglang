@@ -100,7 +100,11 @@ from sglang.srt.models.qwen4_exp_ple_table import (
     make_ple_file_prefetcher,
     make_ple_file_rss_trimmer,
 )
-from sglang.srt.runtime_context import get_parallel, linear_attn_parallel_group
+from sglang.srt.runtime_context import (
+    get_forward,
+    get_parallel,
+    linear_attn_parallel_group,
+)
 from sglang.srt.utils import get_bool_env_var, is_hip, logger
 
 _use_aiter = get_bool_env_var("SGLANG_USE_AITER") and is_hip()
@@ -1522,9 +1526,13 @@ class Qwen4ExpPLELayer(nn.Module):
     def _get_prefetch_buffer(
         self, lookup_tokens: int, lookup_ids: torch.Tensor
     ) -> torch.Tensor:
-        # Breakable replays keep capture mode on but prefetch inside an eager
-        # break with live token counts, so only real capture uses graph buffers.
-        if get_is_capture_mode() and not is_in_breakable_cuda_graph():
+        # Prefill BCG uses eager bridges with a live TC context. Target verify
+        # captures the gather itself and must retain its output across eager
+        # prefill growth; otherwise replay writes into a freed allocation.
+        if get_is_capture_mode() and (
+            not is_in_breakable_cuda_graph()
+            or get_tc_piecewise_forward_context() is None
+        ):
             buffer = self._graph_prefetch_buffers.get(lookup_tokens)
             if buffer is None:
                 buffer = self._allocate_prefetch_buffer(lookup_tokens, lookup_ids)
@@ -1937,7 +1945,10 @@ class Qwen4ExpLayerExtensionMixin:
 
     def _add_ple_embedding(self, residual: torch.Tensor) -> torch.Tensor:
         forward_batch, ple_batch = self._ple_forward_batch, self._ple_batch
-        if is_in_breakable_cuda_graph() and forward_batch.forward_mode.is_extend():
+        if (
+            is_in_breakable_cuda_graph()
+            and forward_batch.forward_mode.is_extend_without_speculative()
+        ):
             return residual + _breakable_ple_forward(
                 ple=self.ple, hidden_states=residual, batch=ple_batch
             )
@@ -2110,7 +2121,10 @@ class Qwen4ExpAttentionDecoderLayer(
         positions: torch.Tensor,
         forward_batch: ForwardBatch,
     ) -> torch.Tensor:
-        if is_in_breakable_cuda_graph() and forward_batch.forward_mode.is_extend():
+        if (
+            is_in_breakable_cuda_graph()
+            and forward_batch.forward_mode.is_extend_without_speculative()
+        ):
             return _breakable_qsa_indexer(
                 layer=self, hidden_states=hidden_states, positions=positions
             )
@@ -2351,7 +2365,7 @@ class Qwen4ExpModel(Qwen3_5ForCausalLM):
         breakable_ple = (
             self.has_ple
             and is_in_breakable_cuda_graph()
-            and forward_batch.forward_mode.is_extend()
+            and forward_batch.forward_mode.is_extend_without_speculative()
         )
         ple_batch = None
         if breakable_ple:

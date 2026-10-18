@@ -1,0 +1,130 @@
+{
+  "math": {
+    "id": "a7de26d022004548883ffb272bbcce92",
+    "object": "chat.completion",
+    "created": 1792301601,
+    "model": "nvidia/Qwen3.8-Flash-Next-FP4-Local",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "5",
+          "reasoning_content": null
+        },
+        "logprobs": null,
+        "finish_reason": "stop",
+        "matched_stop": 248046
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 22,
+      "total_tokens": 24,
+      "completion_tokens": 2,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "reasoning_tokens": 0
+    },
+    "metadata": {
+      "weight_version": "default",
+      "weight_versions": [
+        {
+          "version": "default",
+          "start": 0,
+          "end": 2
+        }
+      ]
+    }
+  },
+  "vision": {
+    "id": "131a5fdf77cb4eafb3c6a376fc28d035",
+    "object": "chat.completion",
+    "created": 1792301604,
+    "model": "nvidia/Qwen3.8-Flash-Next-FP4-Local",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": " Red",
+          "reasoning_content": null
+        },
+        "logprobs": null,
+        "finish_reason": "stop",
+        "matched_stop": 248046
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 90,
+      "total_tokens": 92,
+      "completion_tokens": 2,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "image_tokens": 64
+      },
+      "reasoning_tokens": 0
+    },
+    "metadata": {
+      "weight_version": "default",
+      "weight_versions": [
+        {
+          "version": "default",
+          "start": 0,
+          "end": 2
+        }
+      ]
+    }
+  },
+  "tool": {
+    "id": "09832e6195934d00b282f9bb4071a847",
+    "object": "chat.completion",
+    "created": 1792301606,
+    "model": "nvidia/Qwen3.8-Flash-Next-FP4-Local",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "",
+          "reasoning_content": null,
+          "tool_calls": [
+            {
+              "id": "call_c77697e0d48e43e58fd91c3e",
+              "index": 0,
+              "type": "function",
+              "function": {
+                "name": "add",
+                "arguments": "{\"a\": 2, \"b\": 3}"
+              }
+            }
+          ]
+        },
+        "logprobs": null,
+        "finish_reason": "tool_calls",
+        "matched_stop": null
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 298,
+      "total_tokens": 333,
+      "completion_tokens": 35,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "reasoning_tokens": 0
+    },
+    "metadata": {
+      "weight_version": "default",
+      "weight_versions": [
+        {
+          "version": "default",
+          "start": 0,
+          "end": 35
+        }
+      ]
+    }
+  },
+  "sse": "OK",
+  "status": "PASS"
+}

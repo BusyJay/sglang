@@ -1,0 +1,576 @@
+digraph dot {
+subgraph cluster_1 {
+label="graph_1" graph[style="dashed"];
+"graph_1_node_0"[style="solid" shape="rectangle" label="0 (topoId: 47)
+EVENT_RECORD
+node handle: 0x00000000A36D0BA0
+event: 0x00000000A36749F0
+"];
+
+"graph_1_node_1"[style="bold" shape="record" label="{KERNEL
+| {ID | 1 (topoId: 46) | _gather_ple_embedding_from_pinned_kernel\<\<\<3,128,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36D1418 | 0x0000000090488100}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_2"[style="bold" shape="record" label="{KERNEL
+| {ID | 2 (topoId: 45) | _ZN50_GLOBAL__N__2fa45684_17_RangeFactories_cu_38772b0829elementwise_kernel_with_indexIiZZZN2at6native15arange_cuda_outERKN3c106ScalarES6_S6_RNS1_6TensorEENKUlvE_clEvENKUlvE2_clEvEUllE_EEvT_T0_PN15function_traitsISD_E11result_typeE\<\<\<1,64,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36D1C90 | 0x000000005927DBD0}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_3"[style="bold" shape="record" label="{KERNEL
+| {ID | 3 (topoId: 44) | _ZN2at6native29vectorized_elementwise_kernelILi2ENS0_11FillFunctorIlEESt5arrayIPcLm1EELb0EEEviT0_T1_\<\<\<1,128,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36D2508 | 0x000000004CC69190}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_4"[style="bold" shape="record" label="{KERNEL
+| {ID | 4 (topoId: 43) | _ZN2at6native29vectorized_elementwise_kernelILi2ENS0_13BUnaryFunctorIlllZZZNS0_15binary_internal21div_floor_kernel_cudaERNS_18TensorIteratorBaseEENKUlvE_clEvENKUlvE2_clEvEUlllE_EESt5arrayIPcLm2EELb0EEEviT0_T1_\<\<\<1,128,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36D2D80 | 0x0000000088C9BEA0}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_5"[style="bold" shape="record" label="{KERNEL
+| {ID | 5 (topoId: 42) | _ZN2at6native29vectorized_elementwise_kernelILi2ENS0_13AUnaryFunctorIlllNS0_15binary_internal10MulFunctorIlEEEESt5arrayIPcLm2EELb0EEEviT0_T1_\<\<\<1,128,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36D35F8 | 0x0000000061E23A60}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_6"[style="bold" shape="record" label="{KERNEL
+| {ID | 6 (topoId: 41) | _ZN2at6native29vectorized_elementwise_kernelILi2ENS0_15CUDAFunctor_addIlEESt5arrayIPcLm3EELb0EEEviT0_T1_\<\<\<1,128,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36D3E70 | 0x00000000670E21E0}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_7"[style="bold" shape="record" label="{KERNEL
+| {ID | 7 (topoId: 39) | _ZN2at6native44_GLOBAL__N__b23ef953_11_Indexing_cu_89862edb21indexSelectSmallIndexIlljLi1ELi1ELin2EEEvNS_4cuda6detail10TensorInfoIT_T1_EENS5_IKS6_S7_EENS5_IKT0_S7_EEiiS7_l\<\<\<1,1,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36D46E8 | 0x00000000831A2460}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_8"[style="bold" shape="record" label="{KERNEL
+| {ID | 8 (topoId: 37) | _ZN2at6native29vectorized_elementwise_kernelILi4ENS0_50_GLOBAL__N__30bf7ff7_17_CompareKernels_cu_8f1b29aa14CompareFunctorIlEESt5arrayIPcLm3EELb0EEEviT0_T1_\<\<\<1,128,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36D4F60 | 0x00000000666C9830}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_9"[style="bold" shape="record" label="{KERNEL
+| {ID | 9 (topoId: 34) | _ZN2at6native24index_elementwise_kernelILi128ELi4EZNS0_16gpu_index_kernelIZNS0_17index_kernel_implINS0_10OpaqueTypeILi4EEEEEvRNS_18TensorIteratorBaseEN3c108ArrayRefIlEESA_EUlPcPKclE_EEvS7_SA_SA_RKT_bEUliE_EEvlT1_\<\<\<1,128,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36D57D8 | 0x0000000087935450}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_10"[style="bold" shape="record" label="{KERNEL
+| {ID | 10 (topoId: 31) | _ZN2at6native27unrolled_elementwise_kernelIZZZNS0_23direct_copy_kernel_cudaERNS_18TensorIteratorBaseEENKUlvE1_clEvENKUlvE2_clEvEUllE_St5arrayIPcLm2EELi4E23TrivialOffsetCalculatorILi1EjESB_NS0_6memory12LoadWithCastILi1EEENSC_13StoreWithCastILi1EEEEEviT_T0_T2_T3_T4_T5_\<\<\<1,128,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36D6050 | 0x0000000053288AA0}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_11"[style="bold" shape="record" label="{KERNEL
+| {ID | 11 (topoId: 28) | _ZN2at6native29vectorized_elementwise_kernelILi4ENS0_13AUnaryFunctorIllbNS0_51_GLOBAL__N__68c48bfe_18_CompareEQKernel_cu_d8008c9616CompareEqFunctorIlEEEESt5arrayIPcLm2EELb0EEEviT0_T1_\<\<\<1,128,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36D68C8 | 0x0000000056DC5670}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_12"[style="bold" shape="record" label="{KERNEL
+| {ID | 12 (topoId: 26) | _ZN2at6native29vectorized_elementwise_kernelILi4ENS0_13AUnaryFunctorIllbNS0_51_GLOBAL__N__68c48bfe_18_CompareEQKernel_cu_d8008c9616CompareEqFunctorIlEEEESt5arrayIPcLm2EELb0EEEviT0_T1_\<\<\<1,128,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36D7140 | 0x0000000056DC5670}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_13"[style="bold" shape="record" label="{KERNEL
+| {ID | 13 (topoId: 24) | _ZN2at6native13reduce_kernelILi512ELi1ENS0_8ReduceOpIbNS0_14func_wrapper_tIbZZZNS0_14or_kernel_cudaERNS_14TensorIteratorEENKUlvE_clEvENKUlvE10_clEvEUlbbE_EEjbLi4ELi4EEEEEvT1_\<\<\<1,2,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36D79B8 | 0x000000006E202B60}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_14"[style="bold" shape="record" label="{KERNEL
+| {ID | 14 (topoId: 22) | _ZN2at6native29vectorized_elementwise_kernelILi4ENS0_13BinaryFunctorIbbbNS0_17BitwiseAndFunctorIbEEEESt5arrayIPcLm3EELb0EEEviT0_T1_\<\<\<1,128,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36D8230 | 0x00000000918963C0}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_15"[style="bold" shape="record" label="{KERNEL
+| {ID | 15 (topoId: 20) | _ZN2at6native29vectorized_elementwise_kernelILi2ENS0_11FillFunctorIlEESt5arrayIPcLm1EELb0EEEviT0_T1_\<\<\<1,128,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36D8AA8 | 0x000000004CC69190}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_16"[style="bold" shape="record" label="{KERNEL
+| {ID | 16 (topoId: 18) | _ZN2at6native29vectorized_elementwise_kernelILi2EZZZNS0_49_GLOBAL__N__037c6ad9_16_TensorCompare_cu_71e06f4e17where_kernel_implERNS_14TensorIteratorEENKUlvE_clEvENKUlvE2_clEvEUlbmmE_St5arrayIPcLm4EELb0EEEviT0_T1_\<\<\<1,128,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36D9320 | 0x000000008F2880F0}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_17"[style="bold" shape="record" label="{KERNEL
+| {ID | 17 (topoId: 16) | _ZN2at6native29vectorized_elementwise_kernelILi2ENS0_11FillFunctorIlEESt5arrayIPcLm1EELb0EEEviT0_T1_\<\<\<1,128,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36D9B98 | 0x000000004CC69190}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_18"[style="bold" shape="record" label="{KERNEL
+| {ID | 18 (topoId: 14) | _ZN2at6native29vectorized_elementwise_kernelILi2ENS0_11FillFunctorIlEESt5arrayIPcLm1EELb0EEEviT0_T1_\<\<\<1,128,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36DA410 | 0x000000004CC69190}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_19"[style="bold" shape="record" label="{KERNEL
+| {ID | 19 (topoId: 12) | _ZN2at6native18elementwise_kernelILi128ELi2EZNS0_22gpu_kernel_impl_nocastIZZZNS0_49_GLOBAL__N__037c6ad9_16_TensorCompare_cu_71e06f4e17where_kernel_implERNS_14TensorIteratorEENKUlvE_clEvENKUlvE2_clEvEUlbmmE_EEvRNS_18TensorIteratorBaseERKT_EUliE_EEviT1_\<\<\<1,128,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36DAC88 | 0x000000008F276E70}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_20"[style="bold" shape="record" label="{KERNEL
+| {ID | 20 (topoId: 10) | _ZN2at6native24index_elementwise_kernelILi128ELi4EZNS0_16gpu_index_kernelIZNS0_21index_put_kernel_implINS0_10OpaqueTypeILi8EEEEEvRNS_14TensorIteratorEN3c108ArrayRefIlEESA_EUlPcPKclE_EEvRNS_18TensorIteratorBaseESA_SA_RKT_bEUliE_EEvlT1_\<\<\<1,128,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36DB500 | 0x00000000878AA560}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_21"[style="bold" shape="record" label="{KERNEL
+| {ID | 21 (topoId: 8) | _ZN2at6native44_GLOBAL__N__b23ef953_11_Indexing_cu_89862edb21indexSelectSmallIndexIlljLi2ELi2ELin2EEEvNS_4cuda6detail10TensorInfoIT_T1_EENS5_IKS6_S7_EENS5_IKT0_S7_EEiiS7_l\<\<\<1,2,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36DBD78 | 0x00000000831997B0}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_22"[style="bold" shape="record" label="{KERNEL
+| {ID | 22 (topoId: 6) | _ZN2at6native40_GLOBAL__N__f1f992fe_8_Shape_cu_49f7391c35CatArrayBatchedCopy_alignedK_contigINS1_10OpaqueTypeILj8EEEjLi2ELi128ELi1ELi16EEEvPT_NS1_25CatArrInputTensorMetadataIS5_T0_XT2_EXT3_EEENS1_16TensorSizeStrideIS8_Lj4EEEiS8_\<\<\<\{1,2\},128,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36DC5F0 | 0x0000000063A18120}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_23"[style="bold" shape="record" label="{KERNEL
+| {ID | 23 (topoId: 4) | _ZN2at6native24index_elementwise_kernelILi128ELi4EZNS0_16gpu_index_kernelIZNS0_17index_kernel_implINS0_10OpaqueTypeILi8EEEEEvRNS_18TensorIteratorBaseEN3c108ArrayRefIlEESA_EUlPcPKclE_EEvS7_SA_SA_RKT_bEUliE_EEvlT1_\<\<\<1,128,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36DCE68 | 0x000000008792C740}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_24"[style="bold" shape="record" label="{KERNEL
+| {ID | 24 (topoId: 2) | _qwen4_ngram_hash_kernel\<\<\<1,128,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36DD6E0 | 0x00000000922D0F10}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_25"[style="bold" shape="record" label="{KERNEL
+| {ID | 25 (topoId: 0) | _gather_ple_embedding_from_pinned_kernel\<\<\<48,128,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36DDF58 | 0x00000000922E33F0}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_26"[style="bold" shape="record" label="{KERNEL
+| {ID | 26 (topoId: 40) | _ZN2at6native40_GLOBAL__N__f1f992fe_8_Shape_cu_49f7391c30CatArrayBatchedCopy_vectorizedINS1_10OpaqueTypeILj2EEEjLi2ELi128ELi1ELi16ELi8EEEvPcNS1_25CatArrInputTensorMetadataIT_T0_XT2_EXT3_EEENS1_16TensorSizeStrideIS8_Lj4EEEiS8_\<\<\<\{8,4\},128,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36DE7D0 | 0x0000000063B8FF50}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_27"[style="bold" shape="record" label="{KERNEL
+| {ID | 27 (topoId: 38) | _norm\<\<\<12,128,16\>\>\>}
+| {{node handle | func handle} | {0x00000000A36DF048 | 0x00000000922E4360}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_28"[style="bold" shape="record" label="{KERNEL
+| {ID | 28 (topoId: 35) | _hc_mix_persistent_kernel\<\<\<170,256,51200\>\>\>}
+| {{node handle | func handle} | {0x00000000A36DF8C0 | 0x00000000923343D0}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_29"[style="bold" shape="record" label="{KERNEL
+| {ID | 29 (topoId: 32) | kernel_cutlass_kernel_flashinferquantizationkernelsmxfp8_quantizeMXFP8QuantizeSwizzledKernel_object_at__tensorptrbf16gmemalign16o256025601_tensorptri8gmemalign16o256025601_tensorptri8gmem_0\<\<\<43,960,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36E0138 | 0x00000000925BA6F0}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_30"[style="bold" shape="record" label="{KERNEL
+| {ID | 30 (topoId: 29) | _ZN7cutlass13device_kernelIN10flashinfer4gemm53DeviceGemmMxfp8GemmSm120___nv_bfloat16_128_32_128true9Sm12xOnlyINS_4gemm6kernel13GemmUniversalIN4cute5tupleIJiiiiEEENS5_10collective13CollectiveMmaINS5_42MainloopSm120TmaWarpSpecializedBlockScaledILi4ELi3ENS9_IJNS8_1CILi1EEESF_SF_EEENS5_51KernelTmaWarpSpecializedCooperativeBlockScaledSm120ILi3EEEEENS9_IJNSE_ILi128EEENSE_ILi32EEESK_EEENS9_IJNS_12float_e4m3_tENS_13float_ue8m0_tEEEENS9_IJNS9_IJlSF_lEEENS8_6LayoutINS9_IJNS9_IJNS9_IJSL_NSE_ILi4EEEEEEiEEESU_NS9_IJSF_iEEEEEENS9_IJNS9_IJNS9_IJNSE_ILi16EEESS_EEEiEEENS9_IJNS9_IJNSE_ILi0EEESF_EEENSE_ILi512EEEEEENS9_IJS10_iEEEEEEEEEEESP_S17_NS8_8TiledMMAINS8_8MMA_AtomIJNS8_5SM12011BLOCKSCALED19SM120_16x8x32_TN_VSISN_SN_fSO_Li32EEEEEENSR_INS9_IJSS_NSE_ILi2EEESF_EEENS9_IJSF_SS_S10_EEEEENS9_IJSK_NSR_INS9_IJNSE_ILi8EEES1F_S1F_EEENS9_IJSF_SX_S1J_EEEEESL_EEEEENS9_IJNS8_13SM90_TMA_LOADES1P_EEENS9_IJNS8_14ComposedLayoutINS8_7SwizzleILi3ELi4ELi3EEENS8_18smem_ptr_flag_bitsILi8EEENSR_INS9_IJS1J_SK_EEENS9_IJSK_SF_EEEEEEENSR_INS9_IJNS9_IJST_SF_EEENS9_IJNS9_IJSL_SF_EEESS_SF_EEEEEENS9_IJNS9_IJSY_S12_EEENS9_IJS11_SF_S12_EEEEEEEEEEENS9_IJNS8_9Copy_AtomIJNS8_17SM75_U32x4_LDSM_NEhEEENS29_IJNS8_13UniversalCopyISO_SO_EESO_EEEEEENS8_8identityES1Q_S28_S2F_S2G_EENS_8epilogue10collective18CollectiveEpilogueINS2I_22Sm90TmaWarpSpecializedILi2ELi2ELi4ELb0ELb1EEEJSM_NS9_IJNSE_ILi64EEESL_EEEvNS9_IJSF_llEEENS_10bfloat16_tES2P_NS2I_6fusion15FusionCallbacksINS2I_23Sm120TmaWarpSpecializedILi2ELi2ELi4ELb0ELb1EEENS2R_17LinearCombinationIS2Q_fvfLNS_15FloatRoundStyleE2EEESM_S2O_JEEES1P_NS1R_IS1T_NS1U_ILi16EEENSR_INS9_IJS2N_S1J_EEENS9_IJSF_S2N_EEEEEEENS8_17SM75_U16x4_LDSM_TENS8_14SM90_TMA_STOREES33_NS8_17SM90_U16x4_STSM_TENS29_IJNS8_17SM90_U32x2_STSM_NENS_6half_tEEEEvEEENS5_19PersistentSchedulerEvEEEEEEvNT_6ParamsE\<\<\<\{1,128\},384,96256\>\>\>}
+| {{node handle | func handle} | {0x00000000A36E09B0 | 0x000000009289C060}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_31"[style="bold" shape="record" label="{KERNEL
+| {ID | 31 (topoId: 36) | kernel_cutlass_kernel_flashinferquantizationkernelsmxfp8_quantizeMXFP8QuantizeSwizzledKernel_object_at__tensorptrbf16gmemalign16o256025601_tensorptri8gmemalign16o256025601_tensorptri8gmem_0\<\<\<43,960,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36E1228 | 0x00000000925BA6F0}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_32"[style="bold" shape="record" label="{KERNEL
+| {ID | 32 (topoId: 33) | _ZN7cutlass13device_kernelIN10flashinfer4gemm53DeviceGemmMxfp8GemmSm120___nv_bfloat16_128_32_128true9Sm12xOnlyINS_4gemm6kernel13GemmUniversalIN4cute5tupleIJiiiiEEENS5_10collective13CollectiveMmaINS5_42MainloopSm120TmaWarpSpecializedBlockScaledILi4ELi3ENS9_IJNS8_1CILi1EEESF_SF_EEENS5_51KernelTmaWarpSpecializedCooperativeBlockScaledSm120ILi3EEEEENS9_IJNSE_ILi128EEENSE_ILi32EEESK_EEENS9_IJNS_12float_e4m3_tENS_13float_ue8m0_tEEEENS9_IJNS9_IJlSF_lEEENS8_6LayoutINS9_IJNS9_IJNS9_IJSL_NSE_ILi4EEEEEEiEEESU_NS9_IJSF_iEEEEEENS9_IJNS9_IJNS9_IJNSE_ILi16EEESS_EEEiEEENS9_IJNS9_IJNSE_ILi0EEESF_EEENSE_ILi512EEEEEENS9_IJS10_iEEEEEEEEEEESP_S17_NS8_8TiledMMAINS8_8MMA_AtomIJNS8_5SM12011BLOCKSCALED19SM120_16x8x32_TN_VSISN_SN_fSO_Li32EEEEEENSR_INS9_IJSS_NSE_ILi2EEESF_EEENS9_IJSF_SS_S10_EEEEENS9_IJSK_NSR_INS9_IJNSE_ILi8EEES1F_S1F_EEENS9_IJSF_SX_S1J_EEEEESL_EEEEENS9_IJNS8_13SM90_TMA_LOADES1P_EEENS9_IJNS8_14ComposedLayoutINS8_7SwizzleILi3ELi4ELi3EEENS8_18smem_ptr_flag_bitsILi8EEENSR_INS9_IJS1J_SK_EEENS9_IJSK_SF_EEEEEEENSR_INS9_IJNS9_IJST_SF_EEENS9_IJNS9_IJSL_SF_EEESS_SF_EEEEEENS9_IJNS9_IJSY_S12_EEENS9_IJS11_SF_S12_EEEEEEEEEEENS9_IJNS8_9Copy_AtomIJNS8_17SM75_U32x4_LDSM_NEhEEENS29_IJNS8_13UniversalCopyISO_SO_EESO_EEEEEENS8_8identityES1Q_S28_S2F_S2G_EENS_8epilogue10collective18CollectiveEpilogueINS2I_22Sm90TmaWarpSpecializedILi2ELi2ELi4ELb0ELb1EEEJSM_NS9_IJNSE_ILi64EEESL_EEEvNS9_IJSF_llEEENS_10bfloat16_tES2P_NS2I_6fusion15FusionCallbacksINS2I_23Sm120TmaWarpSpecializedILi2ELi2ELi4ELb0ELb1EEENS2R_17LinearCombinationIS2Q_fvfLNS_15FloatRoundStyleE2EEESM_S2O_JEEES1P_NS1R_IS1T_NS1U_ILi16EEENSR_INS9_IJS2N_S1J_EEENS9_IJSF_S2N_EEEEEEENS8_17SM75_U16x4_LDSM_TENS8_14SM90_TMA_STOREES33_NS8_17SM90_U16x4_STSM_TENS29_IJNS8_17SM90_U32x2_STSM_NENS_6half_tEEEEvEEENS5_19PersistentSchedulerEvEEEEEEvNT_6ParamsE\<\<\<1,384,96256\>\>\>}
+| {{node handle | func handle} | {0x00000000A36E1AA0 | 0x000000009289C060}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_33"[style="bold" shape="record" label="{KERNEL
+| {ID | 33 (topoId: 30) | _ZN2at6native18elementwise_kernelILi128ELi4EZNS0_22gpu_kernel_impl_nocastIZZZNS0_23direct_copy_kernel_cudaERNS_18TensorIteratorBaseEENKUlvE1_clEvENKUlvE10_clEvEUlN3c108BFloat16EE_EEvS4_RKT_EUliE_EEviT1_\<\<\<1,128,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36E2318 | 0x00000000532F44C0}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_34"[style="bold" shape="record" label="{KERNEL
+| {ID | 34 (topoId: 27) | fused_qkvzba_split_reshape_cat_contiguous_kernel\<\<\<\{3,16\},32,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36E2B90 | 0x00000000928A3860}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_35"[style="bold" shape="record" label="{KERNEL
+| {ID | 35 (topoId: 25) | _ZN2at6native29vectorized_elementwise_kernelILi4EZNS0_21compare_scalar_kernelIiEEvRNS_18TensorIteratorBaseENS0_50_GLOBAL__N__30bf7ff7_17_CompareKernels_cu_8f1b29aa6OpTypeET_EUliE_St5arrayIPcLm2EELb0EEEviT0_T1_\<\<\<1,128,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36E3408 | 0x00000000680DD2A0}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_36"[style="bold" shape="record" label="{KERNEL
+| {ID | 36 (topoId: 23) | _causal_conv1d_update_kernel\<\<\<\{1,40\},128,2048\>\>\>}
+| {{node handle | func handle} | {0x00000000A36E3C80 | 0x000000009322E320}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_37"[style="bold" shape="record" label="{KERNEL
+| {ID | 37 (topoId: 21) | fused_sigmoid_gating_delta_rule_update_kernel\<\<\<\{4,1,48\},32,128\>\>\>}
+| {{node handle | func handle} | {0x00000000A36E44F8 | 0x00000000931BCC60}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_38"[style="bold" shape="record" label="{KERNEL
+| {ID | 38 (topoId: 19) | _layer_norm_fwd_1pass_kernel\<\<\<144,32,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36E4D70 | 0x00000000928B86C0}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_39"[style="bold" shape="record" label="{KERNEL
+| {ID | 39 (topoId: 17) | kernel_cutlass_kernel_flashinferquantizationkernelsmxfp8_quantizeMXFP8QuantizeSwizzledKernel_object_at__tensorptrbf16gmemalign16o614461441_tensorptri8gmemalign16o614461441_tensorptri8gmem_0\<\<\<128,768,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36E55E8 | 0x0000000092A39B40}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_40"[style="bold" shape="record" label="{KERNEL
+| {ID | 40 (topoId: 15) | _ZN7cutlass13device_kernelIN10flashinfer4gemm53DeviceGemmMxfp8GemmSm120___nv_bfloat16_128_32_128true9Sm12xOnlyINS_4gemm6kernel13GemmUniversalIN4cute5tupleIJiiiiEEENS5_10collective13CollectiveMmaINS5_42MainloopSm120TmaWarpSpecializedBlockScaledILi4ELi3ENS9_IJNS8_1CILi1EEESF_SF_EEENS5_51KernelTmaWarpSpecializedCooperativeBlockScaledSm120ILi3EEEEENS9_IJNSE_ILi128EEENSE_ILi32EEESK_EEENS9_IJNS_12float_e4m3_tENS_13float_ue8m0_tEEEENS9_IJNS9_IJlSF_lEEENS8_6LayoutINS9_IJNS9_IJNS9_IJSL_NSE_ILi4EEEEEEiEEESU_NS9_IJSF_iEEEEEENS9_IJNS9_IJNS9_IJNSE_ILi16EEESS_EEEiEEENS9_IJNS9_IJNSE_ILi0EEESF_EEENSE_ILi512EEEEEENS9_IJS10_iEEEEEEEEEEESP_S17_NS8_8TiledMMAINS8_8MMA_AtomIJNS8_5SM12011BLOCKSCALED19SM120_16x8x32_TN_VSISN_SN_fSO_Li32EEEEEENSR_INS9_IJSS_NSE_ILi2EEESF_EEENS9_IJSF_SS_S10_EEEEENS9_IJSK_NSR_INS9_IJNSE_ILi8EEES1F_S1F_EEENS9_IJSF_SX_S1J_EEEEESL_EEEEENS9_IJNS8_13SM90_TMA_LOADES1P_EEENS9_IJNS8_14ComposedLayoutINS8_7SwizzleILi3ELi4ELi3EEENS8_18smem_ptr_flag_bitsILi8EEENSR_INS9_IJS1J_SK_EEENS9_IJSK_SF_EEEEEEENSR_INS9_IJNS9_IJST_SF_EEENS9_IJNS9_IJSL_SF_EEESS_SF_EEEEEENS9_IJNS9_IJSY_S12_EEENS9_IJS11_SF_S12_EEEEEEEEEEENS9_IJNS8_9Copy_AtomIJNS8_17SM75_U32x4_LDSM_NEhEEENS29_IJNS8_13UniversalCopyISO_SO_EESO_EEEEEENS8_8identityES1Q_S28_S2F_S2G_EENS_8epilogue10collective18CollectiveEpilogueINS2I_22Sm90TmaWarpSpecializedILi2ELi2ELi4ELb0ELb1EEEJSM_NS9_IJNSE_ILi64EEESL_EEEvNS9_IJSF_llEEENS_10bfloat16_tES2P_NS2I_6fusion15FusionCallbacksINS2I_23Sm120TmaWarpSpecializedILi2ELi2ELi4ELb0ELb1EEENS2R_17LinearCombinationIS2Q_fvfLNS_15FloatRoundStyleE2EEESM_S2O_JEEES1P_NS1R_IS1T_NS1U_ILi16EEENSR_INS9_IJS2N_S1J_EEENS9_IJSF_S2N_EEEEEEENS8_17SM75_U16x4_LDSM_TENS8_14SM90_TMA_STOREES33_NS8_17SM90_U16x4_STSM_TENS29_IJNS8_17SM90_U32x2_STSM_NENS_6half_tEEEEvEEENS5_19PersistentSchedulerEvEEEEEEvNT_6ParamsE\<\<\<\{1,20\},384,96256\>\>\>}
+| {{node handle | func handle} | {0x00000000A36E5E60 | 0x000000009289C060}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_41"[style="bold" shape="record" label="{KERNEL
+| {ID | 41 (topoId: 13) | _ZN6sglang22hc_combine_gate_kernelILl4ELl2560ELb1E13__nv_bfloat16EEvNS_20HcCombineSplitParamsE\<\<\<\{3,32\},32,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36E66D8 | 0x0000000092C753F0}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_42"[style="bold" shape="record" label="{KERNEL
+| {ID | 42 (topoId: 11) | _ZN6sglang23hc_combine_apply_kernelILl4ELl2560ELb1E13__nv_bfloat16EEvNS_20HcCombineSplitParamsE\<\<\<\{3,8\},160,0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36E6F50 | 0x0000000092E1BE70}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_43"[style="bold" shape="record" label="{KERNEL
+| {ID | 43 (topoId: 9) | _norm\<\<\<12,128,16\>\>\>}
+| {{node handle | func handle} | {0x00000000A36E77C8 | 0x00000000922E4360}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_44"[style="bold" shape="record" label="{KERNEL
+| {ID | 44 (topoId: 7) | _hc_mix_persistent_kernel\<\<\<170,256,51200\>\>\>}
+| {{node handle | func handle} | {0x00000000A36E8040 | 0x00000000923343D0}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_45"[style="bold" shape="record" label="{KERNEL
+| {ID | 45 (topoId: 5) | _ZN7cutlass7Kernel2I68cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8EEvNT_6ParamsE\<\<\<\{8,4,8\},32,16896\>\>\>}
+| {{node handle | func handle} | {0x00000000A36E88B8 | 0x0000000092B1AD20}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_46"[style="bold" shape="record" label="{KERNEL
+| {ID | 46 (topoId: 3) | _ZN8cublasLt19splitKreduce_kernelILi32ELi16Ei13__nv_bfloat16S1_fS1_Lb0ES1_S1_S1_Lb1ELb0ELb0ELb0EEEvNS_18cublasSplitKParamsIT4_EEPKT2_PKT8_PT7_PT3_PKS3_SG_PKT9_S7_PSH_PvlPS3_PiSM_SM_SG_SG_SG_SG_SG_\<\<\<16,\{32,16\},0\>\>\>}
+| {{node handle | func handle} | {0x00000000A36E9130 | 0x00000000A0394730}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_47"[style="bold" shape="record" label="{KERNEL
+| {ID | 47 (topoId: 1) | _router_triton_kernel\<\<\<3,32,64\>\>\>}
+| {{node handle | func handle} | {0x00000000A36E99A8 | 0x00000000A07E24E0}}
+| {accessPolicyWindow | {base_ptr | num_bytes | hitRatio | hitProp | missProp} | {0x0000000000000000 | 0 | 0.000000 | N | N}}
+| {cooperative | 0}
+| {priority | 0}
+| {cluster dim | (0,0,0)}
+| {preferred cluster dim | (0,0,0)}
+| {cluster scheduling policy preference | 1}
+}"];
+
+"graph_1_node_0" -> "graph_1_node_1" [headlabel=0];
+"graph_1_node_1" -> "graph_1_node_2" [headlabel=0];
+"graph_1_node_2" -> "graph_1_node_3" [headlabel=0];
+"graph_1_node_3" -> "graph_1_node_4" [headlabel=0];
+"graph_1_node_4" -> "graph_1_node_5" [headlabel=0];
+"graph_1_node_5" -> "graph_1_node_6" [headlabel=0];
+"graph_1_node_6" -> "graph_1_node_7" [headlabel=0];
+"graph_1_node_7" -> "graph_1_node_8" [headlabel=0];
+"graph_1_node_8" -> "graph_1_node_9" [headlabel=0];
+"graph_1_node_9" -> "graph_1_node_10" [headlabel=0];
+"graph_1_node_10" -> "graph_1_node_11" [headlabel=0];
+"graph_1_node_11" -> "graph_1_node_12" [headlabel=0];
+"graph_1_node_12" -> "graph_1_node_13" [headlabel=0];
+"graph_1_node_13" -> "graph_1_node_14" [headlabel=0];
+"graph_1_node_14" -> "graph_1_node_15" [headlabel=0];
+"graph_1_node_15" -> "graph_1_node_16" [headlabel=0];
+"graph_1_node_16" -> "graph_1_node_17" [headlabel=0];
+"graph_1_node_17" -> "graph_1_node_18" [headlabel=0];
+"graph_1_node_18" -> "graph_1_node_19" [headlabel=0];
+"graph_1_node_19" -> "graph_1_node_20" [headlabel=0];
+"graph_1_node_20" -> "graph_1_node_21" [headlabel=0];
+"graph_1_node_21" -> "graph_1_node_22" [headlabel=0];
+"graph_1_node_22" -> "graph_1_node_23" [headlabel=0];
+"graph_1_node_23" -> "graph_1_node_24" [headlabel=0];
+"graph_1_node_24" -> "graph_1_node_25" [headlabel=0];
+"graph_1_node_24" -> "graph_1_node_26" [headlabel=0];
+"graph_1_node_26" -> "graph_1_node_27" [headlabel=0];
+"graph_1_node_27" -> "graph_1_node_28" [headlabel=0];
+"graph_1_node_28" -> "graph_1_node_29" [headlabel=0];
+"graph_1_node_28" -> "graph_1_node_31" [headlabel=0];
+"graph_1_node_29" -> "graph_1_node_30" [headlabel=0];
+"graph_1_node_30" -> "graph_1_node_34" [headlabel=0];
+"graph_1_node_31" -> "graph_1_node_32" [headlabel=0];
+"graph_1_node_32" -> "graph_1_node_33" [headlabel=0];
+"graph_1_node_33" -> "graph_1_node_34" [headlabel=1];
+"graph_1_node_34" -> "graph_1_node_35" [headlabel=0];
+"graph_1_node_35" -> "graph_1_node_36" [headlabel=0];
+"graph_1_node_36" -> "graph_1_node_37" [headlabel=0];
+"graph_1_node_37" -> "graph_1_node_38" [headlabel=0];
+"graph_1_node_38" -> "graph_1_node_39" [headlabel=0];
+"graph_1_node_39" -> "graph_1_node_40" [headlabel=0];
+"graph_1_node_40" -> "graph_1_node_41" [headlabel=0];
+"graph_1_node_41" -> "graph_1_node_42" [headlabel=0];
+"graph_1_node_42" -> "graph_1_node_43" [headlabel=0];
+"graph_1_node_43" -> "graph_1_node_44" [headlabel=0];
+"graph_1_node_44" -> "graph_1_node_45" [headlabel=0];
+"graph_1_node_45" -> "graph_1_node_46" [headlabel=0];
+"graph_1_node_46" -> "graph_1_node_47" [headlabel=0];
+}
+}

@@ -1,0 +1,24 @@
+services:
+  llm:
+    image: swallow-sglang:nightly-dev-20261018-b234b5c3
+    pull_policy: never
+    environment:
+      SGLANG_QWEN38_STARTUP_CACHE: auto
+      SGLANG_QWEN38_SOURCE_CACHE_DIR: /dev/shm/sglang-qwen38-startup
+      SGLANG_QWEN38_HOST_TOKEN_EMBEDDING: "1"
+      SGLANG_QWEN38_BORROW_PREFILL_ARENA: "1"
+      SGLANG_QWEN38_PLE_PACKED_CACHE: "1"
+    command:
+    - bash
+    - /prod/homelab-llm/home-jay/remote-mapping/llm/sglang-fp4-local.sh
+    volumes:
+    - /home/jay/workspace/sglang-nightly-b12x:/workspace/sglang:ro
+    - /dev/shm/sglang-qwen38-startup:/dev/shm/sglang-qwen38-startup
+  vit:
+    image: swallow-sglang:nightly-dev-20261018-b234b5c3
+    pull_policy: never
+    command:
+    - bash
+    - /prod/homelab-llm/home-jay/remote-mapping/llm/sglang-vit-fp4-local.sh
+    volumes:
+    - /home/jay/workspace/sglang-nightly-b12x:/workspace/sglang:ro

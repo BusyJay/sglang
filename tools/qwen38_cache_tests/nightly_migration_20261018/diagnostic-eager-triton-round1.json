@@ -1,0 +1,4761 @@
+{
+  "server_info": {
+    "model_path": "nvidia/Qwen3.8-Flash-Next-FP4-Local",
+    "tokenizer_path": "nvidia/Qwen3.8-Flash-Next-FP4-Local",
+    "tokenizer_mode": "auto",
+    "tokenizer_backend": "huggingface",
+    "tokenizer_worker_num": 1,
+    "detokenizer_worker_num": 1,
+    "skip_tokenizer_init": false,
+    "load_format": "qwen38_nvfp4_cache",
+    "model_loader_extra_config": "{\"manifest_path\":\"/root/.cache/sglang/qwen38-fp4-local/b9ce18a6887e18c089fdea8509a33e63429a3300/manifest.json\",\"checkpoint_revision\":\"b9ce18a6887e18c089fdea8509a33e63429a3300\",\"sglang_commit\":\"acd9c47fed94afe9c753631e4f88df58ca3f676f+fp4-local-59db23b7bae46aa9\",\"cache_slots_total\":6390,\"prefill_arena\":true,\"runtime_mode\":\"threaded\",\"stats_log_interval\":19200,\"adaptive_cache\":true,\"preallocate_gdn_proj\":true,\"async_pack_prefetch\":true,\"packed_decode\":\"packed\",\"packed_prefill\":\"packed\"}",
+    "trust_remote_code": true,
+    "context_length": 220000,
+    "is_embedding": false,
+    "enable_multimodal": null,
+    "revision": "b9ce18a6887e18c089fdea8509a33e63429a3300",
+    "model_impl": "auto",
+    "model_config_parser": "auto",
+    "json_model_override_args": "{}",
+    "dtype": "auto",
+    "quantization": null,
+    "quantization_param_path": null,
+    "kv_cache_dtype": "fp8_e4m3",
+    "enable_fp32_lm_head": false,
+    "modelopt_quant": null,
+    "modelopt_checkpoint_restore_path": null,
+    "modelopt_checkpoint_save_path": null,
+    "modelopt_export_path": null,
+    "quantize_and_serve": false,
+    "rl_quant_profile": null,
+    "enable_tf32_matmul": false,
+    "mem_fraction_static": 0.9,
+    "max_running_requests": 1,
+    "max_queued_requests": null,
+    "max_total_tokens": null,
+    "chunked_prefill_size": 8192,
+    "prefill_decode_interval": 0,
+    "enable_dynamic_chunking": false,
+    "max_prefill_tokens": 16384,
+    "prefill_max_requests": null,
+    "schedule_policy": "fcfs",
+    "enable_priority_scheduling": false,
+    "disable_priority_preemption": false,
+    "default_priority_value": null,
+    "abort_on_priority_when_disabled": false,
+    "schedule_low_priority_values_first": false,
+    "priority_scheduling_preemption_threshold": 10,
+    "retraction_policy": "length",
+    "schedule_conservativeness": 1.0,
+    "page_size": 64,
+    "c128_page_size": 16,
+    "swa_full_tokens_ratio": 0.8,
+    "disable_hybrid_swa_memory": false,
+    "radix_eviction_policy": "lru",
+    "radix_eviction_policy_config": null,
+    "prefill_only_disable_kv_cache": false,
+    "disable_radix_cache": false,
+    "enable_page_major_kv_layout": false,
+    "enable_unified_memory": false,
+    "disable_chunked_prefix_cache": false,
+    "disable_overlap_schedule": false,
+    "num_continuous_decode_steps": 1,
+    "scheduler_recv_interval": 1,
+    "enable_mixed_chunk": false,
+    "nccl_port": null,
+    "dist_timeout": null,
+    "dist_init_addr": null,
+    "gated_launch_port": null,
+    "nnodes": 1,
+    "node_rank": 0,
+    "tp_size": 1,
+    "dcp_size": 1,
+    "pp_size": 1,
+    "pp_max_micro_batch_size": null,
+    "pp_async_batch_depth": 0,
+    "dp_size": 1,
+    "attn_dp_size": 1,
+    "load_balance_method": "round_robin",
+    "attn_cp_size": 1,
+    "moe_dp_size": 1,
+    "dwdp_size": 1,
+    "dcp_comm_backend": "ag_rs",
+    "dcp_replicate_q_proj": null,
+    "enable_prefill_cp": false,
+    "cp_strategy": null,
+    "enable_dsa_cache_layer_split": false,
+    "enable_cp_decode_attn_tp": false,
+    "enable_kv_cache_sharding": false,
+    "enable_dp_attention": false,
+    "enable_dp_attention_local_control_broadcast": false,
+    "enable_dp_lm_head": false,
+    "enable_tp_lm_head_all_to_all": false,
+    "enable_attn_tp_input_scattered": false,
+    "enable_shared_experts_attn_tp": false,
+    "shared_experts_tp_size": null,
+    "enable_dense_mlp_attn_tp": false,
+    "enable_layernorm_sp": false,
+    "disable_attn_tp_gather": false,
+    "enable_p2p_check": false,
+    "device": "cuda",
+    "base_gpu_id": 0,
+    "gpu_id_step": 1,
+    "random_seed": 1065362550,
+    "mlx_enable_sampling": false,
+    "watchdog_timeout": 300,
+    "soft_watchdog_timeout": null,
+    "sleep_on_idle": true,
+    "use_ray": false,
+    "custom_sigquit_handler": null,
+    "numa_node": null,
+    "gc_threshold": null,
+    "host": "0.0.0.0",
+    "port": 8000,
+    "fastapi_root_path": "",
+    "smg_grpc_mode": false,
+    "grpc_mode": false,
+    "grpc_port": null,
+    "grpc_worker_threads": 4,
+    "sidecar": null,
+    "sidecar_args": null,
+    "skip_server_warmup": false,
+    "warmups": "qwen38_first_prefill",
+    "enable_http2": false,
+    "http2_max_concurrent_streams": 200,
+    "http2_initial_connection_window_size": 1048576,
+    "ssl_keyfile": null,
+    "ssl_certfile": null,
+    "ssl_ca_certs": null,
+    "ssl_keyfile_password": null,
+    "enable_ssl_refresh": false,
+    "api_key": null,
+    "admin_api_key": null,
+    "served_model_name": "nvidia/Qwen3.8-Flash-Next-FP4-Local",
+    "weight_version": "default",
+    "chat_template": null,
+    "trust_request_chat_template": false,
+    "hf_chat_template_name": null,
+    "completion_template": null,
+    "file_storage_path": null,
+    "enable_cache_report": true,
+    "return_input_ids": false,
+    "return_output_ids": false,
+    "reasoning_parser": "qwen3",
+    "default_chat_template_kwargs": null,
+    "strip_thinking_cache": false,
+    "enable_strict_thinking": false,
+    "tool_call_parser": "qwen3_coder",
+    "tool_server": null,
+    "sampling_defaults": "model",
+    "asr_max_buffer_seconds": 60,
+    "asr_max_concurrent_sessions": 32,
+    "preferred_sampling_params": null,
+    "allow_auto_truncate": false,
+    "stream_interval": 1,
+    "batch_notify_size": 16,
+    "stream_response_default_include_usage": false,
+    "incremental_streaming_output": false,
+    "enable_streaming_session": false,
+    "enable_session_radix_cache": false,
+    "log_level": "info",
+    "log_level_http": null,
+    "log_requests": false,
+    "log_requests_level": 2,
+    "log_requests_format": "text",
+    "log_requests_target": null,
+    "uvicorn_access_log_exclude_prefixes": [],
+    "crash_dump_folder": null,
+    "show_time_cost": false,
+    "enable_metrics": false,
+    "smg_http_sidecar_port": null,
+    "enable_mfu_metrics": false,
+    "enable_metrics_for_all_schedulers": false,
+    "load_snapshot_publish_interval": 15,
+    "tokenizer_metrics_custom_labels_header": "x-custom-labels",
+    "tokenizer_metrics_allowed_custom_labels": null,
+    "extra_metric_labels": null,
+    "bucket_time_to_first_token": null,
+    "bucket_inter_token_latency": null,
+    "bucket_e2e_request_latency": null,
+    "prompt_tokens_buckets": null,
+    "generation_tokens_buckets": null,
+    "gc_warning_threshold_secs": 0.0,
+    "decode_log_interval": 400,
+    "enable_request_time_stats_logging": false,
+    "kv_events_config": null,
+    "load_publish_endpoint": null,
+    "enable_forward_pass_metrics": false,
+    "forward_pass_metrics_worker_id": "",
+    "forward_pass_metrics_ipc_name": null,
+    "enable_trace": false,
+    "trace_modules": "request",
+    "otlp_traces_endpoint": "localhost:4317",
+    "export_metrics_to_file": false,
+    "export_metrics_to_file_dir": null,
+    "stat_loggers": null,
+    "constrained_json_whitespace_pattern": null,
+    "constrained_json_disable_any_whitespace": false,
+    "constrained_json_max_whitespace_cnt": null,
+    "attention_backend": "flashinfer",
+    "decode_attention_backend": null,
+    "enable_lean_attention": null,
+    "prefill_attention_backend": null,
+    "sampling_backend": "flashinfer",
+    "grammar_backend": "xgrammar",
+    "radix_cache_backend": null,
+    "mm_attention_backend": null,
+    "fp8_gemm_runner_backend": "auto",
+    "fp4_gemm_runner_backend": "auto",
+    "bf16_gemm_backend": "auto",
+    "dsa_prefill_backend": null,
+    "dsv4_prefill_backend": "auto",
+    "dsa_decode_backend": null,
+    "dsa_paged_mqa_logits_backend": "auto",
+    "dsa_topk_backend": "sgl-kernel",
+    "disable_flashinfer_autotune": false,
+    "flashinfer_autotune_skip_ops": null,
+    "mamba_backend": "triton",
+    "cuda_graph_config": {
+      "decode": {
+        "backend": "breakable",
+        "max_bs": 1,
+        "bs": [
+          1
+        ],
+        "tc_compiler": "eager",
+        "max_context_size": null,
+        "full_prefill_max_req": null,
+        "full_prefill_prefix_chunk_tokens": null,
+        "max_seq_len": null
+      },
+      "prefill": {
+        "backend": "disabled",
+        "max_bs": 8192,
+        "bs": [
+          4,
+          8,
+          12,
+          16,
+          20,
+          24,
+          28,
+          32,
+          48,
+          64,
+          80,
+          96,
+          112,
+          128,
+          144,
+          160,
+          176,
+          192,
+          208,
+          224,
+          240,
+          256,
+          288,
+          320,
+          352,
+          384,
+          416,
+          448,
+          480,
+          512,
+          576,
+          640,
+          704,
+          768,
+          832,
+          896,
+          960,
+          1024,
+          1280,
+          1536,
+          1792,
+          2048,
+          2304,
+          2560,
+          2816,
+          3072,
+          3328,
+          3584,
+          3840,
+          4096,
+          4608,
+          5120,
+          5632,
+          6144,
+          6656,
+          7168,
+          7680,
+          8192
+        ],
+        "tc_compiler": "eager",
+        "max_context_size": null,
+        "full_prefill_max_req": null,
+        "full_prefill_prefix_chunk_tokens": null,
+        "max_seq_len": null
+      }
+    },
+    "cuda_graph_backend_decode": "breakable",
+    "cuda_graph_backend_prefill": "disabled",
+    "cuda_graph_max_bs_decode": 1,
+    "cuda_graph_max_bs_prefill": null,
+    "cuda_graph_bs_decode": [
+      1
+    ],
+    "cuda_graph_bs_prefill": null,
+    "cuda_graph_prefill_max_context": null,
+    "disable_prefill_cuda_graph": false,
+    "disable_decode_cuda_graph": false,
+    "disable_cuda_graph": true,
+    "disable_cuda_graph_padding": false,
+    "enable_profile_cuda_graph": false,
+    "enable_cudagraph_gc": false,
+    "debug_cuda_graph": false,
+    "enable_layerwise_nvtx_marker": false,
+    "enable_nccl_nvls": false,
+    "enable_symm_mem": false,
+    "triton_attention_reduce_in_fp32": false,
+    "triton_attention_num_kv_splits": 8,
+    "triton_attention_split_tile_size": null,
+    "flashinfer_mla_disable_ragged": false,
+    "enable_fused_qk_norm_rope": false,
+    "enable_precise_embedding_interpolation": false,
+    "enable_fused_moe_sum_all_reduce": false,
+    "enable_deepseek_v4_fp4_indexer": false,
+    "disable_custom_all_reduce": false,
+    "enable_mscclpp": false,
+    "enable_torch_symm_mem": false,
+    "enable_scattered_sconv": false,
+    "pre_warm_nccl": false,
+    "boundary_reduction": "ar",
+    "enable_quant_communications": false,
+    "enable_flashinfer_allreduce_fusion": false,
+    "enforce_disable_flashinfer_allreduce_fusion": false,
+    "flashinfer_allreduce_fusion_backend": null,
+    "enable_aiter_allreduce_fusion": false,
+    "enable_torch_compile": false,
+    "enable_torch_compile_debug_mode": false,
+    "torch_compile_max_bs": 32,
+    "speculative_algorithm": "EAGLE",
+    "uno_lora_path": null,
+    "speculative_draft_model_path": "nvidia/Qwen3.8-Flash-Next-FP4-Local",
+    "speculative_draft_model_revision": "b9ce18a6887e18c089fdea8509a33e63429a3300",
+    "speculative_draft_load_format": "qwen38_mtp",
+    "speculative_num_steps": 2,
+    "speculative_eagle_topk": 1,
+    "speculative_num_draft_tokens": 3,
+    "speculative_dflash_block_size": null,
+    "speculative_dspark_block_size": null,
+    "speculative_dspark_sps_table_path": null,
+    "speculative_dspark_confidence_sts_path": null,
+    "speculative_dspark_align_verify_tokens_to_graph_tier": false,
+    "speculative_accept_threshold_single": 1.0,
+    "speculative_accept_threshold_acc": 1.0,
+    "speculative_use_rejection_sampling": false,
+    "speculative_token_map": null,
+    "speculative_attention_mode": "prefill",
+    "speculative_draft_attention_backend": null,
+    "speculative_dsa_topk_backend": "sgl-kernel",
+    "speculative_draft_kv_cache_dtype": "fp8_e4m3",
+    "speculative_draft_window_size": null,
+    "speculative_moe_runner_backend": "triton",
+    "speculative_moe_a2a_backend": null,
+    "speculative_enable_w4a4_mxfp4_megamoe": null,
+    "speculative_draft_model_quantization": null,
+    "_speculative_draft_quantization_explicitly_set": false,
+    "speculative_skip_dp_mlp_sync": false,
+    "enable_multi_layer_eagle": false,
+    "speculative_adaptive": false,
+    "speculative_adaptive_config": null,
+    "decoupled_spec_bind_endpoint": null,
+    "decoupled_spec_connect_endpoints": null,
+    "decoupled_spec_rank": null,
+    "decoupled_spec_role": "null",
+    "spec_trace_dir": null,
+    "speculative_ngram_min_bfs_breadth": 1,
+    "speculative_ngram_max_bfs_breadth": 10,
+    "speculative_ngram_match_type": "BFS",
+    "speculative_ngram_max_trie_depth": 18,
+    "speculative_ngram_capacity": 10000000,
+    "speculative_ngram_external_corpus_path": null,
+    "speculative_ngram_external_sam_budget": 0,
+    "speculative_ngram_external_corpus_max_tokens": 10000000,
+    "ep_size": 1,
+    "moe_a2a_backend": "none",
+    "enable_w4a4_mxfp4_megamoe": false,
+    "deepep_v2_mode": "direct",
+    "moe_runner_backend": "flashinfer_cutlass",
+    "flashinfer_mxfp4_moe_precision": "default",
+    "deepep_mode": "auto",
+    "fuseep_mode": 2,
+    "deepep_dispatcher_output_dtype": "auto",
+    "ep_num_redundant_experts": 0,
+    "ep_dispatch_algorithm": null,
+    "init_expert_location": "trivial",
+    "enable_eplb": false,
+    "eplb_algorithm": "auto",
+    "eplb_rebalance_num_iterations": 1000,
+    "eplb_rebalance_layers_per_chunk": null,
+    "eplb_min_rebalancing_utilization_threshold": 1.0,
+    "expert_distribution_recorder_mode": null,
+    "expert_distribution_recorder_buffer_size": 1000,
+    "expert_balancedness_report_mode": "off",
+    "deepep_config": null,
+    "moe_dense_tp_size": null,
+    "elastic_ep_backend": null,
+    "enable_elastic_expert_backup": false,
+    "mooncake_ib_device": null,
+    "enable_waterfill": false,
+    "ep_join_mode": null,
+    "ep_join_rank_offset": 0,
+    "elastic_ep_initial_size": null,
+    "max_ep_size": null,
+    "elastic_ep_scale_timeout": 600,
+    "disable_flashinfer_cutlass_moe_fp4_allgather": false,
+    "disable_shared_experts_fusion": true,
+    "enforce_shared_experts_fusion": false,
+    "max_mamba_cache_size": 10,
+    "mamba_ssm_dtype": "bfloat16",
+    "mamba_max_states_per_path": -1,
+    "enable_mamba_cache_stochastic_rounding": false,
+    "mamba_cache_philox_rounds": 0,
+    "mamba_full_memory_ratio": 0.22,
+    "mamba_radix_cache_strategy": "extra_buffer",
+    "uses_mamba_radix_cache": true,
+    "mamba_track_interval": 256,
+    "enable_int8_mamba_checkpoint": false,
+    "int8_mamba_ckpt_size": null,
+    "linear_attn_backend": "triton",
+    "linear_attn_decode_backend": null,
+    "linear_attn_prefill_backend": null,
+    "linear_attn_verify_backend": null,
+    "enable_linear_replayssm": false,
+    "linear_replayssm_cache_len": 16,
+    "enable_linear_replayssm_spec": false,
+    "enable_hierarchical_cache": true,
+    "hicache_host_memory_mode": "cache",
+    "hicache_ratio": 6.0,
+    "hicache_size": 0,
+    "hicache_write_policy": "write_through",
+    "hicache_io_backend": "direct",
+    "hicache_mem_layout": "page_first_direct",
+    "hicache_storage_backend": null,
+    "hicache_storage_prefetch_policy": "timeout",
+    "hicache_storage_backend_extra_config": null,
+    "hicache_storage_prefetch_retry_poll_interval": 8,
+    "hicache_storage_prefetch_retry_max_attempts": 8,
+    "enable_unified_cache_external_linker": false,
+    "unified_cache_external_linker_backend": "mooncake",
+    "enable_hisparse": false,
+    "hisparse_config": null,
+    "enable_broadcast_mm_inputs_process": false,
+    "enable_prefix_mm_cache": false,
+    "mm_enable_dp_encoder": false,
+    "mm_process_config": {},
+    "mm_processor_worker_num": 0,
+    "mm_io_worker_num": 0,
+    "allowed_media_domains": [],
+    "media_url_max_file_size_mb": 64,
+    "mm_preprocess_cache_size_mb": null,
+    "trust_mm_content_hashes": false,
+    "limit_mm_data_per_request": null,
+    "enable_mm_global_cache": false,
+    "image_processor_backend": "auto",
+    "mm_global_cache_backend": "mooncake",
+    "disable_fast_image_processor": false,
+    "mm_feature_transport": "cpu",
+    "enable_lora": null,
+    "enable_lora_overlap_loading": null,
+    "max_lora_rank": null,
+    "lora_target_modules": null,
+    "lora_paths": null,
+    "max_loaded_loras": null,
+    "max_loras_per_batch": 8,
+    "lora_eviction_policy": "lru",
+    "lora_backend": "csgmv",
+    "max_lora_chunk_size": 16,
+    "experts_shared_outer_loras": null,
+    "lora_use_virtual_experts": false,
+    "lora_strict_loading": false,
+    "lora_drain_wait_threshold": 0.0,
+    "enable_two_batch_overlap": false,
+    "enable_single_batch_overlap": false,
+    "tbo_token_distribution_threshold": 0.48,
+    "cpu_offload_gb": 0,
+    "offload_group_size": -1,
+    "offload_num_in_group": 1,
+    "offload_prefetch_step": 1,
+    "offload_mode": "cpu",
+    "enable_lmcache": false,
+    "lmcache_config_file": null,
+    "enable_flexkv": false,
+    "flexkv_config_file": null,
+    "kt_weight_path": null,
+    "kt_method": "AMXINT4",
+    "kt_cpuinfer": null,
+    "kt_threadpool_count": 2,
+    "kt_num_gpu_experts": null,
+    "kt_max_deferred_experts_per_token": null,
+    "dllm_algorithm": null,
+    "dllm_algorithm_config": null,
+    "dllm_fdfo": true,
+    "disaggregation_mode": "null",
+    "disaggregation_transfer_backend": "mooncake",
+    "disaggregation_bootstrap_port": 8998,
+    "disaggregation_ib_device": null,
+    "disaggregation_decode_enable_radix_cache": false,
+    "disaggregation_decode_enable_offload_kvcache": false,
+    "disaggregation_decode_retraction_backup": null,
+    "num_reserved_decode_tokens": 512,
+    "disaggregation_decode_extra_slots": null,
+    "disaggregation_decode_polling_interval": 1,
+    "optimistic_prefill_attempts": 0,
+    "encoder_only": false,
+    "language_only": true,
+    "language_model_only": false,
+    "encoder_transfer_backend": "zmq_to_scheduler",
+    "encoder_urls": [
+      "http://vit:8000"
+    ],
+    "encoder_bootstrap_port": 8997,
+    "encoder_register_urls": [],
+    "enable_adaptive_dispatch_to_encoder": false,
+    "enable_pdmux": false,
+    "pdmux_config_path": null,
+    "sm_group_num": 8,
+    "startup_weight_load_mode": "serial",
+    "custom_weight_loader": [],
+    "weight_loader_disable_mmap": false,
+    "weight_loader_prefetch_checkpoints": false,
+    "weight_loader_prefetch_num_threads": 4,
+    "weight_loader_drop_cache_after_load": false,
+    "remote_instance_weight_loader_seed_instance_ip": null,
+    "remote_instance_weight_loader_seed_instance_service_port": null,
+    "remote_instance_weight_loader_send_weights_group_ports": null,
+    "remote_instance_weight_loader_backend": "nccl",
+    "remote_instance_weight_loader_start_seed_via_transfer_engine": false,
+    "engine_info_bootstrap_port": 6789,
+    "modelexpress_config": null,
+    "download_dir": "/prod/huggingface/hub",
+    "model_checksum": null,
+    "delete_ckpt_after_loading": false,
+    "decrypted_config_file": null,
+    "decrypted_draft_config_file": null,
+    "checkpoint_engine_wait_weights_before_ready": false,
+    "enable_prefill_delayer": false,
+    "prefill_delayer_max_delay_passes": 30,
+    "prefill_delayer_token_usage_low_watermark": null,
+    "prefill_delayer_forward_passes_buckets": null,
+    "prefill_delayer_wait_seconds_buckets": null,
+    "prefill_delayer_queue_min_ratio": null,
+    "prefill_delayer_max_delay_ms": null,
+    "min_free_slots_delay": null,
+    "enable_deterministic_inference": false,
+    "rl_on_policy_target": null,
+    "kv_canary": "none",
+    "kv_canary_real_data": "none",
+    "kv_canary_sweep_interval": 0,
+    "enable_dynamic_batch_tokenizer": false,
+    "dynamic_batch_tokenizer_batch_size": 32,
+    "dynamic_batch_tokenizer_batch_timeout": 0.002,
+    "enable_tokenizer_batch_encode": false,
+    "disable_tokenizer_batch_decode": false,
+    "debug_tensor_dump_output_folder": null,
+    "debug_tensor_dump_layers": null,
+    "debug_tensor_dump_input_file": null,
+    "enable_memory_saver": false,
+    "enable_weights_cpu_backup": false,
+    "enable_draft_weights_cpu_backup": false,
+    "enable_custom_logit_processor": false,
+    "enable_return_hidden_states": false,
+    "return_hidden_states_mode": null,
+    "enable_return_routed_experts": false,
+    "enable_return_indexer_topk": false,
+    "sampling_mask_max_tokens": 4096,
+    "disable_outlines_disk_cache": false,
+    "enable_mis": false,
+    "weight_cache_mode": "off",
+    "weight_cache_socket": null,
+    "weight_cache_timeout": 1800,
+    "forward_hooks": null,
+    "msprobe_dump_config": null,
+    "ple_offload_embedding": true,
+    "ple_offload_backend": "pinned",
+    "ple_offload_dir": null,
+    "disaggregation_enable_kv_checksum": false,
+    "enable_pd_role_switch": false,
+    "speculative_domino_candidate_pool_size": 2048,
+    "flashinfer_a2a_dispatch_type": null,
+    "cuda_graph_max_seq_len_prefill": null,
+    "prefill_kv_cache_dequant_dtype": "auto",
+    "dsv4_attn_backend": "auto",
+    "otlp_service_name": null,
+    "_radix_eviction_policy_explicitly_set": false,
+    "hicache_host_memory_fraction": null,
+    "enable_linker_mla_dedup": false,
+    "_swa_full_tokens_ratio_explicitly_set": false,
+    "swa_prefix_tails": null,
+    "enable_encoder_swa_bounded_replay": false,
+    "enable_decoder_swa_bounded_replay": null,
+    "enable_response_store": false,
+    "disaggregation_decode_host_receive_threshold": 1.0,
+    "qsa_indexer_dtype": "auto",
+    "disaggregation_decode_allocation_policy": "early",
+    "speculative_boundary_reduction": "ar",
+    "speculative_use_block_verification": false,
+    "speculative_draft_sink_size": null,
+    "disable_aiter_allreduce_fusion_in_prefill": false,
+    "disable_aiter_allreduce_fusion_in_decode": false,
+    "monokernel_backend": null,
+    "dsa_triton_union": 0,
+    "enable_dsa_fused_indexer": null,
+    "enable_cp_tp_group_sharing": false,
+    "enable_watermark": false,
+    "watermark_config": "<redacted>",
+    "watermark_key": "<redacted>",
+    "watermark_key_b": "<redacted>",
+    "watermark_context_window": 4,
+    "watermark_mixing_probability": 0.5,
+    "watermark_max_probability": 1.0,
+    "watermark_default_enabled": false,
+    "watermark_enforce_all": false,
+    "grpc_response_timeout_secs": 300,
+    "launch_command": "--warmups qwen38_first_prefill --enable-hierarchical-cache --hicache-ratio 6 --hicache-mem-layout page_first_direct --hicache-io-backend direct --hicache-write-policy write_through --speculative-algorithm NEXTN --speculative-draft-load-format qwen38_mtp --speculative-draft-kv-cache-dtype fp8_e4m3 --speculative-num-steps 2 --speculative-eagle-topk 1 --speculative-num-draft-tokens 3 --trust-remote-code --model-path nvidia/Qwen3.8-Flash-Next-FP4-Local --served-model-name nvidia/Qwen3.8-Flash-Next-FP4-Local --revision b9ce18a6887e18c089fdea8509a33e63429a3300 --download-dir /prod/huggingface/hub --load-format qwen38_nvfp4_cache --model-loader-extra-config {\"manifest_path\":\"/root/.cache/sglang/qwen38-fp4-local/b9ce18a6887e18c089fdea8509a33e63429a3300/manifest.json\",\"checkpoint_revision\":\"b9ce18a6887e18c089fdea8509a33e63429a3300\",\"sglang_commit\":\"acd9c47fed94afe9c753631e4f88df58ca3f676f+fp4-local-59db23b7bae46aa9\",\"cache_slots_total\":6390,\"prefill_arena\":true,\"runtime_mode\":\"threaded\",\"stats_log_interval\":19200,\"adaptive_cache\":true,\"preallocate_gdn_proj\":true,\"async_pack_prefetch\":true,\"packed_decode\":\"packed\",\"packed_prefill\":\"packed\"} --language-only --ple-offload-embedding --ple-offload-backend pinned --disable-shared-experts-fusion --moe-runner-backend flashinfer_cutlass --kv-cache-dtype fp8_e4m3 --mamba-ssm-dtype bfloat16 --mamba-full-memory-ratio 0.22 --max-mamba-cache-size 10 --context-length 220000 --chunked-prefill-size 8192 --mem-fraction-static 0.90 --max-running-requests 1 --cuda-graph-backend-prefill=disabled --cuda-graph-backend-decode=breakable --cuda-graph-bs-decode 1 --cuda-graph-max-bs-decode 1 --enable-cache-report --decode-log-interval 400 --reasoning-parser qwen3 --tool-call-parser qwen3_coder --sleep-on-idle --encoder-urls http://vit:8000 --host 0.0.0.0 --port 8000",
+    "status": "ready",
+    "max_total_num_tokens": 221184,
+    "max_req_input_len": 219994,
+    "startup_time": {
+      "load_weight": 5.42091711203102,
+      "kv_cache_allocation": 0.7499290039995685,
+      "scheduler_e2e": 16.76316466589924,
+      "cuda_graph": {
+        "prefill": 0.0,
+        "decode": 0.0,
+        "target_verify": 0.0,
+        "draft_prefill": 0.0,
+        "draft_decode": 1.415722246048972,
+        "draft_extend": 1.0942191089270636
+      },
+      "tokenizer_e2e": 28.82617926399689
+    },
+    "kv_events": null,
+    "internal_states": [
+      {
+        "model_path": "nvidia/Qwen3.8-Flash-Next-FP4-Local",
+        "tokenizer_path": "nvidia/Qwen3.8-Flash-Next-FP4-Local",
+        "tokenizer_mode": "auto",
+        "tokenizer_backend": "huggingface",
+        "tokenizer_worker_num": 1,
+        "detokenizer_worker_num": 1,
+        "skip_tokenizer_init": false,
+        "load_format": "qwen38_nvfp4_cache",
+        "model_loader_extra_config": "{\"manifest_path\":\"/root/.cache/sglang/qwen38-fp4-local/b9ce18a6887e18c089fdea8509a33e63429a3300/manifest.json\",\"checkpoint_revision\":\"b9ce18a6887e18c089fdea8509a33e63429a3300\",\"sglang_commit\":\"acd9c47fed94afe9c753631e4f88df58ca3f676f+fp4-local-59db23b7bae46aa9\",\"cache_slots_total\":6390,\"prefill_arena\":true,\"runtime_mode\":\"threaded\",\"stats_log_interval\":19200,\"adaptive_cache\":true,\"preallocate_gdn_proj\":true,\"async_pack_prefetch\":true,\"packed_decode\":\"packed\",\"packed_prefill\":\"packed\"}",
+        "trust_remote_code": true,
+        "context_length": 220000,
+        "is_embedding": false,
+        "enable_multimodal": null,
+        "revision": "b9ce18a6887e18c089fdea8509a33e63429a3300",
+        "model_impl": "auto",
+        "model_config_parser": "auto",
+        "json_model_override_args": "{}",
+        "dtype": "auto",
+        "quantization": null,
+        "quantization_param_path": null,
+        "kv_cache_dtype": "fp8_e4m3",
+        "enable_fp32_lm_head": false,
+        "modelopt_quant": null,
+        "modelopt_checkpoint_restore_path": null,
+        "modelopt_checkpoint_save_path": null,
+        "modelopt_export_path": null,
+        "quantize_and_serve": false,
+        "rl_quant_profile": null,
+        "enable_tf32_matmul": false,
+        "mem_fraction_static": 0.9,
+        "max_running_requests": 1,
+        "max_queued_requests": null,
+        "max_total_tokens": null,
+        "chunked_prefill_size": 8192,
+        "prefill_decode_interval": 0,
+        "enable_dynamic_chunking": false,
+        "max_prefill_tokens": 16384,
+        "prefill_max_requests": null,
+        "schedule_policy": "fcfs",
+        "enable_priority_scheduling": false,
+        "disable_priority_preemption": false,
+        "default_priority_value": null,
+        "abort_on_priority_when_disabled": false,
+        "schedule_low_priority_values_first": false,
+        "priority_scheduling_preemption_threshold": 10,
+        "retraction_policy": "length",
+        "schedule_conservativeness": 1.0,
+        "page_size": 64,
+        "c128_page_size": 16,
+        "swa_full_tokens_ratio": 0.8,
+        "disable_hybrid_swa_memory": false,
+        "radix_eviction_policy": "lru",
+        "radix_eviction_policy_config": null,
+        "prefill_only_disable_kv_cache": false,
+        "disable_radix_cache": false,
+        "enable_page_major_kv_layout": false,
+        "enable_unified_memory": false,
+        "disable_chunked_prefix_cache": true,
+        "disable_overlap_schedule": false,
+        "num_continuous_decode_steps": 1,
+        "scheduler_recv_interval": 1,
+        "enable_mixed_chunk": false,
+        "nccl_port": null,
+        "dist_timeout": null,
+        "dist_init_addr": null,
+        "gated_launch_port": null,
+        "nnodes": 1,
+        "node_rank": 0,
+        "tp_size": 1,
+        "dcp_size": 1,
+        "pp_size": 1,
+        "pp_max_micro_batch_size": 1,
+        "pp_async_batch_depth": 0,
+        "dp_size": 1,
+        "attn_dp_size": 1,
+        "load_balance_method": "round_robin",
+        "attn_cp_size": 1,
+        "moe_dp_size": 1,
+        "dwdp_size": 1,
+        "dcp_comm_backend": "ag_rs",
+        "dcp_replicate_q_proj": null,
+        "enable_prefill_cp": false,
+        "cp_strategy": null,
+        "enable_dsa_cache_layer_split": false,
+        "enable_cp_decode_attn_tp": false,
+        "enable_kv_cache_sharding": false,
+        "enable_dp_attention": false,
+        "enable_dp_attention_local_control_broadcast": false,
+        "enable_dp_lm_head": false,
+        "enable_tp_lm_head_all_to_all": false,
+        "enable_attn_tp_input_scattered": false,
+        "enable_shared_experts_attn_tp": false,
+        "shared_experts_tp_size": null,
+        "enable_dense_mlp_attn_tp": false,
+        "enable_layernorm_sp": false,
+        "disable_attn_tp_gather": false,
+        "enable_p2p_check": false,
+        "device": "cuda",
+        "base_gpu_id": 0,
+        "gpu_id_step": 1,
+        "random_seed": 1065362550,
+        "mlx_enable_sampling": false,
+        "watchdog_timeout": 300,
+        "soft_watchdog_timeout": null,
+        "sleep_on_idle": true,
+        "use_ray": false,
+        "numa_node": null,
+        "gc_threshold": null,
+        "host": "0.0.0.0",
+        "port": 8000,
+        "fastapi_root_path": "",
+        "smg_grpc_mode": false,
+        "grpc_mode": false,
+        "grpc_port": null,
+        "grpc_worker_threads": 4,
+        "sidecar": null,
+        "sidecar_args": null,
+        "skip_server_warmup": false,
+        "warmups": "qwen38_first_prefill",
+        "enable_http2": false,
+        "http2_max_concurrent_streams": 200,
+        "http2_initial_connection_window_size": 1048576,
+        "ssl_keyfile": null,
+        "ssl_certfile": null,
+        "ssl_ca_certs": null,
+        "ssl_keyfile_password": null,
+        "enable_ssl_refresh": false,
+        "api_key": null,
+        "admin_api_key": null,
+        "served_model_name": "nvidia/Qwen3.8-Flash-Next-FP4-Local",
+        "weight_version": "default",
+        "chat_template": null,
+        "trust_request_chat_template": false,
+        "hf_chat_template_name": null,
+        "completion_template": null,
+        "file_storage_path": null,
+        "enable_cache_report": true,
+        "return_input_ids": false,
+        "return_output_ids": false,
+        "reasoning_parser": "qwen3",
+        "default_chat_template_kwargs": null,
+        "strip_thinking_cache": false,
+        "enable_strict_thinking": false,
+        "tool_call_parser": "qwen3_coder",
+        "tool_server": null,
+        "sampling_defaults": "model",
+        "asr_max_buffer_seconds": 60,
+        "asr_max_concurrent_sessions": 32,
+        "preferred_sampling_params": null,
+        "allow_auto_truncate": false,
+        "stream_interval": 1,
+        "batch_notify_size": 16,
+        "stream_response_default_include_usage": false,
+        "incremental_streaming_output": false,
+        "enable_streaming_session": false,
+        "enable_session_radix_cache": false,
+        "log_level": "info",
+        "log_level_http": null,
+        "log_requests": false,
+        "log_requests_level": 2,
+        "log_requests_format": "text",
+        "log_requests_target": null,
+        "uvicorn_access_log_exclude_prefixes": [],
+        "crash_dump_folder": null,
+        "show_time_cost": false,
+        "enable_metrics": false,
+        "smg_http_sidecar_port": null,
+        "enable_mfu_metrics": false,
+        "enable_metrics_for_all_schedulers": false,
+        "load_snapshot_publish_interval": 15,
+        "tokenizer_metrics_custom_labels_header": "x-custom-labels",
+        "tokenizer_metrics_allowed_custom_labels": null,
+        "extra_metric_labels": null,
+        "bucket_time_to_first_token": null,
+        "bucket_inter_token_latency": null,
+        "bucket_e2e_request_latency": null,
+        "prompt_tokens_buckets": null,
+        "generation_tokens_buckets": null,
+        "gc_warning_threshold_secs": 0.0,
+        "decode_log_interval": 400,
+        "enable_request_time_stats_logging": false,
+        "kv_events_config": null,
+        "load_publish_endpoint": null,
+        "enable_forward_pass_metrics": false,
+        "forward_pass_metrics_worker_id": "",
+        "forward_pass_metrics_ipc_name": null,
+        "enable_trace": false,
+        "trace_modules": "request",
+        "otlp_traces_endpoint": "localhost:4317",
+        "export_metrics_to_file": false,
+        "export_metrics_to_file_dir": null,
+        "stat_loggers": null,
+        "constrained_json_whitespace_pattern": null,
+        "constrained_json_disable_any_whitespace": false,
+        "constrained_json_max_whitespace_cnt": null,
+        "attention_backend": "flashinfer",
+        "decode_attention_backend": null,
+        "enable_lean_attention": null,
+        "prefill_attention_backend": null,
+        "sampling_backend": "flashinfer",
+        "grammar_backend": "xgrammar",
+        "radix_cache_backend": null,
+        "mm_attention_backend": null,
+        "fp8_gemm_runner_backend": "auto",
+        "fp4_gemm_runner_backend": "auto",
+        "bf16_gemm_backend": "auto",
+        "dsa_prefill_backend": null,
+        "dsv4_prefill_backend": "auto",
+        "dsa_decode_backend": null,
+        "dsa_paged_mqa_logits_backend": "auto",
+        "dsa_topk_backend": "sgl-kernel",
+        "disable_flashinfer_autotune": false,
+        "flashinfer_autotune_skip_ops": null,
+        "mamba_backend": "triton",
+        "cuda_graph_config": {
+          "decode": {
+            "backend": "breakable",
+            "max_bs": 1,
+            "bs": [
+              1
+            ],
+            "tc_compiler": "eager",
+            "max_context_size": null,
+            "full_prefill_max_req": null,
+            "full_prefill_prefix_chunk_tokens": null,
+            "max_seq_len": null
+          },
+          "prefill": {
+            "backend": "disabled",
+            "max_bs": 8192,
+            "bs": [
+              4,
+              8,
+              12,
+              16,
+              20,
+              24,
+              28,
+              32,
+              48,
+              64,
+              80,
+              96,
+              112,
+              128,
+              144,
+              160,
+              176,
+              192,
+              208,
+              224,
+              240,
+              256,
+              288,
+              320,
+              352,
+              384,
+              416,
+              448,
+              480,
+              512,
+              576,
+              640,
+              704,
+              768,
+              832,
+              896,
+              960,
+              1024,
+              1280,
+              1536,
+              1792,
+              2048,
+              2304,
+              2560,
+              2816,
+              3072,
+              3328,
+              3584,
+              3840,
+              4096,
+              4608,
+              5120,
+              5632,
+              6144,
+              6656,
+              7168,
+              7680,
+              8192
+            ],
+            "tc_compiler": "eager",
+            "max_context_size": null,
+            "full_prefill_max_req": null,
+            "full_prefill_prefix_chunk_tokens": null,
+            "max_seq_len": null
+          }
+        },
+        "cuda_graph_backend_decode": "breakable",
+        "cuda_graph_backend_prefill": "disabled",
+        "cuda_graph_max_bs_decode": 1,
+        "cuda_graph_max_bs_prefill": null,
+        "cuda_graph_bs_decode": [
+          1
+        ],
+        "cuda_graph_bs_prefill": null,
+        "cuda_graph_prefill_max_context": null,
+        "disable_prefill_cuda_graph": false,
+        "disable_decode_cuda_graph": false,
+        "disable_cuda_graph": true,
+        "disable_cuda_graph_padding": false,
+        "enable_profile_cuda_graph": false,
+        "enable_cudagraph_gc": false,
+        "debug_cuda_graph": false,
+        "enable_layerwise_nvtx_marker": false,
+        "enable_nccl_nvls": false,
+        "enable_symm_mem": false,
+        "triton_attention_reduce_in_fp32": false,
+        "triton_attention_num_kv_splits": 8,
+        "triton_attention_split_tile_size": null,
+        "flashinfer_mla_disable_ragged": false,
+        "enable_fused_qk_norm_rope": false,
+        "enable_precise_embedding_interpolation": false,
+        "enable_fused_moe_sum_all_reduce": false,
+        "enable_deepseek_v4_fp4_indexer": false,
+        "disable_custom_all_reduce": false,
+        "enable_mscclpp": false,
+        "enable_torch_symm_mem": false,
+        "enable_scattered_sconv": false,
+        "pre_warm_nccl": false,
+        "boundary_reduction": "ar",
+        "enable_quant_communications": false,
+        "enable_flashinfer_allreduce_fusion": false,
+        "enforce_disable_flashinfer_allreduce_fusion": false,
+        "flashinfer_allreduce_fusion_backend": null,
+        "enable_aiter_allreduce_fusion": false,
+        "enable_torch_compile": false,
+        "enable_torch_compile_debug_mode": false,
+        "torch_compile_max_bs": 32,
+        "speculative_algorithm": "EAGLE",
+        "uno_lora_path": null,
+        "speculative_draft_model_path": "nvidia/Qwen3.8-Flash-Next-FP4-Local",
+        "speculative_draft_model_revision": "b9ce18a6887e18c089fdea8509a33e63429a3300",
+        "speculative_draft_load_format": "qwen38_mtp",
+        "speculative_num_steps": 2,
+        "speculative_eagle_topk": 1,
+        "speculative_num_draft_tokens": 3,
+        "speculative_dflash_block_size": null,
+        "speculative_dspark_block_size": null,
+        "speculative_dspark_sps_table_path": null,
+        "speculative_dspark_confidence_sts_path": null,
+        "speculative_dspark_align_verify_tokens_to_graph_tier": false,
+        "speculative_accept_threshold_single": 1.0,
+        "speculative_accept_threshold_acc": 1.0,
+        "speculative_use_rejection_sampling": false,
+        "speculative_token_map": null,
+        "speculative_attention_mode": "prefill",
+        "speculative_draft_attention_backend": null,
+        "speculative_dsa_topk_backend": "sgl-kernel",
+        "speculative_draft_kv_cache_dtype": "fp8_e4m3",
+        "speculative_draft_window_size": null,
+        "speculative_moe_runner_backend": "triton",
+        "speculative_moe_a2a_backend": null,
+        "speculative_enable_w4a4_mxfp4_megamoe": null,
+        "speculative_draft_model_quantization": null,
+        "_speculative_draft_quantization_explicitly_set": false,
+        "speculative_skip_dp_mlp_sync": false,
+        "enable_multi_layer_eagle": false,
+        "speculative_adaptive": false,
+        "speculative_adaptive_config": null,
+        "decoupled_spec_bind_endpoint": null,
+        "decoupled_spec_connect_endpoints": null,
+        "decoupled_spec_rank": null,
+        "decoupled_spec_role": "null",
+        "spec_trace_dir": null,
+        "speculative_ngram_min_bfs_breadth": 1,
+        "speculative_ngram_max_bfs_breadth": 10,
+        "speculative_ngram_match_type": "BFS",
+        "speculative_ngram_max_trie_depth": 18,
+        "speculative_ngram_capacity": 10000000,
+        "speculative_ngram_external_corpus_path": null,
+        "speculative_ngram_external_sam_budget": 0,
+        "speculative_ngram_external_corpus_max_tokens": 10000000,
+        "ep_size": 1,
+        "moe_a2a_backend": "none",
+        "enable_w4a4_mxfp4_megamoe": false,
+        "deepep_v2_mode": "direct",
+        "moe_runner_backend": "flashinfer_cutlass",
+        "flashinfer_mxfp4_moe_precision": "default",
+        "deepep_mode": "auto",
+        "fuseep_mode": 2,
+        "deepep_dispatcher_output_dtype": "auto",
+        "ep_num_redundant_experts": 0,
+        "ep_dispatch_algorithm": null,
+        "init_expert_location": "trivial",
+        "enable_eplb": false,
+        "eplb_algorithm": "auto",
+        "eplb_rebalance_num_iterations": 1000,
+        "eplb_rebalance_layers_per_chunk": null,
+        "eplb_min_rebalancing_utilization_threshold": 1.0,
+        "expert_distribution_recorder_mode": null,
+        "expert_distribution_recorder_buffer_size": 1000,
+        "expert_balancedness_report_mode": "off",
+        "deepep_config": null,
+        "moe_dense_tp_size": null,
+        "elastic_ep_backend": null,
+        "enable_elastic_expert_backup": false,
+        "mooncake_ib_device": null,
+        "enable_waterfill": false,
+        "ep_join_mode": null,
+        "ep_join_rank_offset": 0,
+        "elastic_ep_initial_size": null,
+        "max_ep_size": null,
+        "elastic_ep_scale_timeout": 600,
+        "disable_flashinfer_cutlass_moe_fp4_allgather": false,
+        "disable_shared_experts_fusion": true,
+        "enforce_shared_experts_fusion": false,
+        "max_mamba_cache_size": 10,
+        "mamba_ssm_dtype": "bfloat16",
+        "mamba_max_states_per_path": -1,
+        "enable_mamba_cache_stochastic_rounding": false,
+        "mamba_cache_philox_rounds": 0,
+        "mamba_full_memory_ratio": 0.22,
+        "mamba_radix_cache_strategy": "extra_buffer",
+        "uses_mamba_radix_cache": true,
+        "mamba_track_interval": 256,
+        "enable_int8_mamba_checkpoint": false,
+        "int8_mamba_ckpt_size": null,
+        "linear_attn_backend": "triton",
+        "linear_attn_decode_backend": null,
+        "linear_attn_prefill_backend": null,
+        "linear_attn_verify_backend": null,
+        "enable_linear_replayssm": false,
+        "linear_replayssm_cache_len": 16,
+        "enable_linear_replayssm_spec": false,
+        "enable_hierarchical_cache": true,
+        "hicache_host_memory_mode": "cache",
+        "hicache_ratio": 6.0,
+        "hicache_size": 0,
+        "hicache_write_policy": "write_through",
+        "hicache_io_backend": "direct",
+        "hicache_mem_layout": "page_first_direct",
+        "hicache_storage_backend": null,
+        "hicache_storage_prefetch_policy": "timeout",
+        "hicache_storage_backend_extra_config": null,
+        "hicache_storage_prefetch_retry_poll_interval": 8,
+        "hicache_storage_prefetch_retry_max_attempts": 8,
+        "enable_unified_cache_external_linker": false,
+        "unified_cache_external_linker_backend": "mooncake",
+        "enable_hisparse": false,
+        "hisparse_config": null,
+        "enable_broadcast_mm_inputs_process": false,
+        "enable_prefix_mm_cache": false,
+        "mm_enable_dp_encoder": false,
+        "mm_process_config": {},
+        "mm_processor_worker_num": 0,
+        "mm_io_worker_num": 0,
+        "allowed_media_domains": [],
+        "media_url_max_file_size_mb": 64,
+        "mm_preprocess_cache_size_mb": null,
+        "trust_mm_content_hashes": false,
+        "limit_mm_data_per_request": null,
+        "enable_mm_global_cache": false,
+        "image_processor_backend": "auto",
+        "mm_global_cache_backend": "mooncake",
+        "disable_fast_image_processor": false,
+        "mm_feature_transport": "cpu",
+        "enable_lora": null,
+        "enable_lora_overlap_loading": null,
+        "max_lora_rank": null,
+        "lora_target_modules": null,
+        "lora_paths": null,
+        "max_loaded_loras": null,
+        "max_loras_per_batch": 8,
+        "lora_eviction_policy": "lru",
+        "lora_backend": "csgmv",
+        "max_lora_chunk_size": 16,
+        "experts_shared_outer_loras": null,
+        "lora_use_virtual_experts": false,
+        "lora_strict_loading": false,
+        "lora_drain_wait_threshold": 0.0,
+        "enable_two_batch_overlap": false,
+        "enable_single_batch_overlap": false,
+        "tbo_token_distribution_threshold": 0.48,
+        "cpu_offload_gb": 0,
+        "offload_group_size": -1,
+        "offload_num_in_group": 1,
+        "offload_prefetch_step": 1,
+        "offload_mode": "cpu",
+        "enable_lmcache": false,
+        "lmcache_config_file": null,
+        "enable_flexkv": false,
+        "flexkv_config_file": null,
+        "kt_weight_path": null,
+        "kt_method": "AMXINT4",
+        "kt_cpuinfer": null,
+        "kt_threadpool_count": 2,
+        "kt_num_gpu_experts": null,
+        "kt_max_deferred_experts_per_token": null,
+        "dllm_algorithm": null,
+        "dllm_algorithm_config": null,
+        "dllm_fdfo": true,
+        "disaggregation_mode": "null",
+        "disaggregation_transfer_backend": "mooncake",
+        "disaggregation_bootstrap_port": 8998,
+        "disaggregation_ib_device": null,
+        "disaggregation_decode_enable_radix_cache": false,
+        "disaggregation_decode_enable_offload_kvcache": false,
+        "disaggregation_decode_retraction_backup": "cpu_tensor",
+        "num_reserved_decode_tokens": 512,
+        "disaggregation_decode_extra_slots": null,
+        "disaggregation_decode_polling_interval": 1,
+        "optimistic_prefill_attempts": 0,
+        "encoder_only": false,
+        "language_only": true,
+        "language_model_only": false,
+        "encoder_transfer_backend": "zmq_to_scheduler",
+        "encoder_urls": [
+          "http://vit:8000"
+        ],
+        "encoder_bootstrap_port": 8997,
+        "encoder_register_urls": [],
+        "enable_adaptive_dispatch_to_encoder": false,
+        "enable_pdmux": false,
+        "pdmux_config_path": null,
+        "sm_group_num": 8,
+        "startup_weight_load_mode": "serial",
+        "custom_weight_loader": [],
+        "weight_loader_disable_mmap": false,
+        "weight_loader_prefetch_checkpoints": false,
+        "weight_loader_prefetch_num_threads": 4,
+        "weight_loader_drop_cache_after_load": false,
+        "remote_instance_weight_loader_seed_instance_ip": null,
+        "remote_instance_weight_loader_seed_instance_service_port": null,
+        "remote_instance_weight_loader_send_weights_group_ports": null,
+        "remote_instance_weight_loader_backend": "nccl",
+        "remote_instance_weight_loader_start_seed_via_transfer_engine": false,
+        "engine_info_bootstrap_port": 6789,
+        "modelexpress_config": null,
+        "download_dir": "/prod/huggingface/hub",
+        "model_checksum": null,
+        "delete_ckpt_after_loading": false,
+        "decrypted_config_file": null,
+        "decrypted_draft_config_file": null,
+        "checkpoint_engine_wait_weights_before_ready": false,
+        "enable_prefill_delayer": false,
+        "prefill_delayer_max_delay_passes": 30,
+        "prefill_delayer_token_usage_low_watermark": null,
+        "prefill_delayer_forward_passes_buckets": null,
+        "prefill_delayer_wait_seconds_buckets": null,
+        "prefill_delayer_queue_min_ratio": null,
+        "prefill_delayer_max_delay_ms": null,
+        "min_free_slots_delay": null,
+        "enable_deterministic_inference": false,
+        "rl_on_policy_target": null,
+        "kv_canary": "none",
+        "kv_canary_real_data": "none",
+        "kv_canary_sweep_interval": 0,
+        "enable_dynamic_batch_tokenizer": false,
+        "dynamic_batch_tokenizer_batch_size": 32,
+        "dynamic_batch_tokenizer_batch_timeout": 0.002,
+        "enable_tokenizer_batch_encode": false,
+        "disable_tokenizer_batch_decode": false,
+        "debug_tensor_dump_output_folder": null,
+        "debug_tensor_dump_layers": null,
+        "debug_tensor_dump_input_file": null,
+        "enable_memory_saver": false,
+        "enable_weights_cpu_backup": false,
+        "enable_draft_weights_cpu_backup": false,
+        "enable_custom_logit_processor": false,
+        "enable_return_hidden_states": false,
+        "return_hidden_states_mode": null,
+        "enable_return_routed_experts": false,
+        "enable_return_indexer_topk": false,
+        "sampling_mask_max_tokens": 4096,
+        "disable_outlines_disk_cache": false,
+        "enable_mis": false,
+        "weight_cache_mode": "off",
+        "weight_cache_socket": null,
+        "weight_cache_timeout": 1800,
+        "forward_hooks": null,
+        "msprobe_dump_config": null,
+        "ple_offload_embedding": true,
+        "ple_offload_backend": "pinned",
+        "ple_offload_dir": null,
+        "disaggregation_enable_kv_checksum": false,
+        "enable_pd_role_switch": false,
+        "speculative_domino_candidate_pool_size": 2048,
+        "flashinfer_a2a_dispatch_type": null,
+        "cuda_graph_max_seq_len_prefill": null,
+        "prefill_kv_cache_dequant_dtype": "auto",
+        "dsv4_attn_backend": "auto",
+        "otlp_service_name": null,
+        "_radix_eviction_policy_explicitly_set": false,
+        "hicache_host_memory_fraction": null,
+        "enable_linker_mla_dedup": false,
+        "_swa_full_tokens_ratio_explicitly_set": false,
+        "swa_prefix_tails": null,
+        "enable_encoder_swa_bounded_replay": false,
+        "enable_decoder_swa_bounded_replay": null,
+        "enable_response_store": false,
+        "disaggregation_decode_host_receive_threshold": 1.0,
+        "qsa_indexer_dtype": "auto",
+        "disaggregation_decode_allocation_policy": "early",
+        "speculative_boundary_reduction": "ar",
+        "speculative_use_block_verification": false,
+        "speculative_draft_sink_size": null,
+        "disable_aiter_allreduce_fusion_in_prefill": false,
+        "disable_aiter_allreduce_fusion_in_decode": false,
+        "monokernel_backend": null,
+        "dsa_triton_union": 0,
+        "enable_dsa_fused_indexer": null,
+        "enable_cp_tp_group_sharing": false,
+        "enable_watermark": false,
+        "watermark_config": "<redacted>",
+        "watermark_key": "<redacted>",
+        "watermark_key_b": "<redacted>",
+        "watermark_context_window": 4,
+        "watermark_mixing_probability": 0.5,
+        "watermark_max_probability": 1.0,
+        "watermark_default_enabled": false,
+        "watermark_enforce_all": false,
+        "grpc_response_timeout_secs": 300,
+        "world_size": 1,
+        "startup_time": {
+          "load_weight": 5.42091711203102,
+          "kv_cache_allocation": 0.7499290039995685,
+          "scheduler_e2e": 16.76316466589924,
+          "cuda_graph": {
+            "prefill": 0.0,
+            "decode": 0.0,
+            "target_verify": 0.0,
+            "draft_prefill": 0.0,
+            "draft_decode": 1.415722246048972,
+            "draft_extend": 1.0942191089270636
+          }
+        },
+        "effective_max_running_requests_per_dp": 1,
+        "last_gen_throughput": 0.0,
+        "memory_usage": {
+          "weight": 22.248,
+          "kvcache": 2.69,
+          "startup_available": 2.122,
+          "token_capacity": 221184,
+          "token_capacity_swa": null,
+          "graph": {
+            "prefill": 0.0,
+            "decode": 0.0,
+            "target_verify": 0.0,
+            "draft_prefill": 0.0,
+            "draft_decode": 0.281,
+            "draft_extend": 0.137
+          }
+        },
+        "decode_cuda_graph_bs": [],
+        "decode_cuda_graph_memory_gb": 0.418
+      }
+    ],
+    "version": "0.0.0.dev1+gb234b5c32",
+    "frontend": "python"
+  },
+  "cases": [
+    {
+      "case": 0,
+      "wall_s": 28.114709830959328,
+      "meta_info": {
+        "id": "bbc3b6eccc8b4cf189802a9875897603",
+        "finish_reason": {
+          "type": "length",
+          "length": 1024
+        },
+        "prompt_tokens": 15,
+        "weight_version": "default",
+        "num_retractions": 0,
+        "reasoning_tokens": 0,
+        "completion_tokens": 1024,
+        "cached_tokens": 0,
+        "weight_versions": [
+          {
+            "version": "default",
+            "start": 0,
+            "end": 1024
+          }
+        ],
+        "cached_tokens_details": null,
+        "dp_rank": null,
+        "e2e_latency": 28.113423521979712,
+        "spec_accept_rate": 0.6781609195402298,
+        "spec_accept_length": 2.354022988505747,
+        "spec_num_correct_drafts": 590,
+        "spec_num_proposed_drafts": 870,
+        "spec_verify_ct": 435,
+        "spec_correct_drafts_histogram": [
+          96,
+          88,
+          251
+        ]
+      },
+      "e2e_tokens_per_second": 36.42221478211355,
+      "ttft_s": 0.32058612594846636,
+      "decode_tokens_per_second": 36.80650029738198,
+      "stream_points": [
+        [
+          0.32058612594846636,
+          1
+        ],
+        [
+          0.38522793794982135,
+          2
+        ],
+        [
+          0.4511610890040174,
+          3
+        ],
+        [
+          0.5169031049590558,
+          6
+        ],
+        [
+          0.5809554549632594,
+          9
+        ],
+        [
+          0.6452797809615731,
+          12
+        ],
+        [
+          0.7099343939917162,
+          15
+        ],
+        [
+          0.7735596629790962,
+          17
+        ],
+        [
+          0.8385706628905609,
+          20
+        ],
+        [
+          0.9021528519224375,
+          23
+        ],
+        [
+          0.9655665669124573,
+          24
+        ],
+        [
+          1.029195085982792,
+          25
+        ],
+        [
+          1.0936987849418074,
+          26
+        ],
+        [
+          1.1587918669683859,
+          29
+        ],
+        [
+          1.2223702349001542,
+          32
+        ],
+        [
+          1.286432523978874,
+          33
+        ],
+        [
+          1.3499306509038433,
+          34
+        ],
+        [
+          1.4147067359881476,
+          35
+        ],
+        [
+          1.4783361649606377,
+          36
+        ],
+        [
+          1.5418998328968883,
+          39
+        ],
+        [
+          1.6053105680039153,
+          40
+        ],
+        [
+          1.6687721139751375,
+          42
+        ],
+        [
+          1.7321292279521003,
+          44
+        ],
+        [
+          1.795747536001727,
+          46
+        ],
+        [
+          1.8593507249606773,
+          47
+        ],
+        [
+          1.9227994399843737,
+          50
+        ],
+        [
+          1.9859927688958123,
+          53
+        ],
+        [
+          2.0499296649359167,
+          55
+        ],
+        [
+          2.112766085891053,
+          57
+        ],
+        [
+          2.1755774369230494,
+          60
+        ],
+        [
+          2.239159114891663,
+          61
+        ],
+        [
+          2.3033675759797916,
+          64
+        ],
+        [
+          2.366372311953455,
+          66
+        ],
+        [
+          2.431117224972695,
+          68
+        ],
+        [
+          2.494394865934737,
+          71
+        ],
+        [
+          2.557475702953525,
+          74
+        ],
+        [
+          2.6208715270040557,
+          77
+        ],
+        [
+          2.6843445519916713,
+          80
+        ],
+        [
+          2.748346259002574,
+          83
+        ],
+        [
+          2.811598048894666,
+          85
+        ],
+        [
+          2.8747597569599748,
+          88
+        ],
+        [
+          2.939244373003021,
+          91
+        ],
+        [
+          3.002902961918153,
+          94
+        ],
+        [
+          3.0661486219614744,
+          96
+        ],
+        [
+          3.129416571930051,
+          99
+        ],
+        [
+          3.1934115279000252,
+          100
+        ],
+        [
+          3.257968315971084,
+          103
+        ],
+        [
+          3.321333037922159,
+          105
+        ],
+        [
+          3.387124433997087,
+          108
+        ],
+        [
+          3.451830484904349,
+          111
+        ],
+        [
+          3.5159616438904777,
+          114
+        ],
+        [
+          3.5806839659344405,
+          117
+        ],
+        [
+          3.6446943029295653,
+          120
+        ],
+        [
+          3.7081167160067707,
+          121
+        ],
+        [
+          3.7715510699199513,
+          123
+        ],
+        [
+          3.8348253089934587,
+          126
+        ],
+        [
+          3.8982172309188172,
+          127
+        ],
+        [
+          3.961498510907404,
+          130
+        ],
+        [
+          4.025198999908753,
+          133
+        ],
+        [
+          4.088955819956027,
+          136
+        ],
+        [
+          4.152690269984305,
+          138
+        ],
+        [
+          4.216235994943418,
+          139
+        ],
+        [
+          4.280280610895716,
+          141
+        ],
+        [
+          4.3438595769694075,
+          144
+        ],
+        [
+          4.407558845938183,
+          147
+        ],
+        [
+          4.471520000952296,
+          150
+        ],
+        [
+          4.535515175899491,
+          153
+        ],
+        [
+          4.599064521957189,
+          154
+        ],
+        [
+          4.662965444964357,
+          157
+        ],
+        [
+          4.7273593889549375,
+          158
+        ],
+        [
+          4.790833801962435,
+          159
+        ],
+        [
+          4.854468798963353,
+          160
+        ],
+        [
+          4.918954644002952,
+          163
+        ],
+        [
+          4.982863996992819,
+          166
+        ],
+        [
+          5.047801391920075,
+          169
+        ],
+        [
+          5.112247715936974,
+          171
+        ],
+        [
+          5.1762187199201435,
+          172
+        ],
+        [
+          5.241926641901955,
+          173
+        ],
+        [
+          5.308657165965997,
+          176
+        ],
+        [
+          5.372983497916721,
+          179
+        ],
+        [
+          5.436957951984368,
+          182
+        ],
+        [
+          5.5006545399082825,
+          185
+        ],
+        [
+          5.564786206930876,
+          188
+        ],
+        [
+          5.62879444193095,
+          191
+        ],
+        [
+          5.693740107002668,
+          193
+        ],
+        [
+          5.7583029239904135,
+          196
+        ],
+        [
+          5.82221812591888,
+          199
+        ],
+        [
+          5.885965633904561,
+          202
+        ],
+        [
+          5.952829509973526,
+          205
+        ],
+        [
+          6.0166408399818465,
+          207
+        ],
+        [
+          6.082652576966211,
+          210
+        ],
+        [
+          6.148670724942349,
+          213
+        ],
+        [
+          6.2126996599836275,
+          215
+        ],
+        [
+          6.276220482890494,
+          217
+        ],
+        [
+          6.339660654892214,
+          219
+        ],
+        [
+          6.406495939940214,
+          222
+        ],
+        [
+          6.471686459961347,
+          225
+        ],
+        [
+          6.535950019955635,
+          228
+        ],
+        [
+          6.600049735978246,
+          231
+        ],
+        [
+          6.663959158002399,
+          233
+        ],
+        [
+          6.727556822937913,
+          236
+        ],
+        [
+          6.7917251389008015,
+          239
+        ],
+        [
+          6.85625208390411,
+          242
+        ],
+        [
+          6.920294337905943,
+          245
+        ],
+        [
+          6.983875801903196,
+          248
+        ],
+        [
+          7.048759483965114,
+          251
+        ],
+        [
+          7.112240225891583,
+          253
+        ],
+        [
+          7.179375356994569,
+          254
+        ],
+        [
+          7.243897161912173,
+          256
+        ],
+        [
+          7.311021842993796,
+          259
+        ],
+        [
+          7.375261860899627,
+          262
+        ],
+        [
+          7.440225764992647,
+          265
+        ],
+        [
+          7.503734166966751,
+          266
+        ],
+        [
+          7.56859128898941,
+          268
+        ],
+        [
+          7.6322749049868435,
+          270
+        ],
+        [
+          7.695500651956536,
+          271
+        ],
+        [
+          7.760055785998702,
+          274
+        ],
+        [
+          7.824727742932737,
+          277
+        ],
+        [
+          7.888884368934669,
+          280
+        ],
+        [
+          7.952580634970218,
+          283
+        ],
+        [
+          8.016747539979406,
+          286
+        ],
+        [
+          8.081287883920595,
+          289
+        ],
+        [
+          8.145505141932517,
+          290
+        ],
+        [
+          8.209224597900175,
+          293
+        ],
+        [
+          8.273122867918573,
+          295
+        ],
+        [
+          8.336865513934754,
+          297
+        ],
+        [
+          8.400502458913252,
+          300
+        ],
+        [
+          8.464294376899488,
+          303
+        ],
+        [
+          8.527768146945164,
+          305
+        ],
+        [
+          8.59194839396514,
+          307
+        ],
+        [
+          8.655394853907637,
+          310
+        ],
+        [
+          8.72003039997071,
+          313
+        ],
+        [
+          8.783548710984178,
+          315
+        ],
+        [
+          8.847001920919865,
+          317
+        ],
+        [
+          8.910495510906912,
+          318
+        ],
+        [
+          8.974054932943545,
+          320
+        ],
+        [
+          9.041755204903893,
+          322
+        ],
+        [
+          9.105506520951167,
+          325
+        ],
+        [
+          9.169216975918971,
+          327
+        ],
+        [
+          9.233389372006059,
+          329
+        ],
+        [
+          9.296881951973774,
+          331
+        ],
+        [
+          9.361278191907331,
+          332
+        ],
+        [
+          9.426913848961703,
+          333
+        ],
+        [
+          9.49125042790547,
+          336
+        ],
+        [
+          9.554987093899399,
+          339
+        ],
+        [
+          9.619695890927687,
+          341
+        ],
+        [
+          9.684251763974316,
+          342
+        ],
+        [
+          9.748172633931972,
+          343
+        ],
+        [
+          9.811390427988954,
+          344
+        ],
+        [
+          9.874938049004413,
+          347
+        ],
+        [
+          9.939203124959022,
+          350
+        ],
+        [
+          10.002470609964803,
+          353
+        ],
+        [
+          10.066476490930654,
+          356
+        ],
+        [
+          10.130790308001451,
+          357
+        ],
+        [
+          10.19823182397522,
+          360
+        ],
+        [
+          10.262586892931722,
+          363
+        ],
+        [
+          10.327185735921375,
+          366
+        ],
+        [
+          10.390889059985057,
+          367
+        ],
+        [
+          10.454885151004419,
+          368
+        ],
+        [
+          10.519246129901148,
+          369
+        ],
+        [
+          10.5821054559201,
+          372
+        ],
+        [
+          10.645089263911359,
+          375
+        ],
+        [
+          10.708697266993113,
+          376
+        ],
+        [
+          10.77197310095653,
+          379
+        ],
+        [
+          10.835599293000996,
+          381
+        ],
+        [
+          10.899628593935631,
+          383
+        ],
+        [
+          10.964315057964996,
+          386
+        ],
+        [
+          11.027512511005625,
+          388
+        ],
+        [
+          11.090591821004637,
+          389
+        ],
+        [
+          11.154129420989193,
+          390
+        ],
+        [
+          11.216872103977948,
+          391
+        ],
+        [
+          11.280062245903537,
+          394
+        ],
+        [
+          11.343156945891678,
+          395
+        ],
+        [
+          11.408069245982915,
+          398
+        ],
+        [
+          11.471297928947024,
+          399
+        ],
+        [
+          11.536064165993594,
+          402
+        ],
+        [
+          11.601875744992867,
+          403
+        ],
+        [
+          11.666160191991366,
+          406
+        ],
+        [
+          11.731618813006207,
+          409
+        ],
+        [
+          11.796821027994156,
+          412
+        ],
+        [
+          11.860546311945654,
+          415
+        ],
+        [
+          11.924052649992518,
+          418
+        ],
+        [
+          11.987234211992472,
+          420
+        ],
+        [
+          12.050673399004154,
+          421
+        ],
+        [
+          12.113746557966806,
+          422
+        ],
+        [
+          12.177801427897066,
+          425
+        ],
+        [
+          12.2412717359839,
+          428
+        ],
+        [
+          12.305496929911897,
+          431
+        ],
+        [
+          12.368934776983224,
+          434
+        ],
+        [
+          12.432815193897113,
+          437
+        ],
+        [
+          12.496207689982839,
+          440
+        ],
+        [
+          12.559468602994457,
+          442
+        ],
+        [
+          12.626935676904395,
+          445
+        ],
+        [
+          12.690765852923505,
+          448
+        ],
+        [
+          12.75450604595244,
+          450
+        ],
+        [
+          12.818084945902228,
+          452
+        ],
+        [
+          12.881539781927131,
+          454
+        ],
+        [
+          12.946423879940994,
+          457
+        ],
+        [
+          13.01028490497265,
+          460
+        ],
+        [
+          13.077006442938,
+          462
+        ],
+        [
+          13.140667593921535,
+          463
+        ],
+        [
+          13.204977178946137,
+          464
+        ],
+        [
+          13.270546530955471,
+          467
+        ],
+        [
+          13.33517914393451,
+          469
+        ],
+        [
+          13.398865194991231,
+          472
+        ],
+        [
+          13.462627267930657,
+          475
+        ],
+        [
+          13.525949621922337,
+          477
+        ],
+        [
+          13.5894858809188,
+          478
+        ],
+        [
+          13.652901695924811,
+          481
+        ],
+        [
+          13.716739920899272,
+          483
+        ],
+        [
+          13.781307201948948,
+          484
+        ],
+        [
+          13.845211916952394,
+          487
+        ],
+        [
+          13.908745774999261,
+          488
+        ],
+        [
+          13.972898726002313,
+          490
+        ],
+        [
+          14.038340964936651,
+          493
+        ],
+        [
+          14.101907832897268,
+          496
+        ],
+        [
+          14.165623744949698,
+          499
+        ],
+        [
+          14.228991278912872,
+          501
+        ],
+        [
+          14.292511625913903,
+          504
+        ],
+        [
+          14.356008322909474,
+          507
+        ],
+        [
+          14.420526431989856,
+          510
+        ],
+        [
+          14.483782112947665,
+          513
+        ],
+        [
+          14.547093285946175,
+          516
+        ],
+        [
+          14.610622412990779,
+          518
+        ],
+        [
+          14.674030787893571,
+          521
+        ],
+        [
+          14.737256068969145,
+          524
+        ],
+        [
+          14.802073563914746,
+          527
+        ],
+        [
+          14.865879485965706,
+          530
+        ],
+        [
+          14.928886781912297,
+          533
+        ],
+        [
+          14.99190133693628,
+          535
+        ],
+        [
+          15.055017424980178,
+          538
+        ],
+        [
+          15.11821720493026,
+          541
+        ],
+        [
+          15.180933373980224,
+          544
+        ],
+        [
+          15.244079041993245,
+          546
+        ],
+        [
+          15.30723042099271,
+          549
+        ],
+        [
+          15.37051811197307,
+          552
+        ],
+        [
+          15.43397760798689,
+          555
+        ],
+        [
+          15.49736525095068,
+          558
+        ],
+        [
+          15.560907007893547,
+          559
+        ],
+        [
+          15.624643918941729,
+          562
+        ],
+        [
+          15.687816007994115,
+          565
+        ],
+        [
+          15.750705030979589,
+          568
+        ],
+        [
+          15.813654033932835,
+          571
+        ],
+        [
+          15.876584256999195,
+          574
+        ],
+        [
+          15.939662973978557,
+          576
+        ],
+        [
+          16.002633817959577,
+          579
+        ],
+        [
+          16.066637823940255,
+          580
+        ],
+        [
+          16.129624537890777,
+          583
+        ],
+        [
+          16.192770064924844,
+          586
+        ],
+        [
+          16.25590767292306,
+          587
+        ],
+        [
+          16.319169063004665,
+          590
+        ],
+        [
+          16.385314635932446,
+          593
+        ],
+        [
+          16.455783932004124,
+          595
+        ],
+        [
+          16.523010578006506,
+          596
+        ],
+        [
+          16.58679317892529,
+          599
+        ],
+        [
+          16.649953687912785,
+          602
+        ],
+        [
+          16.71331676992122,
+          605
+        ],
+        [
+          16.776314103975892,
+          608
+        ],
+        [
+          16.842631268897094,
+          611
+        ],
+        [
+          16.909482036950067,
+          613
+        ],
+        [
+          16.972739755990915,
+          614
+        ],
+        [
+          17.03946335997898,
+          617
+        ],
+        [
+          17.107138544903137,
+          620
+        ],
+        [
+          17.173363378969952,
+          622
+        ],
+        [
+          17.239949640003033,
+          625
+        ],
+        [
+          17.304968907963485,
+          628
+        ],
+        [
+          17.369745470001362,
+          631
+        ],
+        [
+          17.435344679979607,
+          633
+        ],
+        [
+          17.501064282958396,
+          635
+        ],
+        [
+          17.56518861092627,
+          638
+        ],
+        [
+          17.630192007985897,
+          639
+        ],
+        [
+          17.69405106990598,
+          641
+        ],
+        [
+          17.759225770947523,
+          644
+        ],
+        [
+          17.822969329892658,
+          646
+        ],
+        [
+          17.88671347894706,
+          649
+        ],
+        [
+          17.94995692698285,
+          650
+        ],
+        [
+          18.01591993391048,
+          653
+        ],
+        [
+          18.079424237948842,
+          656
+        ],
+        [
+          18.14330886991229,
+          659
+        ],
+        [
+          18.206592309987172,
+          662
+        ],
+        [
+          18.270136363920756,
+          665
+        ],
+        [
+          18.333903393941,
+          666
+        ],
+        [
+          18.399409011006355,
+          668
+        ],
+        [
+          18.464766824967228,
+          669
+        ],
+        [
+          18.528531304909848,
+          671
+        ],
+        [
+          18.594342328957282,
+          672
+        ],
+        [
+          18.65909972996451,
+          675
+        ],
+        [
+          18.722606523893774,
+          678
+        ],
+        [
+          18.786864632973447,
+          681
+        ],
+        [
+          18.850104170967825,
+          684
+        ],
+        [
+          18.913333537988365,
+          687
+        ],
+        [
+          18.9778009619331,
+          690
+        ],
+        [
+          19.04080003395211,
+          691
+        ],
+        [
+          19.105006191995926,
+          694
+        ],
+        [
+          19.168637428898364,
+          696
+        ],
+        [
+          19.23418868589215,
+          699
+        ],
+        [
+          19.298354422906414,
+          702
+        ],
+        [
+          19.361408526892774,
+          703
+        ],
+        [
+          19.424506620969623,
+          705
+        ],
+        [
+          19.48808087594807,
+          708
+        ],
+        [
+          19.551504246890545,
+          711
+        ],
+        [
+          19.6144470279105,
+          714
+        ],
+        [
+          19.677524311933666,
+          715
+        ],
+        [
+          19.741600947920233,
+          718
+        ],
+        [
+          19.804746241890825,
+          721
+        ],
+        [
+          19.867708272999153,
+          724
+        ],
+        [
+          19.930749265942723,
+          726
+        ],
+        [
+          19.99369317595847,
+          729
+        ],
+        [
+          20.05656984494999,
+          732
+        ],
+        [
+          20.119480134919286,
+          735
+        ],
+        [
+          20.182491695974022,
+          736
+        ],
+        [
+          20.24611546099186,
+          739
+        ],
+        [
+          20.31011201394722,
+          740
+        ],
+        [
+          20.373431241954677,
+          743
+        ],
+        [
+          20.436956775956787,
+          746
+        ],
+        [
+          20.500434347894043,
+          748
+        ],
+        [
+          20.564119833987206,
+          751
+        ],
+        [
+          20.62732732994482,
+          754
+        ],
+        [
+          20.69083554192912,
+          756
+        ],
+        [
+          20.754936156910844,
+          758
+        ],
+        [
+          20.82093431300018,
+          761
+        ],
+        [
+          20.885872725979425,
+          763
+        ],
+        [
+          20.95137274998706,
+          766
+        ],
+        [
+          21.014936013962142,
+          769
+        ],
+        [
+          21.078432364971377,
+          772
+        ],
+        [
+          21.142502458998933,
+          775
+        ],
+        [
+          21.21116684190929,
+          778
+        ],
+        [
+          21.27626908791717,
+          779
+        ],
+        [
+          21.34003981598653,
+          780
+        ],
+        [
+          21.409851102973334,
+          781
+        ],
+        [
+          21.474373666918837,
+          782
+        ],
+        [
+          21.54100186598953,
+          785
+        ],
+        [
+          21.605791035923176,
+          787
+        ],
+        [
+          21.671662088949233,
+          788
+        ],
+        [
+          21.73481147189159,
+          789
+        ],
+        [
+          21.79770415998064,
+          790
+        ],
+        [
+          21.86206695996225,
+          793
+        ],
+        [
+          21.92731240799185,
+          796
+        ],
+        [
+          21.990099253947847,
+          799
+        ],
+        [
+          22.053481012000702,
+          800
+        ],
+        [
+          22.116786069003865,
+          802
+        ],
+        [
+          22.181336111971177,
+          803
+        ],
+        [
+          22.245593028957956,
+          805
+        ],
+        [
+          22.311083142994903,
+          807
+        ],
+        [
+          22.37580146989785,
+          810
+        ],
+        [
+          22.440594408893958,
+          813
+        ],
+        [
+          22.50569668400567,
+          816
+        ],
+        [
+          22.570350169902667,
+          819
+        ],
+        [
+          22.63480985199567,
+          821
+        ],
+        [
+          22.698215709999204,
+          824
+        ],
+        [
+          22.76233117491938,
+          827
+        ],
+        [
+          22.82543874590192,
+          828
+        ],
+        [
+          22.889114799909294,
+          831
+        ],
+        [
+          22.95362875191495,
+          834
+        ],
+        [
+          23.017558040912263,
+          835
+        ],
+        [
+          23.081164753995836,
+          838
+        ],
+        [
+          23.14404620998539,
+          841
+        ],
+        [
+          23.207680742954835,
+          842
+        ],
+        [
+          23.272303967969492,
+          843
+        ],
+        [
+          23.336514442926273,
+          844
+        ],
+        [
+          23.39971542696003,
+          845
+        ],
+        [
+          23.46384494099766,
+          848
+        ],
+        [
+          23.526857219985686,
+          851
+        ],
+        [
+          23.590016532922164,
+          854
+        ],
+        [
+          23.653052462963387,
+          857
+        ],
+        [
+          23.716367388959043,
+          860
+        ],
+        [
+          23.779747905908152,
+          862
+        ],
+        [
+          23.842799475998618,
+          865
+        ],
+        [
+          23.905903266975656,
+          866
+        ],
+        [
+          23.969374314998277,
+          869
+        ],
+        [
+          24.032800082932226,
+          870
+        ],
+        [
+          24.095899933949113,
+          873
+        ],
+        [
+          24.15888976189308,
+          876
+        ],
+        [
+          24.222253047977574,
+          879
+        ],
+        [
+          24.286340930964798,
+          882
+        ],
+        [
+          24.349542793934233,
+          883
+        ],
+        [
+          24.412399378954433,
+          886
+        ],
+        [
+          24.477248717914335,
+          888
+        ],
+        [
+          24.540736177004874,
+          891
+        ],
+        [
+          24.6042970669223,
+          893
+        ],
+        [
+          24.667884817929007,
+          896
+        ],
+        [
+          24.733045983943157,
+          899
+        ],
+        [
+          24.796742375940084,
+          901
+        ],
+        [
+          24.860185843892395,
+          904
+        ],
+        [
+          24.92377533391118,
+          907
+        ],
+        [
+          24.98731215391308,
+          909
+        ],
+        [
+          25.050817832932808,
+          912
+        ],
+        [
+          25.114583506947383,
+          915
+        ],
+        [
+          25.178806800977327,
+          918
+        ],
+        [
+          25.242554024909623,
+          921
+        ],
+        [
+          25.306299258954823,
+          924
+        ],
+        [
+          25.369747835909948,
+          927
+        ],
+        [
+          25.43335407797713,
+          928
+        ],
+        [
+          25.49685789598152,
+          931
+        ],
+        [
+          25.561590160941705,
+          932
+        ],
+        [
+          25.625323324929923,
+          935
+        ],
+        [
+          25.689470367971808,
+          938
+        ],
+        [
+          25.754876296967268,
+          940
+        ],
+        [
+          25.818892995943315,
+          943
+        ],
+        [
+          25.882444774964824,
+          946
+        ],
+        [
+          25.94572357798461,
+          947
+        ],
+        [
+          26.009008701890707,
+          948
+        ],
+        [
+          26.07277622492984,
+          949
+        ],
+        [
+          26.136349603999406,
+          952
+        ],
+        [
+          26.199538805987686,
+          954
+        ],
+        [
+          26.263322999933735,
+          956
+        ],
+        [
+          26.32681384694297,
+          959
+        ],
+        [
+          26.390237863990478,
+          962
+        ],
+        [
+          26.45390027493704,
+          963
+        ],
+        [
+          26.517262590001337,
+          966
+        ],
+        [
+          26.58076247794088,
+          969
+        ],
+        [
+          26.6441662539728,
+          971
+        ],
+        [
+          26.707886095973663,
+          973
+        ],
+        [
+          26.771410693996586,
+          976
+        ],
+        [
+          26.834883440984413,
+          977
+        ],
+        [
+          26.898343616980128,
+          978
+        ],
+        [
+          26.961543066892773,
+          981
+        ],
+        [
+          27.025072114891373,
+          984
+        ],
+        [
+          27.088882768992335,
+          987
+        ],
+        [
+          27.152604610892013,
+          988
+        ],
+        [
+          27.216917115962133,
+          991
+        ],
+        [
+          27.28064617794007,
+          993
+        ],
+        [
+          27.344171034987085,
+          996
+        ],
+        [
+          27.40796135889832,
+          999
+        ],
+        [
+          27.47452974191401,
+          1000
+        ],
+        [
+          27.53818180190865,
+          1001
+        ],
+        [
+          27.601585816941224,
+          1004
+        ],
+        [
+          27.66572908894159,
+          1007
+        ],
+        [
+          27.728894837899134,
+          1008
+        ],
+        [
+          27.792606728966348,
+          1010
+        ],
+        [
+          27.855876670917496,
+          1013
+        ],
+        [
+          27.919379357947037,
+          1016
+        ],
+        [
+          27.984943387913518,
+          1019
+        ],
+        [
+          28.048977255937643,
+          1022
+        ],
+        [
+          28.11263946595136,
+          1023
+        ],
+        [
+          28.114589677890763,
+          1024
+        ]
+      ]
+    },
+    {
+      "case": 1,
+      "wall_s": 26.464116378920153,
+      "meta_info": {
+        "id": "092370d939514dcc9c2b63aa6de4afa8",
+        "finish_reason": {
+          "type": "length",
+          "length": 1024
+        },
+        "prompt_tokens": 16,
+        "weight_version": "default",
+        "num_retractions": 0,
+        "reasoning_tokens": 0,
+        "completion_tokens": 1024,
+        "cached_tokens": 0,
+        "weight_versions": [
+          {
+            "version": "default",
+            "start": 0,
+            "end": 1024
+          }
+        ],
+        "cached_tokens_details": null,
+        "dp_rank": null,
+        "e2e_latency": 26.462635127012618,
+        "spec_accept_rate": 0.762962962962963,
+        "spec_accept_length": 2.528395061728395,
+        "spec_num_correct_drafts": 618,
+        "spec_num_proposed_drafts": 810,
+        "spec_verify_ct": 405,
+        "spec_correct_drafts_histogram": [
+          63,
+          66,
+          276
+        ]
+      },
+      "e2e_tokens_per_second": 38.69390480823541,
+      "ttft_s": 0.6728204669198021,
+      "decode_tokens_per_second": 39.66466956376648,
+      "stream_points": [
+        [
+          0.6728204669198021,
+          1
+        ],
+        [
+          0.7370824289973825,
+          2
+        ],
+        [
+          0.8061467949301004,
+          3
+        ],
+        [
+          0.8746520879212767,
+          6
+        ],
+        [
+          0.9418127019889653,
+          9
+        ],
+        [
+          1.0100025489227846,
+          12
+        ],
+        [
+          1.0758035340113565,
+          15
+        ],
+        [
+          1.1393019600072876,
+          17
+        ],
+        [
+          1.2046819059178233,
+          20
+        ],
+        [
+          1.271533323917538,
+          23
+        ],
+        [
+          1.3391815279610455,
+          26
+        ],
+        [
+          1.4027498059440404,
+          29
+        ],
+        [
+          1.466732632019557,
+          30
+        ],
+        [
+          1.5303461999865249,
+          31
+        ],
+        [
+          1.5936617319239303,
+          34
+        ],
+        [
+          1.656445901026018,
+          35
+        ],
+        [
+          1.7188534329179674,
+          36
+        ],
+        [
+          1.7819009479135275,
+          39
+        ],
+        [
+          1.8455850469181314,
+          42
+        ],
+        [
+          1.908532329951413,
+          45
+        ],
+        [
+          1.9714044609572738,
+          46
+        ],
+        [
+          2.034189110971056,
+          49
+        ],
+        [
+          2.096757215913385,
+          50
+        ],
+        [
+          2.15972613892518,
+          53
+        ],
+        [
+          2.2232967459131032,
+          56
+        ],
+        [
+          2.2884687369223684,
+          59
+        ],
+        [
+          2.351679424988106,
+          62
+        ],
+        [
+          2.4153019529767334,
+          64
+        ],
+        [
+          2.48060508701019,
+          67
+        ],
+        [
+          2.5428946759784594,
+          70
+        ],
+        [
+          2.6072991699911654,
+          71
+        ],
+        [
+          2.6709475169191137,
+          74
+        ],
+        [
+          2.733877978986129,
+          77
+        ],
+        [
+          2.797081987024285,
+          80
+        ],
+        [
+          2.8601098409853876,
+          83
+        ],
+        [
+          2.9238613409688696,
+          86
+        ],
+        [
+          2.9883141350001097,
+          89
+        ],
+        [
+          3.051871691015549,
+          91
+        ],
+        [
+          3.1145882279379293,
+          93
+        ],
+        [
+          3.1775435509625822,
+          96
+        ],
+        [
+          3.2401610360248014,
+          99
+        ],
+        [
+          3.3032395709306,
+          100
+        ],
+        [
+          3.366604142007418,
+          102
+        ],
+        [
+          3.4293625409482047,
+          105
+        ],
+        [
+          3.4921273490181193,
+          108
+        ],
+        [
+          3.555103861959651,
+          111
+        ],
+        [
+          3.6193269619252533,
+          114
+        ],
+        [
+          3.682299883919768,
+          117
+        ],
+        [
+          3.745552241918631,
+          120
+        ],
+        [
+          3.808633796987124,
+          123
+        ],
+        [
+          3.8736455829348415,
+          126
+        ],
+        [
+          3.9365600439487025,
+          128
+        ],
+        [
+          3.999359101988375,
+          131
+        ],
+        [
+          4.062255801982246,
+          134
+        ],
+        [
+          4.125183633994311,
+          136
+        ],
+        [
+          4.188719318015501,
+          139
+        ],
+        [
+          4.252135459915735,
+          141
+        ],
+        [
+          4.31733405997511,
+          142
+        ],
+        [
+          4.380544546991587,
+          145
+        ],
+        [
+          4.443986278958619,
+          148
+        ],
+        [
+          4.508884951937944,
+          151
+        ],
+        [
+          4.57284985599108,
+          153
+        ],
+        [
+          4.635525331948884,
+          154
+        ],
+        [
+          4.699071494978853,
+          156
+        ],
+        [
+          4.762282302021049,
+          159
+        ],
+        [
+          4.825165921007283,
+          162
+        ],
+        [
+          4.887940797954798,
+          163
+        ],
+        [
+          4.950810138019733,
+          166
+        ],
+        [
+          5.014179627993144,
+          169
+        ],
+        [
+          5.077355072950013,
+          172
+        ],
+        [
+          5.141207693959586,
+          173
+        ],
+        [
+          5.206321350997314,
+          176
+        ],
+        [
+          5.2694949369179085,
+          179
+        ],
+        [
+          5.332955768913962,
+          182
+        ],
+        [
+          5.396222096984275,
+          185
+        ],
+        [
+          5.4593851319514215,
+          188
+        ],
+        [
+          5.524915337911807,
+          191
+        ],
+        [
+          5.588095053914003,
+          192
+        ],
+        [
+          5.652156598982401,
+          195
+        ],
+        [
+          5.716953548020683,
+          198
+        ],
+        [
+          5.779781286022626,
+          201
+        ],
+        [
+          5.843372629955411,
+          204
+        ],
+        [
+          5.9064361630007625,
+          205
+        ],
+        [
+          5.970603748923168,
+          208
+        ],
+        [
+          6.033563780016266,
+          210
+        ],
+        [
+          6.0973077670205384,
+          211
+        ],
+        [
+          6.165811445913278,
+          213
+        ],
+        [
+          6.233671630965546,
+          215
+        ],
+        [
+          6.299479512963444,
+          218
+        ],
+        [
+          6.363896604976617,
+          220
+        ],
+        [
+          6.427771274931729,
+          223
+        ],
+        [
+          6.491853718995117,
+          226
+        ],
+        [
+          6.555311979958788,
+          229
+        ],
+        [
+          6.618307112017646,
+          230
+        ],
+        [
+          6.681815483025275,
+          233
+        ],
+        [
+          6.7457527939695865,
+          236
+        ],
+        [
+          6.809049331001006,
+          237
+        ],
+        [
+          6.871814125915989,
+          239
+        ],
+        [
+          6.936705176951364,
+          242
+        ],
+        [
+          6.999652036931366,
+          244
+        ],
+        [
+          7.06237717194017,
+          245
+        ],
+        [
+          7.125140126910992,
+          246
+        ],
+        [
+          7.188030845019966,
+          247
+        ],
+        [
+          7.2505910359323025,
+          248
+        ],
+        [
+          7.313595036976039,
+          250
+        ],
+        [
+          7.376962094916962,
+          252
+        ],
+        [
+          7.439958275994286,
+          255
+        ],
+        [
+          7.503059368929826,
+          258
+        ],
+        [
+          7.565997597994283,
+          260
+        ],
+        [
+          7.629132760921493,
+          263
+        ],
+        [
+          7.692168321926147,
+          265
+        ],
+        [
+          7.7553345549385995,
+          266
+        ],
+        [
+          7.819200324011035,
+          269
+        ],
+        [
+          7.8820539199514315,
+          270
+        ],
+        [
+          7.944983399007469,
+          271
+        ],
+        [
+          8.009866058942862,
+          272
+        ],
+        [
+          8.074333029915579,
+          274
+        ],
+        [
+          8.13833646196872,
+          277
+        ],
+        [
+          8.20137614198029,
+          280
+        ],
+        [
+          8.264855641988106,
+          283
+        ],
+        [
+          8.329412546008825,
+          286
+        ],
+        [
+          8.392836455022916,
+          289
+        ],
+        [
+          8.456531448988244,
+          292
+        ],
+        [
+          8.51947224792093,
+          295
+        ],
+        [
+          8.582920357002877,
+          298
+        ],
+        [
+          8.646019759005867,
+          299
+        ],
+        [
+          8.708968646940775,
+          300
+        ],
+        [
+          8.772238872013986,
+          303
+        ],
+        [
+          8.835415664943866,
+          304
+        ],
+        [
+          8.899374064989388,
+          305
+        ],
+        [
+          8.963017656933516,
+          306
+        ],
+        [
+          9.026186009985395,
+          309
+        ],
+        [
+          9.089313821983524,
+          312
+        ],
+        [
+          9.152263159980066,
+          315
+        ],
+        [
+          9.215235529001802,
+          318
+        ],
+        [
+          9.278414201922715,
+          321
+        ],
+        [
+          9.3427975110244,
+          323
+        ],
+        [
+          9.405891511007212,
+          324
+        ],
+        [
+          9.468843729933724,
+          327
+        ],
+        [
+          9.531708105932921,
+          330
+        ],
+        [
+          9.594749845913611,
+          332
+        ],
+        [
+          9.658595332992263,
+          333
+        ],
+        [
+          9.721405057003722,
+          336
+        ],
+        [
+          9.784270843025297,
+          337
+        ],
+        [
+          9.8475755979307,
+          340
+        ],
+        [
+          9.910515115014277,
+          342
+        ],
+        [
+          9.973797998973168,
+          345
+        ],
+        [
+          10.037731498014182,
+          348
+        ],
+        [
+          10.10098071093671,
+          351
+        ],
+        [
+          10.16369176399894,
+          354
+        ],
+        [
+          10.22695828799624,
+          355
+        ],
+        [
+          10.289765722001903,
+          358
+        ],
+        [
+          10.352895183023065,
+          360
+        ],
+        [
+          10.415835079969838,
+          362
+        ],
+        [
+          10.478850928950123,
+          364
+        ],
+        [
+          10.541757985018194,
+          366
+        ],
+        [
+          10.604750123922713,
+          369
+        ],
+        [
+          10.66796001594048,
+          372
+        ],
+        [
+          10.731692709960043,
+          375
+        ],
+        [
+          10.795706189004704,
+          378
+        ],
+        [
+          10.858898260979913,
+          381
+        ],
+        [
+          10.921736194984987,
+          384
+        ],
+        [
+          10.98468110198155,
+          387
+        ],
+        [
+          11.048244921024889,
+          390
+        ],
+        [
+          11.112185969017446,
+          393
+        ],
+        [
+          11.175691256998107,
+          396
+        ],
+        [
+          11.238613093970343,
+          399
+        ],
+        [
+          11.301962128956802,
+          402
+        ],
+        [
+          11.366100170998834,
+          405
+        ],
+        [
+          11.429624859942123,
+          408
+        ],
+        [
+          11.492856401950121,
+          411
+        ],
+        [
+          11.556089404970407,
+          414
+        ],
+        [
+          11.619425699929707,
+          416
+        ],
+        [
+          11.682504878961481,
+          419
+        ],
+        [
+          11.745546306017786,
+          422
+        ],
+        [
+          11.808819498983212,
+          425
+        ],
+        [
+          11.87178841594141,
+          428
+        ],
+        [
+          11.934810942970216,
+          431
+        ],
+        [
+          11.99789061199408,
+          434
+        ],
+        [
+          12.061187624931335,
+          437
+        ],
+        [
+          12.124712663935497,
+          440
+        ],
+        [
+          12.187491385964677,
+          443
+        ],
+        [
+          12.250795078929514,
+          446
+        ],
+        [
+          12.316445042961277,
+          449
+        ],
+        [
+          12.381586196017452,
+          450
+        ],
+        [
+          12.445586523972452,
+          452
+        ],
+        [
+          12.508771435008384,
+          454
+        ],
+        [
+          12.573008348001167,
+          457
+        ],
+        [
+          12.63861525093671,
+          460
+        ],
+        [
+          12.701595076941885,
+          461
+        ],
+        [
+          12.76692106295377,
+          464
+        ],
+        [
+          12.832196077913977,
+          465
+        ],
+        [
+          12.8952017739648,
+          466
+        ],
+        [
+          12.958751511992887,
+          467
+        ],
+        [
+          13.024279271950945,
+          470
+        ],
+        [
+          13.090185491018929,
+          473
+        ],
+        [
+          13.15346552291885,
+          474
+        ],
+        [
+          13.21764746401459,
+          476
+        ],
+        [
+          13.281732604024,
+          477
+        ],
+        [
+          13.344864032929763,
+          479
+        ],
+        [
+          13.40834232000634,
+          481
+        ],
+        [
+          13.474945632973686,
+          484
+        ],
+        [
+          13.540387540939264,
+          485
+        ],
+        [
+          13.606241349014454,
+          487
+        ],
+        [
+          13.670983541989699,
+          490
+        ],
+        [
+          13.736610163003206,
+          493
+        ],
+        [
+          13.802618102985434,
+          496
+        ],
+        [
+          13.86612529901322,
+          499
+        ],
+        [
+          13.92935483995825,
+          500
+        ],
+        [
+          13.992393595981412,
+          503
+        ],
+        [
+          14.059150911984034,
+          506
+        ],
+        [
+          14.122471703914925,
+          509
+        ],
+        [
+          14.185872799018398,
+          512
+        ],
+        [
+          14.250745713943616,
+          515
+        ],
+        [
+          14.31597530702129,
+          516
+        ],
+        [
+          14.380171868018806,
+          519
+        ],
+        [
+          14.443755725980736,
+          520
+        ],
+        [
+          14.507021807949059,
+          521
+        ],
+        [
+          14.570671836961992,
+          524
+        ],
+        [
+          14.634288226021454,
+          527
+        ],
+        [
+          14.698237451026216,
+          529
+        ],
+        [
+          14.761675255023874,
+          531
+        ],
+        [
+          14.825755562982522,
+          533
+        ],
+        [
+          14.889110445976257,
+          536
+        ],
+        [
+          14.952647162019275,
+          539
+        ],
+        [
+          15.016680528991856,
+          542
+        ],
+        [
+          15.080240855924785,
+          545
+        ],
+        [
+          15.14402487699408,
+          547
+        ],
+        [
+          15.207527803024277,
+          548
+        ],
+        [
+          15.271158410934731,
+          549
+        ],
+        [
+          15.334709357935935,
+          550
+        ],
+        [
+          15.398403466911986,
+          552
+        ],
+        [
+          15.461962063913234,
+          555
+        ],
+        [
+          15.526094772969373,
+          558
+        ],
+        [
+          15.591203722986393,
+          561
+        ],
+        [
+          15.655633777962066,
+          564
+        ],
+        [
+          15.719887638930231,
+          566
+        ],
+        [
+          15.783411204000004,
+          569
+        ],
+        [
+          15.846899318974465,
+          571
+        ],
+        [
+          15.910311081912369,
+          574
+        ],
+        [
+          15.974226156016812,
+          576
+        ],
+        [
+          16.037713889963925,
+          579
+        ],
+        [
+          16.101462370017543,
+          582
+        ],
+        [
+          16.165293141966686,
+          585
+        ],
+        [
+          16.229161134921014,
+          587
+        ],
+        [
+          16.292893564910628,
+          589
+        ],
+        [
+          16.356689965934493,
+          592
+        ],
+        [
+          16.42052860802505,
+          595
+        ],
+        [
+          16.48493251192849,
+          598
+        ],
+        [
+          16.548375284997746,
+          601
+        ],
+        [
+          16.612221837975085,
+          604
+        ],
+        [
+          16.675886804936454,
+          606
+        ],
+        [
+          16.739247315912507,
+          607
+        ],
+        [
+          16.80274458997883,
+          609
+        ],
+        [
+          16.86620393395424,
+          612
+        ],
+        [
+          16.929812400019728,
+          613
+        ],
+        [
+          16.99342000694014,
+          616
+        ],
+        [
+          17.056882409960963,
+          619
+        ],
+        [
+          17.120256160967983,
+          622
+        ],
+        [
+          17.18410948291421,
+          624
+        ],
+        [
+          17.24780693091452,
+          626
+        ],
+        [
+          17.312771775992587,
+          629
+        ],
+        [
+          17.37669626995921,
+          632
+        ],
+        [
+          17.440604662988335,
+          635
+        ],
+        [
+          17.50431193097029,
+          638
+        ],
+        [
+          17.568411897984333,
+          640
+        ],
+        [
+          17.631872530910186,
+          643
+        ],
+        [
+          17.696061828988604,
+          646
+        ],
+        [
+          17.76007928396575,
+          649
+        ],
+        [
+          17.823743039974943,
+          652
+        ],
+        [
+          17.8872538539581,
+          654
+        ],
+        [
+          17.95042334997561,
+          655
+        ],
+        [
+          18.0151936809998,
+          656
+        ],
+        [
+          18.078956029959954,
+          658
+        ],
+        [
+          18.143062495975755,
+          661
+        ],
+        [
+          18.206567949964665,
+          664
+        ],
+        [
+          18.270350228995085,
+          667
+        ],
+        [
+          18.336462207953446,
+          670
+        ],
+        [
+          18.40073123795446,
+          673
+        ],
+        [
+          18.46471077192109,
+          675
+        ],
+        [
+          18.528660294949077,
+          678
+        ],
+        [
+          18.592702199006453,
+          680
+        ],
+        [
+          18.657138171955012,
+          683
+        ],
+        [
+          18.720698665943928,
+          685
+        ],
+        [
+          18.784469455014914,
+          688
+        ],
+        [
+          18.84778912400361,
+          691
+        ],
+        [
+          18.911248886026442,
+          693
+        ],
+        [
+          18.974901870940812,
+          696
+        ],
+        [
+          19.038135377923027,
+          697
+        ],
+        [
+          19.10310981294606,
+          700
+        ],
+        [
+          19.16656109399628,
+          703
+        ],
+        [
+          19.230226599960588,
+          706
+        ],
+        [
+          19.29404985997826,
+          709
+        ],
+        [
+          19.358474222011864,
+          712
+        ],
+        [
+          19.422321461956017,
+          715
+        ],
+        [
+          19.485474198008887,
+          718
+        ],
+        [
+          19.548231474938802,
+          721
+        ],
+        [
+          19.61119377601426,
+          724
+        ],
+        [
+          19.67411733593326,
+          727
+        ],
+        [
+          19.737217678921297,
+          730
+        ],
+        [
+          19.80034772295039,
+          733
+        ],
+        [
+          19.863174650934525,
+          735
+        ],
+        [
+          19.926122360979207,
+          738
+        ],
+        [
+          19.98895788891241,
+          741
+        ],
+        [
+          20.051706134923734,
+          744
+        ],
+        [
+          20.11424447596073,
+          747
+        ],
+        [
+          20.17733432992827,
+          750
+        ],
+        [
+          20.240278359968215,
+          753
+        ],
+        [
+          20.30343928502407,
+          756
+        ],
+        [
+          20.36666596098803,
+          759
+        ],
+        [
+          20.429768933914602,
+          762
+        ],
+        [
+          20.49276893597562,
+          763
+        ],
+        [
+          20.555830187979154,
+          766
+        ],
+        [
+          20.61887546093203,
+          769
+        ],
+        [
+          20.681905532022938,
+          772
+        ],
+        [
+          20.744896051939577,
+          775
+        ],
+        [
+          20.80796347395517,
+          778
+        ],
+        [
+          20.871140608913265,
+          781
+        ],
+        [
+          20.934191589942202,
+          784
+        ],
+        [
+          20.997202980914153,
+          787
+        ],
+        [
+          21.06012685992755,
+          790
+        ],
+        [
+          21.123098589945585,
+          791
+        ],
+        [
+          21.186104430933483,
+          793
+        ],
+        [
+          21.24923803494312,
+          796
+        ],
+        [
+          21.31316841498483,
+          799
+        ],
+        [
+          21.376338328933343,
+          802
+        ],
+        [
+          21.43938835093286,
+          805
+        ],
+        [
+          21.5023820620263,
+          808
+        ],
+        [
+          21.56552495493088,
+          811
+        ],
+        [
+          21.628399812965654,
+          814
+        ],
+        [
+          21.691450423910283,
+          815
+        ],
+        [
+          21.754100305959582,
+          817
+        ],
+        [
+          21.816919212928042,
+          820
+        ],
+        [
+          21.87987142195925,
+          823
+        ],
+        [
+          21.942896021995693,
+          826
+        ],
+        [
+          22.00582552992273,
+          829
+        ],
+        [
+          22.069077156018466,
+          832
+        ],
+        [
+          22.132611616980284,
+          835
+        ],
+        [
+          22.196021275944076,
+          838
+        ],
+        [
+          22.25919499900192,
+          841
+        ],
+        [
+          22.325900727999397,
+          844
+        ],
+        [
+          22.393980785971507,
+          847
+        ],
+        [
+          22.46210910496302,
+          850
+        ],
+        [
+          22.52863548998721,
+          853
+        ],
+        [
+          22.593529999954626,
+          856
+        ],
+        [
+          22.657234384911135,
+          859
+        ],
+        [
+          22.72038006701041,
+          862
+        ],
+        [
+          22.783675241982564,
+          865
+        ],
+        [
+          22.8466741819866,
+          866
+        ],
+        [
+          22.909340824000537,
+          868
+        ],
+        [
+          22.973192901001312,
+          871
+        ],
+        [
+          23.036674910923466,
+          874
+        ],
+        [
+          23.10336213791743,
+          877
+        ],
+        [
+          23.16923176893033,
+          880
+        ],
+        [
+          23.234716660925187,
+          883
+        ],
+        [
+          23.29819628992118,
+          885
+        ],
+        [
+          23.36159226798918,
+          888
+        ],
+        [
+          23.424826541915536,
+          891
+        ],
+        [
+          23.488146837917157,
+          894
+        ],
+        [
+          23.551433642976917,
+          897
+        ],
+        [
+          23.61513950699009,
+          900
+        ],
+        [
+          23.67840234201867,
+          903
+        ],
+        [
+          23.74162783497013,
+          906
+        ],
+        [
+          23.805006201961078,
+          909
+        ],
+        [
+          23.86805240099784,
+          912
+        ],
+        [
+          23.931377036962658,
+          915
+        ],
+        [
+          23.994402055977844,
+          918
+        ],
+        [
+          24.057727891020477,
+          921
+        ],
+        [
+          24.120672467979603,
+          924
+        ],
+        [
+          24.18387972097844,
+          927
+        ],
+        [
+          24.24690125999041,
+          930
+        ],
+        [
+          24.310753916972317,
+          932
+        ],
+        [
+          24.374078421969898,
+          935
+        ],
+        [
+          24.43714216200169,
+          938
+        ],
+        [
+          24.500283513916656,
+          941
+        ],
+        [
+          24.56407937896438,
+          944
+        ],
+        [
+          24.62712385796476,
+          947
+        ],
+        [
+          24.690760339959525,
+          950
+        ],
+        [
+          24.753956991946325,
+          953
+        ],
+        [
+          24.81752716191113,
+          954
+        ],
+        [
+          24.880867096944712,
+          957
+        ],
+        [
+          24.94393329601735,
+          960
+        ],
+        [
+          25.006914593977854,
+          963
+        ],
+        [
+          25.0703861619113,
+          966
+        ],
+        [
+          25.133760737022385,
+          969
+        ],
+        [
+          25.196601251955144,
+          970
+        ],
+        [
+          25.259966616984457,
+          971
+        ],
+        [
+          25.32343446498271,
+          974
+        ],
+        [
+          25.38669071800541,
+          976
+        ],
+        [
+          25.450058143935166,
+          978
+        ],
+        [
+          25.51351950201206,
+          981
+        ],
+        [
+          25.576853096019477,
+          984
+        ],
+        [
+          25.640006087021902,
+          987
+        ],
+        [
+          25.70342961291317,
+          990
+        ],
+        [
+          25.766578303999268,
+          993
+        ],
+        [
+          25.82984142692294,
+          996
+        ],
+        [
+          25.893685861956328,
+          999
+        ],
+        [
+          25.95711354794912,
+          1002
+        ],
+        [
+          26.020682576927356,
+          1005
+        ],
+        [
+          26.083778145955876,
+          1008
+        ],
+        [
+          26.14675694296602,
+          1011
+        ],
+        [
+          26.210062436992303,
+          1014
+        ],
+        [
+          26.273411190952174,
+          1017
+        ],
+        [
+          26.336730435024947,
+          1020
+        ],
+        [
+          26.40006741893012,
+          1022
+        ],
+        [
+          26.46403494698461,
+          1024
+        ]
+      ]
+    }
+  ]
+}
