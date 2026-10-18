@@ -1088,7 +1088,9 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         if hasattr(self, "staged_pool"):
             result["kv_cache_stages"] = self.kv_cache_stages
             result["expert_loan_budgets"] = getattr(self, "expert_loan_budgets", None)
-            result["expert_physical_bytes"] = self.staged_pool.arena.backed_bytes
+            result["expert_physical_bytes"] = (
+                self.staged_pool.arena.backed_bytes + self.staged_pool.auxiliary_bytes
+            )
         result["borrowed_prefill_arena"] = self.borrowed_arena
         result["borrowed_restore_runs"] = self.borrowed_restore_runs
         result["borrowed_restore_experts"] = self.borrowed_restore_experts

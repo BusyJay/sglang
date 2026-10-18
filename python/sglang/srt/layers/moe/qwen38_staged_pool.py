@@ -30,17 +30,38 @@ class StagedExpertPool:
         )
         self.tensors = {}
         self.offsets = {}
+        # Small per-slot arrays need less storage at their maximum capacity
+        # than one VMM page. Keeping them in the normal allocator avoids a
+        # dedicated physical page for each, while their addresses stay fixed.
+        self.auxiliary_names = {
+            name
+            for name, row in self.rows.items()
+            if row * self.maximum_budget < self.arena.granularity
+        }
+        self.auxiliary_bytes = sum(
+            self.rows[name] * self.maximum_budget for name in self.auxiliary_names
+        )
         with torch.cuda.use_mem_pool(self.arena.pool):
             for name in REQUIRED_TENSORS:
+                if name in self.auxiliary_names:
+                    continue
+                self.tensors[name] = torch.empty(
+                    (self.maximum_budget, *first[name].shape[1:]),
+                    dtype=getattr(torch, first[name].dtype),
+                    device=device,
+                )
+        for name in REQUIRED_TENSORS:
+            if name in self.auxiliary_names:
                 self.tensors[name] = torch.empty(
                     (self.maximum_budget, *first[name].shape[1:]),
                     dtype=getattr(torch, first[name].dtype),
                     device=device,
                 )
         for name, tensor in self.tensors.items():
-            offset = tensor.data_ptr() - self.arena.base
-            self.offsets[name] = offset
-            self.arena.commit_range(offset, self.base_budget * self.rows[name])
+            if name not in self.auxiliary_names:
+                offset = tensor.data_ptr() - self.arena.base
+                self.offsets[name] = offset
+                self.arena.commit_range(offset, self.base_budget * self.rows[name])
             tensor[: self.base_budget].zero_()
         self.budgets = None
         self.loan_mappings = []
@@ -48,7 +69,13 @@ class StagedExpertPool:
         self.stage_layouts = None
 
     def physical_bytes(self, budget):
-        return sum(self.arena._align(budget * row) for row in self.rows.values())
+        # Ordinary auxiliary storage is fully allocated before KV sizing and
+        # remains constant. Only VMM extensions consume the borrowed KV bytes.
+        return self.auxiliary_bytes + sum(
+            self.arena._align(budget * row)
+            for name, row in self.rows.items()
+            if name not in self.auxiliary_names
+        )
 
     def configure_loans(self, loan_bytes):
         if self.budgets is not None:

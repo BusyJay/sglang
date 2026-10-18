@@ -2828,6 +2828,11 @@ class KVCacheConfigurator:
             from sglang.srt.mem_cache.qwen38_kv_stages import page_capacities
 
             required = page_capacities(stages, self.pool_page_size)[-1]
+            logger.info(
+                "Qwen38 staged KV sizing: profiled_tokens=%d required_tokens=%d",
+                token_capacity,
+                required,
+            )
             if token_capacity < required:
                 raise ValueError(
                     f"profiled KV budget ({token_capacity} tokens) cannot fit the "
