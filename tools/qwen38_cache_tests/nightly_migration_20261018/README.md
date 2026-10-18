@@ -3,7 +3,7 @@
 The live `fp4-local` language worker and remote ViT now use
 `swallow-sglang:nightly-dev-20261018-b234b5c3`, image ID
 `sha256:f4f3b73ba30219458bcbe3fd824837a2552f686a345fde0cd102c80139f8f3e0`.
-The source mount is `/home/user/workspace/sglang-nightly-b12x` →
+The configured source mount is `/home/user/workspace/sglang` →
 `/workspace/sglang`; the launcher sets `PYTHONPATH=/workspace/sglang/python`.
 B12X is enabled for BF16 target decode/verify with 1–3 tokens; CUTLASS W4A4
 prefill and MTP W4A4 remain active. Full breakable target and draft graphs are
@@ -20,8 +20,21 @@ working. No version or backend rollback was performed for the final deployment.
   SHA256SUMS and Git bundle prerequisites passed. Runtime fixes below are
   subsequent commits, preserving the transferred history.
 
-The original `/home/user/workspace/sglang` checkout remains on the original
-branch so other presets using its older image/source combination keep working.
+The primary working branch is `qwen3.8-flash-next-offload` in
+`/home/user/workspace/sglang`. It includes the exact merge, B12X patch, runtime
+fixes and profile commits above. Legacy `nvfp4` is preserved at
+`d0694c62ea0e93ee2c36813f70d459072d6c2516` on
+`codex/nvfp4-backup-20261018`, checked out in
+`/home/user/workspace/sglang-nvfp4-backup-20261018`; its preset mounts that directory.
+
+This branch/config correction did not restart either serving container.
+The existing containers retain their original bind mount from
+`/home/user/workspace/sglang-nightly-b12x` at `f2466a3774`, which contains the same
+runtime implementation. That worktree is retained only for the current live
+containers; subsequent development uses the primary branch. The next normal
+container recreation will apply the configured primary source directory.
+Historical measurements and deployment snapshots retain their original paths.
+Current preset snapshots are in `deployment/branch-layout-20261018/`.
 The `fp4-local-a4` preset inherits the new image/source; its launcher explicitly
 selects Triton when W4A16 is disabled, avoiding B12X's invalid A4 configuration.
 The A4 preset passed configuration preflight; the serving measurements below
