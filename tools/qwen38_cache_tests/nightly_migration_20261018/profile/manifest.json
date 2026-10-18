@@ -1,0 +1,54 @@
+{
+  "runtime_source_commit": "46cdc10b6f3ec03b69927ac903312e9451c4dd4d",
+  "image": "swallow-sglang:nightly-dev-20261018-b234b5c3",
+  "image_id": "sha256:f4f3b73ba30219458bcbe3fd824837a2552f686a345fde0cd102c80139f8f3e0",
+  "collection": "Existing live requests via /start_profile; no injected request, no restart, no runtime/config changes.",
+  "activities": [
+    "CPU",
+    "GPU"
+  ],
+  "traces": [
+    {
+      "file": "live-24steps.trace.json.gz",
+      "target_verify_steps": 24,
+      "with_stack": false,
+      "record_shapes": false,
+      "capture_start_Asia_Shanghai": "2026-10-18T16:04:01+08:00",
+      "bytes": 6058721,
+      "sha256": "d93dd788a8450b41283e1738ab4884d15373d9c9261b90c86f03f4868e83c506"
+    },
+    {
+      "file": "live-stacks-16steps.trace.json.gz",
+      "target_verify_steps": 16,
+      "with_stack": true,
+      "record_shapes": true,
+      "capture_start_Asia_Shanghai": "2026-10-18T16:04:58+08:00",
+      "bytes": 25499290,
+      "sha256": "5315284649860e861983f1b76e9f89ae08654b29d862db27653da9306e117c65"
+    },
+    {
+      "file": "live-confirm-32steps.trace.json.gz",
+      "target_verify_steps": 32,
+      "with_stack": false,
+      "record_shapes": false,
+      "capture_start_Asia_Shanghai": "2026-10-18T16:07:49+08:00",
+      "bytes": 7971692,
+      "sha256": "e7e12a578fb76f4edbcfdb252ed6fae2bbdfd714f2c87af3097ec855424642c1"
+    }
+  ],
+  "tests": "4 analyzer unit tests passed",
+  "metadata_redactions": [
+    "live-server.json:watermark_key",
+    "live-server.json:watermark_key_b",
+    "live-server.json:watermark_key",
+    "live-server.json:watermark_key_b",
+    "stack-server.json:watermark_key",
+    "stack-server.json:watermark_key_b",
+    "stack-server.json:watermark_key",
+    "stack-server.json:watermark_key_b",
+    "confirm-server.json:watermark_key",
+    "confirm-server.json:watermark_key_b",
+    "confirm-server.json:watermark_key",
+    "confirm-server.json:watermark_key_b"
+  ]
+}
