@@ -350,7 +350,73 @@
         "folder": "2-prepared-adaptive",
         "ready_s": 53.024717692052945
       }
-    ]
+    ],
+    "baseline_variation": {
+      "short": [
+        {
+          "case": 0,
+          "independent_workers": 3,
+          "decode_tokens_per_second": [
+            100.23757490877658,
+            104.26663699749706,
+            97.70940609186405
+          ],
+          "range_pct_of_median": 6.541689492788067,
+          "accept_lengths": [
+            2.4380952380952383,
+            2.4854368932038833,
+            2.409411764705882
+          ]
+        },
+        {
+          "case": 1,
+          "independent_workers": 3,
+          "decode_tokens_per_second": [
+            97.7816398003276,
+            101.84781606624759,
+            102.47183798576192
+          ],
+          "range_pct_of_median": 4.605104327797815,
+          "accept_lengths": [
+            2.3703703703703702,
+            2.42080378250591,
+            2.4150943396226414
+          ]
+        },
+        {
+          "case": 2,
+          "independent_workers": 3,
+          "decode_tokens_per_second": [
+            96.85633435410395,
+            95.83089851251333,
+            93.90997134157064
+          ],
+          "range_pct_of_median": 3.0745438666095604,
+          "accept_lengths": [
+            2.522167487684729,
+            2.6055979643765905,
+            2.5664160401002505
+          ]
+        }
+      ],
+      "long": [
+        {
+          "case": 1,
+          "independent_workers": 3,
+          "decode_tokens_per_second": [
+            89.63164175859934,
+            94.28410772436176,
+            97.42390059440376
+          ],
+          "range_pct_of_median": 8.264657770941605,
+          "accept_lengths": [
+            2.359447004608295,
+            2.3063063063063063,
+            2.449760765550239
+          ]
+        }
+      ]
+    }
   },
   "cta_only": {
     "variants": {
@@ -588,12 +654,91 @@
         "folder": "2-adaptive",
         "ready_s": 53.024312970926985
       }
-    ]
+    ],
+    "baseline_variation": {
+      "short": [
+        {
+          "case": 0,
+          "independent_workers": 3,
+          "decode_tokens_per_second": [
+            97.50016723997817,
+            100.92567660284284,
+            97.56926565988132
+          ],
+          "range_pct_of_median": 3.5108487695354045,
+          "accept_lengths": [
+            2.3703703703703702,
+            2.4265402843601898,
+            2.3758700696055683
+          ]
+        },
+        {
+          "case": 1,
+          "independent_workers": 3,
+          "decode_tokens_per_second": [
+            101.65368633959024,
+            101.36211898784609,
+            105.52790632985531
+          ],
+          "range_pct_of_median": 4.098018962236895,
+          "accept_lengths": [
+            2.3648960739030023,
+            2.3813953488372093,
+            2.4265402843601898
+          ]
+        },
+        {
+          "case": 2,
+          "independent_workers": 3,
+          "decode_tokens_per_second": [
+            99.22640815654069,
+            96.54252444938116,
+            100.43200313771928
+          ],
+          "range_pct_of_median": 3.9198019565537745,
+          "accept_lengths": [
+            2.6597402597402597,
+            2.585858585858586,
+            2.6189258312020463
+          ]
+        }
+      ],
+      "long": [
+        {
+          "case": 1,
+          "independent_workers": 3,
+          "decode_tokens_per_second": [
+            92.53003344982733,
+            95.63867045155551,
+            94.23515590833796
+          ],
+          "range_pct_of_median": 3.298808148364437,
+          "accept_lengths": [
+            2.359447004608295,
+            2.359447004608295,
+            2.4150943396226414
+          ]
+        }
+      ]
+    }
   },
   "limits": [
     "Three fresh workers per candidate; short has three prompts per worker, long one.",
     "Approx verify ms = accept length / sustained tokens per second; streaming boundary effects remain.",
-    "MTP output and routing vary even for baseline repeats; no bit-identical full-model claim.",
+    "Baseline outputs and acceptance differ; route/miss trajectory equality was not recorded or verified.",
     "Single request, synthetic repeated-text long context, not every production workload."
-  ]
+  ],
+  "evidence_assessment": {
+    "optimization_effect": "not_identified",
+    "observed_deltas_are_causal_estimates": false,
+    "independent_workers_per_candidate": 3,
+    "short_requests_per_worker": 3,
+    "mtp_proposals_and_acceptance_sequence": "not_controlled_or_verified",
+    "expert_cache_initial_state": "not_checkpointed",
+    "per_step_routes_miss_plans_and_h2d_bytes": "not_recorded",
+    "prefix_cached_tokens_zero_proves_equal_expert_cache": false,
+    "accept_length_normalization_controls_routes_or_misses": false,
+    "profile_proves_cpu_savings_cannot_help": false,
+    "deployment_selection": "temporary_baseline_pending_controlled_measurement"
+  }
 }
