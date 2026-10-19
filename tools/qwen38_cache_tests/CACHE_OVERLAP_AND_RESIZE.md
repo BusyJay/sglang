@@ -1,6 +1,6 @@
 # Cache 计算重叠与容量变更保留热点
 
-本次修改包含此前的 prefill direct cache 实现，可直接应用到 patch 包说明中指定的基准提交。新增选项均默认关闭，适用于 threaded runtime。
+本次修改包含此前的 prefill direct cache 实现，适用于 threaded runtime。其中 `prefill_direct_cache` 在 threaded + `prefill_reuse_cache` 下默认开启（实测有净收益，且 CUTLASS workspace 上界挂在同一个开关上）；`preserve_cache_on_resize` 和 `decode_early_cache` 仍默认关闭，需要按部署的工作负载自己评估。
 
 在完整的 `--model-loader-extra-config` 中合并以下字段，保留已有 `manifest_path`、专家容量、KV stages 和其他设置：
 
@@ -15,7 +15,7 @@
 }
 ```
 
-`cache_overlap_policy` 决定这些开关被打开后是否真的走拆分/提前路径，取值 `auto`（默认）或 `always`，需要 threaded runtime。`always` 强制按字面开启，用于 A/B 对照和调优；`auto` 只在实测有净收益的档位上拆分，其余档位回到原有单次计算。
+`prefill_direct_cache` 与 `cache_overlap_policy` 都可以省略，示例写全只是为了说明取值。`cache_overlap_policy` 决定这些开关被打开后是否真的走拆分/提前路径，取值 `auto`（默认）或 `always`，需要 threaded runtime。`always` 强制按字面开启，用于 A/B 对照和调优；`auto` 只在实测有净收益的档位上拆分，其余档位回到原有单次计算。
 
 ## Prefill 的 cache 计算与 arena 加载重叠
 
@@ -91,7 +91,7 @@ PYTHONPATH=python python3 -m unittest \
 
 两部分分别舍入再相加，结果不保证逐位相同。GPU 测试入口的容差用于合成验证，不构成完整模型精度结论。
 
-回退时把三个新增选项设为 false；彻底回退用 patch 包中的 `git apply -R` 命令。不要在服务运行期间直接更换已加载的源码和资源状态。
+回退时在 JSON 里显式写 `"prefill_direct_cache": false`（同时会去掉 CUTLASS workspace 上界），另外两个选项保持默认的 false 即可；彻底回退用 patch 包中的 `git apply -R` 命令。不要在服务运行期间直接更换已加载的源码和资源状态。
 
 ## 目标 GPU 实验
 

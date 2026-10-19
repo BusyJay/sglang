@@ -7,6 +7,7 @@ from unittest import mock
 
 from sglang.srt.model_loader.qwen38_nvfp4_cache_loader import (
     Qwen38NvFp4CacheModelLoader,
+    default_prefill_direct_cache,
 )
 from sglang.test.ci.ci_register import register_cpu_ci
 from sglang.test.test_utils import CustomTestCase
@@ -35,6 +36,21 @@ def build(**options):
 class TestCacheLoaderConfig(CustomTestCase):
     def test_defaults_keep_every_overlap_option_off(self):
         build()  # no new option means the historical single-dispatch path
+
+    def test_direct_cache_follows_its_two_preconditions(self):
+        # Sync runtime cannot use it; threaded without cache reuse has no
+        # cache rows to read. Only threaded+reuse defaults it on.
+        self.assertFalse(default_prefill_direct_cache({}))
+        self.assertFalse(default_prefill_direct_cache({"runtime_mode": "device"}))
+        self.assertTrue(default_prefill_direct_cache({"runtime_mode": "threaded"}))
+        self.assertFalse(
+            default_prefill_direct_cache(
+                {"runtime_mode": "threaded", "prefill_reuse_cache": False}
+            )
+        )
+
+    def test_explicit_false_still_disables_the_default(self):
+        build(runtime_mode="threaded", prefill_direct_cache=False)
 
     def test_threaded_combo_is_accepted(self):
         build(

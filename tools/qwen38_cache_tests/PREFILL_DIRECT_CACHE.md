@@ -1,6 +1,6 @@
-# Prefill 直接读取 cache（实验选项）
+# Prefill 直接读取 cache
 
-在现有 `--model-loader-extra-config` JSON 中加入：
+threaded runtime 下默认开启（前提 `prefill_reuse_cache` 为真，它本身也是默认值），现有启动配置不需要新增字段。显式配置如下：
 
 ```json
 {
@@ -11,7 +11,7 @@
 }
 ```
 
-保留原有的 `manifest_path`、容量和其他部署字段。这段 JSON 只展示相关选项，不能代替完整启动配置。`prefill_direct_cache` 默认关闭。`cache_overlap_policy` 可选，默认 `auto`（按下文判据决定是否拆分），`always` 复现早期版本的强制拆分行为；非法取值在启动时报错。
+保留原有的 `manifest_path`、容量和其他部署字段。这段 JSON 只展示相关选项，不能代替完整启动配置。回退写 `"prefill_direct_cache": false`；`sync`/`device` runtime 不使用该路径，默认即关闭，显式写 `true` 会在启动时报错。`cache_overlap_policy` 可选，默认 `auto`（按下文判据决定是否拆分），`always` 复现早期版本的强制拆分行为；非法取值在启动时报错。
 
 当路由选择 arena 路径时，运行时找出本层 cache 中仍然有效的专家。命中的专家直接使用 cache 中的权重，未命中的专家按需加载到 arena。已存在于当前层 arena 中的缺失专家不重复加载。没有任何 cache 命中时沿用原有 arena 路径，包括自动选择稀疏或整层传输的逻辑。
 

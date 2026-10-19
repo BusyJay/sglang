@@ -58,3 +58,7 @@ MTP=2 的 target 主路径为 3-token verify，不触发单 token decode 提前�
 ## 动态路径选择
 
 再一轮把“是否拆分/是否提前计算”交给策略决定：新增 `cache_overlap_policy`（`auto` 默认 / `always`）。decode 在 B12X 与 Triton 上都没有可靠的盈利区间，`auto` 直接绕过提前分支；prefill 按缺失专家数、批量与 arena 状态选路，只有大批量且确有主机搬运时才拆分。完整模型 canary 在三个开关同时显式开启、外层 chunk=8192、未设置 allocator 参数的情况下通过 1K/8K/74K/170K 请求，运行时计数确认拆分分支被真实模型选中。方法与逐档数据、限制见 [动态路径选择复验](adaptive/REPORT.md)。
+
+## 当前默认值
+
+前文的“三个开关均默认 false”是各轮实验当时的状态。基于以上实测，threaded runtime 下的默认值现在是：`prefill_direct_cache=true`（前提 `prefill_reuse_cache`，同为默认；同时带来 CUTLASS 2048-token workspace 上界）、`cache_overlap_policy="auto"`、`decode_early_cache=false`、`preserve_cache_on_resize=false`。理由：prefill 在 auto 选中的档位有可复现净收益且长请求依赖该开关；decode 没有盈利区间；resize 保留的代价是一次阶段切换停顿，收益取决于阶段频率，留给部署方决定。
