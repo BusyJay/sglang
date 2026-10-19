@@ -40,6 +40,20 @@ from sglang.srt.model_loader.utils import set_default_torch_dtype
 logger = logging.getLogger(__name__)
 
 
+def default_prefill_direct_cache(config):
+    """Direct cache reads are profitable on the calibrated prefill path.
+
+    The auto policy only splits where the target-GPU sweeps showed a net gain,
+    and the same option carries the CUTLASS workspace bound. Both need the
+    threaded runtime, and reading the cache requires cache reuse, so the
+    default follows those two preconditions instead of forcing a startup
+    failure on configurations that cannot use them.
+    """
+    return config.get("runtime_mode", "sync") == "threaded" and config.get(
+        "prefill_reuse_cache", True
+    )
+
+
 class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
     """Validated loader boundary for the Qwen3.8 offload implementation."""
 
@@ -136,7 +150,7 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             and config.get("runtime_mode", "sync") != "threaded"
         ):
             raise ValueError("cache_overlap_policy requires threaded mode")
-        if type(config.get("prefill_direct_cache", False)) is not bool:
+        if type(config.get("prefill_direct_cache", None)) not in (type(None), bool):
             raise ValueError("prefill_direct_cache must be a JSON boolean")
         for option in ("decode_early_cache", "preserve_cache_on_resize"):
             if type(config.get(option, False)) is not bool:
@@ -146,7 +160,7 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                 and config.get("runtime_mode", "sync") != "threaded"
             ):
                 raise ValueError(f"{option} requires threaded mode")
-        if config.get("prefill_direct_cache", False) and (
+        if config.get("prefill_direct_cache", None) is True and (
             config.get("runtime_mode", "sync") != "threaded"
             or not config.get("prefill_reuse_cache", True)
         ):
@@ -488,7 +502,7 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                     ("cache_policy", "lfu"),
                     ("cache_protected_fraction", 0.7),
                     ("prefill_reuse_cache", True),
-                    ("prefill_direct_cache", False),
+                    ("prefill_direct_cache", default_prefill_direct_cache(self.config)),
                     ("decode_early_cache", False),
                     ("cache_overlap_policy", "auto"),
                     ("preserve_cache_on_resize", False),
