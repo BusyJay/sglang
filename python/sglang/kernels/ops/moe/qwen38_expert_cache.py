@@ -19,6 +19,7 @@ def _module():
             ("decode_plan", "Qwen38CacheDecodePlan::run"),
             ("decode_plan_mailbox", "Qwen38CacheDecodePlan::run_mailbox"),
             ("decode_plan_parallel", "Qwen38CacheDecodePlan::run_parallel"),
+            ("decode_plan_parallel_early", "Qwen38CacheDecodePlan::run_parallel_early"),
             ("packed_scatter", "Qwen38PackedScatter::run"),
             ("mailbox_register", "Qwen38MailboxRegister::run"),
             ("mailbox_unregister", "Qwen38MailboxUnregister::run"),
@@ -114,3 +115,19 @@ def cache_plan(
 def packed_scatter(scratch, descriptors):
     """Internal byte scatter with immutable live-target address descriptors."""
     _module().packed_scatter(scratch, descriptors)
+
+
+@cache_once
+def _partition_module():
+    return load_jit(
+        "qwen38_partition",
+        cuda_files=["moe/qwen38_partition.cuh"],
+        cuda_wrappers=[("partition", "qwen38_partition")],
+    )
+
+
+def cache_partition_routes(ids, lookup, slot_limit):
+    """Return cache-slot and arena-expert routes; inactive routes are -1."""
+    cache, arena = torch.empty_like(ids), torch.empty_like(ids)
+    _partition_module().partition(ids, lookup, cache, arena, slot_limit)
+    return cache, arena

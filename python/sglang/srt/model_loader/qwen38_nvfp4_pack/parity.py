@@ -24,11 +24,17 @@ def check_exported_layer(
     reference=None,
     benchmark_iterations=0,
     shared_overlap=False,
+    prefill_direct_cache=False,
+    decode_early_cache=False,
 ):
     import torch
 
     if shared_overlap and (mode != "threaded" or decode_graph):
         raise ValueError("shared overlap parity requires eager threaded mode")
+    if (prefill_direct_cache or decode_early_cache) and mode != "threaded":
+        raise ValueError("cache overlap parity requires threaded mode")
+    if decode_early_cache and not use_w4a16:
+        raise ValueError("early cache parity requires W4A16 decode")
     if use_w4a16 and reference is None:
         raise ValueError("W4A16 parity needs an independent BF16-activation reference")
     if benchmark_iterations < 0:
@@ -108,15 +114,29 @@ def check_exported_layer(
                 )
 
                 runtime_class = Qwen38ThreadedExpertRuntime
+            runtime_options = (
+                dict(
+                    prefill_direct_cache=prefill_direct_cache,
+                    decode_early_cache=decode_early_cache,
+                    cache_overlap_policy="always",
+                )
+                if mode == "threaded"
+                else {}
+            )
             runtime = runtime_class(
-                pack, "cuda", slots_per_layer=min(slots, layer.num_experts)
+                pack,
+                "cuda",
+                slots_per_layer=min(slots, layer.num_experts),
+                **runtime_options,
             )
             runtime.reserve()
             cached = Qwen38CachedNvFp4MoeMethod(manifest, "model.layers.0.mlp.experts")
             # Conversion parity proves the serialized CUTLASS ABI. A16 has a
             # separate BF16-activation numerical reference, not W4A4 parity.
             cached.use_w4a16 = use_w4a16
-            cached.prefill_use_w4a16 = use_w4a16 if prefill_w4a16 is None else prefill_w4a16
+            cached.prefill_use_w4a16 = (
+                use_w4a16 if prefill_w4a16 is None else prefill_w4a16
+            )
             cached.layer_id = 0
             cached.create_moe_runner(layer, replace(config, layer_id=0))
             cached.bind_runtime(runtime)
@@ -173,7 +193,13 @@ def check_exported_layer(
                 cases.append(("prefill_single", 1, 0))
             try:
                 for label, tokens, offset in cases:
-                    phase = "prefill" if label.startswith("prefill") else "verify" if label.startswith("verify") else "decode"
+                    phase = (
+                        "prefill"
+                        if label.startswith("prefill")
+                        else "verify"
+                        if label.startswith("verify")
+                        else "decode"
+                    )
                     cached._execution_phase = lambda: phase
                     ids = (
                         (
@@ -303,7 +329,15 @@ def check_exported_layer(
                         or not torch.isfinite(resident).all()
                     ):
                         raise AssertionError(f"nonfinite CUTLASS output in {label}")
-                    torch.testing.assert_close(actual, resident, rtol=rtol, atol=atol)
+                    torch.testing.assert_close(
+                        actual,
+                        resident,
+                        rtol=rtol,
+                        atol=atol,
+                        msg=lambda message: (
+                            f"{mode}/{label} (direct={prefill_direct_cache}, early={decode_early_cache}, graph={decode_graph}): {message}"
+                        ),
+                    )
                     timing = {}
                     if benchmark_iterations:
                         from statistics import median
@@ -337,7 +371,9 @@ def check_exported_layer(
                         {
                             "case": label,
                             "phase": phase,
-                            "activation_mode": "w4a16" if cached.uses_w4a16(phase) else "w4a4",
+                            "activation_mode": "w4a16"
+                            if cached.uses_w4a16(phase)
+                            else "w4a4",
                             **timing,
                             "tokens": tokens,
                             "max_abs_error": (actual.float() - resident.float())
@@ -348,13 +384,26 @@ def check_exported_layer(
                     )
                 if shared_overlap and runtime.miss_mailbox.overlap_invocations < 1:
                     raise AssertionError("shared expert did not overlap a cache fill")
+                if (
+                    decode_early_cache
+                    and runtime.miss_mailbox.early_cache_invocations < 1
+                ):
+                    raise AssertionError("early cache computation was not exercised")
+                if prefill_direct_cache and not any(
+                    stats["direct_cache_runs"] for stats in runtime.prefill_copy_stats
+                ):
+                    raise AssertionError("prefill direct cache was not exercised")
                 return {
                     "status": "passed",
                     "shared_overlap": shared_overlap,
+                    "prefill_direct_cache": prefill_direct_cache,
+                    "decode_early_cache": decode_early_cache,
                     "shared_calls": shared_result.calls,
                     "runtime_mode": mode,
                     "activation_mode": "w4a16" if use_w4a16 else "w4a4",
-                    "prefill_activation_mode": "w4a16" if cached.prefill_use_w4a16 else "w4a4",
+                    "prefill_activation_mode": "w4a16"
+                    if cached.prefill_use_w4a16
+                    else "w4a4",
                     "decode_graph": decode_graph,
                     "graph_width": graph_width,
                     "rtol": rtol,

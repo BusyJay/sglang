@@ -1,0 +1,122 @@
+[
+  {
+    "tag": "d0e0-decode-1",
+    "kernels_per_call": 7.0,
+    "kernel_us_per_call": 32.2934,
+    "triton_project_us_per_call": 0.0,
+    "runtime": {
+      "cudaStreamWaitEvent": {
+        "count_per_call": 3.0,
+        "us_per_call": 2.5740000000000003
+      },
+      "cudaLaunchKernel": {
+        "count_per_call": 6.0,
+        "us_per_call": 25.376399999999997
+      },
+      "cudaLaunchKernelExC": {
+        "count_per_call": 1.0,
+        "us_per_call": 5.8580000000000005
+      },
+      "cudaDeviceSynchronize": {
+        "count_per_call": 0.4,
+        "us_per_call": 4.089799999999999
+      }
+    }
+  },
+  {
+    "tag": "d0e1-decode-1",
+    "kernels_per_call": 23.0,
+    "kernel_us_per_call": 144.3886,
+    "triton_project_us_per_call": 97.051,
+    "runtime": {
+      "cudaStreamWaitEvent": {
+        "count_per_call": 5.0,
+        "us_per_call": 3.1198
+      },
+      "cudaLaunchKernel": {
+        "count_per_call": 20.0,
+        "us_per_call": 71.85360000000003
+      },
+      "cudaMemcpyAsync": {
+        "count_per_call": 1.0,
+        "us_per_call": 7.903999999999999
+      },
+      "cudaLaunchKernelExC": {
+        "count_per_call": 1.0,
+        "us_per_call": 5.0218
+      },
+      "cudaDeviceSynchronize": {
+        "count_per_call": 0.4,
+        "us_per_call": 2.0398
+      }
+    }
+  },
+  {
+    "tag": "d0e0-prefill-3",
+    "kernels_per_call": 10.0,
+    "kernel_us_per_call": 85.95320000000001,
+    "triton_project_us_per_call": 0.0,
+    "runtime": {
+      "cudaStreamWaitEvent": {
+        "count_per_call": 6.0,
+        "us_per_call": 3.3658
+      },
+      "cudaLaunchKernel": {
+        "count_per_call": 1.0,
+        "us_per_call": 5.5656
+      },
+      "cudaMemcpyAsync": {
+        "count_per_call": 3.0,
+        "us_per_call": 13.164999999999997
+      },
+      "cudaEventSynchronize": {
+        "count_per_call": 2.0,
+        "us_per_call": 11.0174
+      },
+      "cudaLaunchKernelExC": {
+        "count_per_call": 9.0,
+        "us_per_call": 22.388400000000004
+      },
+      "cudaDeviceSynchronize": {
+        "count_per_call": 0.4,
+        "us_per_call": 1.6258
+      }
+    }
+  },
+  {
+    "tag": "d1e0-prefill-3",
+    "kernels_per_call": 41.0,
+    "kernel_us_per_call": 136.6512,
+    "triton_project_us_per_call": 0.0,
+    "runtime": {
+      "cudaStreamWaitEvent": {
+        "count_per_call": 7.0,
+        "us_per_call": 4.417800000000001
+      },
+      "cudaLaunchKernel": {
+        "count_per_call": 23.0,
+        "us_per_call": 53.3916
+      },
+      "cudaMemcpyAsync": {
+        "count_per_call": 6.0,
+        "us_per_call": 28.7264
+      },
+      "cudaEventSynchronize": {
+        "count_per_call": 2.0,
+        "us_per_call": 2.1517999999999997
+      },
+      "cudaStreamSynchronize": {
+        "count_per_call": 2.0,
+        "us_per_call": 6.8157999999999985
+      },
+      "cudaLaunchKernelExC": {
+        "count_per_call": 18.0,
+        "us_per_call": 40.392
+      },
+      "cudaDeviceSynchronize": {
+        "count_per_call": 0.4,
+        "us_per_call": 2.5918
+      }
+    }
+  }
+]

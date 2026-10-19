@@ -21,6 +21,7 @@ def main():
     parser.add_argument("--output", required=True)
     parser.add_argument("--iterations", type=int, default=10)
     parser.add_argument("--verify-mailbox-only", action="store_true")
+    parser.add_argument("--cache-overlap-only", action="store_true")
     args = parser.parse_args()
     if args.iterations < 1:
         parser.error("iterations must be positive")
@@ -115,11 +116,63 @@ def main():
         with tempfile.TemporaryDirectory() as directory:
             exported = Path(directory) / "layer"
             export_runtime_layer(layer, exported)
+            if args.cache_overlap_only:
+                reports = []
+                for graph in (False, True):
+                    reports.append(
+                        check_exported_layer(
+                            layer,
+                            exported,
+                            "threaded",
+                            slots=16,
+                            use_w4a16=True,
+                            prefill_w4a16=False,
+                            reference=reference,
+                            rtol=0.02,
+                            atol=0.02,
+                            decode_graph=graph,
+                            graph_width=1,
+                            prefill_direct_cache=True,
+                            decode_early_cache=True,
+                            benchmark_iterations=args.iterations,
+                        )
+                    )
+                reports.append(
+                    check_exported_layer(
+                        layer,
+                        exported,
+                        "threaded",
+                        slots=16,
+                        use_w4a16=True,
+                        reference=reference,
+                        rtol=0.02,
+                        atol=0.02,
+                        prefill_direct_cache=True,
+                        decode_early_cache=True,
+                        shared_overlap=True,
+                    )
+                )
+                result = {
+                    "status": "passed",
+                    "reports": reports,
+                    "scope": "synthetic cache overlap parity; no full-model throughput claim",
+                }
+                Path(args.output).write_text(json.dumps(result, indent=2) + "\n")
+                print(json.dumps(result, indent=2))
+                return
             if args.verify_mailbox_only:
                 report = check_exported_layer(
-                    layer, exported, "threaded", slots=32, use_w4a16=True,
-                    prefill_w4a16=False, reference=reference, rtol=0.02, atol=0.02,
-                    decode_graph=True, graph_width=3,
+                    layer,
+                    exported,
+                    "threaded",
+                    slots=32,
+                    use_w4a16=True,
+                    prefill_w4a16=False,
+                    reference=reference,
+                    rtol=0.02,
+                    atol=0.02,
+                    decode_graph=True,
+                    graph_width=3,
                     benchmark_iterations=args.iterations,
                 )
                 Path(args.output).write_text(json.dumps(report, indent=2) + "\n")
@@ -159,11 +212,21 @@ def main():
                 )
             )
             for graph, graph_width in [(False, 1), (True, 1), (True, 3)]:
-                reports.append(check_exported_layer(
-                    layer, exported, "threaded", slots=16, use_w4a16=True,
-                    prefill_w4a16=False, reference=reference, rtol=0.02, atol=0.02,
-                    decode_graph=graph, graph_width=graph_width,
-                ))
+                reports.append(
+                    check_exported_layer(
+                        layer,
+                        exported,
+                        "threaded",
+                        slots=16,
+                        use_w4a16=True,
+                        prefill_w4a16=False,
+                        reference=reference,
+                        rtol=0.02,
+                        atol=0.02,
+                        decode_graph=graph,
+                        graph_width=graph_width,
+                    )
+                )
             # Old path remains executable and independently compares to resident
             # CUTLASS; do not demand equality between different activation modes.
             reports.append(

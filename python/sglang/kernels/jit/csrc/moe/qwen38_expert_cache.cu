@@ -536,7 +536,9 @@ __global__ void decode_plan_kernel(
     bool export_routes,
     int64_t* hit_stats,
     int32_t* sample,
-    int parallel_miss) {
+    int parallel_miss,
+    int32_t* early_ids = nullptr,
+    int32_t* late_ids = nullptr) {
   __shared__ int32_t histogram[513];
   __shared__ int32_t active_ids[32];
   __shared__ int active_count;
@@ -547,6 +549,8 @@ __global__ void decode_plan_kernel(
   __syncthreads();
   if (threadIdx.x < top_k) {
     int expert = ids[threadIdx.x];
+    if (early_ids) early_ids[threadIdx.x] =
+        (expert >= 0 && expert < experts) ? lookup[expert] : -1;
     if (expert >= 0 && expert < experts)
       atomicAdd(histogram + expert, 1);
     else if (expert != -1)
@@ -621,7 +625,16 @@ __global__ void decode_plan_kernel(
     counts[e] = histogram[e];
   if (threadIdx.x < top_k) {
     int expert = ids[threadIdx.x];
-    output[threadIdx.x] = (expert >= 0 && expert < experts) ? lookup[expert] : -1;
+    int slot = (expert >= 0 && expert < experts) ? lookup[expert] : -1;
+    output[threadIdx.x] = slot;
+    if (early_ids) {
+      // Only mixed plans need two contributions. All-hit and all-miss plans
+      // use the fast late backend once; no hit status crosses to the host.
+      bool mixed = plan[1] > 0 && plan[1] < plan[2];
+      int hit = early_ids[threadIdx.x];
+      early_ids[threadIdx.x] = mixed ? hit : -1;
+      late_ids[threadIdx.x] = mixed && hit >= 0 ? -1 : slot;
+    }
   }
   if (hit_stats || sample) {
     __syncthreads();
@@ -844,6 +857,36 @@ struct Qwen38CacheDecodePlan {
     TVM_FFI_ICHECK_EQ(status, cudaSuccess) << cudaGetErrorString(status);
   }
   static void run_parallel(
+      TensorView ids, TensorView output, TensorView counts, TensorView lookup,
+      TensorView keys, TensorView frequency, TensorView ages, TensorView generation,
+      TensorView clock, TensorView plan, double decay, int64_t policy,
+      double protected_fraction, int64_t hit_stats, int64_t sample, int64_t parallel_miss) {
+    run_parallel_impl(ids, output, counts, lookup, keys, frequency, ages,
+        generation, clock, plan, decay, policy, protected_fraction, hit_stats,
+        sample, parallel_miss, 0, 0);
+  }
+  static void run_parallel_early(
+      TensorView ids, TensorView output, TensorView counts, TensorView lookup,
+      TensorView keys, TensorView frequency, TensorView ages, TensorView generation,
+      TensorView clock, TensorView plan, double decay, int64_t policy,
+      double protected_fraction, int64_t hit_stats, int64_t sample, int64_t parallel_miss,
+      TensorView early_ids, TensorView late_ids) {
+    CHECK_INPUT_AND_TYPE(early_ids, dl_int32);
+    CHECK_INPUT_AND_TYPE(late_ids, dl_int32);
+    CHECK_DIM(2, early_ids);
+    CHECK_DIM(2, late_ids);
+    CHECK_DEVICE(ids, early_ids);
+    CHECK_DEVICE(ids, late_ids);
+    TVM_FFI_ICHECK_EQ(early_ids.size(0), ids.size(0));
+    TVM_FFI_ICHECK_EQ(early_ids.size(1), ids.size(1));
+    TVM_FFI_ICHECK_EQ(late_ids.size(0), ids.size(0));
+    TVM_FFI_ICHECK_EQ(late_ids.size(1), ids.size(1));
+    run_parallel_impl(ids, output, counts, lookup, keys, frequency, ages,
+        generation, clock, plan, decay, policy, protected_fraction, hit_stats,
+        sample, parallel_miss, reinterpret_cast<int64_t>(early_ids.data_ptr()),
+        reinterpret_cast<int64_t>(late_ids.data_ptr()));
+  }
+  static void run_parallel_impl(
       TensorView ids,
       TensorView output,
       TensorView counts,
@@ -859,7 +902,9 @@ struct Qwen38CacheDecodePlan {
       double protected_fraction,
       int64_t hit_stats,
       int64_t sample,
-      int64_t parallel_miss) {
+      int64_t parallel_miss,
+      int64_t early_ids,
+      int64_t late_ids) {
     TVM_FFI_ICHECK_GE(parallel_miss, 0);
     TVM_FFI_ICHECK_LE(parallel_miss, 2);
     CHECK_INPUT_AND_TYPE(ids, dl_int32);
@@ -931,7 +976,8 @@ struct Qwen38CacheDecodePlan {
         static_cast<int>(slots * protected_fraction),
         plan.size(0) == 4 + 4 * slots,
         reinterpret_cast<int64_t*>(hit_stats),
-        reinterpret_cast<int32_t*>(sample), parallel_miss);
+        reinterpret_cast<int32_t*>(sample), parallel_miss,
+        reinterpret_cast<int32_t*>(early_ids), reinterpret_cast<int32_t*>(late_ids));
     auto status = cudaGetLastError();
     TVM_FFI_ICHECK_EQ(status, cudaSuccess) << cudaGetErrorString(status);
   }

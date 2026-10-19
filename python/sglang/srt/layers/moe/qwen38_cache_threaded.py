@@ -98,6 +98,10 @@ class TransferJob:
     )  # notification: exactly one of ready/error
     plan_values: list[int] | None = None  # already synchronized on the caller
     sample_published: object = None  # optional observer handoff at transport changes
+    cache_experts: dict[int, int] | None = None
+    arena_experts: list[int] | None = None
+    plan_ready: threading.Event = field(default_factory=threading.Event)
+    prefill_w4a4: bool = False
 
 
 class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime):
@@ -114,6 +118,10 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         cache_policy="lfu",
         cache_protected_fraction=0.7,
         prefill_reuse_cache=True,
+        prefill_direct_cache=False,
+        decode_early_cache=False,
+        cache_overlap_policy="auto",
+        preserve_cache_on_resize=False,
         prefill_seed_cache=True,
         resident_alphas=True,
         prefill_copy_mode="auto",
@@ -170,6 +178,21 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         ):
             raise ValueError("prefill reuse and seed options must be booleans")
         self.prefill_reuse_cache = prefill_reuse_cache
+        if type(prefill_direct_cache) is not bool:
+            raise ValueError("prefill_direct_cache must be a boolean")
+        if prefill_direct_cache and not prefill_reuse_cache:
+            raise ValueError("prefill_direct_cache requires prefill_reuse_cache")
+        self.prefill_direct_cache = prefill_direct_cache
+        for name, value in (
+            ("decode_early_cache", decode_early_cache),
+            ("preserve_cache_on_resize", preserve_cache_on_resize),
+        ):
+            if type(value) is not bool:
+                raise ValueError(f"{name} must be a boolean")
+            setattr(self, name, value)
+        if cache_overlap_policy not in ("auto", "always"):
+            raise ValueError("cache_overlap_policy must be auto or always")
+        self.cache_overlap_policy = cache_overlap_policy
         self.prefill_seed_cache = prefill_seed_cache
         if type(resident_alphas) is not bool:
             raise ValueError("resident_alphas must be a boolean")
@@ -215,6 +238,8 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
                 host_missing=0,
                 missing_runs=0,
                 reuse_candidates=0,
+                direct_cache_runs=0,
+                direct_cache_experts=0,
             )
             for _ in range(self.manifest.num_layers)
         ]
@@ -634,11 +659,97 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
             raise
 
     def _ensure_arena_experts(
-        self, layer, counts, keys=None, *, force_dense=False, verify=False
+        self, layer, counts, keys=None, *, force_dense=False, verify=False, job=None
     ):
         stats = self.prefill_copy_stats[layer]
         if self.arena_layer != layer:
             self.arena_residents = set()
+        if (
+            getattr(self, "prefill_direct_cache", False)
+            and getattr(self, "cache_overlap_policy", "always") == "auto"
+            and not verify
+            and (
+                self.arena_residents is None
+                or not any(
+                    count and expert not in self.arena_residents
+                    for expert, count in enumerate(counts[:-1])
+                )
+            )
+        ):
+            # A ready arena already needs no copies. Avoid building cache
+            # partitions and paying a second expert dispatch on a warm call.
+            stats["auto_arena_runs"] = stats.get("auto_arena_runs", 0) + 1
+            stats["resident"] += 1
+            return False
+        if (
+            getattr(self, "prefill_direct_cache", False)
+            and self.prefill_reuse_cache
+            and not verify
+            and keys is not None
+            and job is not None
+        ):
+            # The borrowed arena overwrites only the overlapping tail slots.
+            # Prefix slots remain valid and must stay protected until computed.
+            overlap = self.borrowed_layers.get(layer)
+            limit = overlap[0] if overlap is not None else len(keys)
+            resident = {
+                expert: slot
+                for slot, expert in enumerate(keys[:limit])
+                if expert >= 0 and counts[expert]
+            }
+            if getattr(self, "cache_overlap_policy", "always") == "auto":
+                path = "arena"
+                if resident:
+                    from sglang.srt.layers.moe.qwen38_cache_overlap_policy import (
+                        select_prefill_cache_path,
+                    )
+
+                    path = select_prefill_cache_path(
+                        counts,
+                        resident,
+                        self.arena_residents,
+                        hidden=self.manifest.hidden_size,
+                        width=self.manifest.intermediate_size,
+                        top_k=self.manifest.top_k,
+                        w4a4=job.prefill_w4a4,
+                    )
+                counter = f"auto_{path}_runs"
+                stats[counter] = stats.get(counter, 0) + 1
+                if path == "arena":
+                    resident = {}
+            if resident:
+                stats["direct_cache_runs"] = stats.get("direct_cache_runs", 0) + 1
+                stats["direct_cache_experts"] = stats.get(
+                    "direct_cache_experts", 0
+                ) + len(resident)
+                job.cache_experts = resident
+                job.arena_experts = [
+                    e
+                    for e, count in enumerate(counts[:-1])
+                    if count and e not in resident
+                ]
+                # Publish immutable route metadata BEFORE staging/enqueueing
+                # missing weights; cache readers need not wait for arena H2D.
+                job.plan_ready.set()
+                missing = [
+                    e
+                    for e in job.arena_experts
+                    if self.arena_residents is not None
+                    and e not in self.arena_residents
+                ]
+                stats["missing"] += len(missing)
+                stats["host_missing"] += len(missing)
+                stats["missing_runs"] += bool(missing) + sum(
+                    right != left + 1 for left, right in zip(missing, missing[1:])
+                )
+                if missing:
+                    self._fill_arena_selected(layer, missing)
+                    self.arena_residents.update(missing)
+                    stats["sparse"] += 1
+                else:
+                    stats["resident"] += 1
+                # Do not seed/warm cache from partially populated arena here.
+                return bool(missing)
         if self.arena_residents is None:
             stats["resident"] += 1
             return False
@@ -845,6 +956,84 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
                 for name, tensor in self.cache_pool.items()
             }
 
+    def _preserve_staged_layout(self, target, budget, snapshot):
+        """Move retained hot rows before shrinking physical pool backing.
+
+        Caller owns runtime/adaptive locks and has drained existing readers.
+        Expose both old sources and new destinations during overlapping moves.
+        """
+        old_budget = sum(self.layer_cache_slots)
+        self.cache_pool = self.staged_pool.pool_views(max(old_budget, budget))
+        retained, migrated, evicted = self._migrate_pool(target, snapshot)
+        self.cache_pool = self.staged_pool.pool_views(budget)
+        self._assign_pool_views(target)
+        self.layer_cache_slots = list(target)
+        self.max_layer_slots = max(target)
+        self.device_states.clear()
+        self.slot_ready.clear()
+        self.slot_last_use.clear()
+        self.warm_ready.clear()
+        self.layer_computed.clear()
+        self.policies = {
+            layer: LayerExpertCachePolicy(self.manifest.num_experts, slots)
+            for layer, slots in enumerate(target)
+        }
+        for layer in range(self.manifest.num_layers):
+            self._state(layer)
+        self._restore_device_policy(retained)
+        if self.cache_policy == "slru":
+            for layer, slots in enumerate(target):
+                self.device_states[layer]["frequency"][
+                    int(slots * self.cache_protected_fraction) :
+                ].zero_()
+        self._refresh_staged_arena()
+        self.arena_layer = None
+        self.arena_residents = set()
+        self.arena_last_use = None
+        self.gate_warmed_layers.clear()
+        if self.miss_mailbox is not None:
+            self.miss_mailbox.refresh_targets(non_blocking=True)
+        if self.packed_transport is not None:
+            self.packed_transport.refresh_targets(non_blocking=True)
+        stream = torch.cuda.current_stream(self.device)
+        self.metadata_stream.wait_stream(stream)
+        self.transfer.wait_stream(stream)
+        self.adaptive_migrated_experts += migrated
+        self.adaptive_evicted_experts += evicted
+
+    def complete_staged_trim(self):
+        """Retain hottest residents after the existing result snapshot fence.
+
+        Migration writes must finish before KV unmaps/reuses the expert tail.
+        This opt-in path pays one migration completion wait at stage changes.
+        """
+        pending = getattr(self, "staged_preserve_pending", None)
+        if pending is None:
+            return
+        target, budget, stream = pending
+        if not self.staged_trim_done.query():
+            raise RuntimeError(
+                "staged policy snapshot was not covered by result completion"
+            )
+        with self.adaptive_lock, self.lock, torch.no_grad(), torch.cuda.stream(stream):
+            try:
+                self._return_arena()
+                self._drain_arena_readers()
+                snapshot = [
+                    tuple(
+                        self.adaptive_metadata.host[layer][name][:slots].tolist()
+                        for name in ("keys", "frequency", "ages")
+                    )
+                    for layer, slots in enumerate(self.layer_cache_slots)
+                ]
+                self._preserve_staged_layout(target, budget, snapshot)
+                self.staged_trim_done.record(stream)
+                self.staged_trim_done.synchronize()
+            except BaseException:
+                self.poisoned = True
+                raise
+            self.staged_preserve_pending = None
+
     def grow_staged_layout(self, index):
         """Publish newly backed expert slots after KV tail release."""
         from sglang.srt.mem_cache.qwen38_kv_stages import distribute_slots
@@ -858,6 +1047,18 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         )
         with self.adaptive_lock, self.lock:
             self.adaptive_target = None
+            if self.preserve_cache_on_resize:
+                self._return_arena()
+                self._drain_arena_readers()
+                snapshot = [
+                    tuple(
+                        self.device_states[layer][name].cpu().tolist()
+                        for name in ("keys", "frequency", "ages")
+                    )
+                    for layer in range(self.manifest.num_layers)
+                ]
+                self._preserve_staged_layout(target, budget, snapshot)
+                return
             borrowed = set(self.borrowed_layers)
             self.borrowed_records = None
             self.borrowed_layers = {}
@@ -924,6 +1125,22 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
             getattr(self, "adaptive_min_slots", self.manifest.top_k),
             self.manifest.num_experts,
         )
+        if self.preserve_cache_on_resize:
+            # Snapshot on the batch stream; its existing result fence makes
+            # host policy available before the KV tail is physically returned.
+            with self.adaptive_lock:
+                self.adaptive_target = None
+                stream = torch.cuda.current_stream(self.device)
+                for layer, state in self.device_states.items():
+                    for name in ("keys", "frequency", "ages"):
+                        self.adaptive_metadata.host[layer][name][
+                            : state[name].numel()
+                        ].copy_(state[name], non_blocking=True)
+                self.staged_preserve_pending = (list(target), budget, stream)
+                self.staged_trim_done = torch.cuda.Event()
+                self.staged_trim_done.record(stream)
+                self.staged_trim_enqueued = True
+            return
         borrowed = set(self.borrowed_layers)
         self.borrowed_records = None
         self.borrowed_layers = {}
@@ -1130,6 +1347,13 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
             adaptive_cache_interval=self.adaptive_cache_interval,
             host_plan_allocations=self.host_plan_allocations,
             prefill_reuse_cache=self.prefill_reuse_cache,
+            prefill_direct_cache=getattr(self, "prefill_direct_cache", False),
+            cache_overlap_policy=getattr(self, "cache_overlap_policy", "always"),
+            decode_early_cache=getattr(self, "decode_early_cache", False),
+            preserve_cache_on_resize=getattr(self, "preserve_cache_on_resize", False),
+            decode_early_cache_invocations=getattr(
+                getattr(self, "miss_mailbox", None), "early_cache_invocations", 0
+            ),
             prefill_seed_cache=self.prefill_seed_cache,
             fused_decode_plan=self.fused_decode_plan,
             fused_decode_plan_invocations=self.fused_decode_plan_invocations,
@@ -1174,6 +1398,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         except BaseException:
             pass
         job.ready_set.set()
+        job.plan_ready.set()
         # Retire failed jobs exactly like finished ones so permit release and
         # queue bookkeeping stay uniform across the retirement thread.
         self.retired.put(job)
@@ -1183,6 +1408,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
             job.ready = torch.cuda.Event()
             job.ready.record(self.transfer)
         job.ready_set.set()
+        job.plan_ready.set()
         # Retire on a separate thread so staging the next job can overlap this
         # job's computation.
         self.retired.put(job)
@@ -1219,6 +1445,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
                                 keys,
                                 force_dense=job.force_dense,
                                 verify=job.verify,
+                                job=job,
                             )
                             self.arena_layer = job.layer
                         elif self.arena_last_use is not None:
@@ -1229,6 +1456,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
                                 keys,
                                 force_dense=job.force_dense,
                                 verify=job.verify,
+                                job=job,
                             )
                         else:
                             loaded = self._ensure_arena_experts(
@@ -1237,6 +1465,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
                                 keys,
                                 force_dense=job.force_dense,
                                 verify=job.verify,
+                                job=job,
                             )
                         if loaded:
                             self.arena_loads += 1
@@ -1248,6 +1477,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
                         )
                         if (
                             not job.verify
+                            and job.cache_experts is None
                             and (self.warm_decode_cache or seed)
                             and job.layer not in self.borrowed_layers
                         ):
@@ -1478,7 +1708,15 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
     supports_fill_overlap = True
 
     def run(
-        self, layer_id, topk_ids, execute, *, execution_phase=None, during_fill=None
+        self,
+        layer_id,
+        topk_ids,
+        execute,
+        *,
+        execution_phase=None,
+        during_fill=None,
+        early_cache=None,
+        prefill_w4a4=False,
     ):
         result = self._run(
             layer_id,
@@ -1486,6 +1724,8 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
             execute,
             execution_phase=execution_phase,
             during_fill=during_fill,
+            early_cache=early_cache,
+            prefill_w4a4=prefill_w4a4,
         )
         if layer_id == self.manifest.num_layers - 1:
             if hasattr(self, "staged_pool"):
@@ -1502,7 +1742,15 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         return result
 
     def _run(
-        self, layer_id, topk_ids, execute, *, execution_phase=None, during_fill=None
+        self,
+        layer_id,
+        topk_ids,
+        execute,
+        *,
+        execution_phase=None,
+        during_fill=None,
+        early_cache=None,
+        prefill_w4a4=False,
     ):
         with self.lock, torch.no_grad(), torch.cuda.device(self.device):
             self._raise_error()
@@ -1548,6 +1796,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
                 self.miss_mailbox is not None
                 and (
                     execution_phase == "verify"
+                    or early_cache is not None
                     or layer_id in self.gate_warmed_layers
                     or sample is not None
                 )
@@ -1563,6 +1812,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
                     _ready_timeout_seconds(),
                     sample=sample,
                     during_fill=during_fill,
+                    early_cache=early_cache,
                 )
                 self.gate_warmed_layers.add(layer_id)
                 return result
@@ -1709,6 +1959,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
                     launched,
                     sample,
                     force_dense=force_dense,
+                    prefill_w4a4=prefill_w4a4,
                     verify=execution_phase == "verify",
                     plan_values=plan_values,
                 )
@@ -1717,11 +1968,32 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
                 timeout = _ready_timeout_seconds()
                 self.jobs.put_nowait(job)
                 queued = True
+
+                def wait_for_weights():
+                    if timeout == 0:
+                        job.ready_set.wait()
+                    elif not job.ready_set.wait(timeout):
+                        self.poisoned = True
+                        raise RuntimeError("expert weights readiness deadline expired")
+                    if job.error is not None:
+                        self.poisoned = True
+                        raise RuntimeError(
+                            "background expert transfer failed"
+                        ) from job.error
+                    if job.ready is not None:
+                        compute.wait_event(job.ready)
+
+                direct = (
+                    arena
+                    and getattr(self, "prefill_direct_cache", False)
+                    and execution_phase != "verify"
+                )
+                notification = job.plan_ready if direct else job.ready_set
                 # Includes plan completion, host staging, and ring backpressure;
                 # the final H2Ds need only be enqueued, not completed.
                 if timeout == 0:
-                    job.ready_set.wait()
-                elif not job.ready_set.wait(timeout):
+                    notification.wait()
+                elif not notification.wait(timeout):
                     self.poisoned = True
                     raise RuntimeError(
                         f"expert transfer worker did not report layer {layer_id} "
@@ -1732,7 +2004,8 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
                     raise RuntimeError(
                         "background expert transfer failed; recreate runtime"
                     ) from job.error
-                if job.ready is not None:
+                deferred = direct and job.cache_experts is not None
+                if not deferred and job.ready is not None:
                     compute.wait_event(job.ready)
                 prepared = PreparedExperts(
                     {
@@ -1742,8 +2015,30 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
                     remapped,
                     self.manifest.num_experts if arena else capacity,
                     arena,
+                    cache_tensors=(
+                        {**self.caches[layer_id], **self.layer_scales[layer_id]}
+                        if job.cache_experts is not None
+                        else None
+                    ),
+                    cache_experts=job.cache_experts,
+                    cache_lookup=state["lookup"]
+                    if job.cache_experts is not None
+                    else None,
+                    cache_slot_limit=(
+                        self.borrowed_layers[layer_id][0]
+                        if layer_id in self.borrowed_layers
+                        else capacity
+                    ),
+                    arena_experts=job.arena_experts,
+                    wait_for_weights=wait_for_weights if deferred else None,
                 )
-                result = execute(prepared)
+                try:
+                    result = execute(prepared)
+                finally:
+                    # Even all-hit/error paths join any queued writes before
+                    # recording completion and allowing storage reuse.
+                    if deferred:
+                        wait_for_weights()
                 if self.decode_device_gate and not arena and topk_ids.shape[0] == 1:
                     self.gate_warmed_layers.add(layer_id)
                 return result

@@ -128,3 +128,12 @@ encoder memory/cache settings and checkpoint format limitations.
 同卡 MTP（默认关闭）的配置与验收入口见 [MTP.md](MTP.md)。
 
 专家缓存总预算可用 `cache_slots_total` 指定；canary 对应 `--total-slots`。原 105 slots/层等价于总预算 5040。该字段与每层容量选项互斥，adaptive 在总预算内分配层容量。
+
+Prefill 直接读取已命中的 cache、仅将缺失专家加载到 arena 的实验选项：
+[PREFILL_DIRECT_CACHE.md](PREFILL_DIRECT_CACHE.md)。默认关闭，需要 threaded runtime。
+
+配套的 prefill 计算/加载重叠、KV stages 容量调整保留热点和 decode 提前计算：
+[CACHE_OVERLAP_AND_RESIZE.md](CACHE_OVERLAP_AND_RESIZE.md)。
+
+两项计算开关是否真的拆分由 `cache_overlap_policy` 决定（默认 `auto`，只在实测有净收益的档位拆分；`always` 用于强制对照）：
+[动态路径选择复验](cache_overlap_20261019/adaptive/REPORT.md)。

@@ -1,0 +1,269 @@
+{
+  "base_commit": "d3eb24c40031999b3e62e4e9351c5b6118dfaa24",
+  "files": [
+    {
+      "path": "python/sglang/kernels/jit/csrc/moe/qwen38_expert_cache.cu",
+      "sha256": "55e7cbe564981871943b45b188efd733025dcd32bea6677ddee1b11ef82eddcc"
+    },
+    {
+      "path": "python/sglang/kernels/jit/csrc/moe/qwen38_partition.cuh",
+      "sha256": "24b5f0c0a50dc7000bc8122880ab63babb0fe49fb9901f42a9376ffd1acb054d"
+    },
+    {
+      "path": "python/sglang/kernels/ops/moe/__init__.py",
+      "sha256": "50c4c7458a6dd8dfb0e2ad43aa9f753c1551ae38a09f0dc8949e5ea6abe380f9"
+    },
+    {
+      "path": "python/sglang/kernels/ops/moe/qwen38_expert_cache.py",
+      "sha256": "485e565cd50d32c837cf84bbea0686b2533398e5e8d444360f53dad2fee20c3d"
+    },
+    {
+      "path": "python/sglang/srt/layers/moe/qwen38_cache_mailbox.py",
+      "sha256": "08ac41e37285be509f767024aafcff3a325a9c4ec10f10d9b30934e516800635"
+    },
+    {
+      "path": "python/sglang/srt/layers/moe/qwen38_cache_runtime.py",
+      "sha256": "da31ee4acc0ad1d675fed308505de5b5d7884bcc0ede7170a231b6c385ac6bf3"
+    },
+    {
+      "path": "python/sglang/srt/layers/moe/qwen38_cache_threaded.py",
+      "sha256": "d6bd02104cda8c01693b11001e2934bfe143be5ca675e027b8525bf99e986b57"
+    },
+    {
+      "path": "python/sglang/srt/layers/moe/qwen38_prefill_routes.py",
+      "sha256": "accf3c8d16bdbb51795bc0cd731723379fd4517cd6b890d1ffd3bd79d121ea23"
+    },
+    {
+      "path": "python/sglang/srt/layers/quantization/qwen38_cached_w4a16.py",
+      "sha256": "5ad93d384465d3c160c0b65f9ebc3785b79f66ab62f8b15fab1a12fcd209dd1b"
+    },
+    {
+      "path": "python/sglang/srt/layers/quantization/qwen38_nvfp4_cache.py",
+      "sha256": "a50bc8c3bc1f8b10f86993d037b8ae2d75f795c15d862f015d72ac96e46a2a91"
+    },
+    {
+      "path": "python/sglang/srt/mem_cache/qwen38_kv_stages.py",
+      "sha256": "c6a13ac611e684438bab00bafc65b330c367262dce94f5ce57cf197162732977"
+    },
+    {
+      "path": "python/sglang/srt/model_loader/qwen38_nvfp4_cache_loader.py",
+      "sha256": "63741208a3e7b37050efe902d7ef599dc7186e93e93e84e416f859bc59ea6be0"
+    },
+    {
+      "path": "python/sglang/srt/model_loader/qwen38_nvfp4_pack/parity.py",
+      "sha256": "e18cf0ae52a584bbf2595c09791ce17fc40169bba34ebdef34fb05585c43231b"
+    },
+    {
+      "path": "test/registered/kernels/benchmark/moe/bench_qwen38_cache_partition.py",
+      "sha256": "080f69b665f55cf18bdb1c6071b9b7d88cf02c015b3f04c86e5b454061eb69e4"
+    },
+    {
+      "path": "test/registered/kernels/ops/moe/test_qwen38_cache_partition.py",
+      "sha256": "6341c0131e3d326c03bd5ac30ed371209525bc0949d7eb9db80cbe58e7fdf500"
+    },
+    {
+      "path": "test/registered/unit/layers/moe/test_qwen38_prefill_routes.py",
+      "sha256": "8d4e3494fe30bb1c6998c853d4f9fdd4a0fa6cc7c2cba1cf7533e2aecf147bbc"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/CACHE_OVERLAP_AND_RESIZE.md",
+      "sha256": "a3cf494b8551e032e1beb0290bc0179236a63c8991895e86773e385a03387ecb"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/PREFILL_DIRECT_CACHE.md",
+      "sha256": "1fdde05a8591fde6fc2ed48d8bc44c478417dceae6f715b118dabdb6c65eb38e"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/README.md",
+      "sha256": "0c2e71ec6b6ce45bdc081c133ce2dbe10fbc5b21f1678bb2dff0936a2f25623e"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/REPORT.md",
+      "sha256": "ea16d8e56562b02aaaf29a38b212a94a557a348e78571041de2430f0ae5898ca"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/ab.py",
+      "sha256": "48a8361e7b0fe42c4e85b31abb1f176b5e7bb86770e51e443866c742baa6e1c1"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/investigation/INVESTIGATION.md",
+      "sha256": "0b69da9de87918eb22e9b56ffbb461e17cd1fa860c75bbb96974b4004a0efe2c"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/investigation/component-summary.json",
+      "sha256": "61c277f7d60c4f32a6406ba4dd77600d397275365761d2b5e87a3f48e9737f56"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/investigation/memory-maxsplit-summary.json",
+      "sha256": "9f1b5dc405bc0a8ff2879fa2fa48f95341a304e37141c295bfb6593ae3ed190b"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/investigation/memory-root-cause.json",
+      "sha256": "2c39b3920d81dbc35981a8c61007babadfbab66e289a6c4570a86265022a7052"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/investigation/memory_canary.py",
+      "sha256": "6906a8ff9cf9f57a3df184af8f38460ab823b5d7400f6f1587a7e696a93b285c"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/investigation/memory_maxsplit_canary.py",
+      "sha256": "7c8d34014d9bcd4622723b12a300931182ef63c680016c0052a1d12bfd083d56"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/investigation/profile_components.py",
+      "sha256": "2ec33ec49786eaf1e14aa610608b33d30d2b4ce89684fb6c2ed4437449ab0dd8"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/investigation/run_maxsplit8192.sh",
+      "sha256": "a14a624bdfb8edf6f87e0b622ad13b5a7255bd071b1adc179b15dee18852a3aa"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/investigation/run_memory.sh",
+      "sha256": "491aa1997b18536263509ed71e470e0556481399af62b653ce99c085c8992e37"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/investigation/run_memory_maxsplit.sh",
+      "sha256": "da36e44b2730ea654ffa4f190c53908160beb2239c4edaf3a4fbb5bdf045025b"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/investigation/run_oom.sh",
+      "sha256": "fff5a1d14f411d01d70ca97b0b64afda45bb42acc9d4aad12815f28e77987a1d"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/investigation/run_reproduce8192.sh",
+      "sha256": "da74d9b007923fa6cc1287d80d733578ab589ff1a7c50af048691e3b434ecece"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/investigation/summarize_memory.py",
+      "sha256": "befc670008f315cac5d427a7d82e2dab5f93450ce399b6a7e36351b452afc947"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/model_baseline.py",
+      "sha256": "fa78ac6ee58dbf0538aed06193e75690992a7c949cb0fb0fd168467a260ccee6"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/model_canary.py",
+      "sha256": "5f8d497c40ce2a9f0bfa0c006cdaea76762cfa5ecc9b57b8bc9c26af378f0731"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/optimization/REPORT.md",
+      "sha256": "9a167f7de6537fba426d165a358731b79233e17b5de592302e90379f3d84bcea"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/optimization/ab-b12x.json",
+      "sha256": "12b1d69794d7ecd6a1548585b8716ae50b9089169009c6071ff40b34fb67a359"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/optimization/ab.py",
+      "sha256": "07ec7ca9d791f26ba6e5c7149ed9ba4c25e5f8534730247ccd8888f494d24b77"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/optimization/component-summary.json",
+      "sha256": "f8d2472cf51caab86858270822fbc8e47b9a77dc0fe2b29270d0ce7b21406ef1"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/optimization/large-prefill.json",
+      "sha256": "86207d91e90b2478be385caffe938b83fb2a0682fedcdd8a5a059e8f2e7cc911"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/optimization/large_prefill.py",
+      "sha256": "85a3db807befe4d32c058a43727b919b6508185768b757fd8d88ad26ec4d3166"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/optimization/memory-summary.json",
+      "sha256": "94dc144ee3116c10bf40b9a5ee2014c984bd2c1d805274f99c2fc68f7509c8bc"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/optimization/memory_canary.py",
+      "sha256": "a9a15695d115d7b399dfc2856296c515f2409a86d90d7bf4b8aad8801cb6ec20"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/optimization/model-chunked-moe/report.json",
+      "sha256": "15fc5777d9c8594ddd4e7dcccb3b5fb8344dd890eb21f5d2deac29fe73d85541"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/optimization/model-memory-chunked-moe/report.json",
+      "sha256": "dfee6b348c7f2f56c8248f48602e52f9797d672e1bb004b939f89ef7bab33e83"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/optimization/performance-summary.json",
+      "sha256": "18dfe98b65e0e7784040815719ce44bc24d2cc2c77751d8a38d56a6f46d7f6cd"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/optimization/profile_components.py",
+      "sha256": "67c596cc83f2079074f5d543bc9ce8c3ec4418ad86f73421cc10e3f74035be50"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/optimization/run_memory_chunked_moe.sh",
+      "sha256": "bbaae28f38e2c2f037df931b4ee1283d324f30fc03f191672e7ce2e6c9755182"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/optimization/run_model_chunked_moe.sh",
+      "sha256": "9697618fd7f8163525d0df4e4d2cf1c419b372a50e2ed80b1e0cf947815b29d7"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/optimization/summarize_components.py",
+      "sha256": "4dd8896d023decb1e9661eb7897683ee8cf91c3ac0df9d90e660660f74011509"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/optimization/summarize_memory.py",
+      "sha256": "997d62c91815f84264e8c62a10dc0c684030a6a756d1cc7ea2bdd1f7a4dfa718"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/optimization/triton-parity.json",
+      "sha256": "bf3a07d7aaf166c0fc9e2ddddf9de6ce3e68021cba1073993bdc322ecdc3d537"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/run_baseline.sh",
+      "sha256": "64df42996b7b23d5eed337625d56ccba1a3f0ac9a43a055c08592ca45feb3ae0"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/run_model.sh",
+      "sha256": "012d56cf78e6b20184cbbae6ddd8c3f83375f14260af8f9e74ff6b184ba9d6a2"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cache_overlap_20261019/vmm_resize.py",
+      "sha256": "5fc6ff46374957edd0dc23f609dea457a6c240da04a88f6f19228c87f72a8578"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/cached_w4a16_gpu_check.py",
+      "sha256": "3dfb5aaefdf9c09cde90b93e6bb2ec195130cc384e118aefa6ebce5a72c6b3ab"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/test_cpu_background_transport.py",
+      "sha256": "ff5f98e207b8650bfce0c9b0d5ea1cba649915e12c9b8b3ba5e0d8691979929c"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/test_gpu_cache.py",
+      "sha256": "459f6934c2d04c59ad62fd1e569c6811fa0a92040b296a11a0c4ec0c7d3a590e"
+    }
+  ],
+  "patch_sha256": "3762efb524a098b64eee1b04c877a85d4a5bdc887cdf29c6202acda06a7a494f",
+  "checks": {
+    "cpu_regression": 348,
+    "cpu_boundaries": 7,
+    "b12x_ab_groups": 8,
+    "vmm_cycles": 5,
+    "full_model_chunk2048": "passed",
+    "baseline_chunk8192": "passed",
+    "enabled_chunk8192": "passed with MoE-only 2048-token subchunks",
+    "reverse_apply_check": "passed",
+    "enabled_chunk8192_default_allocator": "1K/8K/74K/170K and semantic probe passed; no allocator setting",
+    "enabled_chunk8192_max_split_512": "1K/8K/74K/170K and semantic probe passed",
+    "max_split_allocator_snapshot": "1K/8K/74K passed; no large mixed split segments; no final OOM events",
+    "production_source_unchanged_since_router_fix": false,
+    "initial_enabled_chunk8192_default_allocator": "OOM reproduced, allocator snapshot captured",
+    "moe_subchunk_allocator_snapshot": "1K/8K/74K passed; max CUTLASS allocation 217.6612548828125 MiB; no OOM events",
+    "final_boundary_and_gpu_tests": 48,
+    "gpu_subtests": 16,
+    "kernel_namespace_tests": 70,
+    "large_prefill_tokens": 4101,
+    "large_prefill_max_abs_error": 0.00048828125,
+    "triton_overlap_shared_parity": "passed",
+    "hot_decode_kernels": 12,
+    "hot_prefill_kernels": 21,
+    "new_route_metadata_h2d": 0,
+    "whole_tree_registry_audit": "pre-existing missing registration: test_qwen38_preallocated_gdn.py",
+    "legacy_cuda_format": "pre-existing whole-file clang-format violations; no unrelated reformat"
+  }
+}

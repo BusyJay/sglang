@@ -1,0 +1,872 @@
+{
+  "reports": [
+    {
+      "status": "passed",
+      "shared_overlap": false,
+      "prefill_direct_cache": false,
+      "decode_early_cache": false,
+      "shared_calls": 0,
+      "runtime_mode": "threaded",
+      "activation_mode": "w4a16",
+      "prefill_activation_mode": "w4a4",
+      "decode_graph": false,
+      "graph_width": 1,
+      "rtol": 0.02,
+      "atol": 0.02,
+      "cases": [
+        {
+          "case": "decode_miss",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.34775999188423157,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_hit",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.335999995470047,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_fill_10",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.33979199826717377,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_fill_20",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.34033600986003876,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "prefill_arena",
+          "phase": "prefill",
+          "activation_mode": "w4a4",
+          "median_ms": 0.31862400472164154,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 3,
+          "max_abs_error": 0.0
+        },
+        {
+          "case": "prefill_single",
+          "phase": "prefill",
+          "activation_mode": "w4a4",
+          "median_ms": 0.19707199931144714,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.0
+        }
+      ],
+      "hits": 1510,
+      "misses": 40,
+      "arena_loads": 1,
+      "memory_budget": {
+        "decode_cache_bytes": 44236928,
+        "prefill_arena_bytes": 88473856,
+        "pinned_staging_bytes": 268435924,
+        "device_policy_bytes": 1056,
+        "adaptive_metadata_bytes": 0,
+        "migration_scratch_bytes": 0,
+        "resident_alpha_bytes": 256,
+        "packed_scratch_bytes": 0,
+        "packed_descriptor_bytes": 0,
+        "max_pending_plan_bytes": 13312,
+        "decode_device_gate_bytes": 128,
+        "decode_mailbox_pinned_bytes": 88473868
+      }
+    },
+    {
+      "status": "passed",
+      "shared_overlap": false,
+      "prefill_direct_cache": false,
+      "decode_early_cache": false,
+      "shared_calls": 0,
+      "runtime_mode": "threaded",
+      "activation_mode": "w4a16",
+      "prefill_activation_mode": "w4a4",
+      "decode_graph": true,
+      "graph_width": 1,
+      "rtol": 0.02,
+      "atol": 0.02,
+      "cases": [
+        {
+          "case": "decode_miss",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.3396320044994354,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_hit",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.3346880078315735,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_fill_10",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.3367360085248947,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_fill_20",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.3370560109615326,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "prefill_arena",
+          "phase": "prefill",
+          "activation_mode": "w4a4",
+          "median_ms": 0.3386079967021942,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 3,
+          "max_abs_error": 0.0
+        },
+        {
+          "case": "decode_after_arena",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.3545279949903488,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_revisit",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.34971199929714203,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_revisit_hit",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.3500320017337799,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "prefill_single",
+          "phase": "prefill",
+          "activation_mode": "w4a4",
+          "median_ms": 0.1990719959139824,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.0
+        }
+      ],
+      "hits": 2458,
+      "misses": 42,
+      "arena_loads": 1,
+      "memory_budget": {
+        "decode_cache_bytes": 44236928,
+        "prefill_arena_bytes": 88473856,
+        "pinned_staging_bytes": 268435924,
+        "device_policy_bytes": 1056,
+        "adaptive_metadata_bytes": 0,
+        "migration_scratch_bytes": 0,
+        "resident_alpha_bytes": 256,
+        "packed_scratch_bytes": 0,
+        "packed_descriptor_bytes": 0,
+        "max_pending_plan_bytes": 13312,
+        "decode_device_gate_bytes": 128,
+        "decode_mailbox_pinned_bytes": 88473868
+      }
+    },
+    {
+      "status": "passed",
+      "shared_overlap": false,
+      "prefill_direct_cache": true,
+      "decode_early_cache": false,
+      "shared_calls": 0,
+      "runtime_mode": "threaded",
+      "activation_mode": "w4a16",
+      "prefill_activation_mode": "w4a4",
+      "decode_graph": false,
+      "graph_width": 1,
+      "rtol": 0.02,
+      "atol": 0.02,
+      "cases": [
+        {
+          "case": "decode_miss",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.3402720093727112,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_hit",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.3377760052680969,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_fill_10",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.33799999952316284,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_fill_20",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.3349279910326004,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "prefill_arena",
+          "phase": "prefill",
+          "activation_mode": "w4a4",
+          "median_ms": 0.6197279989719391,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 3,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "prefill_single",
+          "phase": "prefill",
+          "activation_mode": "w4a4",
+          "median_ms": 0.19606399536132812,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.0
+        }
+      ],
+      "hits": 1510,
+      "misses": 40,
+      "arena_loads": 1,
+      "memory_budget": {
+        "decode_cache_bytes": 44236928,
+        "prefill_arena_bytes": 88473856,
+        "pinned_staging_bytes": 268435924,
+        "device_policy_bytes": 1056,
+        "adaptive_metadata_bytes": 0,
+        "migration_scratch_bytes": 0,
+        "resident_alpha_bytes": 256,
+        "packed_scratch_bytes": 0,
+        "packed_descriptor_bytes": 0,
+        "max_pending_plan_bytes": 13312,
+        "decode_device_gate_bytes": 128,
+        "decode_mailbox_pinned_bytes": 88473868
+      }
+    },
+    {
+      "status": "passed",
+      "shared_overlap": false,
+      "prefill_direct_cache": true,
+      "decode_early_cache": false,
+      "shared_calls": 0,
+      "runtime_mode": "threaded",
+      "activation_mode": "w4a16",
+      "prefill_activation_mode": "w4a4",
+      "decode_graph": true,
+      "graph_width": 1,
+      "rtol": 0.02,
+      "atol": 0.02,
+      "cases": [
+        {
+          "case": "decode_miss",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.3431040048599243,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_hit",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.33715198934078217,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_fill_10",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.33907200396060944,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_fill_20",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.3393919914960861,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "prefill_arena",
+          "phase": "prefill",
+          "activation_mode": "w4a4",
+          "median_ms": 0.6277119815349579,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 3,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_after_arena",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.3415839970111847,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_revisit",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.33873599767684937,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_revisit_hit",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.338576003909111,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "prefill_single",
+          "phase": "prefill",
+          "activation_mode": "w4a4",
+          "median_ms": 0.1971839964389801,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.0
+        }
+      ],
+      "hits": 2458,
+      "misses": 42,
+      "arena_loads": 1,
+      "memory_budget": {
+        "decode_cache_bytes": 44236928,
+        "prefill_arena_bytes": 88473856,
+        "pinned_staging_bytes": 268435924,
+        "device_policy_bytes": 1056,
+        "adaptive_metadata_bytes": 0,
+        "migration_scratch_bytes": 0,
+        "resident_alpha_bytes": 256,
+        "packed_scratch_bytes": 0,
+        "packed_descriptor_bytes": 0,
+        "max_pending_plan_bytes": 13312,
+        "decode_device_gate_bytes": 128,
+        "decode_mailbox_pinned_bytes": 88473868
+      }
+    },
+    {
+      "status": "passed",
+      "shared_overlap": false,
+      "prefill_direct_cache": false,
+      "decode_early_cache": true,
+      "shared_calls": 0,
+      "runtime_mode": "threaded",
+      "activation_mode": "w4a16",
+      "prefill_activation_mode": "w4a4",
+      "decode_graph": false,
+      "graph_width": 1,
+      "rtol": 0.02,
+      "atol": 0.02,
+      "cases": [
+        {
+          "case": "decode_miss",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.637008011341095,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_hit",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.6281119883060455,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_fill_10",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.6244159936904907,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_fill_20",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.6294400095939636,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "prefill_arena",
+          "phase": "prefill",
+          "activation_mode": "w4a4",
+          "median_ms": 0.3165439963340759,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 3,
+          "max_abs_error": 0.0
+        },
+        {
+          "case": "prefill_single",
+          "phase": "prefill",
+          "activation_mode": "w4a4",
+          "median_ms": 0.19393600523471832,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.0
+        }
+      ],
+      "hits": 1510,
+      "misses": 40,
+      "arena_loads": 1,
+      "memory_budget": {
+        "decode_cache_bytes": 44236928,
+        "prefill_arena_bytes": 88473856,
+        "pinned_staging_bytes": 268435924,
+        "device_policy_bytes": 1056,
+        "adaptive_metadata_bytes": 0,
+        "migration_scratch_bytes": 0,
+        "resident_alpha_bytes": 256,
+        "packed_scratch_bytes": 0,
+        "packed_descriptor_bytes": 0,
+        "max_pending_plan_bytes": 13312,
+        "decode_device_gate_bytes": 128,
+        "decode_mailbox_pinned_bytes": 88473868
+      }
+    },
+    {
+      "status": "passed",
+      "shared_overlap": false,
+      "prefill_direct_cache": false,
+      "decode_early_cache": true,
+      "shared_calls": 0,
+      "runtime_mode": "threaded",
+      "activation_mode": "w4a16",
+      "prefill_activation_mode": "w4a4",
+      "decode_graph": true,
+      "graph_width": 1,
+      "rtol": 0.02,
+      "atol": 0.02,
+      "cases": [
+        {
+          "case": "decode_miss",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.6221920251846313,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_hit",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.6269280016422272,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_fill_10",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.6177439987659454,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_fill_20",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.6183519959449768,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "prefill_arena",
+          "phase": "prefill",
+          "activation_mode": "w4a4",
+          "median_ms": 0.31835199892520905,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 3,
+          "max_abs_error": 0.0
+        },
+        {
+          "case": "decode_after_arena",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.6274079978466034,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_revisit",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.62049600481987,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_revisit_hit",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.6215519905090332,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "prefill_single",
+          "phase": "prefill",
+          "activation_mode": "w4a4",
+          "median_ms": 0.19543999433517456,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.0
+        }
+      ],
+      "hits": 2458,
+      "misses": 42,
+      "arena_loads": 1,
+      "memory_budget": {
+        "decode_cache_bytes": 44236928,
+        "prefill_arena_bytes": 88473856,
+        "pinned_staging_bytes": 268435924,
+        "device_policy_bytes": 1056,
+        "adaptive_metadata_bytes": 0,
+        "migration_scratch_bytes": 0,
+        "resident_alpha_bytes": 256,
+        "packed_scratch_bytes": 0,
+        "packed_descriptor_bytes": 0,
+        "max_pending_plan_bytes": 13312,
+        "decode_device_gate_bytes": 128,
+        "decode_mailbox_pinned_bytes": 88473868
+      }
+    },
+    {
+      "status": "passed",
+      "shared_overlap": false,
+      "prefill_direct_cache": true,
+      "decode_early_cache": true,
+      "shared_calls": 0,
+      "runtime_mode": "threaded",
+      "activation_mode": "w4a16",
+      "prefill_activation_mode": "w4a4",
+      "decode_graph": false,
+      "graph_width": 1,
+      "rtol": 0.02,
+      "atol": 0.02,
+      "cases": [
+        {
+          "case": "decode_miss",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.6308799982070923,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_hit",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.6264959871768951,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_fill_10",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.621968001127243,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_fill_20",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.623199999332428,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "prefill_arena",
+          "phase": "prefill",
+          "activation_mode": "w4a4",
+          "median_ms": 0.6206560134887695,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 3,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "prefill_single",
+          "phase": "prefill",
+          "activation_mode": "w4a4",
+          "median_ms": 0.1958400011062622,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.0
+        }
+      ],
+      "hits": 1510,
+      "misses": 40,
+      "arena_loads": 1,
+      "memory_budget": {
+        "decode_cache_bytes": 44236928,
+        "prefill_arena_bytes": 88473856,
+        "pinned_staging_bytes": 268435924,
+        "device_policy_bytes": 1056,
+        "adaptive_metadata_bytes": 0,
+        "migration_scratch_bytes": 0,
+        "resident_alpha_bytes": 256,
+        "packed_scratch_bytes": 0,
+        "packed_descriptor_bytes": 0,
+        "max_pending_plan_bytes": 13312,
+        "decode_device_gate_bytes": 128,
+        "decode_mailbox_pinned_bytes": 88473868
+      }
+    },
+    {
+      "status": "passed",
+      "shared_overlap": false,
+      "prefill_direct_cache": true,
+      "decode_early_cache": true,
+      "shared_calls": 0,
+      "runtime_mode": "threaded",
+      "activation_mode": "w4a16",
+      "prefill_activation_mode": "w4a4",
+      "decode_graph": true,
+      "graph_width": 1,
+      "rtol": 0.02,
+      "atol": 0.02,
+      "cases": [
+        {
+          "case": "decode_miss",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.6250720024108887,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_hit",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.6252639889717102,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_fill_10",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.6185759902000427,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_fill_20",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.6241120100021362,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "prefill_arena",
+          "phase": "prefill",
+          "activation_mode": "w4a4",
+          "median_ms": 0.6238240003585815,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 3,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_after_arena",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.6292800009250641,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_revisit",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.6288000047206879,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "decode_revisit_hit",
+          "phase": "decode",
+          "activation_mode": "w4a16",
+          "median_ms": 0.6285279989242554,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.000244140625
+        },
+        {
+          "case": "prefill_single",
+          "phase": "prefill",
+          "activation_mode": "w4a4",
+          "median_ms": 0.19712000340223312,
+          "iterations": 30,
+          "scope": "warm repeated cache invocation; CUDA events include submitted compute/fill gaps",
+          "tokens": 1,
+          "max_abs_error": 0.0
+        }
+      ],
+      "hits": 2458,
+      "misses": 42,
+      "arena_loads": 1,
+      "memory_budget": {
+        "decode_cache_bytes": 44236928,
+        "prefill_arena_bytes": 88473856,
+        "pinned_staging_bytes": 268435924,
+        "device_policy_bytes": 1056,
+        "adaptive_metadata_bytes": 0,
+        "migration_scratch_bytes": 0,
+        "resident_alpha_bytes": 256,
+        "packed_scratch_bytes": 0,
+        "packed_descriptor_bytes": 0,
+        "max_pending_plan_bytes": 13312,
+        "decode_device_gate_bytes": 128,
+        "decode_mailbox_pinned_bytes": 88473868
+      }
+    }
+  ],
+  "gpu": "NVIDIA GeForce RTX 5090 D",
+  "backend": "b12x",
+  "scope": "synthetic single-layer warm repeated invocations, not model throughput",
+  "status": "passed"
+}

@@ -235,7 +235,7 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
             hidden_states_pre_quant,
         )
 
-        def execute(prepared):
+        def execute_single(prepared, route_weights):
             if self.uses_w4a16(execution_phase):
                 from sglang.srt.layers.moe.token_dispatcher.standard import (
                     StandardCombineInput,
@@ -250,13 +250,16 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
                     hidden_states, prepared.topk_ids, execution_phase
                 ):
                     result = self.b12x.run(
-                        hidden_states, prepared.topk_ids, topk_weights, prepared.tensors
+                        hidden_states,
+                        prepared.topk_ids,
+                        route_weights,
+                        prepared.tensors,
                     )
                     return StandardCombineInput(hidden_states=result)
                 result = cached_w4a16_moe(
                     hidden_states.contiguous(),
                     prepared.topk_ids.contiguous(),
-                    topk_weights.contiguous(),
+                    route_weights.contiguous(),
                     prepared.tensors,
                     chunk_tokens=self.w4a16_chunk_tokens,
                 )
@@ -291,12 +294,109 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
                 swiglu_limit=swiglu_limit,
                 apply_routed_scaling_factor=False,
             )
+            runner = self.runners[capacity]
+            # Bound CUTLASS's routed-activation workspace independently of the
+            # attention/GDN prefill chunk. Do not repeat expert planning/fills.
+            # Pre-quantized inputs have layout-specific scale padding; retain
+            # their existing path rather than slice that representation here.
+            chunk = 2048
+            if (
+                execution_phase == "prefill"
+                and getattr(self.runtime, "prefill_direct_cache", False)
+                and hidden_states.shape[0] > chunk
+                and hidden_states_pre_quant is None
+            ):
+                from sglang.srt.layers.moe.token_dispatcher.standard import (
+                    StandardCombineInput,
+                )
+
+                output = torch.empty(
+                    hidden_states.shape,
+                    dtype=quant_info.output_dtype,
+                    device=hidden_states.device,
+                )
+                for start in range(0, hidden_states.shape[0], chunk):
+                    end = start + chunk
+                    remapped = StandardTopKOutput(
+                        route_weights[start:end],
+                        prepared.topk_ids[start:end],
+                        router_logits[start:end] if router_logits is not None else None,
+                    )
+                    part = runner.run(
+                        dispatch_output._replace(
+                            hidden_states=hidden_states[start:end], topk_output=remapped
+                        ),
+                        quant_info,
+                    ).hidden_states
+                    output[start:end].copy_(part)
+                return StandardCombineInput(hidden_states=output)
             remapped = StandardTopKOutput(
-                topk_weights, prepared.topk_ids, router_logits
+                route_weights, prepared.topk_ids, router_logits
             )
-            return self.runners[capacity].run(
+            return runner.run(
                 dispatch_output._replace(topk_output=remapped), quant_info
             )
+
+        def execute(prepared):
+            if getattr(prepared, "early_output", None) is not None:
+                from sglang.srt.layers.moe.token_dispatcher.standard import (
+                    StandardCombineInput,
+                )
+
+                # The planner excludes already computed hits from mixed plans.
+                # All-hit/all-miss plans have no early routes and run here once.
+                missing = execute_single(prepared, topk_weights).hidden_states
+                return StandardCombineInput(
+                    hidden_states=prepared.early_output + missing
+                )
+            if getattr(prepared, "cache_experts", None) is None:
+                return execute_single(prepared, topk_weights)
+            from sglang.srt.layers.moe.qwen38_prefill_routes import (
+                partition_prefill_routes,
+            )
+            from sglang.srt.layers.moe.token_dispatcher.standard import (
+                StandardCombineInput,
+            )
+
+            cache_ids, cache_weights, arena_ids, arena_weights = (
+                partition_prefill_routes(
+                    prepared.topk_ids,
+                    topk_weights,
+                    prepared.cache_experts,
+                    prepared.arena_experts,
+                    lookup=prepared.cache_lookup,
+                    slot_limit=prepared.cache_slot_limit,
+                )
+            )
+            cache_prepared = replace(
+                prepared,
+                tensors=prepared.cache_tensors,
+                topk_ids=cache_ids,
+                num_experts=prepared.cache_tensors["w13_weight"].shape[0],
+                arena=False,
+                cache_tensors=None,
+                cache_experts=None,
+                arena_experts=None,
+            )
+            cached = execute_single(cache_prepared, cache_weights).hidden_states
+            if arena_ids is None:
+                return StandardCombineInput(hidden_states=cached)
+            # Some backends reuse an output buffer; preserve the first result
+            # before dispatching the second contribution.
+            cached = cached.clone()
+            if prepared.wait_for_weights is not None:
+                prepared.wait_for_weights()
+            missing = execute_single(
+                replace(
+                    prepared,
+                    topk_ids=arena_ids,
+                    cache_tensors=None,
+                    cache_experts=None,
+                    arena_experts=None,
+                ),
+                arena_weights,
+            ).hidden_states
+            return StandardCombineInput(hidden_states=cached + missing)
 
         # Return a plain tensor, so eager_on_graph copies fresh output into the
         # fixed bridge consumed by the next GPU segment on every replay.
@@ -305,8 +405,43 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
             # Python forward scopes have exited at replay. Keep the phase in
             # the eager break's captured arguments alongside its tensor inputs.
             options["execution_phase"] = execution_phase
+            if execution_phase == "prefill":
+                options["prefill_w4a4"] = not self.uses_w4a16(execution_phase)
         if shared_call is not None:
             options["during_fill"] = lambda: shared_call.run(shared_input)
+        if (
+            execution_phase == "decode"
+            and getattr(self.runtime, "decode_early_cache", False)
+            # Forced-miss sweeps have no reliable profitable decode interval
+            # with these backends. Auto must take the original single call,
+            # including avoiding empty early kernels, events and output merge.
+            and getattr(self.runtime, "cache_overlap_policy", "always") == "always"
+            and self.uses_w4a16(execution_phase)
+            and not self.moe_runner_config.inplace
+            and self.moe_runner_config.activation == "silu"
+            and self.moe_runner_config.is_gated
+            and not self.moe_runner_config.apply_router_weight_on_input
+            and not self.moe_runner_config.no_combine
+        ):
+
+            def early_cache(ids, tensors):
+                from sglang.srt.layers.quantization.qwen38_cached_w4a16 import (
+                    cached_w4a16_moe,
+                )
+
+                # Only the baseline Triton path guarantees masked weight reads
+                # for -1 IDs. Native B12X is still used after fill completion.
+                return cached_w4a16_moe(
+                    hidden_states.contiguous(),
+                    ids.contiguous(),
+                    topk_weights.contiguous(),
+                    tensors,
+                    chunk_tokens=self.w4a16_chunk_tokens,
+                    split_k=0,
+                    verify_mode="baseline",
+                )
+
+            options["early_cache"] = early_cache
         return self.runtime.run(
             self.layer_id, topk_ids, execute, **options
         ).hidden_states

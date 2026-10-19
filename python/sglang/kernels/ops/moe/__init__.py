@@ -304,3 +304,13 @@ register_kernel(
         capabilities=frozenset({CapabilityRequirement.CUDA, CapabilityRequirement.HIP}),
     )
 )
+
+register_kernel(
+    KernelSpec(
+        op="moe.qwen38_cache_partition_routes",
+        backend=KernelBackend.JIT,
+        target="sglang.kernels.ops.moe.qwen38_expert_cache:cache_partition_routes",
+        capabilities=_CUDA,
+        description="Partition cache and arena expert routes using a protected GPU lookup.",
+    )
+)
