@@ -1,0 +1,10 @@
+# Raw profiler/allocator dumps stay on disk; the reports and JSON summaries carry
+# the numbers. Source snapshots are reproducible from the base commit + git history.
+*.pickle
+*.trace.json
+profiles/
+memory-*/
+oom-snapshots/
+*.tar.gz
+validated.patch
+before-optimization.patch

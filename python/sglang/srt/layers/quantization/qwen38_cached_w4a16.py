@@ -14,6 +14,7 @@ import os
 import torch
 import triton
 import triton.language as tl
+
 from sglang.srt.layers.quantization.qwen38_fp4_mtp import _decode
 
 
@@ -52,57 +53,66 @@ def _cache_project(
     valid = (expert >= 0) & (expert < E)
     safe_expert = tl.where(valid, expert, 0)
     n = block * BN + tl.arange(0, BN)
-    k = tl.arange(0, BK)
-    acc = tl.full((BN,), 0.0, tl.float32)
-    acc_up = tl.full((BN,), 0.0, tl.float32)
-    # The CUTLASS pack folds raw activation scales into g1/g2. Undo
-    # that factor for A16; Q stores their reciprocal, in both projections.
-    global_scale = tl.load(G + safe_expert) * tl.load(Q)
-    global_up = global_scale
-    for kb in range(tl.cdiv(K, BK)):
-        col = kb * BK + k
-        xrow = route // TOPK if FIRST else route
-        x = tl.load(X + xrow * K + col, mask=col < K, other=0.0).to(tl.float32)
-        # Existing CUTLASS ABI stores [up, gate], plain contiguous halves.
-        logical_row = n + (N if FIRST else 0)
-        rows = 2 * N if FIRST else N
-        wr = safe_expert * rows + logical_row
-        byte = tl.load(
-            W + wr[:, None] * (K // 2) + col[None, :] // 2,
-            mask=(n[:, None] < N) & (col[None, :] < K) & valid,
-            other=0,
-        )
-        code = (byte >> ((col[None, :] % 2) * 4)) & 15
-        scale = tl.load(
-            S
-            + safe_expert * (tl.cdiv(rows, 128) * 128) * (tl.cdiv(K // 16, 4) * 4)
-            + _scale_offset(logical_row[:, None], col[None, :] // 16, K // 16),
-            mask=(n[:, None] < N) & (col[None, :] < K) & valid,
-            other=0.0,
-        ).to(tl.float32)
-        w = _decode(code, scale, global_scale).to(tl.bfloat16).to(tl.float32)
-        acc += tl.sum(w * x[None, :], axis=1)
-        if FIRST:
-            wr_up = wr - N
-            byte_up = tl.load(
-                W + wr_up[:, None] * (K // 2) + col[None, :] // 2,
+    # Inactive routes must skip projection work, rather than load zeros and
+    # execute the complete dot products. The planner emits no early routes for
+    # all-hit/all-miss calls; their native late backend computes the sum once.
+    result = tl.full((BN,), 0.0, tl.float32)
+    if valid:
+        k = tl.arange(0, BK)
+        acc = tl.full((BN,), 0.0, tl.float32)
+        acc_up = tl.full((BN,), 0.0, tl.float32)
+        # The CUTLASS pack folds raw activation scales into g1/g2. Undo
+        # that factor for A16; Q stores their reciprocal, in both projections.
+        global_scale = tl.load(G + safe_expert, mask=valid, other=0.0) * tl.load(Q)
+        global_up = global_scale
+        for kb in range(tl.cdiv(K, BK)):
+            col = kb * BK + k
+            xrow = route // TOPK if FIRST else route
+            x = tl.load(X + xrow * K + col, mask=col < K, other=0.0).to(tl.float32)
+            # Existing CUTLASS ABI stores [up, gate], plain contiguous halves.
+            logical_row = n + (N if FIRST else 0)
+            rows = 2 * N if FIRST else N
+            wr = safe_expert * rows + logical_row
+            byte = tl.load(
+                W + wr[:, None] * (K // 2) + col[None, :] // 2,
                 mask=(n[:, None] < N) & (col[None, :] < K) & valid,
                 other=0,
             )
-            code_up = (byte_up >> ((col[None, :] % 2) * 4)) & 15
-            scale_up = tl.load(
+            code = (byte >> ((col[None, :] % 2) * 4)) & 15
+            scale = tl.load(
                 S
                 + safe_expert * (tl.cdiv(rows, 128) * 128) * (tl.cdiv(K // 16, 4) * 4)
-                + _scale_offset(n[:, None], col[None, :] // 16, K // 16),
+                + _scale_offset(logical_row[:, None], col[None, :] // 16, K // 16),
                 mask=(n[:, None] < N) & (col[None, :] < K) & valid,
                 other=0.0,
             ).to(tl.float32)
-            w_up = _decode(code_up, scale_up, global_up).to(tl.bfloat16).to(tl.float32)
-            acc_up += tl.sum(w_up * x[None, :], axis=1)
-    if FIRST:
-        result = (acc / (1.0 + tl.exp(-acc))) * acc_up
-    else:
-        result = acc * tl.load(Router + route).to(tl.float32)
+            w = _decode(code, scale, global_scale).to(tl.bfloat16).to(tl.float32)
+            acc += tl.sum(w * x[None, :], axis=1)
+            if FIRST:
+                wr_up = wr - N
+                byte_up = tl.load(
+                    W + wr_up[:, None] * (K // 2) + col[None, :] // 2,
+                    mask=(n[:, None] < N) & (col[None, :] < K) & valid,
+                    other=0,
+                )
+                code_up = (byte_up >> ((col[None, :] % 2) * 4)) & 15
+                scale_up = tl.load(
+                    S
+                    + safe_expert
+                    * (tl.cdiv(rows, 128) * 128)
+                    * (tl.cdiv(K // 16, 4) * 4)
+                    + _scale_offset(n[:, None], col[None, :] // 16, K // 16),
+                    mask=(n[:, None] < N) & (col[None, :] < K) & valid,
+                    other=0.0,
+                ).to(tl.float32)
+                w_up = (
+                    _decode(code_up, scale_up, global_up).to(tl.bfloat16).to(tl.float32)
+                )
+                acc_up += tl.sum(w_up * x[None, :], axis=1)
+        if FIRST:
+            result = (acc / (1.0 + tl.exp(-acc))) * acc_up
+        else:
+            result = acc * tl.load(Router + route).to(tl.float32)
     tl.store(Y + route * N + n, tl.where(valid, result, 0.0), mask=n < N)
 
 

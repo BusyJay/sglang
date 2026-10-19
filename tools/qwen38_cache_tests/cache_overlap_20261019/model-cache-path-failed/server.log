@@ -1,0 +1,75 @@
+/workspace/sglang/python/sglang/launch_server.py:71: UserWarning: 'python -m sglang.launch_server' is still supported, but 'sglang serve' is the recommended entrypoint.
+  Example: sglang serve --model-path <model> [options]
+  warnings.warn(
+[2026-10-19 15:07:05] Registered linear attn model: config=GigaChat35Config, backend=GDNAttnBackend, archs=['GigaChat35ForCausalLM', 'GigaChat35ForCausalLMNextN']
+[2026-10-19 15:07:09] qwen38_nvfp4_cache selected: language-model-only, eager by default, single-rank parallelism and FlashInfer CUTLASS are required
+[2026-10-19 15:07:09] kill_process_tree called: parent_pid=156, include_parent=False, pid=156
+Traceback (most recent call last):
+  File "/opt/sglang/lib/python3.12/site-packages/transformers/utils/hub.py", line 537, in cached_files
+    hf_hub_download(
+  File "/opt/sglang/lib/python3.12/site-packages/huggingface_hub/utils/_validators.py", line 89, in _inner_fn
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/opt/sglang/lib/python3.12/site-packages/huggingface_hub/utils/_http.py", line 266, in _inner
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/opt/sglang/lib/python3.12/site-packages/huggingface_hub/file_download.py", line 1047, in hf_hub_download
+    return _hf_hub_download_to_cache_dir(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/sglang/lib/python3.12/site-packages/huggingface_hub/file_download.py", line 1194, in _hf_hub_download_to_cache_dir
+    _raise_on_head_call_error(head_call_error, force_download, local_files_only)
+  File "/opt/sglang/lib/python3.12/site-packages/huggingface_hub/file_download.py", line 1944, in _raise_on_head_call_error
+    raise LocalEntryNotFoundError(
+huggingface_hub.errors.LocalEntryNotFoundError: Cannot find the requested files in the disk cache and outgoing traffic has been disabled. To enable hf.co look-ups and downloads online, set 'local_files_only' to False.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/workspace/sglang/python/sglang/launch_server.py", line 84, in <module>
+    run_server(server_args)
+  File "/workspace/sglang/python/sglang/launch_server.py", line 29, in run_server
+    server_args.resolve_once()
+  File "/workspace/sglang/python/sglang/srt/server_args.py", line 276, in resolve_once
+    run_resolution_pipeline(self)
+  File "/workspace/sglang/python/sglang/srt/arg_groups/pipeline.py", line 182, in run_resolution_pipeline
+    run_hook(apply_muse_glimmer_prefill_cuda_graph_max_bs_default, server_args)
+  File "/workspace/sglang/python/sglang/srt/arg_groups/resolution_hooks.py", line 138, in run_hook
+    step(server_args)
+  File "/workspace/sglang/python/sglang/srt/arg_groups/cuda_graph_hook.py", line 383, in apply_muse_glimmer_prefill_cuda_graph_max_bs_default
+    arch = model_config_of(server_args).hf_config.architectures[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/arg_groups/model_override_base.py", line 213, in model_config_of
+    model_config = ModelConfig.from_server_args(server_args)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/configs/model_config.py", line 866, in from_server_args
+    return ModelConfig(
+           ^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/configs/model_config.py", line 543, in __init__
+    get_config(
+  File "/workspace/sglang/python/sglang/srt/utils/common.py", line 4645, in wrapper
+    result = func(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/utils/hf_transformers/config.py", line 373, in get_config
+    config = parser.parse(
+             ^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/utils/hf_transformers/config.py", line 219, in parse
+    config = _try_load_longcat_config(model, revision, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/utils/hf_transformers/config.py", line 157, in _try_load_longcat_config
+    config_dict, _ = PretrainedConfig.get_config_dict(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/sglang/lib/python3.12/site-packages/transformers/configuration_utils.py", line 792, in get_config_dict
+    config_dict, kwargs = cls._get_config_dict(pretrained_model_name_or_path, **kwargs)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/sglang/lib/python3.12/site-packages/transformers/configuration_utils.py", line 844, in _get_config_dict
+    resolved_config_file = cached_file(
+                           ^^^^^^^^^^^^
+  File "/opt/sglang/lib/python3.12/site-packages/transformers/utils/hub.py", line 370, in cached_file
+    file = cached_files(path_or_repo_id=path_or_repo_id, filenames=[filename], **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/sglang/lib/python3.12/site-packages/transformers/utils/hub.py", line 620, in cached_files
+    raise OSError(
+OSError: We couldn't connect to 'https://huggingface.co' to load the files, and couldn't find them in the cached files.
+Check your internet connection or see how to run the library in offline mode at 'https://huggingface.co/docs/transformers/installation#offline-mode'.

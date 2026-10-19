@@ -14,6 +14,7 @@ import json
 import logging
 import threading
 from dataclasses import dataclass
+from typing import Callable
 
 import torch
 
@@ -33,6 +34,13 @@ class PreparedExperts:
     topk_ids: torch.Tensor
     num_experts: int
     arena: bool
+    cache_tensors: dict[str, torch.Tensor] | None = None
+    cache_experts: dict[int, int] | None = None
+    arena_experts: list[int] | None = None
+    wait_for_weights: Callable[[], None] | None = None
+    early_output: torch.Tensor | None = None
+    cache_lookup: torch.Tensor | None = None
+    cache_slot_limit: int | None = None
 
 
 class Qwen38SynchronousExpertRuntime:

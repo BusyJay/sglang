@@ -142,6 +142,8 @@ class StagedKVLoan:
         fence = getattr(self.runtime, "staged_trim_done", None)
         if fence is not None and not fence.query():
             raise RuntimeError("KV trim was not covered by result completion")
+        if getattr(self.runtime, "preserve_cache_on_resize", False):
+            self.runtime.complete_staged_trim()
         self.runtime.staged_pool.release_stage(index)
         capacity = self.policy.capacities[index]
         # Establish all intermediate KV boundaries for later exact shrink.

@@ -1,0 +1,425 @@
+/workspace/sglang/python/sglang/launch_server.py:71: UserWarning: 'python -m sglang.launch_server' is still supported, but 'sglang serve' is the recommended entrypoint.
+  Example: sglang serve --model-path <model> [options]
+  warnings.warn(
+[2026-10-19 15:20:19] Registered linear attn model: config=GigaChat35Config, backend=GDNAttnBackend, archs=['GigaChat35ForCausalLM', 'GigaChat35ForCausalLMNextN']
+[2026-10-19 15:20:24] qwen38_nvfp4_cache selected: language-model-only, eager by default, single-rank parallelism and FlashInfer CUTLASS are required
+[transformers] Unrecognized keys in `rope_parameters` for 'rope_type'='default': {'mrope_interleaved', 'mrope_section'}
+[2026-10-19 15:20:24] qwen38 offload: segmented decode graph enabled (host transport and CUTLASS remain eager)
+[2026-10-19 15:20:24] Setting page size to 64 for compressed QSA (full//ratio compressed addressing).
+[2026-10-19 15:20:24] Attention backend not specified. Use flashinfer backend by default.
+[transformers] Unrecognized keys in `rope_parameters` for 'rope_type'='default': {'mrope_interleaved', 'mrope_section'}
+[2026-10-19 15:20:24] DeepSeek MTP does not require setting speculative_draft_model_path.
+[2026-10-19 15:20:26] server_args={'model_path': '/hf-cache/models--nvidia--Qwen3.8-Flash-Next-FP4-Local/snapshots/b9ce18a6887e18c089fdea8509a33e63429a3300', 'tokenizer_path': '/hf-cache/models--nvidia--Qwen3.8-Flash-Next-FP4-Local/snapshots/b9ce18a6887e18c089fdea8509a33e63429a3300', 'tokenizer_mode': 'auto', 'tokenizer_backend': 'huggingface', 'tokenizer_worker_num': 1, 'detokenizer_worker_num': 1, 'skip_tokenizer_init': False, 'load_format': 'qwen38_nvfp4_cache', 'model_loader_extra_config': '{"manifest_path": "/root/.cache/sglang/qwen38-fp4-local/b9ce18a6887e18c089fdea8509a33e63429a3300/manifest.json", "prefill_arena": true, "runtime_mode": "threaded", "cache_slots_total": 6388, "staging_buffers": 4, "staging_buffer_bytes": 67108864, "adaptive_cache": true, "adaptive_cache_window": 512, "adaptive_cache_interval": 4096, "adaptive_cache_mode": "rebalance", "cache_policy": "lfu", "cache_protected_fraction": 0.7, "prefill_reuse_cache": true, "prefill_seed_cache": true, "prefill_direct_cache": true, "decode_early_cache": true, "preserve_cache_on_resize": true, "kv_cache_stages": [80000, 160000, 220000], "preallocate_gdn_proj": true, "async_pack_prefetch": true}', 'trust_remote_code': False, 'context_length': 220000, 'is_embedding': False, 'enable_multimodal': None, 'revision': 'b9ce18a6887e18c089fdea8509a33e63429a3300', 'model_impl': 'auto', 'model_config_parser': 'auto', 'json_model_override_args': '{}', 'dtype': 'auto', 'quantization': None, 'quantization_param_path': None, 'kv_cache_dtype': 'fp8_e4m3', 'enable_fp32_lm_head': False, 'modelopt_quant': None, 'modelopt_checkpoint_restore_path': None, 'modelopt_checkpoint_save_path': None, 'modelopt_export_path': None, 'quantize_and_serve': False, 'rl_quant_profile': None, 'enable_tf32_matmul': False, 'mem_fraction_static': 0.9, 'max_running_requests': 1, 'max_queued_requests': None, 'max_total_tokens': None, 'chunked_prefill_size': 8192, 'prefill_decode_interval': 0, 'enable_dynamic_chunking': False, 'max_prefill_tokens': 16384, 'prefill_max_requests': None, 'schedule_policy': 'fcfs', 'enable_priority_scheduling': False, 'disable_priority_preemption': False, 'default_priority_value': None, 'abort_on_priority_when_disabled': False, 'schedule_low_priority_values_first': False, 'priority_scheduling_preemption_threshold': 10, 'retraction_policy': 'length', 'schedule_conservativeness': 1.0, 'page_size': 64, 'c128_page_size': 16, 'swa_full_tokens_ratio': 0.8, 'disable_hybrid_swa_memory': False, 'radix_eviction_policy': 'lru', 'radix_eviction_policy_config': None, 'prefill_only_disable_kv_cache': False, 'disable_radix_cache': False, 'enable_page_major_kv_layout': False, 'enable_unified_memory': False, 'disable_chunked_prefix_cache': False, 'disable_overlap_schedule': False, 'num_continuous_decode_steps': 1, 'scheduler_recv_interval': 1, 'enable_mixed_chunk': False, 'nccl_port': None, 'dist_timeout': None, 'dist_init_addr': None, 'gated_launch_port': None, 'nnodes': 1, 'node_rank': 0, 'tp_size': 1, 'dcp_size': 1, 'pp_size': 1, 'pp_max_micro_batch_size': None, 'pp_async_batch_depth': 0, 'dp_size': 1, 'attn_dp_size': 1, 'load_balance_method': 'round_robin', 'attn_cp_size': 1, 'moe_dp_size': 1, 'dwdp_size': 1, 'dcp_comm_backend': 'ag_rs', 'dcp_replicate_q_proj': None, 'enable_prefill_cp': False, 'cp_strategy': None, 'enable_dsa_cache_layer_split': False, 'enable_cp_decode_attn_tp': False, 'enable_kv_cache_sharding': False, 'enable_dp_attention': False, 'enable_dp_attention_local_control_broadcast': False, 'enable_dp_lm_head': False, 'enable_tp_lm_head_all_to_all': False, 'enable_attn_tp_input_scattered': False, 'enable_shared_experts_attn_tp': False, 'shared_experts_tp_size': None, 'enable_dense_mlp_attn_tp': False, 'enable_layernorm_sp': False, 'disable_attn_tp_gather': False, 'enable_p2p_check': False, 'device': 'cuda', 'base_gpu_id': 0, 'gpu_id_step': 1, 'random_seed': 149343229, 'mlx_enable_sampling': False, 'watchdog_timeout': 300, 'soft_watchdog_timeout': None, 'sleep_on_idle': False, 'use_ray': False, 'custom_sigquit_handler': None, 'numa_node': None, 'gc_threshold': None, 'host': '127.0.0.1', 'port': 30938, 'fastapi_root_path': '', 'smg_grpc_mode': False, 'grpc_mode': False, 'grpc_port': None, 'grpc_worker_threads': 4, 'sidecar': None, 'sidecar_args': None, 'skip_server_warmup': False, 'warmups': None, 'enable_http2': False, 'http2_max_concurrent_streams': 200, 'http2_initial_connection_window_size': 1048576, 'ssl_keyfile': None, 'ssl_certfile': None, 'ssl_ca_certs': None, 'ssl_keyfile_password': None, 'enable_ssl_refresh': False, 'api_key': None, 'admin_api_key': None, 'served_model_name': '/hf-cache/models--nvidia--Qwen3.8-Flash-Next-FP4-Local/snapshots/b9ce18a6887e18c089fdea8509a33e63429a3300', 'weight_version': 'default', 'chat_template': None, 'trust_request_chat_template': False, 'hf_chat_template_name': None, 'completion_template': None, 'file_storage_path': None, 'enable_cache_report': False, 'return_input_ids': False, 'return_output_ids': False, 'reasoning_parser': 'qwen3', 'default_chat_template_kwargs': None, 'strip_thinking_cache': False, 'enable_strict_thinking': False, 'tool_call_parser': None, 'tool_server': None, 'sampling_defaults': 'model', 'asr_max_buffer_seconds': 60, 'asr_max_concurrent_sessions': 32, 'preferred_sampling_params': None, 'allow_auto_truncate': False, 'stream_interval': 1, 'batch_notify_size': 16, 'stream_response_default_include_usage': False, 'incremental_streaming_output': False, 'enable_streaming_session': False, 'enable_session_radix_cache': False, 'log_level': 'info', 'log_level_http': None, 'log_requests': False, 'log_requests_level': 2, 'log_requests_format': 'text', 'log_requests_target': None, 'uvicorn_access_log_exclude_prefixes': [], 'crash_dump_folder': None, 'show_time_cost': False, 'enable_metrics': False, 'smg_http_sidecar_port': None, 'enable_mfu_metrics': False, 'enable_metrics_for_all_schedulers': False, 'load_snapshot_publish_interval': 15, 'tokenizer_metrics_custom_labels_header': 'x-custom-labels', 'tokenizer_metrics_allowed_custom_labels': None, 'extra_metric_labels': None, 'bucket_time_to_first_token': None, 'bucket_inter_token_latency': None, 'bucket_e2e_request_latency': None, 'prompt_tokens_buckets': None, 'generation_tokens_buckets': None, 'gc_warning_threshold_secs': 0.0, 'decode_log_interval': 40, 'enable_request_time_stats_logging': False, 'kv_events_config': None, 'load_publish_endpoint': None, 'enable_forward_pass_metrics': False, 'forward_pass_metrics_worker_id': '', 'forward_pass_metrics_ipc_name': None, 'enable_trace': False, 'trace_modules': 'request', 'otlp_traces_endpoint': 'localhost:4317', 'export_metrics_to_file': False, 'export_metrics_to_file_dir': None, 'stat_loggers': None, 'constrained_json_whitespace_pattern': None, 'constrained_json_disable_any_whitespace': False, 'constrained_json_max_whitespace_cnt': None, 'attention_backend': 'flashinfer', 'decode_attention_backend': None, 'enable_lean_attention': None, 'prefill_attention_backend': None, 'sampling_backend': 'flashinfer', 'grammar_backend': 'xgrammar', 'radix_cache_backend': None, 'mm_attention_backend': None, 'fp8_gemm_runner_backend': 'auto', 'fp4_gemm_runner_backend': 'auto', 'bf16_gemm_backend': 'auto', 'dsa_prefill_backend': None, 'dsv4_prefill_backend': 'auto', 'dsa_decode_backend': None, 'dsa_paged_mqa_logits_backend': 'auto', 'dsa_topk_backend': 'sgl-kernel', 'disable_flashinfer_autotune': False, 'flashinfer_autotune_skip_ops': None, 'mamba_backend': 'triton', 'cuda_graph_config': {'decode': {'backend': 'breakable', 'max_bs': 1, 'bs': [1], 'tc_compiler': 'eager', 'max_context_size': None, 'full_prefill_max_req': None, 'full_prefill_prefix_chunk_tokens': None, 'max_seq_len': None}, 'prefill': {'backend': 'disabled', 'max_bs': 8192, 'bs': [4, 8, 12, 16, 20, 24, 28, 32, 48, 64, 80, 96, 112, 128, 144, 160, 176, 192, 208, 224, 240, 256, 288, 320, 352, 384, 416, 448, 480, 512, 576, 640, 704, 768, 832, 896, 960, 1024, 1280, 1536, 1792, 2048, 2304, 2560, 2816, 3072, 3328, 3584, 3840, 4096, 4608, 5120, 5632, 6144, 6656, 7168, 7680, 8192], 'tc_compiler': 'eager', 'max_context_size': None, 'full_prefill_max_req': None, 'full_prefill_prefix_chunk_tokens': None, 'max_seq_len': None}}, 'cuda_graph_backend_decode': 'breakable', 'cuda_graph_backend_prefill': 'disabled', 'cuda_graph_max_bs_decode': None, 'cuda_graph_max_bs_prefill': None, 'cuda_graph_bs_decode': None, 'cuda_graph_bs_prefill': None, 'cuda_graph_prefill_max_context': None, 'disable_prefill_cuda_graph': False, 'disable_decode_cuda_graph': False, 'disable_cuda_graph': True, 'disable_cuda_graph_padding': False, 'enable_profile_cuda_graph': False, 'enable_cudagraph_gc': False, 'debug_cuda_graph': False, 'enable_layerwise_nvtx_marker': False, 'enable_nccl_nvls': False, 'enable_symm_mem': False, 'triton_attention_reduce_in_fp32': False, 'triton_attention_num_kv_splits': 8, 'triton_attention_split_tile_size': None, 'flashinfer_mla_disable_ragged': False, 'enable_fused_qk_norm_rope': False, 'enable_precise_embedding_interpolation': False, 'enable_fused_moe_sum_all_reduce': False, 'enable_deepseek_v4_fp4_indexer': False, 'disable_custom_all_reduce': False, 'enable_mscclpp': False, 'enable_torch_symm_mem': False, 'enable_scattered_sconv': False, 'pre_warm_nccl': False, 'boundary_reduction': 'ar', 'enable_quant_communications': False, 'enable_flashinfer_allreduce_fusion': False, 'enforce_disable_flashinfer_allreduce_fusion': False, 'flashinfer_allreduce_fusion_backend': None, 'enable_aiter_allreduce_fusion': False, 'enable_torch_compile': False, 'enable_torch_compile_debug_mode': False, 'torch_compile_max_bs': 32, 'speculative_algorithm': 'EAGLE', 'uno_lora_path': None, 'speculative_draft_model_path': '/hf-cache/models--nvidia--Qwen3.8-Flash-Next-FP4-Local/snapshots/b9ce18a6887e18c089fdea8509a33e63429a3300', 'speculative_draft_model_revision': 'b9ce18a6887e18c089fdea8509a33e63429a3300', 'speculative_draft_load_format': 'qwen38_mtp', 'speculative_num_steps': 2, 'speculative_eagle_topk': 1, 'speculative_num_draft_tokens': 3, 'speculative_dflash_block_size': None, 'speculative_dspark_block_size': None, 'speculative_dspark_sps_table_path': None, 'speculative_dspark_confidence_sts_path': None, 'speculative_dspark_align_verify_tokens_to_graph_tier': False, 'speculative_accept_threshold_single': 1.0, 'speculative_accept_threshold_acc': 1.0, 'speculative_use_rejection_sampling': False, 'speculative_token_map': None, 'speculative_attention_mode': 'prefill', 'speculative_draft_attention_backend': None, 'speculative_dsa_topk_backend': 'sgl-kernel', 'speculative_draft_kv_cache_dtype': 'bfloat16', 'speculative_draft_window_size': None, 'speculative_moe_runner_backend': 'triton', 'speculative_moe_a2a_backend': None, 'speculative_enable_w4a4_mxfp4_megamoe': None, 'speculative_draft_model_quantization': None, '_speculative_draft_quantization_explicitly_set': False, 'speculative_skip_dp_mlp_sync': False, 'enable_multi_layer_eagle': False, 'speculative_adaptive': False, 'speculative_adaptive_config': None, 'decoupled_spec_bind_endpoint': None, 'decoupled_spec_connect_endpoints': None, 'decoupled_spec_rank': None, 'decoupled_spec_role': 'null', 'spec_trace_dir': None, 'speculative_ngram_min_bfs_breadth': 1, 'speculative_ngram_max_bfs_breadth': 10, 'speculative_ngram_match_type': 'BFS', 'speculative_ngram_max_trie_depth': 18, 'speculative_ngram_capacity': 10000000, 'speculative_ngram_external_corpus_path': None, 'speculative_ngram_external_sam_budget': 0, 'speculative_ngram_external_corpus_max_tokens': 10000000, 'ep_size': 1, 'moe_a2a_backend': 'none', 'enable_w4a4_mxfp4_megamoe': False, 'deepep_v2_mode': 'direct', 'moe_runner_backend': 'flashinfer_cutlass', 'flashinfer_mxfp4_moe_precision': 'default', 'deepep_mode': 'auto', 'fuseep_mode': 2, 'deepep_dispatcher_output_dtype': 'auto', 'ep_num_redundant_experts': 0, 'ep_dispatch_algorithm': None, 'init_expert_location': 'trivial', 'enable_eplb': False, 'eplb_algorithm': 'auto', 'eplb_rebalance_num_iterations': 1000, 'eplb_rebalance_layers_per_chunk': None, 'eplb_min_rebalancing_utilization_threshold': 1.0, 'expert_distribution_recorder_mode': None, 'expert_distribution_recorder_buffer_size': 1000, 'expert_balancedness_report_mode': 'off', 'deepep_config': None, 'moe_dense_tp_size': None, 'elastic_ep_backend': None, 'enable_elastic_expert_backup': False, 'mooncake_ib_device': None, 'enable_waterfill': False, 'ep_join_mode': None, 'ep_join_rank_offset': 0, 'elastic_ep_initial_size': None, 'max_ep_size': None, 'elastic_ep_scale_timeout': 600, 'disable_flashinfer_cutlass_moe_fp4_allgather': False, 'disable_shared_experts_fusion': True, 'enforce_shared_experts_fusion': False, 'max_mamba_cache_size': 10, 'mamba_ssm_dtype': 'bfloat16', 'mamba_max_states_per_path': -1, 'enable_mamba_cache_stochastic_rounding': False, 'mamba_cache_philox_rounds': 0, 'mamba_full_memory_ratio': 0.22, 'mamba_radix_cache_strategy': 'extra_buffer', 'uses_mamba_radix_cache': True, 'mamba_track_interval': 256, 'enable_int8_mamba_checkpoint': False, 'int8_mamba_ckpt_size': None, 'linear_attn_backend': 'triton', 'linear_attn_decode_backend': None, 'linear_attn_prefill_backend': None, 'linear_attn_verify_backend': None, 'enable_linear_replayssm': False, 'linear_replayssm_cache_len': 16, 'enable_linear_replayssm_spec': False, 'enable_hierarchical_cache': False, 'hicache_host_memory_mode': 'cache', 'hicache_ratio': 2.0, 'hicache_size': 0, 'hicache_write_policy': 'write_through', 'hicache_io_backend': 'kernel', 'hicache_mem_layout': 'page_first', 'hicache_storage_backend': None, 'hicache_storage_prefetch_policy': 'timeout', 'hicache_storage_backend_extra_config': None, 'hicache_storage_prefetch_retry_poll_interval': 8, 'hicache_storage_prefetch_retry_max_attempts': 8, 'enable_unified_cache_external_linker': False, 'unified_cache_external_linker_backend': 'mooncake', 'enable_hisparse': False, 'hisparse_config': None, 'enable_broadcast_mm_inputs_process': False, 'enable_prefix_mm_cache': False, 'mm_enable_dp_encoder': False, 'mm_process_config': {}, 'mm_processor_worker_num': 0, 'mm_io_worker_num': 0, 'allowed_media_domains': [], 'media_url_max_file_size_mb': 64, 'mm_preprocess_cache_size_mb': None, 'trust_mm_content_hashes': False, 'limit_mm_data_per_request': None, 'enable_mm_global_cache': False, 'image_processor_backend': 'auto', 'mm_global_cache_backend': 'mooncake', 'disable_fast_image_processor': False, 'mm_feature_transport': 'cpu', 'enable_lora': None, 'enable_lora_overlap_loading': None, 'max_lora_rank': None, 'lora_target_modules': None, 'lora_paths': None, 'max_loaded_loras': None, 'max_loras_per_batch': 8, 'lora_eviction_policy': 'lru', 'lora_backend': 'csgmv', 'max_lora_chunk_size': 16, 'experts_shared_outer_loras': None, 'lora_use_virtual_experts': False, 'lora_strict_loading': False, 'lora_drain_wait_threshold': 0.0, 'enable_two_batch_overlap': False, 'enable_single_batch_overlap': False, 'tbo_token_distribution_threshold': 0.48, 'cpu_offload_gb': 0, 'offload_group_size': -1, 'offload_num_in_group': 1, 'offload_prefetch_step': 1, 'offload_mode': 'cpu', 'enable_lmcache': False, 'lmcache_config_file': None, 'enable_flexkv': False, 'flexkv_config_file': None, 'kt_weight_path': None, 'kt_method': 'AMXINT4', 'kt_cpuinfer': None, 'kt_threadpool_count': 2, 'kt_num_gpu_experts': None, 'kt_max_deferred_experts_per_token': None, 'dllm_algorithm': None, 'dllm_algorithm_config': None, 'dllm_fdfo': True, 'disaggregation_mode': 'null', 'disaggregation_transfer_backend': 'mooncake', 'disaggregation_bootstrap_port': 8998, 'disaggregation_ib_device': None, 'disaggregation_decode_enable_radix_cache': False, 'disaggregation_decode_enable_offload_kvcache': False, 'disaggregation_decode_retraction_backup': None, 'num_reserved_decode_tokens': 512, 'disaggregation_decode_extra_slots': None, 'disaggregation_decode_polling_interval': 1, 'optimistic_prefill_attempts': 0, 'encoder_only': False, 'language_only': False, 'language_model_only': True, 'encoder_transfer_backend': 'zmq_to_scheduler', 'encoder_urls': [], 'encoder_bootstrap_port': 8997, 'encoder_register_urls': [], 'enable_adaptive_dispatch_to_encoder': False, 'enable_pdmux': False, 'pdmux_config_path': None, 'sm_group_num': 8, 'startup_weight_load_mode': 'serial', 'custom_weight_loader': [], 'weight_loader_disable_mmap': False, 'weight_loader_prefetch_checkpoints': False, 'weight_loader_prefetch_num_threads': 4, 'weight_loader_drop_cache_after_load': False, 'remote_instance_weight_loader_seed_instance_ip': None, 'remote_instance_weight_loader_seed_instance_service_port': None, 'remote_instance_weight_loader_send_weights_group_ports': None, 'remote_instance_weight_loader_backend': 'nccl', 'remote_instance_weight_loader_start_seed_via_transfer_engine': False, 'engine_info_bootstrap_port': 6789, 'modelexpress_config': None, 'download_dir': '/hf-cache', 'model_checksum': None, 'delete_ckpt_after_loading': False, 'decrypted_config_file': None, 'decrypted_draft_config_file': None, 'checkpoint_engine_wait_weights_before_ready': False, 'enable_prefill_delayer': False, 'prefill_delayer_max_delay_passes': 30, 'prefill_delayer_token_usage_low_watermark': None, 'prefill_delayer_forward_passes_buckets': None, 'prefill_delayer_wait_seconds_buckets': None, 'prefill_delayer_queue_min_ratio': None, 'prefill_delayer_max_delay_ms': None, 'min_free_slots_delay': None, 'enable_deterministic_inference': False, 'rl_on_policy_target': None, 'kv_canary': 'none', 'kv_canary_real_data': 'none', 'kv_canary_sweep_interval': 0, 'enable_dynamic_batch_tokenizer': False, 'dynamic_batch_tokenizer_batch_size': 32, 'dynamic_batch_tokenizer_batch_timeout': 0.002, 'enable_tokenizer_batch_encode': False, 'disable_tokenizer_batch_decode': False, 'debug_tensor_dump_output_folder': None, 'debug_tensor_dump_layers': None, 'debug_tensor_dump_input_file': None, 'enable_memory_saver': False, 'enable_weights_cpu_backup': False, 'enable_draft_weights_cpu_backup': False, 'enable_custom_logit_processor': False, 'enable_return_hidden_states': False, 'return_hidden_states_mode': None, 'enable_return_routed_experts': False, 'enable_return_indexer_topk': False, 'sampling_mask_max_tokens': 4096, 'disable_outlines_disk_cache': False, 'enable_mis': False, 'weight_cache_mode': 'off', 'weight_cache_socket': None, 'weight_cache_timeout': 1800, 'forward_hooks': None, 'msprobe_dump_config': None, 'ple_offload_embedding': True, 'ple_offload_backend': 'pinned', 'ple_offload_dir': None, 'disaggregation_enable_kv_checksum': False, 'enable_pd_role_switch': False, 'speculative_domino_candidate_pool_size': 2048, 'flashinfer_a2a_dispatch_type': None, 'cuda_graph_max_seq_len_prefill': None, 'prefill_kv_cache_dequant_dtype': 'auto', 'dsv4_attn_backend': 'auto', 'otlp_service_name': None, '_radix_eviction_policy_explicitly_set': False, 'hicache_host_memory_fraction': 0.8, 'enable_linker_mla_dedup': False, '_swa_full_tokens_ratio_explicitly_set': False, 'swa_prefix_tails': None, 'enable_encoder_swa_bounded_replay': False, 'enable_decoder_swa_bounded_replay': None, 'enable_response_store': False, 'disaggregation_decode_host_receive_threshold': 1.0, 'qsa_indexer_dtype': 'auto', 'disaggregation_decode_allocation_policy': 'early', 'speculative_boundary_reduction': 'ar', 'speculative_use_block_verification': False, 'speculative_draft_sink_size': None, 'disable_aiter_allreduce_fusion_in_prefill': False, 'disable_aiter_allreduce_fusion_in_decode': False, 'monokernel_backend': None, 'dsa_triton_union': 0, 'enable_dsa_fused_indexer': None, 'enable_cp_tp_group_sharing': False, 'enable_watermark': False, 'watermark_config': '<redacted>', 'watermark_key': '<redacted>', 'watermark_key_b': '<redacted>', 'watermark_context_window': 4, 'watermark_mixing_probability': 0.5, 'watermark_max_probability': 1.0, 'watermark_default_enabled': False, 'watermark_enforce_all': False, 'grpc_response_timeout_secs': 300}
+[transformers] Unrecognized keys in `rope_parameters` for 'rope_type'='default': {'mrope_interleaved', 'mrope_section'}
+[2026-10-19 15:20:38] Init parallel begin.
+[rank0]:[W1019 15:20:38.440099245 ProcessGroupGloo.cpp:527] Warning: Unable to resolve hostname to a (local) address. Using the loopback address as fallback. Manually set the network interface to bind to with GLOO_SOCKET_IFNAME. (function operator())
+[2026-10-19 15:20:38] Init parallel ends. elapsed=0.11 s
+[2026-10-19 15:20:39] Using default HuggingFace chat template with detected content format: openai
+[2026-10-19 15:20:39] Auto-detected template features: reasoning_config=ReasoningToggleConfig(toggle_param='enable_thinking', default_enabled=True, special_case=None, effort_kwarg=None), reasoning_parser=qwen3, tool_call_parser=qwen3_coder
+[2026-10-19 15:20:39] Memory baseline taken. mem usage=0.00 GB
+[2026-10-19 15:20:39] Qwen38 OOM allocator history enabled: /results/investigation/oom-snapshots (200000 entries)
+[2026-10-19 15:20:39] Load weight begin. avail mem=30.76 GB
+/opt/sglang/lib/python3.12/site-packages/torch/jit/_script.py:1491: FutureWarning: `torch.jit.script` is deprecated. Please switch to `torch.compile` or `torch.export`.
+  warnings.warn(
+/opt/sglang/lib/python3.12/site-packages/torch/jit/_script.py:1643: FutureWarning: `torch.jit.interface` is deprecated. Please use `torch.compile` instead.
+  warnings.warn(
+/opt/sglang/lib/python3.12/site-packages/torch/jit/_script.py:1491: FutureWarning: `torch.jit.script` is deprecated. Please switch to `torch.compile` or `torch.export`.
+  warnings.warn(
+[2026-10-19 15:20:41] Detected ModelOpt FP8 checkpoint. The format is experimental and subject to change.
+[2026-10-19 15:20:41] Detected fp8 checkpoint.
+[2026-10-19 15:20:41] Detected fp8 checkpoint.
+[2026-10-19 15:20:41] Detected nvfp4 checkpoint.
+[2026-10-19 15:20:41] Detected nvfp4 checkpoint.
+[2026-10-19 15:20:42] using attn output gate!
+[2026-10-19 15:20:42] Qwen38 startup model construction: seconds=0.791 mapped_token_embedding=True source=/workspace/sglang/python/sglang/srt/model_loader/qwen38_nvfp4_cache_loader.py
+[2026-10-19 15:20:42] Qwen38 startup cache plan: {"available_bytes": 91792510976, "budget": 99930450948, "cleanup": {"in_use": 0, "removed_bytes": 0, "removed_files": 0}, "expert_bytes": 67948507140, "ple_bytes": 28800138240, "ram_budget": 148568916587, "reserve_bytes": 39972239769, "reusable_bytes": 96748645380, "tier": "both", "tmpfs_budget": 99930450948}
+[2026-10-19 15:20:42] Qwen38Observe {"after": {"RssAnon_bytes": 1285230592, "RssFile_bytes": 650395648, "VmLck_bytes": 16384, "VmRSS_bytes": 2019618816, "majflt": 0, "minflt": 384479}, "before": {"RssAnon_bytes": 1285230592, "RssFile_bytes": 649822208, "VmLck_bytes": 16384, "VmRSS_bytes": 2019045376, "majflt": 0, "minflt": 384470}, "calls": 1, "cumulative_host_seconds": 0.0006869769999866548, "error": null, "host_seconds": 0.0006869769999866548, "metadata": {"mode": "shared_thp", "source_bytes": 67948507140}, "pid": 228, "stage": "source_prefault_or_load"}
+[2026-10-19 15:20:42] Qwen38 startup expert source ready: mode=shared_thp GiB=63.28 seconds=0.015 cache_hit=True
+Qwen38Register bytes=1271398424 register_ms=174.703 device_pointer_ms=0.009 status=0
+[2026-10-19 15:20:44] Qwen38 mapped token embedding: 1212.5 MiB host, register 0.188s
+[2026-10-19 15:20:44] FP4 PLE packed cache hit: path=/root/.cache/sglang/ple/fp4-ple-v1-87c22d37b3a3b360c0ac07fbdd312688.bin bytes=28800138240 seconds=0.005
+Qwen38Register bytes=28800138240 register_ms=225.753 device_pointer_ms=0.005 status=0
+[2026-10-19 15:20:44] Qwen38 startup shared PLE ready: GiB=26.82 cache_hit=True prepare_seconds=0.000 register_seconds=0.226
+[2026-10-19 15:20:44] FP4 PLE host preparation: backend=pinned cached=True allocate_seconds=0.226 load_seconds=0.000
+[2026-10-19 15:20:44] FP4 PLE pinned ready: rows=320001536 row_bytes=90 table=26.82 GiB; packed GPU gather
+[2026-10-19 15:20:44] Qwen38 startup checkpoint load and postprocess: seconds=1.750
+[2026-10-19 15:20:44] GPU 0 has not joined an NVLink fabric clique; probing local FABRIC allocation support
+[2026-10-19 15:20:44] CUDA VMM FABRIC backing unavailable on device 0; trying fallback: cuMemCreate(FABRIC probe): <CUresult.CUDA_ERROR_INVALID_VALUE: 1>
+[2026-10-19 15:20:44] CUDA VMM selected POSIX_FD backing for device 0
+[2026-10-19 15:20:44] KvVmmArena[228_0] ready: device=0 reserved_va=63.5 GiB granularity=2048 KiB handle_type=POSIX_FD
+[2026-10-19 15:20:44] Qwen38 prefill arena borrows 512 expert slots from pool tail
+[2026-10-19 15:20:44] Qwen38Observe {"calls": 1, "cumulative_host_seconds": 0.000156063000076756, "error": null, "host_seconds": 0.000156063000076756, "metadata": {}, "pid": 228, "stage": "cpu_staging_and_enqueue"}
+[2026-10-19 15:20:44] Qwen38Observe {"after": {"RssAnon_bytes": 2780196864, "RssFile_bytes": 657674240, "VmLck_bytes": 16384, "VmRSS_bytes": 32691363840, "driver_free_bytes": 9265741824, "driver_total_bytes": 33766572032, "driver_used_minus_reserved_bytes": -49486692352, "majflt": 0, "minflt": 861994, "torch_allocated_bytes": 73966016512, "torch_reserved_bytes": 73987522560}, "before": {"RssAnon_bytes": 2780196864, "RssFile_bytes": 657674240, "VmLck_bytes": 16384, "VmRSS_bytes": 32691363840, "driver_free_bytes": 9265741824, "driver_total_bytes": 33766572032, "driver_used_minus_reserved_bytes": -49486692352, "majflt": 0, "minflt": 861994, "torch_allocated_bytes": 73966016512, "torch_reserved_bytes": 73987522560}, "calls": 1, "cumulative_host_seconds": 1.176399996438704e-05, "error": null, "host_seconds": 1.176399996438704e-05, "metadata": {}, "pid": 228, "stage": "source_mapping"}
+Qwen38Register bytes=67948507140 register_ms=531.454 device_pointer_ms=0.006 status=0
+[2026-10-19 15:20:45] Qwen38Observe {"after": {"RssAnon_bytes": 2780196864, "RssFile_bytes": 657674240, "VmLck_bytes": 16384, "VmRSS_bytes": 100541046784, "driver_free_bytes": 9131524096, "driver_total_bytes": 33766572032, "driver_used_minus_reserved_bytes": -49352474624, "majflt": 0, "minflt": 894348, "torch_allocated_bytes": 73966016512, "torch_reserved_bytes": 73987522560}, "before": {"RssAnon_bytes": 2780196864, "RssFile_bytes": 657674240, "VmLck_bytes": 16384, "VmRSS_bytes": 32691363840, "driver_free_bytes": 9265741824, "driver_total_bytes": 33766572032, "driver_used_minus_reserved_bytes": -49486692352, "majflt": 0, "minflt": 861994, "torch_allocated_bytes": 73966016512, "torch_reserved_bytes": 73987522560}, "calls": 1, "cumulative_host_seconds": 0.5315303589998166, "error": null, "host_seconds": 0.5315303589998166, "metadata": {"source_bytes": 67948507140}, "pid": 228, "stage": "host_register_and_device_pointer"}
+[2026-10-19 15:20:45] Expert-pack shared THP cache retained for warm restarts
+[2026-10-19 15:20:45] Qwen38Observe {"after": {"RssAnon_bytes": 2780196864, "RssFile_bytes": 657674240, "VmLck_bytes": 16384, "VmRSS_bytes": 100541046784, "driver_free_bytes": 9131524096, "driver_total_bytes": 33766572032, "driver_used_minus_reserved_bytes": -49352474624, "majflt": 0, "minflt": 894348, "torch_allocated_bytes": 73966016512, "torch_reserved_bytes": 73987522560}, "before": {"RssAnon_bytes": 2780196864, "RssFile_bytes": 657674240, "VmLck_bytes": 16384, "VmRSS_bytes": 100541046784, "driver_free_bytes": 9131524096, "driver_total_bytes": 33766572032, "driver_used_minus_reserved_bytes": -49352474624, "majflt": 0, "minflt": 894348, "torch_allocated_bytes": 73966016512, "torch_reserved_bytes": 73987522560}, "calls": 1, "cumulative_host_seconds": 2.6188999981968664e-05, "error": null, "host_seconds": 2.6188999981968664e-05, "metadata": {}, "pid": 228, "stage": "discard_source_cache"}
+[2026-10-19 15:20:45] Qwen38 startup runtime reserve: seconds=0.622 decode_cache_MiB=16843.41 prefill_arena_MiB=0.00 borrowed_prefill_arena_MiB=1350.00
+[2026-10-19 15:20:45] Qwen38 B12X W4A16 enabled: BF16 decode/verify 1..3 tokens; other shapes use Triton W4A16
+[2026-10-19 15:20:45] Qwen38 cache activation mode: prefill=W4A4 CUTLASS decode/verify=W4A16; W4A16 chunk=16
+[2026-10-19 15:20:45] Using FP8 KV cache but no scaling factors provided. Defaulting to scaling factors of 1.0.
+[2026-10-19 15:20:45] Load weight end. elapsed=5.82 s, type=Qwen4ExpForConditionalGeneration, quant=modelopt_mixed, quant_algo=MIXED_PRECISION, avail mem=8.50 GB, mem usage=22.26 GB.
+[2026-10-19 15:20:46] Using draft model load_format: 'qwen38_mtp'
+[2026-10-19 15:20:46] Memory baseline taken. mem usage=0.00 GB
+[2026-10-19 15:20:46] Load weight begin. avail mem=8.50 GB
+[2026-10-19 15:20:46] Detected ModelOpt FP8 checkpoint. The format is experimental and subject to change.
+[2026-10-19 15:20:46] Detected fp8 checkpoint.
+[2026-10-19 15:20:46] Detected fp8 checkpoint.
+[2026-10-19 15:20:46] Detected nvfp4 checkpoint.
+[2026-10-19 15:20:46] Detected nvfp4 checkpoint.
+[2026-10-19 15:20:47] Qwen38 MTP expert activation: w4a4
+[2026-10-19 15:20:47] Using FP8 KV cache but no scaling factors provided. Defaulting to scaling factors of 1.0.
+[2026-10-19 15:20:47] Load weight end. elapsed=1.31 s, type=Qwen4ExpForCausalLMMTP, quant=modelopt_mixed, quant_algo=MIXED_PRECISION, avail mem=7.01 GB, mem usage=1.49 GB.
+[2026-10-19 15:20:47] Qwen38 staged KV sizing: profiled_tokens=227584 required_tokens=220032
+[2026-10-19 15:20:47] Mamba Cache is allocated. max_mamba_cache_size: 10, conv_state size: 0.02GB, ssm_state size: 0.58GB intermediate_ssm_state_cache size: 0.32GB intermediate_conv_window_cache size: 0.01GB 
+[2026-10-19 15:20:48] Warmed fused Mamba slot copy kernel in 203.270 ms
+[2026-10-19 15:20:48] KvVmmArena[228_1] ready: device=0 reserved_va=3.3 GiB granularity=2048 KiB handle_type=POSIX_FD
+[2026-10-19 15:20:48] KV Cache is allocated. dtype: torch.float8_e4m3fn, #tokens: 220032, K size: 1.26 GB, V size: 1.26 GB
+[2026-10-19 15:20:48] Qwen38 adaptive KV stages=(80000, 160000, 220032) expert budgets=[7006, 6643, 6388]
+[2026-10-19 15:20:48] QSA compressed indexer cache dtype: torch.bfloat16 (pending ring torch.bfloat16)
+[2026-10-19 15:20:48] Memory pool end. avail mem=3.38 GB
+[2026-10-19 15:20:48] KV Cache is allocated. dtype: torch.bfloat16, #tokens: 220032, K size: 0.21 GB, V size: 0.21 GB
+[2026-10-19 15:20:48] QSA compressed indexer cache dtype: torch.bfloat16 (pending ring torch.bfloat16)
+[2026-10-19 15:20:48] Memory pool end. avail mem=2.95 GB
+[2026-10-19 15:20:48] Linear attention kernel backend: decode=triton, prefill=triton, verify=triton
+[2026-10-19 15:20:48] Using hybrid linear attention backend for hybrid GDN models.
+[2026-10-19 15:20:48] GDN kernel dispatcher: decode=TritonGDNKernel, extend=TritonGDNKernel, verify=TritonGDNKernel packed_decode=True
+[2026-10-19 15:20:48] Using QSA for sparse full-attention layers.
+[2026-10-19 15:20:48] Linear attention kernel backend: decode=triton, prefill=triton, verify=triton
+[2026-10-19 15:20:48] Using hybrid linear attention backend for hybrid GDN models.
+[2026-10-19 15:20:48] GDN kernel dispatcher: decode=TritonGDNKernel, extend=TritonGDNKernel, verify=TritonGDNKernel packed_decode=True
+[2026-10-19 15:20:48] Using QSA for sparse full-attention layers.
+[2026-10-19 15:20:48] QSA MTP index sharing enabled: draft decode steps reuse the draft-extend selection for layers [0]
+[2026-10-19 15:20:48] Running FlashInfer autotune with cache: /root/.cache/sglang/flashinfer/autotune/0.7.2/sm120/f7fa880ffc5feec1/rank_tp0_pp0_dp0.json
+[2026-10-19 15:20:49] FlashInfer autotune completed.
+[2026-10-19 15:20:49] Disable prefill CUDA graph because cuda_graph_config resolved prefill.backend='disabled' (e.g. via --cuda-graph-backend-prefill=disabled or auto-disable rules).
+[2026-10-19 15:20:49] Capture target verify CUDA graph begin. backend=breakable, num_tokens_per_req=3, avail mem=2.69 GB
+  0%|          | 0/1 [00:00<?, ?it/s]Capturing batches (bs=1 avail_mem=2.69 GB):   0%|          | 0/1 [00:00<?, ?it/s]Capturing batches (bs=1 avail_mem=2.69 GB): 100%|██████████| 1/1 [00:00<00:00,  3.94it/s]Capturing batches (bs=1 avail_mem=2.69 GB): 100%|██████████| 1/1 [00:00<00:00,  3.94it/s]
+[2026-10-19 15:20:50] Capture target verify CUDA graph end. bs=[1], elapsed=1.34 s, mem usage=0.09 GB, avail mem=2.59 GB.
+[2026-10-19 15:20:50] Disable prefill CUDA graph because cuda_graph_config resolved prefill.backend='disabled' (e.g. via --cuda-graph-backend-prefill=disabled or auto-disable rules).
+[2026-10-19 15:20:50] Capture draft decode CUDA graph begin. backend=breakable, num_tokens_per_req=1, bs=[1], avail mem=2.59 GB
+  0%|          | 0/1 [00:00<?, ?it/s]Capturing batches (bs=1 avail_mem=2.59 GB):   0%|          | 0/1 [00:00<?, ?it/s][2026-10-19 15:20:51] Running FlashInfer autotune with cache: /root/.cache/sglang/flashinfer/autotune/0.7.2/sm120/277c277f0c83783b/rank_tp0_pp0_dp0.json
+[TensorRT-LLM][INFO] Set logger level to INFO
+[2026-10-19 15:20:51] FlashInfer autotune completed.
+Capturing batches (bs=1 avail_mem=2.59 GB): 100%|██████████| 1/1 [00:00<00:00,  2.77it/s]Capturing batches (bs=1 avail_mem=2.59 GB): 100%|██████████| 1/1 [00:00<00:00,  2.77it/s]
+[2026-10-19 15:20:52] Capture draft decode CUDA graph end. elapsed=1.44 s, mem usage=0.22 GB, avail mem=2.37 GB.
+[2026-10-19 15:20:52] Capture draft extend CUDA graph begin. backend=breakable, num_tokens_per_req=3, bs=[1], avail mem=2.37 GB
+  0%|          | 0/1 [00:00<?, ?it/s]Capturing batches (bs=1 avail_mem=2.37 GB):   0%|          | 0/1 [00:00<?, ?it/s][2026-10-19 15:20:52] Running FlashInfer autotune with cache: /root/.cache/sglang/flashinfer/autotune/0.7.2/sm120/277c277f0c83783b/rank_tp0_pp0_dp0.json
+[2026-10-19 15:20:52] FlashInfer autotune completed.
+Capturing batches (bs=1 avail_mem=2.37 GB): 100%|██████████| 1/1 [00:00<00:00, 52.54it/s]
+[2026-10-19 15:20:53] Capture draft extend CUDA graph end. elapsed=1.10 s, mem usage=0.13 GB, avail mem=2.24 GB.
+[2026-10-19 15:20:53] max_total_num_tokens=220032, chunked_prefill_size=8192, max_prefill_tokens=16384, max_running_requests=1, context_len=220000, available_gpu_mem=2.24 GB
+[2026-10-19 15:20:53] Using the Python TreeCore: the Rust TreeCore toolchain is unavailable (cargo --version --verbose)
+[2026-10-19 15:20:53] Init Unified Radix Cache. Components: (<ComponentType.FULL: 0>, <ComponentType.MAMBA: 2>). Tree Core: UnifiedTreeCore
+[2026-10-19 15:20:53] Tree cache initialized: source=default impl=UnifiedRadixCache hybrid_swa=False hybrid_ssm=True hicache_attached=False
+[2026-10-19 15:20:53] Engine startup timings (s): load_weight=7.13, kv_cache_allocation=0.81, scheduler_e2e=14.89, cuda_graph={prefill=0.00, decode=0.00, target_verify=1.34, draft_prefill=0.00, draft_decode=1.44, draft_extend=1.10}, tokenizer_e2e=27.35
+[2026-10-19 15:20:53] INFO:     Started server process [155]
+[2026-10-19 15:20:53] INFO:     Waiting for application startup.
+[2026-10-19 15:20:53] Using default chat sampling params from model generation config: {'temperature': 1.0, 'top_k': 20, 'top_p': 0.95}
+[2026-10-19 15:20:53] INFO:     Application startup complete.
+[2026-10-19 15:20:53] INFO:     Uvicorn running on http://127.0.0.1:30938 (Press CTRL+C to quit)
+[2026-10-19 15:20:53] INFO:     127.0.0.1:41184 - "GET /ready HTTP/1.1" 503 Service Unavailable
+[2026-10-19 15:20:54] INFO:     127.0.0.1:41186 - "GET /model_info HTTP/1.1" 200 OK
+[2026-10-19 15:20:54] Qwen38Observe {"calls": 256, "cumulative_host_seconds": 0.015563458002134212, "error": null, "host_seconds": 0.00013895400002184033, "metadata": {}, "pid": 228, "stage": "cpu_staging_and_enqueue"}
+[2026-10-19 15:20:54] Qwen38Observe {"calls": 512, "cumulative_host_seconds": 0.05179530500004148, "error": null, "host_seconds": 0.0001457660000596661, "metadata": {}, "pid": 228, "stage": "cpu_staging_and_enqueue"}
+[2026-10-19 15:20:55] Qwen38Observe {"calls": 768, "cumulative_host_seconds": 0.08848485699923003, "error": null, "host_seconds": 0.0001383139999688865, "metadata": {}, "pid": 228, "stage": "cpu_staging_and_enqueue"}
+[2026-10-19 15:20:55] Qwen38Observe {"calls": 1024, "cumulative_host_seconds": 0.12508445999810647, "error": null, "host_seconds": 0.00013441300006888923, "metadata": {}, "pid": 228, "stage": "cpu_staging_and_enqueue"}
+[2026-10-19 15:20:55] Qwen38Observe {"calls": 1280, "cumulative_host_seconds": 0.16110849099845836, "error": null, "host_seconds": 0.0001318419999734033, "metadata": {}, "pid": 228, "stage": "cpu_staging_and_enqueue"}
+[2026-10-19 15:20:55] Prefill batch, #new-seq: 1, #new-token: 6, #cached-token: 0, full token usage: 0.00, mamba usage: 0.30, #running-req: 0, #queue-req: 0, #pending-token: 0, cuda graph: False, input throughput (token/s): 10.50
+[2026-10-19 15:20:55] INFO:     127.0.0.1:41192 - "POST /generate HTTP/1.1" 200 OK
+[2026-10-19 15:20:55] INFO:     127.0.0.1:41202 - "POST /freeze_gc HTTP/1.1" 200 OK
+[2026-10-19 15:20:55] The server is fired up and ready to roll!
+[2026-10-19 15:20:55] INFO:     127.0.0.1:41218 - "GET /ready HTTP/1.1" 200 OK
+[2026-10-19 15:20:55] Endpoint '/get_server_info' is deprecated and will be removed in a future version. Please use '/server_info' instead.
+[2026-10-19 15:20:55] INFO:     127.0.0.1:41230 - "GET /get_server_info HTTP/1.1" 200 OK
+[2026-10-19 15:20:55] Profiling starts. Traces will be saved to: /results/investigation/memory-1024 (with profile id: 1792423255.9735298)
+[2026-10-19 15:20:55] INFO:     127.0.0.1:41236 - "POST /start_profile HTTP/1.1" 200 OK
+[rank0]:[W1019 15:20:55.478804882 unwind.cpp:235] Warning: Unsupported unwinding pattern: unknown op code 0x8 (function unwinderFor)
+[rank0]:[W1019 15:20:55.479665643 unwind.cpp:235] Warning: Unsupported unwinding pattern: unknown op code 0x8 (function unwinderFor)
+[2026-10-19 15:20:56] Qwen38Observe {"calls": 1, "cumulative_host_seconds": 0.0045650550000573276, "error": null, "host_seconds": 0.0045650550000573276, "metadata": {}, "pid": 228, "stage": "registered_prefill_enqueue"}
+[2026-10-19 15:20:57] Qwen38Observe {"calls": 1536, "cumulative_host_seconds": 0.19826984100018308, "error": null, "host_seconds": 0.0001466559999698802, "metadata": {}, "pid": 228, "stage": "cpu_staging_and_enqueue"}
+[2026-10-19 15:20:57] Qwen38Observe {"calls": 1792, "cumulative_host_seconds": 0.23550258700265658, "error": null, "host_seconds": 0.00014493399999082612, "metadata": {}, "pid": 228, "stage": "cpu_staging_and_enqueue"}
+[2026-10-19 15:20:57] Prefill batch, #new-seq: 1, #new-token: 1024, #cached-token: 0, full token usage: 0.00, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 0, cuda graph: False, input throughput (token/s): 810.61
+[2026-10-19 15:20:57] INFO:     127.0.0.1:41244 - "POST /generate HTTP/1.1" 200 OK
+[2026-10-19 15:20:57] Stop profiling...
+[2026-10-19 15:20:59] Profiling done. Traces are saved to: /results/investigation/memory-1024
+[2026-10-19 15:20:59] INFO:     127.0.0.1:41252 - "POST /stop_profile HTTP/1.1" 200 OK
+[2026-10-19 15:20:59] Profiling starts. Traces will be saved to: /results/investigation/memory-8192 (with profile id: 1792423259.873006)
+[2026-10-19 15:20:59] INFO:     127.0.0.1:41258 - "POST /start_profile HTTP/1.1" 200 OK
+[2026-10-19 15:20:59] Triton kernel 'chunk_gated_delta_rule_fwd_kernel_h_blockdim64' device-loaded after serving started (free device mem: 0.68 GiB). Pre-load it during engine init to avoid CUDA OOM.
+[rank0]:[W1019 15:21:00.549388354 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 754974720 bytes (free: 734527488, total: 33766572032).
+[2026-10-19 15:21:00] Triton kernel '_pack_qsa_prefill_kv' device-loaded after serving started (free device mem: 0.28 GiB). Pre-load it during engine init to avoid CUDA OOM.
+[2026-10-19 15:21:00] Triton kernel '_sparse_gqa_chunk_prefill' device-loaded after serving started (free device mem: 0.28 GiB). Pre-load it during engine init to avoid CUDA OOM.
+[2026-10-19 15:21:01] Triton kernel '_pack_qsa_prefill_kv' device-loaded after serving started (free device mem: 0.28 GiB). Pre-load it during engine init to avoid CUDA OOM.
+[2026-10-19 15:21:01] Qwen38Observe {"calls": 2048, "cumulative_host_seconds": 0.2724016940035199, "error": null, "host_seconds": 0.00014009300002726377, "metadata": {}, "pid": 228, "stage": "cpu_staging_and_enqueue"}
+[2026-10-19 15:21:01] Qwen38Observe {"calls": 2304, "cumulative_host_seconds": 0.30807799000263003, "error": null, "host_seconds": 0.0001386509998155816, "metadata": {}, "pid": 228, "stage": "cpu_staging_and_enqueue"}
+[2026-10-19 15:21:01] Prefill batch, #new-seq: 1, #new-token: 7168, #cached-token: 1024, full token usage: 0.04, mamba usage: 0.40, #running-req: 0, #queue-req: 0, #pending-token: 0, cuda graph: False, input throughput (token/s): 5194.29
+[2026-10-19 15:21:01] INFO:     127.0.0.1:41260 - "POST /generate HTTP/1.1" 200 OK
+[2026-10-19 15:21:01] Stop profiling...
+[2026-10-19 15:21:01] Profiling done. Traces are saved to: /results/investigation/memory-8192
+[2026-10-19 15:21:01] INFO:     127.0.0.1:41274 - "POST /stop_profile HTTP/1.1" 200 OK
+[2026-10-19 15:21:01] Profiling starts. Traces will be saved to: /results/investigation/memory-74000 (with profile id: 1792423261.438377)
+[2026-10-19 15:21:01] INFO:     127.0.0.1:41286 - "POST /start_profile HTTP/1.1" 200 OK
+[rank0]:[W1019 15:21:01.958949535 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 861929472 bytes (free: 302514176, total: 33766572032).
+[rank0]:[W1019 15:21:01.979917484 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 880803840 bytes (free: 333971456, total: 33766572032).
+[rank0]:[W1019 15:21:02.084809872 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 861929472 bytes (free: 480772096, total: 33766572032).
+[rank0]:[W1019 15:21:02.085039361 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 861929472 bytes (free: 482869248, total: 33766572032).
+[2026-10-19 15:21:02] Qwen38 OOM allocator evidence: /results/investigation/oom-snapshots/oom-pid228-1792423262602175904
+[2026-10-19 15:21:03] Scheduler hit an exception: Traceback (most recent call last):
+  File "/workspace/sglang/python/sglang/srt/managers/scheduler.py", line 6248, in run_scheduler_process
+    scheduler.run_event_loop()
+  File "/workspace/sglang/python/sglang/srt/managers/scheduler.py", line 1952, in run_event_loop
+    dispatch_event_loop(self)
+  File "/workspace/sglang/python/sglang/srt/managers/scheduler.py", line 6095, in dispatch_event_loop
+    return _dispatch_event_loop_once(scheduler)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/managers/scheduler.py", line 6111, in _dispatch_event_loop_once
+    scheduler.event_loop_overlap()
+  File "/opt/sglang/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 124, in decorate_context
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/managers/scheduler.py", line 2062, in event_loop_overlap
+    batch_result = self.run_batch(batch)
+                   ^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/observability/scheduler_stage_metrics.py", line 186, in wrapper
+    return profiled_func(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/utils/nvtx_utils.py", line 109, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/managers/scheduler.py", line 4649, in run_batch
+    batch_result = self.model_worker.forward_batch_generation(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/speculative/eagle_worker_v2.py", line 1375, in forward_batch_generation
+    return self._forward_prefill_batch(batch, on_publish, pp_proxy_tensors)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/speculative/eagle_worker_v2.py", line 1505, in _forward_prefill_batch
+    batch_output = self.target_worker.forward_batch_generation(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/managers/tp_worker.py", line 656, in forward_batch_generation
+    out = self.model_runner.forward(
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/model_executor/model_runner.py", line 1873, in forward
+    output = self._forward_raw(
+             ^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/model_executor/model_runner.py", line 2065, in _forward_raw
+    ret = self.eager_runner.execute(
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/model_executor/runner/eager_runner.py", line 224, in execute
+    return self._execute_extend(forward_batch, pp_proxy_tensors)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/model_executor/runner/eager_runner.py", line 350, in _execute_extend
+    ret = model_runner.model.forward(
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/sglang/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 124, in decorate_context
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/models/qwen4_exp.py", line 2547, in forward
+    output = super().forward(
+             ^^^^^^^^^^^^^^^^
+  File "/opt/sglang/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 124, in decorate_context
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/models/qwen3_vl.py", line 1642, in forward
+    hidden_states = self.model(
+                    ^^^^^^^^^^^
+  File "/opt/sglang/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1783, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/sglang/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/sglang/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 124, in decorate_context
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/models/qwen4_exp.py", line 2485, in forward
+    model_output = super().forward(
+                   ^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/models/qwen4_exp.py", line 2408, in forward
+    hidden_states = layer(
+                    ^^^^^^
+  File "/opt/sglang/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1783, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/sglang/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/models/qwen4_exp.py", line 2078, in forward
+    return self._run_ffn_stage(hidden_states, forward_batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/models/qwen4_exp.py", line 2026, in _run_ffn_stage
+    hidden_states = self.mlp(
+                    ^^^^^^^^^
+  File "/opt/sglang/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1783, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/sglang/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/models/qwen2_moe.py", line 867, in forward
+    final_hidden_states = self._forward_router_experts(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/models/qwen2_moe.py", line 737, in _forward_router_experts
+    return self.experts(hidden_states, topk_output)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/sglang/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1783, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/sglang/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/layers/moe/fused_moe_triton/layer.py", line 1548, in forward
+    return self.forward_impl(
+           ^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/layers/moe/fused_moe_triton/layer.py", line 1569, in forward_impl
+    combine_input = self.run_moe_core(
+                    ^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/layers/moe/fused_moe_triton/layer.py", line 1634, in run_moe_core
+    return self.quant_method.apply(
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/layers/quantization/qwen38_nvfp4_cache.py", line 166, in apply
+    hidden_states = self._run_experts(
+                    ^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/model_executor/runner_backend_utils/breakable_cuda_graph/breakable_cuda_graph.py", line 242, in __call__
+    return self._graph_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/model_executor/runner_backend_utils/breakable_cuda_graph/breakable_cuda_graph.py", line 285, in wrapper
+    return inner(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/layers/quantization/qwen38_nvfp4_cache.py", line 402, in _run_experts
+    return self.runtime.run(
+           ^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/layers/moe/qwen38_cache_threaded.py", line 1677, in run
+    result = self._run(
+             ^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/layers/moe/qwen38_cache_threaded.py", line 1981, in _run
+    result = execute(prepared)
+             ^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/layers/quantization/qwen38_nvfp4_cache.py", line 344, in execute
+    cached = execute_single(cache_prepared, cache_weights).hidden_states
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/layers/quantization/qwen38_nvfp4_cache.py", line 300, in execute_single
+    return self.runners[capacity].run(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/layers/moe/moe_runner/runner.py", line 199, in run
+    return self.fused_func(dispatch_output, quant_info, self.config)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/layers/moe/moe_runner/flashinfer_cutlass.py", line 338, in fused_experts_none_to_flashinfer_cutlass
+    output = _run_flashinfer_cutlass(
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sglang/python/sglang/srt/layers/moe/moe_runner/flashinfer_cutlass.py", line 298, in _run_flashinfer_cutlass
+    output = flashinfer_cutlass_fused_moe(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/sglang/lib/python3.12/site-packages/flashinfer/api_logging.py", line 2369, in _auto_dump_wrapper
+    return _inner(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/sglang/lib/python3.12/site-packages/flashinfer/fused_moe/core.py", line 1634, in cutlass_fused_moe
+    return get_cutlass_fused_moe_module(device_arch).cutlass_fused_moe(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/sglang/lib/python3.12/site-packages/flashinfer/fused_moe/core.py", line 1121, in cutlass_fused_moe
+    run_moe(
+  File "python/tvm_ffi/cython/function.pxi", line 968, in tvm_ffi.core.Function.__call__
+  File "<unknown>", line 0, in FusedMoeRunner::GetFunction(tvm::ffi::String const&)::{lambda(tvm::ffi::TensorView, tvm::ffi::TensorView, tvm::ffi::TensorView, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::TensorView, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::TensorView, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::Array<tvm::ffi::Tensor, void>, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, bool, long, long, long, long, long, long, bool, bool, tvm::ffi::Optional<tvm::ffi::Array<long, void>, void>, bool, long, tvm::ffi::Optional<tvm::ffi::TensorView, void>)#8}::operator()(tvm::ffi::TensorView, tvm::ffi::TensorView, tvm::ffi::TensorView, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::TensorView, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::TensorView, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::Array<tvm::ffi::Tensor, void>, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, bool, long, long, long, long, long, long, bool, bool, tvm::ffi::Optional<tvm::ffi::Array<long, void>, void>, bool, long, tvm::ffi::Optional<tvm::ffi::TensorView, void>) const
+  File "<unknown>", line 0, in FusedMoeRunner::runMoe(tvm::ffi::TensorView, tvm::ffi::TensorView, tvm::ffi::TensorView, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::TensorView, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::TensorView, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::Array<tvm::ffi::Tensor, void>, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, bool, long, long, long, long, long, long, bool, bool, tvm::ffi::Optional<tvm::ffi::Array<long, void>, void>, bool, tensorrt_llm::kernels::cutlass_kernels::ActivationType, tvm::ffi::Optional<tvm::ffi::TensorView, void>) [clone .isra.0]
+  File "<unknown>", line 0, in FusedMoeRunner::getWorkspaceInfo(long, long, long, int, int, tensorrt_llm::kernels::cutlass_kernels::ActivationType, tensorrt_llm::kernels::cutlass_kernels::MOEParallelismConfig, bool, DLDevice, tvm::ffi::Optional<tvm::ffi::TensorView, void>)
+  File "<unknown>", line 0, in TVMFFIEnvTensorAlloc
+  File "<unknown>", line 0, in TorchDLPackExchangeAPI::ManagedTensorAllocator(DLTensor*, DLManagedTensorVersioned**, void*, void (*)(void*, char const*, char const*))
+MemoryError: CUDA out of memory. Tried to allocate 822.00 MiB. GPU 0 has a total capacity of 31.45 GiB of which 460.50 MiB is free. Including non-PyTorch memory, this process has 30.81 GiB memory in use. Of the allocated memory 75.81 GiB is allocated by PyTorch, with 37.30 MiB allocated in private pools (e.g., CUDA Graphs), and 1.11 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://docs.pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf)
+Exception raised from malloc at /__w/pytorch/pytorch/c10/cuda/CUDACachingAllocator.cpp:1927 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x9d (0x7f5f1795e60d in /opt/sglang/lib/python3.12/site-packages/torch/lib/libc10.so)
+frame #1: c10::OutOfMemoryError::OutOfMemoryError(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x72 (0x7f5f1795f382 in /opt/sglang/lib/python3.12/site-packages/torch/lib/libc10.so)
+frame #2: <unknown function> + 0x4731c (0x7f5f17dda31c in /opt/sglang/lib/python3.12/site-packages/torch/lib/libc10_cuda.so)
+frame #3: <unknown function> + 0x4790e (0x7f5f17dda90e in /opt/sglang/lib/python3.12/site-packages/torch/lib/libc10_cuda.so)
+frame #4: at::detail::empty_generic(c10::ArrayRef<long>, c10::Allocator*, c10::DispatchKeySet, c10::ScalarType, std::optional<c10::MemoryFormat>) + 0x66b (0x7f5e7a3e5dbb in /opt/sglang/lib/python3.12/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: at::detail::empty_cuda(c10::ArrayRef<long>, c10::ScalarType, std::optional<c10::Device>, std::optional<c10::MemoryFormat>) + 0x7f (0x7f5e5f4a331f in /opt/sglang/lib/python3.12/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: at::detail::empty_cuda(c10::ArrayRef<long>, std::optional<c10::ScalarType>, std::optional<c10::Layout>, std::optional<c10::Device>, std::optional<bool>, std::optional<c10::MemoryFormat>) + 0x6e (0x7f5e5f4a351e in /opt/sglang/lib/python3.12/site-packages/torch/lib/libtorch_cuda.so)
+frame #7: at::native::empty_cuda(c10::ArrayRef<long>, std::optional<c10::ScalarType>, std::optional<c10::Layout>, std::optional<c10::Device>, std::optional<bool>, std::optional<c10::MemoryFormat>) + 0x43 (0x7f5e5f895ef3 in /opt/sglang/lib/python3.12/site-packages/torch/lib/libtorch_cuda.so)
+frame #8: <unknown function> + 0x3b36662 (0x7f5e6229c662 in /opt/sglang/lib/python3.12/site-packages/torch/lib/libtorch_cuda.so)
+frame #9: <unknown function> + 0x3b3677c (0x7f5e6229c77c in /opt/sglang/lib/python3.12/site-packages/torch/lib/libtorch_cuda.so)
+frame #10: at::_ops::empty_memory_format::redispatch(c10::DispatchKeySet, c10::ArrayRef<c10::SymInt>, std::optional<c10::ScalarType>, std::optional<c10::Layout>, std::optional<c10::Device>, std::optional<bool>, std::optional<c10::MemoryFormat>) + 0xda (0x7f5e7b54d54a in /opt/sglang/lib/python3.12/site-packages/torch/lib/libtorch_cpu.so)
+frame #11: <unknown function> + 0x2e30369 (0x7f5e7b964369 in /opt/sglang/lib/python3.12/site-packages/torch/lib/libtorch_cpu.so)
+frame #12: at::_ops::empty_memory_format::call(c10::ArrayRef<c10::SymInt>, std::optional<c10::ScalarType>, std::optional<c10::Layout>, std::optional<c10::Device>, std::optional<bool>, std::optional<c10::MemoryFormat>) + 0x1af (0x7f5e7b607b2f in /opt/sglang/lib/python3.12/site-packages/torch/lib/libtorch_cpu.so)
+frame #13: <unknown function> + 0x785735 (0x7f5e8e6d2735 in /opt/sglang/lib/python3.12/site-packages/torch/lib/libtorch_python.so)
+frame #14: TVMFFIEnvTensorAlloc + 0x68 (0x7f5b62442998 in /opt/sglang/lib/python3.12/site-packages/tvm_ffi/lib/libtvm_ffi.so)
+frame #15: FusedMoeRunner::getWorkspaceInfo(long, long, long, int, int, tensorrt_llm::kernels::cutlass_kernels::ActivationType, tensorrt_llm::kernels::cutlass_kernels::MOEParallelismConfig, bool, DLDevice, tvm::ffi::Optional<tvm::ffi::TensorView, void>) + 0x740 (0x7f5a6d12ca60 in /opt/sglang/lib/python3.12/site-packages/flashinfer_jit_cache/providers/sm120f/jit_cache/fused_moe_120/fused_moe_120.so)
+frame #16: <unknown function> + 0x872937 (0x7f5a6d156937 in /opt/sglang/lib/python3.12/site-packages/flashinfer_jit_cache/providers/sm120f/jit_cache/fused_moe_120/fused_moe_120.so)
+frame #17: FusedMoeRunner::GetFunction(tvm::ffi::String const&)::{lambda(tvm::ffi::TensorView, tvm::ffi::TensorView, tvm::ffi::TensorView, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::TensorView, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::TensorView, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::Array<tvm::ffi::Tensor, void>, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, bool, long, long, long, long, long, long, bool, bool, tvm::ffi::Optional<tvm::ffi::Array<long, void>, void>, bool, long, tvm::ffi::Optional<tvm::ffi::TensorView, void>)#8}::operator()(tvm::ffi::TensorView, tvm::ffi::TensorView, tvm::ffi::TensorView, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::TensorView, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::TensorView, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::Array<tvm::ffi::Tensor, void>, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, bool, long, long, long, long, long, long, bool, bool, tvm::ffi::Optional<tvm::ffi::Array<long, void>, void>, bool, long, tvm::ffi::Optional<tvm::ffi::TensorView, void>) const + 0x3ee (0x7f5a6d15851e in /opt/sglang/lib/python3.12/site-packages/flashinfer_jit_cache/providers/sm120f/jit_cache/fused_moe_120/fused_moe_120.so)
+frame #18: tvm::ffi::Function::FromTyped<FusedMoeRunner::GetFunction(tvm::ffi::String const&)::{lambda(tvm::ffi::TensorView, tvm::ffi::TensorView, tvm::ffi::TensorView, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::TensorView, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::TensorView, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::Array<tvm::ffi::Tensor, void>, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, bool, long, long, long, long, long, long, bool, bool, tvm::ffi::Optional<tvm::ffi::Array<long, void>, void>, bool, long, tvm::ffi::Optional<tvm::ffi::TensorView, void>)#1}>(FusedMoeRunner::GetFunction(tvm::ffi::String const&)::{lambda(tvm::ffi::TensorView, tvm::ffi::TensorView, tvm::ffi::TensorView, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::TensorView, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::TensorView, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::Array<tvm::ffi::Tensor, void>, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, bool, long, long, long, long, long, long, bool, bool, tvm::ffi::Optional<tvm::ffi::Array<long, void>, void>, bool, long, tvm::ffi::Optional<tvm::ffi::TensorView, void>)#1}&&)::{lambda(tvm::ffi::AnyView const*, int, tvm::ffi::Any*)#1}::operator()(tvm::ffi::AnyView const*, int, tvm::ffi::Any*) + 0x1848b (0x7f5a6d1b075b in /opt/sglang/lib/python3.12/site-packages/flashinfer_jit_cache/providers/sm120f/jit_cache/fused_moe_120/fused_moe_120.so)
+frame #19: tvm::ffi::details::FunctionObjImpl<tvm::ffi::Function::FromTyped<FusedMoeRunner::GetFunction(tvm::ffi::String const&)::{lambda(tvm::ffi::TensorView, tvm::ffi::TensorView, tvm::ffi::TensorView, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::TensorView, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::TensorView, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::Array<tvm::ffi::Tensor, void>, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, bool, long, long, long, long, long, long, bool, bool, tvm::ffi::Optional<tvm::ffi::Array<long, void>, void>, bool, long, tvm::ffi::Optional<tvm::ffi::TensorView, void>)#8}>(FusedMoeRunner::GetFunction(tvm::ffi::String const&)::{lambda(tvm::ffi::TensorView, tvm::ffi::TensorView, tvm::ffi::TensorView, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::TensorView, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::TensorView, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::Array<tvm::ffi::Tensor, void>, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, tvm::ffi::Optional<tvm::ffi::TensorView, void>, bool, long, long, long, long, long, long, bool, bool, tvm::ffi::Optional<tvm::ffi::Array<long, void>, void>, bool, long, tvm::ffi::Optional<tvm::ffi::TensorView, void>)#8}&&)::{lambda(tvm::ffi::AnyView const*, int, tvm::ffi::Any*)#1}>::SafeCall(void*, TVMFFIAny const*, int, TVMFFIAny*) + 0x1c (0x7f5a6d1212fc in /opt/sglang/lib/python3.12/site-packages/flashinfer_jit_cache/providers/sm120f/jit_cache/fused_moe_120/fused_moe_120.so)
+frame #20: <unknown function> + 0x9a4cc (0x7f5b61fd74cc in /opt/sglang/lib/python3.12/site-packages/tvm_ffi/core.abi3.so)
+frame #21: _PyEval_EvalFrameDefault + 0xd064 (0x1823ac2 in sglang::scheduler)
+frame #22: sglang::scheduler() [0x1815c1e]
+frame #23: _PyEval_EvalFrameDefault + 0x12e64 (0x18298c2 in sglang::scheduler)
+frame #24: sglang::scheduler() [0x190798b]
+frame #25: _PyEval_EvalFrameDefault + 0x12e64 (0x18298c2 in sglang::scheduler)
+frame #26: _PyObject_Call_Prepend + 0x179 (0x1810479 in sglang::scheduler)
+frame #27: sglang::scheduler() [0x1874368]
+frame #28: _PyEval_EvalFrameDefault + 0xd064 (0x1823ac2 in sglang::scheduler)
+frame #29: sglang::scheduler() [0x1815b98]
+frame #30: _PyEval_EvalFrameDefault + 0xcf5b (0x18239b9 in sglang::scheduler)
+frame #31: sglang::scheduler() [0x1815b98]
+frame #32: _PyEval_EvalFrameDefault + 0xcf5b (0x18239b9 in sglang::scheduler)
+frame #33: _PyObject_Call_Prepend + 0xb0 (0x18103b0 in sglang::scheduler)
+frame #34: sglang::scheduler() [0x1874368]
+frame #35: _PyEval_EvalFrameDefault + 0x2d9d (0x18197fb in sglang::scheduler)
+frame #36: sglang::scheduler() [0x1815c1e]
+frame #37: _PyEval_EvalFrameDefault + 0x12e64 (0x18298c2 in sglang::scheduler)
+frame #38: sglang::scheduler() [0x1815c1e]
+frame #39: _PyEval_EvalFrameDefault + 0x12e64 (0x18298c2 in sglang::scheduler)
+frame #40: _PyObject_Call_Prepend + 0x179 (0x1810479 in sglang::scheduler)
+frame #41: sglang::scheduler() [0x1874368]
+frame #42: _PyEval_EvalFrameDefault + 0x2d9d (0x18197fb in sglang::scheduler)
+frame #43: sglang::scheduler() [0x1815c1e]
+frame #44: _PyEval_EvalFrameDefault + 0x12e64 (0x18298c2 in sglang::scheduler)
+frame #45: sglang::scheduler() [0x1815c1e]
+frame #46: _PyEval_EvalFrameDefault + 0x12e64 (0x18298c2 in sglang::scheduler)
+frame #47: _PyObject_Call_Prepend + 0x179 (0x1810479 in sglang::scheduler)
+frame #48: sglang::scheduler() [0x1874368]
+frame #49: _PyEval_EvalFrameDefault + 0x2d9d (0x18197fb in sglang::scheduler)
+frame #50: sglang::scheduler() [0x1815c1e]
+frame #51: _PyEval_EvalFrameDefault + 0x12e64 (0x18298c2 in sglang::scheduler)
+frame #52: sglang::scheduler() [0x1815c1e]
+frame #53: _PyEval_EvalFrameDefault + 0x12e64 (0x18298c2 in sglang::scheduler)
+frame #54: _PyObject_Call_Prepend + 0x179 (0x1810479 in sglang::scheduler)
+frame #55: sglang::scheduler() [0x1874368]
+frame #56: _PyEval_EvalFrameDefault + 0x2d9d (0x18197fb in sglang::scheduler)
+frame #57: sglang::scheduler() [0x1815c1e]
+frame #58: _PyEval_EvalFrameDefault + 0x12e64 (0x18298c2 in sglang::scheduler)
+frame #59: sglang::scheduler() [0x1815c1e]
+frame #60: _PyEval_EvalFrameDefault + 0x12e64 (0x18298c2 in sglang::scheduler)
+frame #61: PyEval_EvalCode + 0xde (0x187301e in sglang::scheduler)
+frame #62: sglang::scheduler() [0x18b0757]
+
+
+[rank0]:[W1019 15:21:03.751201440 unwind.cpp:235] Warning: Unsupported unwinding pattern: unknown op code 0x8 (function unwinderFor)
+[2026-10-19 15:21:03] SIGQUIT received. signum=None, frame=None. It usually means one child failed.
+[2026-10-19 15:21:03] Sleeping 5 seconds before crash diagnostics to let GPU activity settle.
+[2026-10-19 15:21:03] Qwen38ExpertCacheStats[final] {"adaptive_analysis_seconds":0.0,"adaptive_cache_interval":4096,"adaptive_cache_mode":"rebalance","adaptive_cache_window":512,"adaptive_evaluations":0,"adaptive_evicted_experts":0,"adaptive_last_evaluation":null,"adaptive_last_rebalance_seconds":0.0,"adaptive_migrated_experts":0,"adaptive_rebalances":0,"adaptive_sample_drops":0,"arena_invocations":145,"arena_loads":143,"avg_route_tokens_per_run":9213.040462427745,"borrowed_prefill_arena":true,"borrowed_restore_experts":910,"borrowed_restore_runs":2,"cache_event_count":16709,"cache_hit_rate":0.4759710335747202,"cache_invocations":720,"cache_policy":"lfu","cache_protected_fraction":0.7,"cache_slots_total":7006,"decode_alpha_h2d_calls_avoided":17512,"decode_device_gate":true,"decode_device_gate_copy_bytes":20680704000,"decode_device_gate_copy_calls":669,"decode_device_gate_hits":3,"decode_device_gate_invocations":672,"decode_early_cache":true,"decode_early_cache_invocations":0,"decode_hit_fast_path":true,"decode_hit_fast_path_invocations":0,"decode_shared_fill_overlap_invocations":672,"expert_loan_budgets":[7006,6643,6388],"expert_physical_bytes":19375783936,"fused_decode_plan":true,"fused_decode_plan_invocations":672,"h2d_copy_calls":103108,"hits":7953,"host_plan_allocations":8,"kv_cache_stages":[80000,160000,220000],"layer_cache_slots":[147,147,147,147,146,146,146,146,146,146,146,146,146,146,146,146,146,146,146,146,146,146,146,146,146,146,146,146,146,146,146,146,146,146,146,146,146,146,146,146,146,146,145,145,145,145,145,145],"layer_hits":[205,202,185,183,177,182,162,150,146,167,156,156,154,144,172,168,171,162,167,173,156,144,146,160,145,171,165,176,140,171,184,188,162,160,133,175,164,164,164,160,148,159,155,169,182,184,164,182],"layer_misses":[210,176,186,170,182,177,207,218,175,180,174,163,207,197,186,186,173,194,208,175,196,221,216,183,178,179,184,162,223,182,187,153,161,169,214,160,139,183,204,165,166,192,200,179,153,148,151,164],"misses":8756,"packed_decode":"direct","packed_prefill":"direct","packed_transport":null,"prefill_arena":true,"prefill_copy_mode":"auto","prefill_copy_stats":{"__qwen38_columns_v1__":48,"columns":{"dense":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1],"direct_cache_experts":[309,193,198,196,211,213,226,254,220,277,253,271,310,313,343,340,335,355,370,351,350,337,314,350,328,351,364,343,388,363,390,335,322,349,373,358,304,351,337,316,316,353,339,329,145,0,0,0],"direct_cache_runs":[4,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0],"host_missing":[84,72,135,191,171,184,192,274,342,460,436,579,447,672,732,818,813,791,627,784,816,704,656,787,749,862,794,894,796,872,893,949,963,908,817,845,743,706,616,747,784,794,605,735,641,484,303,302],"missing":[84,72,135,191,171,184,192,274,342,460,436,579,447,672,732,818,813,791,627,784,816,704,656,787,749,862,794,894,796,872,893,949,963,908,817,845,743,706,616,747,784,794,605,735,641,738,494,523],"missing_runs":[75,69,119,166,146,149,151,231,255,305,314,348,313,362,379,384,390,390,376,365,390,384,363,388,385,389,398,369,375,367,386,361,376,351,354,356,379,359,379,397,378,380,373,405,387,262,211,200],"resident":[2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"sparse":[2,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,2,2,2],"startup_dense":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1]},"common":{"forced_dense":0,"heuristic_dense":0,"reuse_candidates":0}},"prefill_dense_startup_tokens":128,"prefill_direct_cache":true,"prefill_h2d_bytes":85999352840,"prefill_host_dispatch_seconds":0.542888367000387,"prefill_reuse_cache":true,"prefill_reuse_d2d_bytes":0,"prefill_reused_experts":0,"prefill_seed_cache":true,"prefill_seed_runs":0,"prefill_tokens_seen":24576,"preserve_cache_on_resize":true,"resident_alphas":true,"route_token_count":7969280,"route_trace_events":0,"run_invocations":865,"slots_per_layer":134,"staging_batches":2378,"transferred_bytes":112724113912,"warm_decode_cache":false,"warmed_experts":0,"warmup_d2d_bytes":0,"warmup_runs":0}
+nanobind: leaked 4 instances!
+nanobind: leaked 64 types!
+ - leaked type "tokenspeed_triton._C.libtriton.ir.location"
+ - leaked type "TMEM_LOAD_REDUCE_MODIFIER"
+ - leaked type "tokenspeed_triton._C.libtriton.ir.block"
+ - leaked type "tokenspeed_triton._C.libtriton.gluon_ir.GluonOpBuilder"
+ - leaked type "tokenspeed_triton._C.libtriton.ir.builder"
+ - leaked type "tokenspeed_triton._C.libtriton.nvidia.cublas.CublasLt"
+ - leaked type "tokenspeed_triton._C.libtriton.ir.integer_attr"
+ - leaked type "ATOMIC_OP"
+ - leaked type "PROPAGATE_NAN"
+ - leaked type "METRIC_TYPE"
+ - ... skipped remainder
+nanobind: leaked 512 functions!
+ - leaked function "get_dot_operand_layout"
+ - leaked function "from_bases"
+ - leaked function "__init__"
+ - leaked function "create_atomic_poll"
+ - leaked function "create_async_copy_local_to_global"
+ - leaked function "create_local_scatter"
+ - leaked function "create_update_tensor_descriptor"
+ - leaked function "create_async_tma_copy_local_to_global"
+ - leaked function "create_warp_yield"
+ - leaked function "create_descriptor_scatter"
+ - ... skipped remainder
+nanobind: this is likely caused by a reference counting issue in the binding code.
+See https://nanobind.readthedocs.io/en/latest/refleaks.html[2026-10-19 15:21:08] No live scheduler processes found; skipping py-spy and CUDA coredump.
+[2026-10-19 15:21:08] kill_process_tree called: parent_pid=155, include_parent=True, pid=155

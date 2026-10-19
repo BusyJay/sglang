@@ -1,0 +1,623 @@
+.................F..F.........F....F..FFFF......         [100%]
+=================================== FAILURES ===================================
+_ TestGpuCache.test_decode_transport_options_preserve_all_tensors_and_migration (alphas=False) _
+
+self = <qwen38_cache_tests.test_gpu_cache.TestGpuCache testMethod=test_decode_transport_options_preserve_all_tensors_and_migration>
+
+    def test_decode_transport_options_preserve_all_tensors_and_migration(self):
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
+        from sglang.srt.model_loader.qwen38_nvfp4_pack.format import REQUIRED_TENSORS
+    
+        for alphas in (False, True):
+            with self.subTest(alphas=alphas):
+                runtime = Qwen38ThreadedExpertRuntime(
+                    self.fixture.pack,
+                    "cuda",
+                    slots_per_layer=2,
+                    layer_cache_slots=[2, 4],
+                    adaptive_cache=True,
+                    adaptive_cache_mode="sample",
+                    prefill_seed_cache=False,
+                    staging_buffer_bytes=11,
+                    resident_alphas=alphas,
+                )
+                self.addCleanup(runtime.close)
+                runtime.reserve()
+                streams = [torch.cuda.Stream(), torch.cuda.Stream()]
+                calls_before = runtime.h2d_copy_calls
+                misses_before = runtime.misses
+                bytes_before = runtime.transferred_bytes
+                row_bytes = sum(
+                    self.fixture.pack.manifest.tensors[0][name].nbytes // 4
+                    for name in REQUIRED_TENSORS
+                )
+                # Two misses, all hits, eviction, duplicate and padding.
+                for step, pair in enumerate(((0, 1), (0, 1), (2, 3), (3, 3), (-1, 3))):
+                    with torch.cuda.stream(streams[step % 2]):
+                        ids = torch.tensor([pair], dtype=torch.int32, device="cuda")
+                        output = runtime.run(
+                            0,
+                            ids,
+                            lambda prepared: {
+                                name: prepared.tensors[name][
+                                    prepared.topk_ids.long()
+                                ].clone()
+                                for name in REQUIRED_TENSORS
+                            },
+                        )
+                    runtime.synchronize()
+                    valid = torch.tensor(pair) >= 0
+                    for name in REQUIRED_TENSORS:
+                        expected = getattr(self.fixture.resident[0], name)[
+                            torch.tensor(pair)[valid]
+                        ]
+                        self.assertTrue(
+                            torch.equal(output[name].cpu()[0, valid], expected), name
+                        )
+                self.assertEqual(runtime.misses - misses_before, 4)
+                self.assertEqual(
+                    runtime.transferred_bytes - bytes_before,
+                    4 * (row_bytes - (8 if alphas else 0)),
+                )
+                self.assertEqual(
+                    runtime.decode_alpha_h2d_calls_avoided, 8 if alphas else 0
+                )
+                if alphas:
+                    self.assertEqual(
+                        runtime.memory_budget()["resident_alpha_bytes"], 64
+                    )
+                # Native mailbox misses read the registered host source;
+                # byte parity above must not depend on host-issued DMA calls.
+                self.assertEqual(runtime.h2d_copy_calls, calls_before)
+                self.assertGreater(runtime.fused_decode_plan_invocations, 0)
+                runtime.adaptive_target = [4, 2]
+>               runtime._maybe_rebalance()
+                ^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: 'Qwen38ThreadedExpertRuntime' object has no attribute '_maybe_rebalance'
+
+tools/qwen38_cache_tests/test_gpu_cache.py:720: AttributeError
+_ TestGpuCache.test_decode_transport_options_preserve_all_tensors_and_migration (alphas=True) _
+
+self = <qwen38_cache_tests.test_gpu_cache.TestGpuCache testMethod=test_decode_transport_options_preserve_all_tensors_and_migration>
+
+    def test_decode_transport_options_preserve_all_tensors_and_migration(self):
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
+        from sglang.srt.model_loader.qwen38_nvfp4_pack.format import REQUIRED_TENSORS
+    
+        for alphas in (False, True):
+            with self.subTest(alphas=alphas):
+                runtime = Qwen38ThreadedExpertRuntime(
+                    self.fixture.pack,
+                    "cuda",
+                    slots_per_layer=2,
+                    layer_cache_slots=[2, 4],
+                    adaptive_cache=True,
+                    adaptive_cache_mode="sample",
+                    prefill_seed_cache=False,
+                    staging_buffer_bytes=11,
+                    resident_alphas=alphas,
+                )
+                self.addCleanup(runtime.close)
+>               runtime.reserve()
+
+tools/qwen38_cache_tests/test_gpu_cache.py:671: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+python/sglang/srt/layers/moe/qwen38_cache_threaded.py:430: in reserve
+    self.miss_mailbox = DecodeMissMailbox(self)
+                        ^^^^^^^^^^^^^^^^^^^^^^^
+python/sglang/srt/layers/moe/qwen38_cache_mailbox.py:28: in __init__
+    self._initialize(runtime)
+python/sglang/srt/layers/moe/qwen38_cache_mailbox.py:91: in _initialize
+    self.pack_address = _module().mailbox_register(self.pack_view)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+python/tvm_ffi/cython/function.pxi:968: in tvm_ffi.core.Function.__call__
+    ???
+<unknown>:0: in __tvm_ffi_mailbox_register
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+>   TVM_FFI_ICHECK_EQ(status, cudaSuccess) << "register expert mmap: " << cudaGetErrorString(status);
+E   RuntimeError: Check failed: status == cudaSuccess (712 vs. 0) : register expert mmap: part or all of the requested memory range is already mapped
+
+python/sglang/kernels/jit/csrc/moe/qwen38_expert_cache.cu:74: RuntimeError
+_______ TestGpuCache.test_device_gate_all_hit_skips_d2h_jobs_and_worker ________
+
+self = <qwen38_cache_tests.test_gpu_cache.TestGpuCache testMethod=test_device_gate_all_hit_skips_d2h_jobs_and_worker>
+
+    def test_device_gate_all_hit_skips_d2h_jobs_and_worker(self):
+        from unittest import mock
+    
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
+    
+        runtime = Qwen38ThreadedExpertRuntime(
+            self.fixture.pack, "cuda", slots_per_layer=2
+        )
+        self.assertTrue(runtime.decode_device_gate)
+>       runtime.reserve()
+
+tools/qwen38_cache_tests/test_gpu_cache.py:329: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+python/sglang/srt/layers/moe/qwen38_cache_threaded.py:370: in reserve
+    super().reserve()
+python/sglang/srt/layers/moe/qwen38_cache_device.py:72: in reserve
+    super().reserve()
+python/sglang/srt/layers/moe/qwen38_cache_async.py:52: in reserve
+    super().reserve()
+python/sglang/srt/layers/moe/qwen38_cache_runtime.py:232: in reserve
+    self.caches[layer_id] = self._allocate(slots)
+                            ^^^^^^^^^^^^^^^^^^^^^
+python/sglang/srt/layers/moe/qwen38_cache_device.py:78: in _allocate
+    tensors = super()._allocate(capacity)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <sglang.srt.layers.moe.qwen38_cache_threaded.Qwen38ThreadedExpertRuntime object at 0x7f74744def30>
+capacity = 2
+
+    def _allocate(self, capacity):
+        from sglang.srt.layers.moe.qwen38_startup_memory import (
+            get_startup_memory_probe,
+            memory_mark,
+        )
+    
+        probe = get_startup_memory_probe(self.device)
+        tensors = {}
+        for name in REQUIRED_TENSORS:
+            memory_mark(probe, f"base.allocate.{capacity}.{name}.before")
+>           tensors[name] = torch.zeros(
+                (capacity, *self.manifest.tensors[0][name].shape[1:]),
+                dtype=getattr(torch, self.manifest.tensors[0][name].dtype),
+                device=self.device,
+            )
+E           torch.AcceleratorError: CUDA error: part or all of the requested memory range is already mapped
+E           Search for `cudaErrorHostMemoryAlreadyRegistered' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+
+python/sglang/srt/layers/moe/qwen38_cache_runtime.py:253: AcceleratorError
+________ TestGpuCache.test_device_gate_rewarms_after_adaptive_migration ________
+
+self = <qwen38_cache_tests.test_gpu_cache.TestGpuCache testMethod=test_device_gate_rewarms_after_adaptive_migration>
+
+    def test_device_gate_rewarms_after_adaptive_migration(self):
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
+    
+        runtime = Qwen38ThreadedExpertRuntime(
+            self.fixture.pack,
+            "cuda",
+            slots_per_layer=3,
+            adaptive_cache=True,
+            adaptive_cache_mode="sample",
+            decode_device_gate=True,
+        )
+        runtime.reserve()
+        self.addCleanup(runtime.close)
+        # Exercise the native path outside adaptive observation windows.
+        runtime.adaptive_steps[0] = runtime.adaptive_cache_window
+    
+        def execute(prepared):
+            return prepared.tensors["w13_weight"][prepared.topk_ids.long()].clone()
+    
+        ids = torch.tensor([[0, 1]], dtype=torch.int32, device="cuda")
+        runtime.run(0, ids, execute)
+        runtime.run(0, ids, execute)
+        runtime.synchronize()
+        self.assertEqual(runtime.decode_device_gate_invocations, 1)
+        runtime.adaptive_target = [4, 2]
+>       runtime._maybe_rebalance()
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'Qwen38ThreadedExpertRuntime' object has no attribute '_maybe_rebalance'
+
+tools/qwen38_cache_tests/test_gpu_cache.py:258: AttributeError
+----------------------------- Captured stderr call -----------------------------
+Qwen38Register bytes=372 register_ms=0.114 device_pointer_ms=0.001 status=0
+______ TestGpuCache.test_packed_transport_alpha_ring_and_target_migration ______
+
+self = <qwen38_cache_tests.test_gpu_cache.TestGpuCache testMethod=test_packed_transport_alpha_ring_and_target_migration>
+
+    @mock.patch.dict(os.environ, {"SGLANG_QWEN38_PREFILL_REGISTERED_DMA": "0"})
+    def test_packed_transport_alpha_ring_and_target_migration(self):
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
+        from sglang.srt.model_loader.qwen38_nvfp4_pack.format import REQUIRED_TENSORS
+    
+        for alphas in (False, True):
+            runtime = Qwen38ThreadedExpertRuntime(
+                self.fixture.pack,
+                "cuda",
+                slots_per_layer=3,
+                adaptive_cache=True,
+                adaptive_cache_mode="sample",
+                staging_buffers=2,
+                staging_buffer_bytes=64,
+                resident_alphas=alphas,
+                prefill_copy_mode="sparse",
+                prefill_reuse_cache=False,
+                packed_decode="packed",
+                packed_prefill="packed",
+                packed_min_bytes=1,
+                packed_max_bytes=1 << 20,
+                packed_min_copies=2,
+            )
+            try:
+                runtime.reserve()
+                streams = [torch.cuda.Stream(), torch.cuda.Stream()]
+                runtime.prefill_tokens_seen = (
+                    128  # explicitly test sparse, not startup dense
+                )
+                for step in range(24):
+                    if step == 12:
+                        with runtime.adaptive_lock:
+                            runtime.adaptive_target = [2, 4]
+                    layer = step % 2
+                    cpu_ids = torch.tensor(
+                        [[0, 2], [0, 2]]
+                        if step % 3 == 0
+                        else [[step % 4, (step + 1) % 4]]
+                    )
+                    with torch.cuda.stream(streams[step % 2]):
+                        ids = cpu_ids.to("cuda", dtype=torch.int32)
+                        actual = runtime.run(
+                            layer,
+                            ids,
+                            lambda prepared: {
+                                name: prepared.tensors[name][
+                                    prepared.topk_ids.long()
+                                ].clone()
+                                for name in REQUIRED_TENSORS
+                            },
+                        )
+                    runtime.synchronize()
+                    for name in REQUIRED_TENSORS:
+                        self.assertTrue(
+                            torch.equal(
+                                actual[name].cpu(),
+                                getattr(self.fixture.resident[layer], name)[cpu_ids],
+                            ),
+                            name,
+                        )
+                self.assertGreater(
+                    runtime.packed_transport.counters["scatter_calls"], 0
+                )
+                self.assertGreater(
+                    runtime.packed_transport.counters["prefill_experts"], 0
+                )
+>               self.assertGreaterEqual(
+                    runtime.packed_transport.counters["target_refreshes"], 2
+                )
+E               AssertionError: 1 not greater than or equal to 2
+
+tools/qwen38_cache_tests/test_gpu_cache.py:1491: AssertionError
+----------------------------- Captured stderr call -----------------------------
+Qwen38Register bytes=372 register_ms=0.160 device_pointer_ms=0.001 status=0
+______ TestGpuCache.test_slru_threaded_weights_across_scan_and_rebalance _______
+
+self = <qwen38_cache_tests.test_gpu_cache.TestGpuCache testMethod=test_slru_threaded_weights_across_scan_and_rebalance>
+
+    def test_slru_threaded_weights_across_scan_and_rebalance(self):
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
+        from sglang.srt.model_loader.qwen38_nvfp4_pack.format import REQUIRED_TENSORS
+    
+        runtime = Qwen38ThreadedExpertRuntime(
+            self.fixture.pack,
+            "cuda",
+            slots_per_layer=3,
+            cache_policy="slru",
+            adaptive_cache=True,
+            adaptive_cache_mode="sample",
+            adaptive_cache_window=16,
+        )
+        self.addCleanup(runtime.close)
+        runtime.reserve()
+        for step in range(40):
+            if step == 20:
+                runtime.adaptive_target = [2, 4]
+>               runtime._maybe_rebalance()
+                ^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: 'Qwen38ThreadedExpertRuntime' object has no attribute '_maybe_rebalance'
+
+tools/qwen38_cache_tests/test_gpu_cache.py:834: AttributeError
+----------------------------- Captured stderr call -----------------------------
+Qwen38Register bytes=372 register_ms=0.113 device_pointer_ms=0.001 status=0
+__________ TestGpuCache.test_threaded_adaptive_hotspot_changes_layout __________
+
+self = <qwen38_cache_tests.test_gpu_cache.TestGpuCache testMethod=test_threaded_adaptive_hotspot_changes_layout>
+
+    def test_threaded_adaptive_hotspot_changes_layout(self):
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
+    
+        runtime = Qwen38ThreadedExpertRuntime(
+            self.fixture.pack,
+            "cuda",
+            slots_per_layer=3,
+            adaptive_cache=True,
+            adaptive_cache_window=16,
+        )
+        self.addCleanup(runtime.close)
+        runtime.reserve()
+        for step in range(16):
+            for layer, pair in (
+                (0, ((0, 1), (1, 2), (2, 3))[step % 3]),
+                (1, (0, 1)),
+            ):
+                ids = torch.tensor([pair], dtype=torch.int32, device="cuda")
+                runtime.run(
+                    layer,
+                    ids,
+                    lambda prepared: prepared.tensors["w13_weight"][
+                        prepared.topk_ids.long()
+                    ].clone(),
+                )
+        runtime.jobs.join()
+        runtime.adaptive_samples.join()
+        self.assertEqual(runtime.adaptive_target, [4, 2])
+>       runtime._maybe_rebalance()
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'Qwen38ThreadedExpertRuntime' object has no attribute '_maybe_rebalance'
+
+tools/qwen38_cache_tests/test_gpu_cache.py:1247: AttributeError
+----------------------------- Captured stderr call -----------------------------
+Qwen38Register bytes=372 register_ms=0.126 device_pointer_ms=0.001 status=0
+_ TestGpuCache.test_threaded_adaptive_repartition_preserves_budget_and_weights _
+
+self = <qwen38_cache_tests.test_gpu_cache.TestGpuCache testMethod=test_threaded_adaptive_repartition_preserves_budget_and_weights>
+
+    def test_threaded_adaptive_repartition_preserves_budget_and_weights(self):
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
+        from sglang.srt.model_loader.qwen38_nvfp4_pack.format import REQUIRED_TENSORS
+    
+        runtime = Qwen38ThreadedExpertRuntime(
+            self.fixture.pack,
+            "cuda",
+            slots_per_layer=3,
+            adaptive_cache=True,
+        )
+        self.addCleanup(runtime.close)
+        runtime.reserve()
+        pool_ptrs = {
+            name: tensor.data_ptr() for name, tensor in runtime.cache_pool.items()
+        }
+        metadata_ptrs = [
+            {name: tensor.data_ptr() for name, tensor in state.items()}
+            for state in runtime.adaptive_metadata.device
+        ]
+        scratch_ptrs = {
+            name: tensor.data_ptr()
+            for name, tensor in runtime.migration_scratch.items()
+        }
+        for layout in ([3, 3], [2, 4], [4, 2]):
+            if layout != [3, 3]:
+                runtime.adaptive_target = layout
+>               runtime._maybe_rebalance()
+                ^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: 'Qwen38ThreadedExpertRuntime' object has no attribute '_maybe_rebalance'
+
+tools/qwen38_cache_tests/test_gpu_cache.py:1112: AttributeError
+----------------------------- Captured stderr call -----------------------------
+Qwen38Register bytes=372 register_ms=0.117 device_pointer_ms=0.001 status=0
+_______ TestGpuCache.test_threaded_adaptive_retains_hot_nonprefix_slots ________
+
+self = <qwen38_cache_tests.test_gpu_cache.TestGpuCache testMethod=test_threaded_adaptive_retains_hot_nonprefix_slots>
+
+    def test_threaded_adaptive_retains_hot_nonprefix_slots(self):
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
+    
+        runtime = Qwen38ThreadedExpertRuntime(
+            self.fixture.pack,
+            "cuda",
+            slots_per_layer=3,
+            adaptive_cache=True,
+        )
+        self.addCleanup(runtime.close)
+        runtime.reserve()
+        for pair in ((0, 1), (2, 3), (2, 3), (2, 3)):
+            ids = torch.tensor([pair], dtype=torch.int32, device="cuda")
+            runtime.run(
+                0,
+                ids,
+                lambda prepared: prepared.tensors["w13_weight"][
+                    prepared.topk_ids.long()
+                ].clone(),
+            )
+        runtime.synchronize()
+        runtime.adaptive_target = [2, 4]
+>       runtime._maybe_rebalance()
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'Qwen38ThreadedExpertRuntime' object has no attribute '_maybe_rebalance'
+
+tools/qwen38_cache_tests/test_gpu_cache.py:1275: AttributeError
+----------------------------- Captured stderr call -----------------------------
+Qwen38Register bytes=372 register_ms=0.111 device_pointer_ms=0.001 status=0
+_ TestGpuCache.test_threaded_breakable_verify_replays_after_adaptive_migration _
+
+self = <qwen38_cache_tests.test_gpu_cache.TestGpuCache testMethod=test_threaded_breakable_verify_replays_after_adaptive_migration>
+
+    def test_threaded_breakable_verify_replays_after_adaptive_migration(self):
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
+        from sglang.srt.model_executor.runner_backend_utils.breakable_cuda_graph import (
+            BreakableCUDAGraph,
+            BreakableCUDAGraphCapture,
+            eager_on_graph,
+        )
+    
+        runtime = Qwen38ThreadedExpertRuntime(
+            self.fixture.pack,
+            "cuda",
+            slots_per_layer=3,
+            adaptive_cache=True,
+        )
+        self.addCleanup(runtime.close)
+        runtime.reserve()
+        pointers = {name: pool.data_ptr() for name, pool in runtime.cache_pool.items()}
+    
+        @eager_on_graph(
+            True, capture_stub=lambda ids: torch.zeros_like(ids, dtype=torch.float32)
+        )
+        def experts(ids):
+            return runtime.run(
+                0,
+                ids,
+                lambda prepared: (
+                    prepared.tensors["w13_weight"][prepared.topk_ids.long()]
+                    .float()
+                    .reshape(ids.numel(), -1)
+                    .sum(-1)
+                    .view_as(ids)
+                ),
+                execution_phase="verify",
+            )
+    
+        ids = torch.tensor([[0, 1], [1, 0]], dtype=torch.int32, device="cuda")
+        experts(ids)
+        runtime.synchronize()
+        stream = torch.cuda.Stream()
+        stream.wait_stream(torch.cuda.current_stream())
+        graph = BreakableCUDAGraph()
+        with BreakableCUDAGraphCapture(graph, stream=stream):
+            output = experts(ids + 0) * 1.0
+        torch.cuda.current_stream().wait_stream(stream)
+        for layout, pair in (([3, 3], [0, 1]), ([2, 4], [2, 3]), ([4, 2], [0, 3])):
+            runtime.adaptive_target = layout
+            ids.copy_(
+                torch.tensor([pair, pair[::-1]], device="cuda", dtype=torch.int32)
+            )
+            graph.replay()
+            runtime.synchronize()
+            expected = self.fixture.resident[0].w13_weight[ids.cpu().long()]
+            expected = (
+                expected.float().reshape(ids.numel(), -1).sum(-1).view_as(ids.cpu())
+            )
+            torch.testing.assert_close(output.cpu(), expected, rtol=0, atol=0)
+>           self.assertEqual(runtime.layer_cache_slots, layout)
+E           AssertionError: Lists differ: [3, 3] != [2, 4]
+E           
+E           First differing element 0:
+E           3
+E           2
+E           
+E           - [3, 3]
+E           + [2, 4]
+
+tools/qwen38_cache_tests/test_gpu_cache.py:1211: AssertionError
+----------------------------- Captured stderr call -----------------------------
+Qwen38Register bytes=372 register_ms=0.105 device_pointer_ms=0.001 status=0
+=============================== warnings summary ===============================
+../../opt/sglang/lib/python3.12/site-packages/_pytest/config/__init__.py:1464
+  /opt/sglang/lib/python3.12/site-packages/_pytest/config/__init__.py:1464: PytestConfigWarning: Unknown config option: asyncio_mode
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+../../opt/sglang/lib/python3.12/site-packages/flashinfer/fused_moe/cute_dsl/blackwell/blockscaled_contiguous_gather_grouped_gemm_act_fusion.py:3459
+  /opt/sglang/lib/python3.12/site-packages/flashinfer/fused_moe/cute_dsl/blackwell/blockscaled_contiguous_gather_grouped_gemm_act_fusion.py:3459: DeprecationWarning: cutlass.utils.LayoutEnum is deprecated; use cutlass.tensor_utils.LayoutEnum instead. It will be removed in a future release.
+    c_layout: utils.LayoutEnum,
+
+../../opt/sglang/lib/python3.12/site-packages/flashinfer/fused_moe/cute_dsl/blackwell/moe_w4a16_kernel.py:2386
+  /opt/sglang/lib/python3.12/site-packages/flashinfer/fused_moe/cute_dsl/blackwell/moe_w4a16_kernel.py:2386: DeprecationWarning: cutlass.utils.LayoutEnum is deprecated; use cutlass.tensor_utils.LayoutEnum instead. It will be removed in a future release.
+    c_layout: utils.LayoutEnum,
+
+../../opt/sglang/lib/python3.12/site-packages/flashinfer/fused_moe/cute_dsl/hopper/utils.py:29
+  /opt/sglang/lib/python3.12/site-packages/flashinfer/fused_moe/cute_dsl/hopper/utils.py:29: DeprecationWarning: cutlass.utils.LayoutEnum is deprecated; use cutlass.tensor_utils.LayoutEnum instead. It will be removed in a future release.
+    a_layout: utils.LayoutEnum,
+
+../../opt/sglang/lib/python3.12/site-packages/flashinfer/fused_moe/cute_dsl/hopper/utils.py:31
+  /opt/sglang/lib/python3.12/site-packages/flashinfer/fused_moe/cute_dsl/hopper/utils.py:31: DeprecationWarning: cutlass.utils.LayoutEnum is deprecated; use cutlass.tensor_utils.LayoutEnum instead. It will be removed in a future release.
+    b_layout: utils.LayoutEnum,
+
+../../opt/sglang/lib/python3.12/site-packages/flashinfer/fused_moe/cute_dsl/hopper/utils.py:34
+  /opt/sglang/lib/python3.12/site-packages/flashinfer/fused_moe/cute_dsl/hopper/utils.py:34: DeprecationWarning: cutlass.utils.LayoutEnum is deprecated; use cutlass.tensor_utils.LayoutEnum instead. It will be removed in a future release.
+    c_layout: utils.LayoutEnum,
+
+../../opt/sglang/lib/python3.12/site-packages/flashinfer/fused_moe/cute_dsl/hopper/contiguous_grouped_gemm_finalize_fusion.py:968
+  /opt/sglang/lib/python3.12/site-packages/flashinfer/fused_moe/cute_dsl/hopper/contiguous_grouped_gemm_finalize_fusion.py:968: DeprecationWarning: cutlass.utils.LayoutEnum is deprecated; use cutlass.tensor_utils.LayoutEnum instead. It will be removed in a future release.
+    a_layout: utils.LayoutEnum,
+
+../../opt/sglang/lib/python3.12/site-packages/flashinfer/fused_moe/cute_dsl/hopper/contiguous_grouped_gemm_finalize_fusion.py:970
+  /opt/sglang/lib/python3.12/site-packages/flashinfer/fused_moe/cute_dsl/hopper/contiguous_grouped_gemm_finalize_fusion.py:970: DeprecationWarning: cutlass.utils.LayoutEnum is deprecated; use cutlass.tensor_utils.LayoutEnum instead. It will be removed in a future release.
+    b_layout: utils.LayoutEnum,
+
+../../opt/sglang/lib/python3.12/site-packages/flashinfer/fused_moe/cute_dsl/blackwell_sm12x/_moe_utils/moe_kernel_builder.py:316: 24 warnings
+  /opt/sglang/lib/python3.12/site-packages/flashinfer/fused_moe/cute_dsl/blackwell_sm12x/_moe_utils/moe_kernel_builder.py:316: DeprecationWarning: cutlass.utils.smem_allocator.SmemAllocator.capacity_in_bytes is deprecated; use cutlass.memory.SmemAllocator.capacity_in_bytes instead. It will be removed in a future release.
+    capacity = cutlass.utils.SmemAllocator.capacity_in_bytes() - cls.MBAR_RESERVE
+
+../../opt/sglang/lib/python3.12/site-packages/flashinfer/fused_moe/cute_dsl/blackwell_sm12x/_moe_utils/moe_epilogue.py:319
+../../opt/sglang/lib/python3.12/site-packages/flashinfer/fused_moe/cute_dsl/blackwell_sm12x/_moe_utils/moe_epilogue.py:319
+../../opt/sglang/lib/python3.12/site-packages/flashinfer/fused_moe/cute_dsl/blackwell_sm12x/_moe_utils/moe_epilogue.py:319
+../../opt/sglang/lib/python3.12/site-packages/flashinfer/fused_moe/cute_dsl/blackwell_sm12x/_moe_utils/moe_epilogue.py:319
+../../opt/sglang/lib/python3.12/site-packages/flashinfer/fused_moe/cute_dsl/blackwell_sm12x/_moe_utils/moe_epilogue.py:319
+../../opt/sglang/lib/python3.12/site-packages/flashinfer/fused_moe/cute_dsl/blackwell_sm12x/_moe_utils/moe_epilogue.py:319
+../../opt/sglang/lib/python3.12/site-packages/flashinfer/fused_moe/cute_dsl/blackwell_sm12x/_moe_utils/moe_epilogue.py:319
+../../opt/sglang/lib/python3.12/site-packages/flashinfer/fused_moe/cute_dsl/blackwell_sm12x/_moe_utils/moe_epilogue.py:319
+  /opt/sglang/lib/python3.12/site-packages/flashinfer/fused_moe/cute_dsl/blackwell_sm12x/_moe_utils/moe_epilogue.py:319: DeprecationWarning: cutlass.utils.LayoutEnum is deprecated; use cutlass.tensor_utils.LayoutEnum instead. It will be removed in a future release.
+    cutlass.utils.LayoutEnum.COL_MAJOR, out_dtype, tile[0]
+
+../../opt/sglang/lib/python3.12/site-packages/flashinfer/gemm/kernels/grouped_gemm_masked_blackwell.py:427
+  /opt/sglang/lib/python3.12/site-packages/flashinfer/gemm/kernels/grouped_gemm_masked_blackwell.py:427: DeprecationWarning: cutlass.utils.LayoutEnum is deprecated; use cutlass.tensor_utils.LayoutEnum instead. It will be removed in a future release.
+    epi_layout: utils.LayoutEnum,
+
+../../opt/sglang/lib/python3.12/site-packages/flashinfer/gemm/kernels/grouped_gemm_masked_blackwell.py:2391
+  /opt/sglang/lib/python3.12/site-packages/flashinfer/gemm/kernels/grouped_gemm_masked_blackwell.py:2391: DeprecationWarning: cutlass.utils.LayoutEnum is deprecated; use cutlass.tensor_utils.LayoutEnum instead. It will be removed in a future release.
+    c_layout: utils.LayoutEnum,
+
+../../opt/sglang/lib/python3.12/site-packages/flashinfer/gemm/kernels/cute_dsl/low_latency_blockscaled_gemm.py:102
+  /opt/sglang/lib/python3.12/site-packages/flashinfer/gemm/kernels/cute_dsl/low_latency_blockscaled_gemm.py:102: DeprecationWarning: cutlass.utils.smem_allocator.get_smem_capacity_in_bytes is deprecated; use cutlass.memory.get_smem_capacity_in_bytes instead. It will be removed in a future release.
+    _SMEM_CAPACITY_BYTES = cutlass.utils.get_smem_capacity_in_bytes("sm_100")
+
+../../opt/sglang/lib/python3.12/site-packages/flashinfer/gemm/kernels/grouped_gemm_masked_rubin.py:218
+  /opt/sglang/lib/python3.12/site-packages/flashinfer/gemm/kernels/grouped_gemm_masked_rubin.py:218: DeprecationWarning: cutlass.utils.LayoutEnum is deprecated; use cutlass.tensor_utils.LayoutEnum instead. It will be removed in a future release.
+    c_layout: utils.LayoutEnum,
+
+../../opt/sglang/lib/python3.12/site-packages/flashinfer/gdn_kernels/blackwell/gated_delta_net_chunked.py:95
+../../opt/sglang/lib/python3.12/site-packages/flashinfer/gdn_kernels/blackwell/gated_delta_net_chunked.py:95
+  /opt/sglang/lib/python3.12/site-packages/flashinfer/gdn_kernels/blackwell/gated_delta_net_chunked.py:95: DeprecationWarning: cutlass.utils.TensorMapUpdateMode is deprecated; use cutlass.tensor_utils.TensorMapUpdateMode instead. It will be removed in a future release.
+    from cutlass.utils import TensorMapManager, TensorMapUpdateMode
+
+../../opt/sglang/lib/python3.12/site-packages/flashinfer/gdn_kernels/delta_rule_dsl/collective_store_tma.py:6
+  /opt/sglang/lib/python3.12/site-packages/flashinfer/gdn_kernels/delta_rule_dsl/collective_store_tma.py:6: DeprecationWarning: cutlass.utils.tensormap_manager.TensorMapUpdateMode is deprecated; use cutlass.tensor_utils.TensorMapUpdateMode instead. It will be removed in a future release.
+    from cutlass.utils.tensormap_manager import TensorMapManager, TensorMapUpdateMode
+
+../../opt/sglang/lib/python3.12/site-packages/flashinfer/gdn_kernels/blackwell/gated_delta_net_cp_prefill.py:55
+../../opt/sglang/lib/python3.12/site-packages/flashinfer/gdn_kernels/blackwell/gated_delta_net_cp_prefill.py:55
+  /opt/sglang/lib/python3.12/site-packages/flashinfer/gdn_kernels/blackwell/gated_delta_net_cp_prefill.py:55: DeprecationWarning: cutlass.utils.TensorMapUpdateMode is deprecated; use cutlass.tensor_utils.TensorMapUpdateMode instead. It will be removed in a future release.
+    from cutlass.utils import TensorMapManager, TensorMapUpdateMode
+
+../../opt/sglang/lib/python3.12/site-packages/flashinfer/cute_dsl/availability.py:136
+  /opt/sglang/lib/python3.12/site-packages/flashinfer/cute_dsl/availability.py:136: DeprecationWarning: Arch from arch.py is deprecated. Use Arch from enums.py instead.
+    from cutlass.base_dsl.arch import Arch
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+SUBFAILED(alphas=False) test::TestGpuCache::test_decode_transport_options_preserve_all_tensors_and_migration
+SUBFAILED(alphas=True) test::TestGpuCache::test_decode_transport_options_preserve_all_tensors_and_migration
+FAILED test::TestGpuCache::test_device_gate_all_hit_skips_d2h_jobs_and_worker
+FAILED test::TestGpuCache::test_device_gate_rewarms_after_adaptive_migration
+FAILED test::TestGpuCache::test_packed_transport_alpha_ring_and_target_migration
+FAILED test::TestGpuCache::test_slru_threaded_weights_across_scan_and_rebalance
+FAILED test::TestGpuCache::test_threaded_adaptive_hotspot_changes_layout - At...
+FAILED test::TestGpuCache::test_threaded_adaptive_repartition_preserves_budget_and_weights
+FAILED test::TestGpuCache::test_threaded_adaptive_retains_hot_nonprefix_slots
+FAILED test::TestGpuCache::test_threaded_breakable_verify_replays_after_adaptive_migration
+10 failed, 40 passed, 52 warnings, 14 subtests passed in 26.52s
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute

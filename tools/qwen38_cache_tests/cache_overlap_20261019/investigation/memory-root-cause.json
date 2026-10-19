@@ -1,0 +1,234 @@
+{
+  "snapshot": "oom-pid228-1792423262602175904.pickle",
+  "oom": {
+    "pid": 228,
+    "device": 0,
+    "requested_bytes": 861929472,
+    "device_total_bytes": 33766572032,
+    "device_free_bytes": 482869248,
+    "history_entries": 200000,
+    "snapshot": "/results/investigation/oom-snapshots/oom-pid228-1792423262602175904.pickle"
+  },
+  "normal_pool_bytes": {
+    "active_allocated": 10700032512,
+    "inactive": 1195013632
+  },
+  "largest_normal_inactive_bytes": 713031680,
+  "workspace_allocations": [
+    {
+      "bytes": 4,
+      "count": 157
+    },
+    {
+      "bytes": 2048,
+      "count": 111
+    },
+    {
+      "bytes": 262144,
+      "count": 64
+    },
+    {
+      "bytes": 24387712,
+      "count": 64
+    },
+    {
+      "bytes": 16777216,
+      "count": 47
+    },
+    {
+      "bytes": 880555136,
+      "count": 47
+    },
+    {
+      "bytes": 4784128,
+      "count": 38
+    },
+    {
+      "bytes": 584,
+      "count": 38
+    },
+    {
+      "bytes": 860939008,
+      "count": 38
+    },
+    {
+      "bytes": 4816896,
+      "count": 5
+    },
+    {
+      "bytes": 588,
+      "count": 5
+    },
+    {
+      "bytes": 860992256,
+      "count": 4
+    },
+    {
+      "bytes": 4751360,
+      "count": 3
+    },
+    {
+      "bytes": 580,
+      "count": 3
+    },
+    {
+      "bytes": 860885760,
+      "count": 3
+    }
+  ],
+  "fragmented_segment": {
+    "bytes": 880803840,
+    "blocks": [
+      {
+        "bytes": 167772160,
+        "state": "active_allocated",
+        "python_frames": [
+          [
+            "qwen38_fp32_norm.py",
+            38,
+            "fp32_grouped_gemma_norm"
+          ],
+          [
+            "hyperconnection.py",
+            67,
+            "forward"
+          ],
+          [
+            "module.py",
+            1794,
+            "_call_impl"
+          ]
+        ]
+      },
+      {
+        "bytes": 713031680,
+        "state": "inactive",
+        "python_frames": []
+      }
+    ]
+  },
+  "segment_history_first": [
+    {
+      "bytes": 860992256,
+      "frames": [
+        [
+          "core.py",
+          1121,
+          "cutlass_fused_moe"
+        ],
+        [
+          "core.py",
+          1634,
+          "cutlass_fused_moe"
+        ],
+        [
+          "api_logging.py",
+          2369,
+          "_auto_dump_wrapper"
+        ]
+      ]
+    },
+    {
+      "bytes": 167772160,
+      "frames": [
+        [
+          "qwen4_exp.py",
+          1648,
+          "forward"
+        ],
+        [
+          "module.py",
+          1794,
+          "_call_impl"
+        ],
+        [
+          "module.py",
+          1783,
+          "_wrapped_call_impl"
+        ]
+      ]
+    },
+    {
+      "bytes": 167772160,
+      "frames": [
+        [
+          "qwen4_exp.py",
+          1663,
+          "forward"
+        ],
+        [
+          "module.py",
+          1794,
+          "_call_impl"
+        ],
+        [
+          "module.py",
+          1783,
+          "_wrapped_call_impl"
+        ]
+      ]
+    }
+  ],
+  "segment_history_last": [
+    {
+      "bytes": 167772160,
+      "frames": [
+        [
+          "cn7tns2tdu2zjml7vpvpfmz3p3jwkj7wxdwuuce6nxrk2hqaqp4g.py",
+          192,
+          "call"
+        ],
+        [
+          "hyperconnection.py",
+          213,
+          "_mix_compute"
+        ],
+        [
+          "output_code.py",
+          828,
+          "__call__"
+        ]
+      ]
+    },
+    {
+      "bytes": 268435456,
+      "frames": [
+        [
+          "gemm_base.py",
+          7107,
+          "mm_mxfp8"
+        ],
+        [
+          "api_logging.py",
+          2369,
+          "_auto_dump_wrapper"
+        ],
+        [
+          "utils.py",
+          1600,
+          "wrapper"
+        ]
+      ]
+    },
+    {
+      "bytes": 167772160,
+      "frames": [
+        [
+          "qwen38_fp32_norm.py",
+          38,
+          "fp32_grouped_gemma_norm"
+        ],
+        [
+          "hyperconnection.py",
+          67,
+          "forward"
+        ],
+        [
+          "module.py",
+          1794,
+          "_call_impl"
+        ]
+      ]
+    }
+  ]
+}

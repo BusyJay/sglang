@@ -493,6 +493,39 @@ class TestBackgroundTransport(unittest.TestCase):
         self.assertTrue(choose(fragmented, 512))
         self.assertFalse(choose(list(range(384)), 512))
 
+    def test_direct_cache_excludes_borrowed_tail_and_only_fills_misses(self):
+        """Arena aliasing invalidates tail hits, but valid prefix hits survive."""
+        runtime = self._runtime(1)
+        runtime.prefill_direct_cache = runtime.prefill_reuse_cache = True
+        runtime.manifest = SimpleNamespace(num_experts=4)
+        runtime.arena_layer = None
+        runtime.borrowed_layers = {0: (1, 2)}
+        filled = []
+
+        def fill_selected(layer, experts):
+            self.assertTrue(job.plan_ready.is_set())
+            filled.extend(experts)
+
+        runtime._fill_arena_selected = fill_selected
+        runtime._fill_arena = lambda _: self.fail("direct cache must not bulk-fill")
+        job = SimpleNamespace(
+            cache_experts=None, arena_experts=None, plan_ready=threading.Event()
+        )
+        runtime._ensure_arena_experts(
+            0, [1, 1, 1, 1, 0], [2, 1], force_dense=True, job=job
+        )
+        self.assertEqual(job.cache_experts, {2: 0})
+        self.assertEqual(job.arena_experts, [0, 1, 3])
+        self.assertEqual(filled, [0, 1, 3])
+        self.assertEqual(runtime.prefill_copy_stats[0]["direct_cache_experts"], 1)
+        self.assertEqual(runtime.prefill_copy_stats[0]["host_missing"], 3)
+        self.assertEqual(runtime.arena_residents, {0, 1, 3})
+        runtime.arena_layer = 0
+        self.assertFalse(
+            runtime._ensure_arena_experts(0, [1, 1, 1, 1, 0], [2, 1], job=job)
+        )
+        self.assertEqual(filled, [0, 1, 3])
+
     def test_fragmented_prefill_uses_bulk_copy_before_scatter(self):
         runtime = self._runtime(1)
         runtime.prefill_reuse_cache = True

@@ -108,6 +108,7 @@ class DecodeMissMailbox:
             for event in pair:
                 event.record(torch.cuda.current_stream(runtime.device))
         self.overlap_invocations = 0
+        self.early_cache_invocations = 0
         self.available = collections.deque(self.events)
         self.retained_external = {}
         # Preload the fill kernel before serving frames.
@@ -133,7 +134,16 @@ class DecodeMissMailbox:
 
             self.sampler = DeviceRouteSampler(runtime, self._abort)
 
-    def run(self, layer, ids, execute, timeout, sample=None, during_fill=None):
+    def run(
+        self,
+        layer,
+        ids,
+        execute,
+        timeout,
+        sample=None,
+        during_fill=None,
+        early_cache=None,
+    ):
         r = self.runtime
         compute = torch.cuda.current_stream(r.device)
         previous = r.layer_computed.get(layer)
@@ -162,6 +172,8 @@ class DecodeMissMailbox:
             else:
                 raise RuntimeError("decode completion event pool exhausted")
         state = r.device_states[layer]
+        early_ids = torch.empty_like(ids) if early_cache is not None else None
+        late_ids = torch.empty_like(ids) if early_cache is not None else None
         remapped = torch.empty_like(ids)
         capture = (
             self.sampler.begin(layer, sample, compute)
@@ -171,7 +183,12 @@ class DecodeMissMailbox:
         # The planner consumes a sorted/unique union but remaps every route.
         # Flatten small verify batches without losing token/route output shape.
         # The native kernel's existing histogram handles cross-token duplicates.
-        _module().decode_plan_parallel(
+        planner = (
+            _module().decode_plan_parallel_early
+            if early_ids is not None
+            else _module().decode_plan_parallel
+        )
+        planner(
             ids.view(1, -1),
             remapped.view(1, -1),
             state["counts"],
@@ -188,6 +205,11 @@ class DecodeMissMailbox:
             self.hit_stats.data_ptr() + self.hit_stats.stride(0) * 8 * layer,
             capture,
             int(os.getenv("SGLANG_QWEN38_PARALLEL_MISS_PLAN", "2")),
+            *(
+                (early_ids.view(1, -1), late_ids.view(1, -1))
+                if early_ids is not None
+                else ()
+            ),
         )
         self.native_active = True
         if capture:
@@ -214,22 +236,36 @@ class DecodeMissMailbox:
                     self.fill_cta,
                 )
 
-            if during_fill is None:
+            early_output = None
+
+            def independent():
+                nonlocal early_output
+                if during_fill is not None:
+                    during_fill()
+                if early_ids is not None:
+                    early_output = early_cache(
+                        early_ids, {**r.caches[layer], **r.layer_scales[layer]}
+                    )
+
+            if during_fill is None and early_ids is None:
                 submit_fill()
             else:
                 from sglang.srt.layers.moe.qwen38_cache_overlap import fill_with_overlap
 
                 ready, filled = self.overlap_events[id(computed)]
                 fill_with_overlap(
-                    compute, self.fill_stream, ready, filled, submit_fill, during_fill
+                    compute, self.fill_stream, ready, filled, submit_fill, independent
                 )
                 self.overlap_invocations += 1
+                if early_ids is not None:
+                    self.early_cache_invocations += 1
             return execute(
                 PreparedExperts(
                     {**r.caches[layer], **r.layer_scales[layer]},
-                    remapped,
+                    late_ids if late_ids is not None else remapped,
                     r.slots_for_layer(layer),
                     False,
+                    early_output=early_output,
                 )
             )
         finally:

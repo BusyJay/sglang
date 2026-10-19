@@ -87,6 +87,10 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             "cache_policy",
             "cache_protected_fraction",
             "prefill_reuse_cache",
+            "prefill_direct_cache",
+            "decode_early_cache",
+            "cache_overlap_policy",
+            "preserve_cache_on_resize",
             "prefill_seed_cache",
             "async_pack_prefetch",
             "resident_alphas",
@@ -125,6 +129,30 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                 raise ValueError(f"{option} must be a JSON boolean")
             if option in config and config.get("runtime_mode", "sync") != "threaded":
                 raise ValueError(f"{option} requires threaded mode")
+        if config.get("cache_overlap_policy", "auto") not in ("auto", "always"):
+            raise ValueError("cache_overlap_policy must be auto or always")
+        if (
+            "cache_overlap_policy" in config
+            and config.get("runtime_mode", "sync") != "threaded"
+        ):
+            raise ValueError("cache_overlap_policy requires threaded mode")
+        if type(config.get("prefill_direct_cache", False)) is not bool:
+            raise ValueError("prefill_direct_cache must be a JSON boolean")
+        for option in ("decode_early_cache", "preserve_cache_on_resize"):
+            if type(config.get(option, False)) is not bool:
+                raise ValueError(f"{option} must be a JSON boolean")
+            if (
+                config.get(option, False)
+                and config.get("runtime_mode", "sync") != "threaded"
+            ):
+                raise ValueError(f"{option} requires threaded mode")
+        if config.get("prefill_direct_cache", False) and (
+            config.get("runtime_mode", "sync") != "threaded"
+            or not config.get("prefill_reuse_cache", True)
+        ):
+            raise ValueError(
+                "prefill_direct_cache requires threaded mode and prefill_reuse_cache"
+            )
         for option in ("resident_alphas", "fused_decode_plan"):
             if type(config.get(option, True)) is not bool:
                 raise ValueError(f"{option} must be a JSON boolean")
@@ -460,6 +488,10 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                     ("cache_policy", "lfu"),
                     ("cache_protected_fraction", 0.7),
                     ("prefill_reuse_cache", True),
+                    ("prefill_direct_cache", False),
+                    ("decode_early_cache", False),
+                    ("cache_overlap_policy", "auto"),
+                    ("preserve_cache_on_resize", False),
                     ("prefill_seed_cache", True),
                     ("resident_alphas", True),
                     ("prefill_copy_mode", "auto"),

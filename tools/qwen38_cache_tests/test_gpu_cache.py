@@ -21,6 +21,15 @@ class TestGpuCache(unittest.TestCase):
         self.fixture.setUp()
         self.addCleanup(self.fixture.tearDown)
 
+    @staticmethod
+    def _result_boundary(runtime):
+        """Model the scheduler snapshot -> result completion -> publish protocol."""
+        runtime.synchronize()
+        runtime.enqueue_adaptive_snapshot()
+        # Test-only result fence; production already waits while consuming output.
+        torch.cuda.current_stream(runtime.device).synchronize()
+        runtime.adaptive_after_result()
+
     def _exercise(
         self,
         mode,
@@ -91,7 +100,9 @@ class TestGpuCache(unittest.TestCase):
             for name, tensor in runtime.arena.items():
                 self.assertEqual(
                     tensor.data_ptr(),
-                    runtime.cache_pool[name][-runtime.manifest.num_experts :].data_ptr(),
+                    runtime.cache_pool[name][
+                        -runtime.manifest.num_experts :
+                    ].data_ptr(),
                 )
         pointers = [
             runtime.caches[0]["w13_weight"].data_ptr(),
@@ -253,7 +264,7 @@ class TestGpuCache(unittest.TestCase):
         runtime.synchronize()
         self.assertEqual(runtime.decode_device_gate_invocations, 1)
         runtime.adaptive_target = [4, 2]
-        runtime._maybe_rebalance()
+        self._result_boundary(runtime)
         self.assertFalse(runtime.gate_warmed_layers)
         runtime.run(0, ids, execute)
         self.assertEqual(runtime.decode_device_gate_invocations, 1)
@@ -715,7 +726,7 @@ class TestGpuCache(unittest.TestCase):
                 self.assertEqual(runtime.h2d_copy_calls, calls_before)
                 self.assertGreater(runtime.fused_decode_plan_invocations, 0)
                 runtime.adaptive_target = [4, 2]
-                runtime._maybe_rebalance()
+                self._result_boundary(runtime)
                 for pair in ((2, 3), (0, 1)):
                     ids = torch.tensor([pair], dtype=torch.int32, device="cuda")
                     output = runtime.run(
@@ -829,7 +840,7 @@ class TestGpuCache(unittest.TestCase):
         for step in range(40):
             if step == 20:
                 runtime.adaptive_target = [2, 4]
-                runtime._maybe_rebalance()
+                self._result_boundary(runtime)
             for layer in (0, 1):
                 active = ((0, 1), (1, 2), (2, 3))[step % 3]
                 ids = torch.tensor([active], dtype=torch.int32, device="cuda")
@@ -881,6 +892,89 @@ class TestGpuCache(unittest.TestCase):
                 runtime.transferred_bytes - before,
                 expected_loaded * one_expert_bytes,
             )
+
+    def test_staged_resize_preserves_hot_rows_across_shifted_layer_offsets(self):
+        """Synthetic payload bytes survive shrink/grow and borrowed arena restore."""
+        from types import SimpleNamespace
+
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
+        from sglang.srt.model_loader.qwen38_nvfp4_pack.format import REQUIRED_TENSORS
+
+        runtime = Qwen38ThreadedExpertRuntime(
+            self.fixture.pack,
+            "cuda",
+            slots_per_layer=3,
+            adaptive_cache=True,
+            adaptive_cache_mode="sample",
+            preserve_cache_on_resize=True,
+        )
+        runtime.reserve()
+        self.addCleanup(runtime.close)
+        for layer in (0, 1):
+            for routes in ([[0, 1]], [[2, 1]]):
+                ids = torch.tensor(routes, dtype=torch.int32, device="cuda")
+                runtime.run(layer, ids, lambda _: None, execution_phase="decode")
+            for _ in range(5):
+                ids = torch.tensor([[1, 2]], dtype=torch.int32, device="cuda")
+                runtime.run(layer, ids, lambda _: None, execution_phase="decode")
+        runtime.synchronize()
+        backing = dict(runtime.cache_pool)
+        runtime.staged_pool = SimpleNamespace(
+            budgets=[6, 4],
+            pool_views=lambda n: {name: value[:n] for name, value in backing.items()},
+        )
+        # The fake pool borrows ordinary allocator tensors; remove it before
+        # runtime.close() tries to tear down a real VMM pool and report stats.
+        self.addCleanup(delattr, runtime, "staged_pool")
+        runtime.pending_kv_stage = 1
+        runtime.staged_trim_enqueued = False
+        runtime.enqueue_staged_trim()
+        torch.cuda.synchronize()
+        runtime.complete_staged_trim()
+        self.assertEqual(runtime.layer_cache_slots, [2, 2])
+        self.assertEqual(runtime.adaptive_evicted_experts, 2)
+        runtime.grow_staged_layout(0)
+        runtime.synchronize()
+        self.assertEqual(runtime.layer_cache_slots, [3, 3])
+        for layer in (0, 1):
+            keys = runtime.device_states[layer]["keys"].cpu().tolist()
+            self.assertEqual({e for e in keys if e >= 0}, {1, 2})
+            for slot, expert in enumerate(keys):
+                if expert < 0:
+                    continue
+                for name in REQUIRED_TENSORS:
+                    self.assertTrue(
+                        torch.equal(
+                            runtime.caches[layer][name][slot].cpu(),
+                            getattr(self.fixture.resident[layer], name)[expert],
+                        ),
+                        name,
+                    )
+
+        # Borrowing the refreshed tail invalidates payload temporarily, then
+        # _return_arena must restore it before the next preserving resize.
+        ids = torch.tensor([[0, 1], [2, 3]], dtype=torch.int32, device="cuda")
+        runtime.run(0, ids, lambda _: None, execution_phase="prefill")
+        runtime.pending_kv_stage = 1
+        runtime.staged_trim_enqueued = False
+        runtime.enqueue_staged_trim()
+        torch.cuda.synchronize()
+        runtime.complete_staged_trim()
+        runtime.synchronize()
+        for layer in (0, 1):
+            keys = runtime.device_states[layer]["keys"].cpu().tolist()
+            self.assertEqual({e for e in keys if e >= 0}, {1, 2})
+            for slot, expert in enumerate(keys):
+                for name in REQUIRED_TENSORS:
+                    self.assertTrue(
+                        torch.equal(
+                            runtime.caches[layer][name][slot].cpu(),
+                            getattr(self.fixture.resident[layer], name)[expert],
+                        ),
+                        name,
+                    )
 
     def test_prefill_reuses_cache_across_layers_and_seeds_only_empty_layers(self):
         from sglang.srt.layers.moe.qwen38_cache_threaded import (
@@ -1024,7 +1118,7 @@ class TestGpuCache(unittest.TestCase):
         for layout in ([3, 3], [2, 4], [4, 2]):
             if layout != [3, 3]:
                 runtime.adaptive_target = layout
-                runtime._maybe_rebalance()
+                self._result_boundary(runtime)
             self.assertEqual(sum(runtime.layer_cache_slots), 6)
             self.assertEqual(
                 {
@@ -1117,7 +1211,12 @@ class TestGpuCache(unittest.TestCase):
                 torch.tensor([pair, pair[::-1]], device="cuda", dtype=torch.int32)
             )
             graph.replay()
+            # This tiny fixture has fewer slots than verify routes, so it
+            # borrows arena storage. Restore cache ownership before snapshot;
+            # maintenance correctly defers while arena still owns those bytes.
             runtime.synchronize()
+            runtime._return_arena()
+            self._result_boundary(runtime)
             expected = self.fixture.resident[0].w13_weight[ids.cpu().long()]
             expected = (
                 expected.float().reshape(ids.numel(), -1).sum(-1).view_as(ids.cpu())
@@ -1159,7 +1258,7 @@ class TestGpuCache(unittest.TestCase):
         runtime.jobs.join()
         runtime.adaptive_samples.join()
         self.assertEqual(runtime.adaptive_target, [4, 2])
-        runtime._maybe_rebalance()
+        self._result_boundary(runtime)
         self.assertEqual(runtime.layer_cache_slots, [4, 2])
         self.assertEqual(runtime.adaptive_rebalances, 1)
 
@@ -1187,7 +1286,7 @@ class TestGpuCache(unittest.TestCase):
             )
         runtime.synchronize()
         runtime.adaptive_target = [2, 4]
-        runtime._maybe_rebalance()
+        self._result_boundary(runtime)
         misses_before = runtime.misses
         ids = torch.tensor([[2, 3]], dtype=torch.int32, device="cuda")
         actual = runtime.run(
@@ -1388,7 +1487,7 @@ class TestGpuCache(unittest.TestCase):
                                 for name in REQUIRED_TENSORS
                             },
                         )
-                    runtime.synchronize()
+                    self._result_boundary(runtime)
                     for name in REQUIRED_TENSORS:
                         self.assertTrue(
                             torch.equal(

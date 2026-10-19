@@ -1,0 +1,44 @@
+CUDA VMM FABRIC backing unavailable on device 0; trying fallback: cuMemCreate(FABRIC probe): <CUresult.CUDA_ERROR_INVALID_VALUE: 1>
+/workspace/sglang/tools/qwen38_cache_tests/cache_overlap_20261019/vmm_resize.py:44: UserWarning: The given buffer is not writable, and PyTorch does not support non-writable tensors. This means you can write to the underlying (supposedly non-writable) buffer using the tensor. You may want to copy the buffer to protect its data or make it writable before converting it to a tensor. This type of warning will be suppressed for the rest of this program. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/utils/tensor_new.cpp:1556.)
+  expected = torch.frombuffer(pack.expert_tensor_bytes(layer, expert, name), dtype=torch.uint8).clone()
+{
+  "status": "passed",
+  "budgets": [
+    88,
+    64,
+    40
+  ],
+  "cycles": [
+    {
+      "cycle": 0,
+      "before_bytes": 247463936,
+      "after_bytes": 113246208,
+      "resize_and_byte_validation_seconds": 0.0282767229999763
+    },
+    {
+      "cycle": 1,
+      "before_bytes": 247463936,
+      "after_bytes": 113246208,
+      "resize_and_byte_validation_seconds": 0.025905166000029567
+    },
+    {
+      "cycle": 2,
+      "before_bytes": 247463936,
+      "after_bytes": 113246208,
+      "resize_and_byte_validation_seconds": 0.024391247000039584
+    },
+    {
+      "cycle": 3,
+      "before_bytes": 247463936,
+      "after_bytes": 113246208,
+      "resize_and_byte_validation_seconds": 0.025175746000059007
+    },
+    {
+      "cycle": 4,
+      "before_bytes": 247463936,
+      "after_bytes": 113246208,
+      "resize_and_byte_validation_seconds": 0.02519499300001371
+    }
+  ],
+  "scope": "two real layers, real VMM unmapping; no full-model inference"
+}

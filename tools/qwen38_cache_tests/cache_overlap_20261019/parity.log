@@ -1,0 +1,18 @@
+[W1019 15:00:39.593941461 ProcessGroupGloo.cpp:527] Warning: Unable to resolve hostname to a (local) address. Using the loopback address as fallback. Manually set the network interface to bind to with GLOO_SOCKET_IFNAME. (function operator())
+Qwen38Register bytes=88473864 register_ms=0.908 device_pointer_ms=0.003 status=0
+[TensorRT-LLM][INFO] Set logger level to INFO
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/workspace/sglang/tools/qwen38_cache_tests/cached_w4a16_gpu_check.py", line 312, in <module>
+[rank0]:     main()
+[rank0]:   File "/workspace/sglang/tools/qwen38_cache_tests/cached_w4a16_gpu_check.py", line 122, in main
+[rank0]:     reports.append(check_exported_layer(
+[rank0]:                    ^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/sglang/python/sglang/srt/model_loader/qwen38_nvfp4_pack/parity.py", line 318, in check_exported_layer
+[rank0]:     torch.testing.assert_close(actual, resident, rtol=rtol, atol=atol)
+[rank0]:   File "/opt/sglang/lib/python3.12/site-packages/torch/testing/_comparison.py", line 1689, in assert_close
+[rank0]:     raise error_metas[0].to_error(msg)
+[rank0]: AssertionError: Tensor-likes are not close!
+
+[rank0]: Mismatched elements: 1 / 7680 (0.0%)
+[rank0]: Greatest absolute difference: 0.020263671875 at index (1, 523) (up to 0.02 allowed)
+[rank0]: Greatest relative difference: 2.453125 at index (1, 523) (up to 0.02 allowed)
