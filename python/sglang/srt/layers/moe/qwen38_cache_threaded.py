@@ -33,12 +33,33 @@ from sglang.kernels.ops.moe.qwen38_expert_cache import (
 )
 from sglang.srt.layers.moe.qwen38_borrowed_arena import BorrowedArenaMixin
 from sglang.srt.layers.moe.qwen38_cache_device import Qwen38DeviceExpertRuntime
+from sglang.srt.layers.moe.qwen38_cache_overlap_policy import PREFILL_CACHE_PATHS
 from sglang.srt.layers.moe.qwen38_cache_runtime import PreparedExperts
 from sglang.srt.layers.moe.qwen38_expert_cache import LayerExpertCachePolicy
 from sglang.srt.model_loader.qwen38_nvfp4_pack.format import REQUIRED_TENSORS
 
 logger = logging.getLogger(__name__)
 _DENSE_STARTUP_PREFILL_TOKENS = 128
+
+# Per-layer prefill copy counters. The log encoder packs these rows into shared
+# columns only when every layer carries the identical key set, so a counter
+# created on first use silently costs one key name per row in the periodic
+# stats line; the auto path counters come from the policy's own path list.
+PREFILL_COPY_COUNTERS = (
+    "dense",
+    "sparse",
+    "resident",
+    "startup_dense",
+    "forced_dense",
+    "heuristic_dense",
+    "missing",
+    "host_missing",
+    "missing_runs",
+    "reuse_candidates",
+    "direct_cache_runs",
+    "direct_cache_experts",
+    *(f"auto_{path}_runs" for path in PREFILL_CACHE_PATHS),
+)
 
 
 def _prefer_dense_prefill(missing, num_experts):
@@ -227,20 +248,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         self.alpha_tables = {}
         self.decode_alpha_h2d_calls_avoided = 0
         self.prefill_copy_stats = [
-            dict(
-                dense=0,
-                sparse=0,
-                resident=0,
-                startup_dense=0,
-                forced_dense=0,
-                heuristic_dense=0,
-                missing=0,
-                host_missing=0,
-                missing_runs=0,
-                reuse_candidates=0,
-                direct_cache_runs=0,
-                direct_cache_experts=0,
-            )
+            dict.fromkeys(PREFILL_COPY_COUNTERS, 0)
             for _ in range(self.manifest.num_layers)
         ]
         self.prefill_reused_experts = self.prefill_reuse_d2d_bytes = 0
@@ -1318,6 +1326,10 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
             if self.packed_transport is not None
             else None
         )
+        loan = getattr(self, "kv_loan", None)
+        if loan is not None:
+            result["kv_tail_evict_tokens"] = loan.tail_evict_tokens
+            result["kv_tail_evict_attempts"] = loan.tail_evict_attempts
         if self.adaptive_cache:
             result.update(
                 adaptive_rebalances=self.adaptive_rebalances,
