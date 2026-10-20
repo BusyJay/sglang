@@ -134,6 +134,16 @@ def _ple_table_is_fp8(
     return False
 
 
+def _hybrid_capture_noop(*_args, **_kwargs):
+    return None
+
+
+@eager_on_graph(True, capture_stub=_hybrid_capture_noop)
+def _hybrid_layer_start(method, layer, prefill):
+    hybrid = method.runtime.hybrid
+    hybrid.layer_start(layer)
+
+
 @eager_on_graph(True)
 def _breakable_qsa_indexer(layer, hidden_states, positions):
     # Read the live batch on every replay of this eager break.
@@ -1971,6 +1981,17 @@ class Qwen4ExpLayerExtensionMixin:
         forward_batch: ForwardBatch,
         ple_batch: Optional[Union[_PLEBatch, _BreakablePLEBatch]],
     ) -> torch.Tensor:
+        method = getattr(getattr(self.mlp, "experts", None), "quant_method", None)
+        hybrid = getattr(getattr(method, "runtime", None), "hybrid", None)
+        mode = forward_batch.forward_mode
+        if hybrid is not None and (
+            mode.is_decode()
+            or mode.is_target_verify()
+            or mode.is_extend_without_speculative()
+        ):
+            _hybrid_layer_start(
+                method, self.layer_id, mode.is_extend_without_speculative()
+            )
         # The read runs inside prepare and reaches the PLE batch through the
         # layer for the duration of that call.
         if self.ple is None:
@@ -2973,9 +2994,9 @@ class Qwen4ExpForConditionalGeneration(Qwen3VLForConditionalGeneration):
                     if name.endswith(ignore_suffixes) and name not in params_dict:
                         continue
                     if name.endswith("_scale") and name not in params_dict:
-                        assert (
-                            abs(loaded_weight.item() - 1.0) < 1e-6
-                        ), f"Expected 1.0, got {loaded_weight.item()} in skipped {name}"
+                        assert abs(loaded_weight.item() - 1.0) < 1e-6, (
+                            f"Expected 1.0, got {loaded_weight.item()} in skipped {name}"
+                        )
                         continue
                     if name in params_dict:
                         param = params_dict[name]

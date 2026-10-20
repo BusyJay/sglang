@@ -8,6 +8,7 @@ from sglang.kernels.registry import register_kernel
 from sglang.kernels.selector import get_kernel
 from sglang.kernels.spec import (
     CapabilityRequirement,
+    DeviceType,
     FormatSignature,
     KernelBackend,
     KernelSpec,
@@ -312,5 +313,15 @@ register_kernel(
         target="sglang.kernels.ops.moe.qwen38_expert_cache:cache_partition_routes",
         capabilities=_CUDA,
         description="Partition cache and arena expert routes using a protected GPU lookup.",
+    )
+)
+
+register_kernel(
+    KernelSpec(
+        op="moe.cpu_nvfp4_moe",
+        backend=KernelBackend.AOT,
+        target="sglang.kernels.ops.moe.cpu_nvfp4:cpu_nvfp4_moe",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.CPU)}),
+        description="Explicitly built experimental AVX512 BF16 NVFP4 expert operator.",
     )
 )

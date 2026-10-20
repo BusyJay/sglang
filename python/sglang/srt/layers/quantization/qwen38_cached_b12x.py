@@ -19,8 +19,9 @@ class _PreparedSmallMLaunch:
     program stays wrapped by B12X so graph program retention still works.
     """
 
-    def __init__(self, kernel, workspace, intermediate):
+    def __init__(self, kernel, workspace, intermediate, output_dtype=None):
         self.kernel = kernel
+        self.output_dtype = output_dtype or torch.bfloat16
         self.bindings = OrderedDict()
         self.barrier_state = workspace[-2:]
         self.barriers = (workspace[-2:-1], workspace[-1:])
@@ -100,7 +101,12 @@ class _PreparedSmallMLaunch:
             *fixed,
             ptr(ids_dtype, ids),
             ptr(k.cutlass.Float32, router),
-            ptr(k.cutlass.BFloat16, output),
+            ptr(
+                k.cutlass.Float32
+                if self.output_dtype == torch.float32
+                else k.cutlass.BFloat16,
+                output,
+            ),
             *self.barriers,
             k.Int32(capacity),
             k.Int32(x.shape[0]),
@@ -114,7 +120,7 @@ class CachedB12xW4A16:
     max_tokens = 3
     max_topk = 32
 
-    def __init__(self, device, hidden, width, max_experts):
+    def __init__(self, device, hidden, width, max_experts, *, enable_fp32=False):
         import flashinfer
         from b12x.moe._shared.kernels.w4a16 import kernel
         from b12x.moe._shared.kernels.w4a16.prepare import W4A16ModelOptWeights
@@ -136,7 +142,10 @@ class CachedB12xW4A16:
         # Allocate bounded scratch before KV sizing, independent of pool views.
         sms = torch.cuda.get_device_properties(device).multi_processor_count
         self.workspace = torch.zeros(sms * 4 + 2, dtype=torch.int32, device=device)
-        self.globals = torch.empty(2, max_experts, dtype=torch.float32, device=device)
+        # Each alpha row must keep the native 16-byte pointer alignment,
+        # including non-multiple-of-four global slot capacities.
+        alpha_stride = (max_experts + 3) // 4 * 4
+        self.globals = torch.empty(2, alpha_stride, dtype=torch.float32, device=device)
         chunks = ((width // 2) + 127) // 128
         self.intermediate = torch.empty(
             2 * self.max_tokens * chunks * 128 * self.max_topk,
@@ -150,6 +159,18 @@ class CachedB12xW4A16:
         self.used = False
         from sglang.srt.environ import envs
 
+        self.fp32_launch = None
+        if enable_fp32:
+            from sglang.srt.layers.quantization.qwen38_b12x_fp32 import (
+                fp32_kernel_namespace,
+            )
+
+            self.fp32_launch = _PreparedSmallMLaunch(
+                fp32_kernel_namespace(),
+                self.workspace,
+                self.intermediate,
+                torch.float32,
+            )
         self.prepared_launch = (
             _PreparedSmallMLaunch(kernel, self.workspace, self.intermediate)
             if envs.SGLANG_OPT_QWEN38_B12X_PREPARED_LAUNCH.get()
@@ -167,7 +188,7 @@ class CachedB12xW4A16:
             and 1 <= ids.shape[1] <= cls.max_topk
         )
 
-    def run(self, x, ids, router, tensors):
+    def run(self, x, ids, router, tensors, *, output_dtype=None):
         from sglang.srt.layers.quantization.qwen38_cached_w4a16 import (
             validate_cache_tensors,
         )
@@ -207,18 +228,36 @@ class CachedB12xW4A16:
         # Refresh after each fill: cache alpha includes input scale; A16
         # cancels that scale. No full weight/scales copy or startup snapshot.
         g1, g2 = self.globals[:, :capacity].unbind(0)
-        torch.mul(tensors["g1_alphas"], tensors["w13_input_scale_quant"], out=g1)
-        torch.mul(tensors["g2_alphas"], tensors["w2_input_scale_quant"], out=g2)
-        if getattr(self, "prepared_launch", None) is not None:
+        if self.fp32_launch is not None:
+            # Other layers may fill asynchronously. Read only this window's
+            # pinned routes and the immutable zero slot for masked IDs.
+            slots = ids.flatten().clamp_min(0).long()
+            g1.index_copy_(
+                0, slots, tensors["g1_alphas"][slots] * tensors["w13_input_scale_quant"]
+            )
+            g2.index_copy_(
+                0, slots, tensors["g2_alphas"][slots] * tensors["w2_input_scale_quant"]
+            )
+        else:
+            torch.mul(tensors["g1_alphas"], tensors["w13_input_scale_quant"], out=g1)
+            torch.mul(tensors["g2_alphas"], tensors["w2_input_scale_quant"], out=g2)
+        launch = (
+            self.fp32_launch if output_dtype == torch.float32 else self.prepared_launch
+        )
+        if output_dtype == torch.float32 and launch is None:
+            raise RuntimeError("B12X FP32 output requires enable_fp32 at startup")
+        if output_dtype not in (None, torch.bfloat16, torch.float32):
+            raise ValueError("unsupported B12X output dtype")
+        if launch is not None:
             try:
-                return self.prepared_launch.run(
+                return launch.run(
                     x.contiguous(),
                     ids.contiguous(),
                     router.float().contiguous(),
                     tensors,
                     g1,
                     g2,
-                    torch.empty_like(x),
+                    torch.empty_like(x, dtype=output_dtype or x.dtype),
                     stream,
                 )
             finally:

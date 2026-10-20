@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 import torch
+
 from sglang.srt.layers.quantization.qwen38_cached_b12x import CachedB12xW4A16
 from sglang.srt.layers.quantization.qwen38_nvfp4_cache import Qwen38CachedNvFp4MoeMethod
 
@@ -20,8 +21,9 @@ class TestCachedB12x(unittest.TestCase):
             {"SGLANG_QWEN38_CACHE_W4A16_BACKEND": "bad"},
             {"SGLANG_QWEN38_CACHE_W4A16_BACKEND": "b12x"},
         ):
-            with mock.patch.dict(os.environ, env, clear=True), self.assertRaises(
-                ValueError
+            with (
+                mock.patch.dict(os.environ, env, clear=True),
+                self.assertRaises(ValueError),
             ):
                 Qwen38CachedNvFp4MoeMethod(None, "p")
         with mock.patch.dict(
@@ -64,6 +66,7 @@ class TestCachedB12x(unittest.TestCase):
         backend.intermediate = torch.empty(3 * 128 * 32 * 2, dtype=torch.bfloat16)
         backend.unused = torch.empty(0, dtype=torch.bfloat16)
         backend.done, backend.used = mock.Mock(), False
+        backend.fp32_launch = backend.prepared_launch = None
         backend.weights_type = W4A16ModelOptWeights
         calls = []
 
@@ -78,9 +81,15 @@ class TestCachedB12x(unittest.TestCase):
         x = torch.empty(1, 128, dtype=torch.bfloat16)
         ids, router = torch.zeros(1, 1, dtype=torch.int32), torch.ones(1, 1)
         stream = mock.Mock()
-        with mock.patch.object(
-            torch.Tensor, "is_cuda", new_callable=mock.PropertyMock, return_value=True
-        ), mock.patch("torch.cuda.current_stream", return_value=stream):
+        with (
+            mock.patch.object(
+                torch.Tensor,
+                "is_cuda",
+                new_callable=mock.PropertyMock,
+                return_value=True,
+            ),
+            mock.patch("torch.cuda.current_stream", return_value=stream),
+        ):
             for capacity, alpha in ((2, 3.0), (4, 5.0), (2, 7.0)):
                 tensors = {
                     "w13_weight": torch.empty(capacity, 64, 64, dtype=torch.uint8),

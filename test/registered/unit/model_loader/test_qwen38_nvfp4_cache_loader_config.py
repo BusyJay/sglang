@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Loader boundary for the opt-in cache overlap options."""
+"""Loader defaults and validation for cache overlap and resize retention."""
 
+import ast
+import inspect
 import unittest
 from types import SimpleNamespace
 from unittest import mock
@@ -34,8 +36,33 @@ def build(**options):
 
 
 class TestCacheLoaderConfig(CustomTestCase):
-    def test_defaults_keep_every_overlap_option_off(self):
-        build()  # no new option means the historical single-dispatch path
+    def test_resize_retention_defaults_on_and_accepts_explicit_false(self):
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+        )
+
+        build()
+        build(runtime_mode="threaded")
+        build(runtime_mode="threaded", preserve_cache_on_resize=False)
+        self.assertIs(
+            inspect.signature(Qwen38ThreadedExpertRuntime)
+            .parameters["preserve_cache_on_resize"]
+            .default,
+            True,
+        )
+        # The loader passes an explicit default, overriding the constructor's.
+        # Check both entry points so serving cannot silently disable retention.
+        tree = ast.parse(inspect.getsource(Qwen38NvFp4CacheModelLoader))
+        defaults = [
+            node.elts[1].value
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Tuple)
+            and len(node.elts) == 2
+            and isinstance(node.elts[0], ast.Constant)
+            and node.elts[0].value == "preserve_cache_on_resize"
+            and isinstance(node.elts[1], ast.Constant)
+        ]
+        self.assertEqual(defaults, [True])
 
     def test_direct_cache_follows_its_two_preconditions(self):
         # Sync runtime cannot use it; threaded without cache reuse has no

@@ -897,6 +897,20 @@ class UnifiedRadixCache(BasePrefixCache):
         self._free_values(result.device_frees, result.host_frees)
         self._accumulate_tracker(tracker, result.tracker)
 
+    @rank_consensus(same_params=True, same_results=True)
+    def reclaim_device_tail(self, first_token: int) -> int:
+        if (
+            self.disable
+            or self.cache_controller is None
+            or self.host_memory_mode != "cache"
+            or self.linker is not None
+        ):
+            return 0
+        result = self.tree_core.reclaim_device_tail(first_token)
+        reclaimed = result.tracker.get(BASE_COMPONENT_TYPE, 0)
+        self._free_values(result.device_frees, result.host_frees)
+        return reclaimed
+
     def _drop_subtree_no_host(
         self, node_id: NodeId, tracker: dict[ComponentType, int]
     ) -> bool:

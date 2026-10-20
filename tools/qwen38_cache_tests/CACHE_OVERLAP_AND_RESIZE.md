@@ -1,6 +1,6 @@
 # Cache 计算重叠与容量变更保留热点
 
-本次修改包含此前的 prefill direct cache 实现，适用于 threaded runtime。其中 `prefill_direct_cache` 在 threaded + `prefill_reuse_cache` 下默认开启（实测有净收益，且 CUTLASS workspace 上界挂在同一个开关上）；`preserve_cache_on_resize` 和 `decode_early_cache` 仍默认关闭，需要按部署的工作负载自己评估。
+本次修改包含此前的 prefill direct cache 实现，适用于 threaded runtime。其中 `prefill_direct_cache` 在 threaded + `prefill_reuse_cache` 下默认开启（实测有净收益，且 CUTLASS workspace 上界挂在同一个开关上）；`preserve_cache_on_resize` 默认开启，在专家池容量变化时保留热点；`decode_early_cache` 仍默认关闭。
 
 在完整的 `--model-loader-extra-config` 中合并以下字段，保留已有 `manifest_path`、专家容量、KV stages 和其他设置：
 
@@ -15,7 +15,7 @@
 }
 ```
 
-`prefill_direct_cache` 与 `cache_overlap_policy` 都可以省略，示例写全只是为了说明取值。`cache_overlap_policy` 决定这些开关被打开后是否真的走拆分/提前路径，取值 `auto`（默认）或 `always`，需要 threaded runtime。`always` 强制按字面开启，用于 A/B 对照和调优；`auto` 只在实测有净收益的档位上拆分，其余档位回到原有单次计算。
+`prefill_direct_cache`、`preserve_cache_on_resize` 与 `cache_overlap_policy` 都可以省略，示例写全只是为了说明取值。`cache_overlap_policy` 决定这些开关被打开后是否真的走拆分/提前路径，取值 `auto`（默认）或 `always`，需要 threaded runtime。`always` 强制按字面开启，用于 A/B 对照和调优；`auto` 只在实测有净收益的档位上拆分，其余档位回到原有单次计算。
 
 ## Prefill 的 cache 计算与 arena 加载重叠
 
@@ -24,6 +24,12 @@
 混合命中目前仍有两次 MoE 调用，arena 预留容量保持原状。独立输出缓冲保护第一部分结果，原路由权重不重新归一化，无效路由使用 -1，避免重复有效专家 ID。错误和全部命中路径也会合并传输依赖，防止下一次执行覆盖仍在使用的内存。详见 [PREFILL_DIRECT_CACHE.md](PREFILL_DIRECT_CACHE.md)。
 
 ## Cache slots 变更保留热点
+
+KV loan 的回借会在请求结束／空闲切换时检查持久 CPU cache：只释放已完成备份、没有活跃请求或传输锁、且所有仍驻留的 Mamba／SWA 状态都有 CPU 副本的 GPU 尾部节点，CPU 前缀仍可用于后续最长前缀匹配和加载。没有 CPU 副本的节点不会在此路径中删除。释放后优先分配低地址页，下一次 forward 的空闲页快照和结果完成边界再决定是否缩小 KV backing、扩容专家 slots。
+
+回借预留量按当前 batch 重算，并始终保留下一次 prefill chunk 的空间，不再永久保留历史最大 decode batch。阶段仍受物理尾部占用限制：少量高地址活跃页、未完成备份或无法安全回收的节点，都可能阻止专家扩容。10 条 Mamba slot 不代表切换两次请求必然回收；请求结束解除锁，CPU 备份完成后才具备释放 GPU checkpoint 的条件。
+
+这条路径在请求切换时扫描可回收叶节点，并读取节点 KV 索引是否触及尾部；可能产生 GPU 同步开销，需要真实服务验证切换耗时。Python 与 Rust tree backend 均实现；修改 Rust 后需重新构建对应扩展。
 
 `preserve_cache_on_resize` 改变 KV loan stages 引起的专家池扩容/缩容。原有阶段切换会清空起始地址变化的层；开启后先恢复借用 arena 覆盖的 cache 权重，再搬迁保留的专家并恢复 lookup、频率和年龄。
 

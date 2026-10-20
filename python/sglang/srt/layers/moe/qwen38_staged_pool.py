@@ -95,6 +95,11 @@ class StagedExpertPool:
         return list(self.budgets)
 
     def pool_views(self, budget):
+        backed = (
+            self.base_budget if self.budgets is None else self.budgets[self.stage_index]
+        )
+        if type(budget) is not int or not 0 < budget <= backed:
+            raise ValueError("expert view exceeds physically backed global capacity")
         return {name: tensor[:budget] for name, tensor in self.tensors.items()}
 
     def grow_stage(self, index, *, initial=False):

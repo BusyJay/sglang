@@ -109,10 +109,43 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
 
     def bind_runtime(self, runtime) -> None:
         self.runtime = runtime
+        from sglang.srt.environ import envs
+
+        if envs.SGLANG_ENABLE_QWEN38_CPU_HYBRID.get():
+            config = self.moe_runner_config
+            if (
+                config.activation != "silu"
+                or not config.is_gated
+                or config.apply_router_weight_on_input
+                or config.no_combine
+                or config.swiglu_limit is not None
+                or config.gemm1_clamp_limit is not None
+                or config.gemm1_alpha is not None
+                or config.gemm1_beta is not None
+                or config.num_fused_shared_experts not in (None, 0)
+            ):
+                raise ValueError(
+                    "CPU hybrid requires ordinary SwiGLU with output route weighting"
+                )
+            if not self.use_w4a16:
+                raise ValueError("CPU hybrid requires target W4A16")
+            if getattr(runtime, "hybrid", None) is None:
+                from sglang.srt.layers.moe.qwen38_hybrid import HybridCache
+
+                runtime.hybrid = HybridCache(runtime, self.w4a16_backend)
+        if (
+            getattr(runtime, "hybrid", None) is not None
+            and runtime.hybrid.gpu_backend != self.w4a16_backend
+        ):
+            raise ValueError("all global-cache layers must use the same GPU backend")
         from sglang.srt.layers.moe.qwen38_cache_buffers import GrowableSwigluBuffers
 
         self.swiglu_buffers = GrowableSwigluBuffers(
-            self.moe_runner_config, runtime.device, runtime.manifest.num_experts
+            self.moe_runner_config,
+            runtime.device,
+            runtime.manifest.num_layers * runtime.manifest.num_experts
+            if getattr(runtime, "hybrid", None) is not None
+            else runtime.manifest.num_experts,
         )
         # Seed at the current layer capacity before KV and graph allocation.
         self.swiglu_buffers.get(runtime.slots_for_layer(self.layer_id))
@@ -125,12 +158,21 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
                 runtime.device,
                 self.manifest.hidden_size,
                 self.manifest.intermediate_size,
-                self.manifest.num_experts,
+                self.manifest.num_layers * self.manifest.num_experts
+                if getattr(runtime, "hybrid", None) is not None
+                else self.manifest.num_experts,
+                enable_fp32=getattr(runtime, "hybrid", None) is not None,
             )
+            if getattr(runtime, "hybrid", None) is not None:
+                if runtime.hybrid.gpu_backend != self.w4a16_backend:
+                    raise ValueError(
+                        "all global-cache layers must use the same GPU backend"
+                    )
+                runtime.hybrid.b12x[self.layer_id] = self.b12x
             if self.layer_id == 0:
                 logging.getLogger(__name__).info(
                     "Qwen38 B12X W4A16 enabled: BF16 decode/verify 1..3 tokens; "
-                    "other shapes use Triton W4A16"
+                    "prefill uses its configured backend; unsupported decode/verify raises"
                 )
         if self.layer_id == 0:
             logging.getLogger(__name__).info(
@@ -218,6 +260,22 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
         """
         from dataclasses import replace
 
+        hybrid = getattr(self.runtime, "hybrid", None)
+        if hybrid is not None and execution_phase in ("decode", "verify"):
+            if (
+                hidden_states.dtype != torch.bfloat16
+                or not 1 <= hidden_states.shape[0] <= 3
+            ):
+                raise ValueError("CPU hybrid supports BF16 target decode/verify M=1..3")
+            return hybrid.run(
+                self.layer_id,
+                hidden_states.contiguous(),
+                topk_ids.int().contiguous(),
+                topk_weights.float().contiguous(),
+                (lambda: shared_call.run(shared_input))
+                if shared_call is not None
+                else None,
+            )
         from sglang.srt.layers.moe.moe_runner import MoeRunner
         from sglang.srt.layers.moe.moe_runner.flashinfer_cutlass import (
             FlashInferCutlassMoeQuantInfo,
@@ -235,7 +293,7 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
             hidden_states_pre_quant,
         )
 
-        def execute_single(prepared, route_weights):
+        def execute_single(prepared, route_weights, output_dtype=None):
             if self.uses_w4a16(execution_phase):
                 from sglang.srt.layers.moe.token_dispatcher.standard import (
                     StandardCombineInput,
@@ -254,14 +312,23 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
                         prepared.topk_ids,
                         route_weights,
                         prepared.tensors,
+                        output_dtype=output_dtype,
                     )
                     return StandardCombineInput(hidden_states=result)
+                if self.w4a16_backend == "b12x" and execution_phase in (
+                    "decode",
+                    "verify",
+                ):
+                    raise RuntimeError(
+                        "B12X decode/verify is unavailable for this input; refusing Triton fallback"
+                    )
                 result = cached_w4a16_moe(
                     hidden_states.contiguous(),
                     prepared.topk_ids.contiguous(),
                     route_weights.contiguous(),
                     prepared.tensors,
                     chunk_tokens=self.w4a16_chunk_tokens,
+                    output_dtype=output_dtype,
                 )
                 return StandardCombineInput(hidden_states=result)
             capacity = prepared.num_experts
@@ -378,9 +445,18 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
                 cache_experts=None,
                 arena_experts=None,
             )
-            cached = execute_single(cache_prepared, cache_weights).hidden_states
+            partial_dtype = (
+                torch.float32
+                if hybrid is not None and self.uses_w4a16(execution_phase)
+                else None
+            )
+            cached = execute_single(
+                cache_prepared, cache_weights, partial_dtype
+            ).hidden_states
             if arena_ids is None:
-                return StandardCombineInput(hidden_states=cached)
+                return StandardCombineInput(
+                    hidden_states=cached.to(hidden_states.dtype)
+                )
             # Some backends reuse an output buffer; preserve the first result
             # before dispatching the second contribution.
             cached = cached.clone()
@@ -395,8 +471,11 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
                     arena_experts=None,
                 ),
                 arena_weights,
+                partial_dtype,
             ).hidden_states
-            return StandardCombineInput(hidden_states=cached + missing)
+            return StandardCombineInput(
+                hidden_states=(cached + missing).to(hidden_states.dtype)
+            )
 
         # Return a plain tensor, so eager_on_graph copies fresh output into the
         # fixed bridge consumed by the next GPU segment on every replay.
@@ -442,6 +521,17 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
                 )
 
             options["early_cache"] = early_cache
+        if hybrid is not None:
+            if execution_phase != "prefill":
+                raise ValueError("global hybrid requires target prefill/decode/verify")
+            return hybrid.prefill(
+                self.layer_id,
+                topk_ids.int().contiguous(),
+                execute,
+                (lambda: shared_call.run(shared_input))
+                if shared_call is not None
+                else None,
+            )
         return self.runtime.run(
             self.layer_id, topk_ids, execute, **options
         ).hidden_states

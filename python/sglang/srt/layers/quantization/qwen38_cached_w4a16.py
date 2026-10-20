@@ -512,7 +512,15 @@ def validate_runner_config(config):
 
 
 def cached_w4a16_moe(
-    x, ids, router, tensors, *, chunk_tokens=16, split_k=None, verify_mode=None
+    x,
+    ids,
+    router,
+    tensors,
+    *,
+    chunk_tokens=16,
+    split_k=None,
+    verify_mode=None,
+    output_dtype=None,
 ):
     if x.ndim != 2:
         raise ValueError("cached W4A16 requires a 2D activation")
@@ -549,7 +557,11 @@ def cached_w4a16_moe(
     topk = ids.shape[1]
     if topk < 1:
         raise ValueError("cached W4A16 requires nonempty topk")
-    output = torch.empty_like(x)
+    if output_dtype not in (None, torch.bfloat16, torch.float32):
+        raise ValueError("W4A16 output must be BF16 or FP32")
+    if output_dtype == torch.float32:
+        split_k = 0  # FP32 partitions use the direct route-reduction path.
+    output = torch.empty_like(x, dtype=output_dtype or x.dtype)
     if not tokens:
         return output
     # Small verify only: bound scratch and preserve the original large-batch path.

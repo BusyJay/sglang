@@ -2904,6 +2904,48 @@ impl<K: ChildKeyType> UnifiedTreeCore<K> {
         Ok(result)
     }
 
+    /// Release settled CPU-backed device leaves touching the requested KV tail.
+    pub fn reclaim_device_tail(&mut self, first_token: i64) -> EvictionStepResult {
+        let mut result = EvictionStepResult::default();
+        loop {
+            let mut candidates: Vec<_> = self.evictable_device_leaves.iter().collect();
+            candidates.sort_by_key(|&idx| self.arena.node(idx).id);
+            let mut progressed = false;
+            for idx in candidates {
+                let node = self.arena.node(idx);
+                if !self.is_settled_full_coexisting_host_node_(node)
+                    || !self.is_evictable_device_leaf_(node)
+                    || self
+                        .components
+                        .iter()
+                        .any(|c| node.host_lock_ref(c.component_type()) > 0)
+                    || self.components.iter().any(|c| {
+                        node.has_device_value(c.component_type())
+                            && !node.has_host_value(c.component_type())
+                    })
+                    || node
+                        .device_value(FULL)
+                        .ge(first_token)
+                        .any()
+                        .int64_value(&[])
+                        == 0
+                {
+                    continue;
+                }
+                self.demote_(
+                    idx,
+                    &mut result.tracker,
+                    &mut result.device_frees,
+                    &mut result.host_frees,
+                );
+                progressed = true;
+            }
+            if !progressed {
+                return result;
+            }
+        }
+    }
+
     /// Drop a backed-up node's device value, keeping the host copy.
     pub fn demote_(
         &mut self,
