@@ -86,6 +86,77 @@ single-request performance comparison; vision, concurrency scaling, quality
 benchmarks, per-token latency percentiles and isolated resize latency remain
 outside its scope.
 
+## Existing-log diagnosis: asynchronous fill versus global cache
+
+The legacy baseline already uses a background transfer worker and asynchronous
+CUDA copies. `async_pack_prefetch=true` is identical in all three commands and
+controls startup pack prefetch, not the steady-state global admission worker.
+Consequently these measurements do not support blaming asynchronous transfer
+as a general mechanism. They locate the regression in the new global execution
+path, whose background filling, arena restore, host policy and synchronization
+are coupled.
+
+The saved logs provide two concrete findings:
+
+| Evidence | Default global | GPU-preferred global | Legacy |
+| --- | ---: | ---: | ---: |
+| Fused decode planning calls | 0 | 0 | 57151 |
+| Device-gated decode calls | 0 | 0 | 57151 |
+| Device-gated all-hit calls | 0 | 0 | 16107 |
+| Shared-expert/fill overlap calls | 0 | 0 | 57151 |
+| Approx. long-prefill foreground transfer (TB) | 0.603 | 0.586 | 0.666 |
+| Same interval, global fill/restore transfer (TB) | 1.355 | 1.351 | N/A |
+| Median interval between long-prefill log entries (s) | 5 | 5 | 1 |
+
+The new branch bypasses the old device-side planning/gating and shared-fill
+overlap paths. Each decode/verify layer instead reads back routes, coordinates
+with the host worker and joins a Future; the GPU-preferred variant retains that
+structure. Zero legacy counters mean these specific paths were bypassed, not
+that no GPU work overlaps anywhere in the new implementation.
+
+For prefill, the foreground copy count is actually lower on the global path,
+but it also performs about **1.35 TB of global fill/restore copies** in the same
+approximate interval. The sum is about **1.96 TB versus 0.67 TB** on the legacy
+path. Code inspection confirms separate counters: `transferred_bytes` records
+arena transfer, while `global_cpu_hybrid.fill_bytes` records `_copy` operations
+for admission and arena restore. They must be added for this comparison. The
+new prefill restores overwritten tail-cache weights and subsequently admits
+requested experts through its background manager; these additional copies are
+real even though all prefill expert computation runs on the GPU.
+
+The sampled interval spans 1024 layer calls per mode and brackets most of the
+170K prefill. Endpoints have 128-call snapshot granularity, so they include some
+adjacent work and do not provide exact request-only byte counts. Log timestamps
+have one-second precision and scheduler logging overlaps GPU execution; log gaps
+are evidence of persistent chunk slowdown, not precise kernel durations.
+
+The global manager also scans the full slot array while selecting slots for
+each admission (`GlobalLfu.plan`), then waits for copy completion before cache
+publication. Prefill waits for borrowed-arena restoration before using the
+next layer. These are specific implementation candidates for the observed
+regression. Existing counters do **not** measure their individual elapsed
+costs. In particular, `result_join_waits` increments on every join and must not
+be interpreted as a count or duration of actual blocking. Admission and restore
+share one byte counter, so the logs cannot apportion their individual traffic.
+
+Thus the actionable diagnosis is **new global-path management and extra
+fill/restore work**, with loss of the old optimized decode paths. These logs
+cannot establish an exact split between asynchronous admission, arena restore,
+host LFU scanning, GPU kernels and synchronization, nor prove that a global
+cache design is inherently slower.
+
+Reproduce this analysis without starting a server:
+
+```bash
+python3 tools/qwen38_cache_tests/global_cpu_resize_v2_20261020/analyze_performance_logs.py \
+  tools/qwen38_cache_tests/global_cpu_resize_v2_20261020/performance-20261021 \
+  --output /tmp/qwen38-log-analysis.json
+```
+
+[log-analysis.json](log-analysis.json) retains the counters and exact raw-log
+line ranges used for the sampled comparison. Raw server timestamps are UTC;
+16:xx on October 20 corresponds to 00:xx on October 21 in Asia/Shanghai.
+
 ## Environment and method
 
 - One RTX 5090 D (32 GB); Ryzen 9 9950X (16 physical cores), default hybrid
