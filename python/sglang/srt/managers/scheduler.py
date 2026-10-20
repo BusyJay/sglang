@@ -603,6 +603,16 @@ class Scheduler(
         )
         self.disable_radix_cache = result.disable_radix_cache
         self.tree_cache = result.tree_cache
+        staged_loan = getattr(self.token_to_kv_pool_allocator, "staged_loan", None)
+        if staged_loan is not None and not self.disable_radix_cache:
+            from sglang.srt.mem_cache.base_prefix_cache import EvictParams
+
+            def evict_prefix_for_kv_tail(tokens: int) -> None:
+                # Reclaiming the loan drops cold GPU prefix copies only; a
+                # hierarchical cache still holds them on host for a later reload.
+                self.tree_cache.evict(EvictParams(num_tokens=tokens))
+
+            staged_loan.evict_hook = evict_prefix_for_kv_tail
         if self.enable_hierarchical_cache:
             cache_controller = self.tree_cache.cache_controller
             if cache_controller is not None:
