@@ -111,6 +111,21 @@ class StagedKVLoan:
         )
         self.reserve = 0
         self.probe = None
+        # A long request leaves cached prefixes physically spread across the pool,
+        # so the KV tail the expert pool loaned out can stay pinned by cold prefix
+        # cache even after traffic drops two stages down. The scheduler wires a
+        # bounded eviction hook so the tail can be reclaimed on that transition;
+        # without a hook the behaviour is the previous silent no-op.
+        configured = getattr(runtime, "kv_tail_evict_tokens", None)
+        self.tail_evict_limit_tokens = (
+            self.policy.capacities[-1] - self.policy.capacities[-2]
+            if configured is None
+            else int(configured)
+        )
+        self.evict_hook = None
+        self.tail_evict_tokens = 0
+        self.tail_evict_attempts = 0
+        self.tail_evict_attempts_allowed = 3
         self.free_snapshot = torch.empty(
             allocator.num_pages + 1,
             dtype=torch.bool,
@@ -157,6 +172,10 @@ class StagedKVLoan:
         a.backed_num_pages = new_pages
         self.runtime.pending_kv_stage = None
         self.runtime.staged_trim_enqueued = False
+        # The eviction budget belongs to one long->short transition, not to the
+        # process: a cycle that could not clear the tail must not silence the
+        # hook for every later request that hands the same bytes back.
+        self.tail_evict_attempts = 0
         logger.info(
             "Qwen38 returned expert loan: KV=%d expert slots=%d",
             capacity,
@@ -217,6 +236,57 @@ class StagedKVLoan:
         done.record(torch.cuda.current_stream(self.allocator.device))
         self.probe = done
 
+    def _free_page_mask(self):
+        """Fresh CPU page mask, used after eviction returned pages to the pool."""
+        import torch
+
+        a = self.allocator
+        mask = torch.zeros(a.backed_num_pages + 1, dtype=torch.bool, device=a.device)
+        mask[a.get_all_free_pages()] = True
+        return mask.cpu()
+
+    def _evict_tail_resident_prefixes(self, free, backed):
+        """Evict cold prefix cache so the physical KV tail can be re-loaned.
+
+        Only pages above the next lower stage are counted, which bounds the
+        eviction by the bytes the shrink would reclaim and keeps a plain
+        ``2 * reserve`` shortfall from evicting prefixes that are not in the way.
+        """
+        hook = getattr(self, "evict_hook", None)
+        if hook is None or getattr(self, "tail_evict_limit_tokens", 0) <= 0:
+            return False
+        if getattr(self, "tail_evict_attempts", 0) >= getattr(
+            self, "tail_evict_attempts_allowed", 0
+        ):
+            return False
+        # The shrink also keeps a 2 * reserve margin below the next stage, so the
+        # pages in the way start there rather than at the boundary itself. Nothing
+        # above it means cold prefix cache is not what blocks the re-loan.
+        first_page = (
+            self.policy.capacities[self.policy.index - 1] - 2 * self.reserve
+        ) // self.allocator.page_size
+        blocked = sum(
+            1 for page in range(max(first_page, 1), backed + 1) if not free[page]
+        )
+        if blocked == 0:
+            return False
+        tokens = min(blocked * self.allocator.page_size, self.tail_evict_limit_tokens)
+        self.tail_evict_attempts = getattr(self, "tail_evict_attempts", 0) + 1
+        try:
+            hook(tokens)
+        except BaseException:
+            # Losing the loan is an optimisation miss, not a correctness failure;
+            # only the KV return itself is allowed to poison serving.
+            logger.exception("Qwen38 KV tail eviction failed; keeping the stage")
+            return False
+        self.tail_evict_tokens = getattr(self, "tail_evict_tokens", 0) + tokens
+        logger.info(
+            "Qwen38 evicted cold prefix cache for the KV tail: tokens=%d blocked_pages=%d",
+            tokens,
+            blocked,
+        )
+        return True
+
     def _reborrow(self):
         import torch
 
@@ -228,21 +298,37 @@ class StagedKVLoan:
             )
         free = self.free_snapshot.tolist()
         backed = self.allocator.backed_num_pages
-        highest = max(
-            (page for page in range(1, backed + 1) if not free[page]), default=0
-        )
-        demand = (
-            max(highest * self.allocator.page_size, self.used_tokens())
-            + 2 * self.reserve
-        )
-        target = next(
-            (i for i, cap in enumerate(self.policy.capacities) if demand < cap),
-            self.policy.index,
-        )
         self.probe = None
         self.runtime.kv_reborrow_probe = False
+        target = self.policy.index
+        # Shrinking unmaps the tail, so it needs every page above the next lower
+        # stage free. Demand alone can look small while cold cached prefixes hold
+        # those pages; evict a bounded amount and re-check instead of giving up.
+        for _ in range(2):
+            highest = max(
+                (page for page in range(1, backed + 1) if not free[page]), default=0
+            )
+            demand = (
+                max(highest * self.allocator.page_size, self.used_tokens())
+                + 2 * self.reserve
+            )
+            target = next(
+                (i for i, cap in enumerate(self.policy.capacities) if demand < cap),
+                self.policy.index,
+            )
+            if target < self.policy.index:
+                break
+            # Without the scheduler's eviction hook the shrink is simply refused,
+            # exactly as before the hook existed; dropping someone else's prefix
+            # cache is never something the allocator decides on its own.
+            if getattr(self, "evict_hook", None) is None:
+                break
+            if not self._evict_tail_resident_prefixes(free, backed):
+                break
+            free = self._free_page_mask().tolist()
         if target >= self.policy.index:
             return
+        self.tail_evict_attempts = 0
         a = self.allocator
         capacity = self.policy.capacities[target]
         new_pages = capacity // a.page_size

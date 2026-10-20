@@ -107,6 +107,7 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             "preserve_cache_on_resize",
             "prefill_seed_cache",
             "async_pack_prefetch",
+            "kv_tail_evict_tokens",
             "resident_alphas",
             "prefill_copy_mode",
             "fused_decode_plan",
@@ -174,6 +175,13 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                 raise ValueError(f"{option} requires threaded mode")
         if config.get("prefill_copy_mode", "auto") not in ("auto", "dense", "sparse"):
             raise ValueError("prefill_copy_mode must be auto, dense or sparse")
+        tail_evict = config.get("kv_tail_evict_tokens")
+        if tail_evict is not None and (
+            type(tail_evict) is not int
+            or isinstance(tail_evict, bool)
+            or tail_evict < 0
+        ):
+            raise ValueError("kv_tail_evict_tokens must be a non-negative integer")
         if (
             "prefill_copy_mode" in config
             and config.get("runtime_mode", "sync") != "threaded"
@@ -553,6 +561,10 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                         "adaptive MTP cache must fit the full verify route bound in every layer"
                     )
             runtime.kv_cache_stages = self.config.get("kv_cache_stages")
+            # Bounds how much cold prefix cache the KV loan may evict to reclaim a
+            # tail it loaned to the expert pool. Absent means one stage gap; 0
+            # keeps the historical behaviour of never evicting for a re-loan.
+            runtime.kv_tail_evict_tokens = self.config.get("kv_tail_evict_tokens")
             reserve_started = time.perf_counter()
             runtime.reserve()
             budget = runtime.memory_budget()
