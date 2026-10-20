@@ -6,6 +6,11 @@ I=640, top-k=10. No per-token GPU status is read back for this policy.
 """
 
 
+# The path names double as the per-layer counter suffixes in the threaded
+# runtime, so the counter set is derived from this one list.
+PREFILL_CACHE_PATHS = ("arena", "cache", "split")
+
+
 def select_prefill_cache_path(
     counts, resident, arena_residents, *, hidden, width, top_k, w4a4=False
 ):
