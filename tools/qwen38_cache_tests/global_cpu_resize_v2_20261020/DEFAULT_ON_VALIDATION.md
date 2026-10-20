@@ -89,6 +89,9 @@ Raw final canary/report/server logs remain locally under
 passed generation but failed the new resize acceptance gate, demonstrating
 why successful responses alone were insufficient.
 
+The follow-up [performance report](PERFORMANCE.md) provides paired 512-token
+streaming measurements and long-context timings.
+
 ## Other checks
 
 - 58 focused CPU unit tests passed, including 23 subtests; 351 existing CPU
