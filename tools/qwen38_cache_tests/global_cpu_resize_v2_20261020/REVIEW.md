@@ -1,5 +1,7 @@
 # Global cache / CPU resize v2 integration review
 
+Follow-up: [default CPU hybrid and serving resize validation](DEFAULT_ON_VALIDATION.md) supersedes the initial opt-in default and text-serving limitations below.
+
 Reviewed 2026-10-20 against local head `a9e846fba0` on
 `qwen3.8-flash-next-offload`. Archive:
 `qwen38-global-cache-cpu-resize-v2-20261020.tar.gz`, SHA256

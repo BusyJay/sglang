@@ -83,6 +83,96 @@ class TestTailReloan(CustomTestCase):
         random.seed(seed)
         return set(random.sample(range(1, self.BACKED + 1), used_pages))
 
+    def test_large_cold_prefix_occupancy_does_not_mask_short_active_demand(self):
+        import torch
+
+        # A completed 170K request exceeds the 160K stage by itself. Counting
+        # its unprotected prefix as active demand previously suppressed probes.
+        in_use = set(range(1, 170_000 // self.PAGE + 1))
+        calls = []
+
+        def evict(tokens):
+            calls.append(tokens)
+            freed = sorted(in_use, reverse=True)[: tokens // self.PAGE]
+            in_use.difference_update(freed)
+            loan.allocator.free_page_ids(torch.tensor(freed, dtype=torch.int64))
+
+        loan = self._make_loan(in_use, hook=evict)
+        loan.protected_tokens_hook = lambda: 1024
+        self._short_traffic_probe(loan)
+        self.assertTrue(calls)
+        self.assertEqual(loan.policy.index, 1)
+        self.assertEqual(self._layout, [1])
+
+    def test_chunked_long_request_preserves_probe_budget_for_next_short_request(self):
+        loan = self._make_loan(self._scattered(self.USED_PAGES))
+        loan.protected_tokens_hook = lambda: 0
+        loan.active_request_tokens = 170_000
+        loan.tail_evict_attempts = loan.tail_evict_attempts_allowed
+        loan.before_forward(8192)
+        self.assertFalse(loan.runtime.kv_reborrow_probe)
+        loan.active_request_tokens = 1024
+        loan.before_forward(8192)
+        self.assertTrue(loan.runtime.kv_reborrow_probe)
+        self.assertEqual(loan.tail_evict_attempts, 0)
+        loan.tail_evict_attempts = 2
+        loan.before_forward(8192)
+        self.assertEqual(loan.tail_evict_attempts, 2)
+
+    def test_active_long_prefix_does_not_arm_cold_eviction(self):
+        loan = self._make_loan(set(range(1, 170_000 // self.PAGE + 1)))
+        loan.protected_tokens_hook = lambda: 170_000
+        loan.before_forward(8192)
+        self.assertFalse(loan.runtime.kv_reborrow_probe)
+        self.assertEqual(loan.policy.index, 2)
+
+    def test_completed_long_prefix_is_cleared_before_short_request_pins_the_tail(self):
+        import torch
+
+        in_use = set(range(1, 170_000 // self.PAGE + 1))
+        calls = []
+
+        def evict(tokens):
+            calls.append(tokens)
+            freed = sorted(in_use, reverse=True)[: tokens // self.PAGE]
+            in_use.difference_update(freed)
+            loan.allocator.free_page_ids(torch.tensor(freed, dtype=torch.int64))
+
+        loan = self._make_loan(in_use, hook=evict)
+        tree = SimpleNamespace(
+            full_protected_size=lambda: 0, reclaim_device_tail=lambda target: 0
+        )
+        loan.reclaim_host_cached_tail(tree, 8192, incoming_tokens=1024)
+        indices = loan.allocator.alloc(1024)
+        self.assertLess(indices.max().item() + 2 * 8192, self.CAPS[0])
+        loan.active_request_tokens = 1024
+        loan.protected_tokens_hook = lambda: 0
+        loan.before_forward(8192)
+        loan.free_mask.zero_()
+        loan.free_mask[loan.allocator.get_all_free_pages()] = True
+        loan.free_snapshot.copy_(loan.free_mask)
+        loan.probe = SimpleNamespace(query=lambda: True)
+        loan.after_result()
+        self.assertEqual(loan.policy.index, 0)
+        self.assertEqual(self._layout, [0])
+        self.assertLessEqual(len(calls), loan.tail_evict_attempts_allowed)
+        self.assertTrue(all(tokens <= loan.tail_evict_limit_tokens for tokens in calls))
+
+    def test_new_short_allocation_uses_low_free_page_without_host_reclaim(self):
+        import torch
+
+        loan = self._make_loan(set())
+        loan.allocator.free_pages = torch.tensor(
+            [3000, 30, 2000, 10], dtype=torch.int64
+        )
+        tree = SimpleNamespace(
+            full_protected_size=lambda: 0, reclaim_device_tail=lambda target: 0
+        )
+        loan.reclaim_host_cached_tail(tree, 8192)
+        indices = loan.allocator.alloc(self.PAGE)
+        self.assertEqual(indices.min().item(), 10 * self.PAGE)
+        self.assertEqual(indices.max().item(), 11 * self.PAGE - 1)
+
     def test_cold_prefix_pin_without_hook_keeps_the_previous_no_op(self):
         loan = self._make_loan(self._scattered(self.USED_PAGES))
         self._short_traffic_probe(loan)

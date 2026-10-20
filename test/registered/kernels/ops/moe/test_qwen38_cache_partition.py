@@ -29,6 +29,23 @@ class TestCachePartition(CustomTestCase):
                 [[i if 0 <= i < 8 and i not in hits else -1 for i in ids[0].tolist()]],
             )
 
+    def test_global_slots_are_independent_of_expert_id_range(self):
+        # Prefill of a global cache used to fail when slot_limit exceeded the
+        # layer's expert count, before the first model request could complete.
+        ids = torch.tensor([[0, 1, 2, 3, -1, 4]], dtype=torch.int32, device="cuda")
+        lookup = torch.tensor([1, 600, 1024, 2048], dtype=torch.int32, device="cuda")
+        for limit, expected in (
+            (601, [[1, 600, -1, -1, -1, -1]]),
+            (2049, [[1, 600, 1024, 2048, -1, -1]]),
+        ):
+            with self.subTest(limit=limit):
+                cache, arena = cache_partition_routes(ids, lookup, limit)
+                self.assertEqual(cache.tolist(), expected)
+                expected_arena = torch.where(
+                    (ids >= 0) & (ids < 4) & (cache < 0), ids, -1
+                )
+                torch.testing.assert_close(arena, expected_arena)
+
     def test_decode_snapshots_hits_before_installing_misses(self):
         for policy in (0, 1):
             for row in ([0, 1], [2, 3], [0, 4], [0, 0, 4], [-1, -1]):

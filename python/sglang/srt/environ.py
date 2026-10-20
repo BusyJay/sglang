@@ -1124,9 +1124,10 @@ class Envs:
     # ===================================================================
     # Experimental cached NVFP4 W4A16 launch adapter, pinned to FlashInfer 0.7.2.
     SGLANG_OPT_QWEN38_B12X_PREPARED_LAUNCH = EnvBool(False)
-    SGLANG_ENABLE_QWEN38_CPU_HYBRID = EnvBool(False)
+    # Enabled for threaded adaptive LFU W4A16; false keeps GPU-only execution.
+    SGLANG_ENABLE_QWEN38_CPU_HYBRID = EnvBool(True)
     SGLANG_QWEN38_CPU_LIBRARY = EnvStr("")
-    SGLANG_QWEN38_CPU_CORES = EnvTuple(("0", "1"))
+    SGLANG_QWEN38_CPU_CORES = EnvTuple(())
     SGLANG_QWEN38_CPU_GPU_MISS_THRESHOLD = EnvInt(33)
     SGLANG_QWEN38_CPU_READY_TIMEOUT = EnvFloat(60.0)
     SGLANG_IS_FLASHINFER_AVAILABLE = EnvBool(True)

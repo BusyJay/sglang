@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Explicitly built, AVX512-BF16 CPU expert experiment; no import-time build."""
+"""AVX512-BF16 CPU expert operator; builds lazily at runtime initialization."""
 
 import ctypes
 import os
@@ -13,6 +13,22 @@ class CpuNvfp4:
         if any(flag not in flags for flag in required):
             raise ValueError("CPU hybrid requires AVX512 BF16/BW/VL")
         available = os.sched_getaffinity(0)
+        if not cores:
+            chosen, physical = [], set()
+            for core in sorted(available):
+                siblings = (
+                    Path(
+                        f"/sys/devices/system/cpu/cpu{core}/topology/thread_siblings_list"
+                    )
+                    .read_text()
+                    .strip()
+                )
+                if siblings not in physical:
+                    chosen.append(core)
+                    physical.add(siblings)
+                if len(chosen) == 4:
+                    break
+            cores = tuple(chosen)
         if not 1 <= len(cores) <= 4 or len(set(cores)) != len(cores):
             raise ValueError("CPU hybrid requires 1..4 distinct cores")
         for core in cores:
@@ -26,13 +42,6 @@ class CpuNvfp4:
         ]
         if len(set(siblings)) != len(siblings):
             raise ValueError("CPU hybrid requires distinct physical cores")
-        if (
-            os.environ.get("OMP_WAIT_POLICY", "").upper() != "PASSIVE"
-            or os.environ.get("GOMP_SPINCOUNT") != "0"
-        ):
-            raise ValueError(
-                "set OMP_WAIT_POLICY=PASSIVE and GOMP_SPINCOUNT=0 before starting the process"
-            )
         if pack.manifest.hidden_size % 32 or pack.manifest.intermediate_size % 32:
             raise ValueError("CPU hybrid dimensions must be multiples of 32")
         self.cores = (ctypes.c_int * len(cores))(*cores)
@@ -40,7 +49,9 @@ class CpuNvfp4:
         self.mapping = pack.cuda_source_mapping()
         self.buffer = (ctypes.c_char * len(self.mapping)).from_buffer(self.mapping)
         self.address = ctypes.addressof(self.buffer)
-        self.library = ctypes.CDLL(str(Path(library).resolve()))
+        from sglang.kernels.ops.moe.cpu_nvfp4.build import resolve_library
+
+        self.library = ctypes.CDLL(str(resolve_library(library, cores[0])))
         if (
             not hasattr(self.library, "qwen38_cpu_abi")
             or self.library.qwen38_cpu_abi() != 2

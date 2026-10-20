@@ -109,9 +109,7 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
 
     def bind_runtime(self, runtime) -> None:
         self.runtime = runtime
-        from sglang.srt.environ import envs
-
-        if envs.SGLANG_ENABLE_QWEN38_CPU_HYBRID.get():
+        if getattr(runtime, "cpu_hybrid_enabled", False):
             config = self.moe_runner_config
             if (
                 config.activation != "silu"

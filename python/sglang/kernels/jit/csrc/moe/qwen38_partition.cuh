@@ -3,6 +3,8 @@
 
 #include <sgl_kernel/utils.cuh>
 
+#include <limits>
+
 namespace sglang {
 namespace details {
 __global__ void partition_routes(
@@ -38,7 +40,8 @@ inline void qwen38_partition(
   TensorMatcher({experts}).with_dtype<int32_t>().with_device<kDLCUDA>(device).verify(lookup);
   TensorMatcher({tokens, topk}).with_dtype<int32_t>().with_device<kDLCUDA>(device).verify(cache);
   TensorMatcher({tokens, topk}).with_dtype<int32_t>().with_device<kDLCUDA>(device).verify(arena);
-  CHECK_HOST(limit >= 0 && limit <= experts.unwrap());
+  // Global slots span layers; lookup length only bounds original expert IDs.
+  CHECK_HOST(limit >= 0 && limit <= std::numeric_limits<int32_t>::max());
   int64_t n = tokens.unwrap() * topk.unwrap();
   if (n == 0) return;
   LaunchKernel(div_ceil(n, int64_t(256)), 256, device.unwrap())(

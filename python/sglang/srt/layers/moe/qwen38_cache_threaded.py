@@ -31,7 +31,6 @@ from sglang.kernels.ops.moe.qwen38_expert_cache import (
     cache_route,
     cache_scatter,
 )
-from sglang.srt.environ import envs
 from sglang.srt.layers.moe.qwen38_borrowed_arena import BorrowedArenaMixin
 from sglang.srt.layers.moe.qwen38_cache_device import Qwen38DeviceExpertRuntime
 from sglang.srt.layers.moe.qwen38_cache_overlap_policy import PREFILL_CACHE_PATHS
@@ -134,6 +133,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         *,
         max_pending=64,
         adaptive_cache=False,
+        cpu_hybrid=False,
         adaptive_cache_window=512,
         adaptive_cache_interval=4096,
         adaptive_cache_mode="rebalance",
@@ -181,6 +181,13 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         if not isinstance(adaptive_cache, bool):
             raise ValueError("adaptive_cache must be a boolean")
         self.adaptive_cache = adaptive_cache
+        if type(cpu_hybrid) is not bool:
+            raise ValueError("cpu_hybrid must be a boolean")
+        if cpu_hybrid and (
+            not adaptive_cache or cache_policy != "lfu" or not self.prefill_arena
+        ):
+            raise ValueError("CPU hybrid requires adaptive LFU and a prefill arena")
+        self.cpu_hybrid_enabled = cpu_hybrid
         if type(adaptive_cache_window) is not int or adaptive_cache_window < 16:
             raise ValueError("adaptive_cache_window must be an integer >= 16")
         self.adaptive_cache_window = adaptive_cache_window
@@ -405,7 +412,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
                 self.alpha_tables[layer] = tables
             self.transfer.synchronize()
         memory_mark(probe, "runtime.after_resident_alphas")
-        if self.adaptive_cache and not envs.SGLANG_ENABLE_QWEN38_CPU_HYBRID.get():
+        if self.adaptive_cache and not self.cpu_hybrid_enabled:
             # Extra plan tail exports compact original expert IDs. No second
             # histogram D2H, memset or routing kernel is needed for sampling.
             self.metadata_stream.wait_stream(torch.cuda.current_stream(self.device))
@@ -442,7 +449,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
             from sglang.srt.layers.moe.qwen38_cache_mailbox import DecodeMissMailbox
 
             self.miss_mailbox = DecodeMissMailbox(self)
-        if self.adaptive_cache and not envs.SGLANG_ENABLE_QWEN38_CPU_HYBRID.get():
+        if self.adaptive_cache and not self.cpu_hybrid_enabled:
             self.adaptive_worker = threading.Thread(
                 target=self._analyze_routes, name="qwen38-cache-adaptive", daemon=True
             )
@@ -1369,6 +1376,10 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         )
         loan = getattr(self, "kv_loan", None)
         if loan is not None:
+            result["kv_stage"] = loan.policy.index
+            result["kv_backed_tokens"] = (
+                loan.allocator.backed_num_pages * loan.allocator.page_size
+            )
             result["kv_tail_evict_tokens"] = loan.tail_evict_tokens
             result["kv_tail_evict_attempts"] = loan.tail_evict_attempts
         if self.adaptive_cache:
@@ -1794,6 +1805,11 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
             early_cache=early_cache,
             prefill_w4a4=prefill_w4a4,
         )
+        self.finish_layer(layer_id)
+        return result
+
+    def finish_layer(self, layer_id):
+        """Queue result-covered KV snapshots after the target's final layer."""
         if layer_id == self.manifest.num_layers - 1:
             if hasattr(self, "staged_pool"):
                 self.enqueue_staged_trim()
@@ -1806,7 +1822,6 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
                 and not getattr(self, "kv_reborrow_probe", False)
             ):
                 self.enqueue_adaptive_snapshot()
-        return result
 
     def _run(
         self,

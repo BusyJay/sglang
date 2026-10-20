@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Opt-in CPU A16 + GPU experiment with next-layer deferred cache maintenance."""
+"""CPU A16 + GPU compute with next-layer deferred cache maintenance."""
 
 import collections
+import logging
 import queue
 import threading
 from concurrent.futures import Future
@@ -76,6 +77,13 @@ class HybridCache:
         )
         self.cpu_jobs = queue.Queue(maxsize=2)
         self.thread.start()
+        logging.getLogger(__name__).info(
+            "Qwen38 CPU hybrid enabled: backend=%s cores=%s library=%s global_slots=%d",
+            gpu_backend,
+            list(self.cpu.cores),
+            self.cpu.library._name,
+            len(self.policy.keys),
+        )
 
     def _check(self):
         if self.closed:
@@ -265,6 +273,29 @@ class HybridCache:
                     self.cpu_jobs.task_done()
 
     def _copy(self, layer, fills, done):
+        if self.runtime._registered_prefill_enabled():
+            from sglang.kernels.ops.moe.qwen38_expert_cache import _module
+
+            # The immutable pack is already registered for the runtime's entire
+            # lifetime. Queue DMA directly and publish only after the final
+            # event; no staging buffer reuse forces a host wait per expert.
+            source = self.runtime.miss_mailbox.pack_view
+            with torch.cuda.stream(self.fill_stream):
+                self.fill_stream.wait_event(done)
+                for expert, slot in fills:
+                    for name, tensor in self.pool.items():
+                        record = self.runtime.manifest.tensors[layer][name]
+                        count = record.nbytes // self.runtime.manifest.num_experts
+                        begin = record.offset + expert * count
+                        _module().registered_copy(
+                            tensor[slot].reshape(-1).view(torch.uint8),
+                            source[begin : begin + count],
+                        )
+                        self.stats["fill_bytes"] += count
+                    self.stats["insertions"] += 1
+                copied = torch.cuda.Event()
+                copied.record(self.fill_stream)
+            return copied
         # One reusable expert worth of pinned staging, regardless of batch size.
         # Only the manager waits before reuse; serving overlaps the DMA.
         copied = done
@@ -482,6 +513,8 @@ class HybridCache:
         done.record(compute)
         self.runtime.layer_computed[layer] = done
         self.pending = (layer, epoch, host_ids, done)
+        self.runtime._record_invocation(False, ids, layer)
+        self.runtime.finish_layer(layer)
         return gpu.to(x.dtype)
 
     def drain(self):
@@ -584,6 +617,8 @@ class HybridCache:
         self.pending = (layer, epoch, host_ids, done)
         self.stats["prefill_global_hits"] += len(hits)
         self.stats["prefill_gpu_misses"] += len(misses)
+        r._record_invocation(bool(misses), ids, layer)
+        r.finish_layer(layer)
         return result
 
     def resize(self, budget):
