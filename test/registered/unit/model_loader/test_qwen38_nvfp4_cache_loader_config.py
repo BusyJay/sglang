@@ -9,6 +9,7 @@ from unittest import mock
 
 from sglang.srt.model_loader.qwen38_nvfp4_cache_loader import (
     Qwen38NvFp4CacheModelLoader,
+    default_cpu_hybrid,
     default_prefill_direct_cache,
 )
 from sglang.test.ci.ci_register import register_cpu_ci
@@ -36,6 +37,31 @@ def build(**options):
 
 
 class TestCacheLoaderConfig(CustomTestCase):
+    def test_cpu_hybrid_defaults_to_supported_runtime_and_can_be_disabled(self):
+        from sglang.srt.environ import envs
+
+        config = dict(runtime_mode="threaded", adaptive_cache=True)
+        methods = [SimpleNamespace(use_w4a16=True)]
+        with envs.SGLANG_ENABLE_QWEN38_CPU_HYBRID.override(True):
+            self.assertTrue(default_cpu_hybrid(config, methods))
+            for change in (
+                dict(runtime_mode="sync"),
+                dict(adaptive_cache=False),
+                dict(cache_policy="slru"),
+                dict(prefill_arena=False),
+                dict(adaptive_cache_mode="observe"),
+            ):
+                with self.subTest(change=change):
+                    self.assertFalse(
+                        default_cpu_hybrid(dict(config, **change), methods)
+                    )
+            self.assertFalse(default_cpu_hybrid(config, []))
+            self.assertFalse(
+                default_cpu_hybrid(config, [SimpleNamespace(use_w4a16=False)])
+            )
+        with envs.SGLANG_ENABLE_QWEN38_CPU_HYBRID.override(False):
+            self.assertFalse(default_cpu_hybrid(config, methods))
+
     def test_resize_retention_defaults_on_and_accepts_explicit_false(self):
         from sglang.srt.layers.moe.qwen38_cache_threaded import (
             Qwen38ThreadedExpertRuntime,

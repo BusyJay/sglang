@@ -48,15 +48,21 @@ class TestKVStages(CustomTestCase):
     def test_host_cache_reclaim_keeps_active_demand_and_pending_returns(self):
         from unittest.mock import Mock
 
+        import torch
+
         loan = StagedKVLoan.__new__(StagedKVLoan)
         loan.policy = OneWayKVStages([80000, 160000, 220032], lambda _: None)
         loan.policy.index = 2
         loan.runtime = SimpleNamespace(pending_kv_stage=None)
+        loan.allocator = SimpleNamespace(
+            get_all_free_pages=lambda: torch.tensor([2, 1])
+        )
         cache = Mock()
         cache.reclaim_device_tail.return_value = 0
         cache.full_protected_size.return_value = 74048
         loan.reclaim_host_cached_tail(cache, 8192)
         cache.reclaim_device_tail.assert_called_once_with(160000)
+        self.assertEqual(loan.allocator.free_pages.tolist(), [1, 2])
         cache.reclaim_device_tail.reset_mock()
         cache.full_protected_size.return_value = 1024
         loan.reclaim_host_cached_tail(cache, 8192)

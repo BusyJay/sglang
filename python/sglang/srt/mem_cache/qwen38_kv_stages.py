@@ -123,6 +123,9 @@ class StagedKVLoan:
             else int(configured)
         )
         self.evict_hook = None
+        self.protected_tokens_hook = None
+        self.active_request_tokens = None
+        self.reborrow_eligible = False
         self.tail_evict_tokens = 0
         self.tail_evict_attempts = 0
         self.tail_evict_attempts_allowed = 3
@@ -209,19 +212,31 @@ class StagedKVLoan:
         # Historical large batches must not permanently prevent reborrowing.
         self.reserve = reserve
         used = self.used_tokens()
+        protected_hook = getattr(self, "protected_tokens_hook", None)
+        request_tokens = getattr(self, "active_request_tokens", None)
+        active = protected_hook() if protected_hook is not None else used
+        if request_tokens is not None:
+            active = max(active if protected_hook is not None else 0, request_tokens)
+        eligible = (
+            self.policy.index > 0
+            and active + 2 * reserve < self.policy.capacities[self.policy.index - 1]
+        )
+        if eligible and not getattr(self, "reborrow_eligible", False):
+            # An earlier long prefill may exhaust a probe budget while its
+            # active high pages cannot move. A new short workload gets a fresh
+            # bounded attempt; consecutive short decode steps do not reset it.
+            self.tail_evict_attempts = 0
+        self.reborrow_eligible = eligible
         # Current allocation is already charged. Return before the next batch.
         index = self.policy.index
         while index < 2 and used + reserve >= self.policy.capacities[index]:
             index += 1
         if index > self.policy.index:
             self.runtime.pending_kv_stage = index
-        elif (
-            self.policy.index > 0
-            and used + 2 * reserve < self.policy.capacities[self.policy.index - 1]
-        ):
+        elif eligible:
             self.runtime.kv_reborrow_probe = True
 
-    def reclaim_host_cached_tail(self, tree_cache, reserve):
+    def reclaim_host_cached_tail(self, tree_cache, reserve, incoming_tokens=0):
         """Demote completed CPU-backed prefixes before matching the next batch.
 
         This only frees GPU cache rows. Physical backing and expert layout
@@ -229,7 +244,7 @@ class StagedKVLoan:
         """
         if self.policy.index == 0 or self.runtime.pending_kv_stage is not None:
             return
-        demand = tree_cache.full_protected_size() + 2 * reserve
+        demand = tree_cache.full_protected_size() + incoming_tokens + 2 * reserve
         target = next(
             (
                 cap
@@ -239,16 +254,42 @@ class StagedKVLoan:
             None,
         )
         if target is not None:
-            reclaimed = tree_cache.reclaim_device_tail(target)
-            if reclaimed:
-                import torch
+            tree_cache.reclaim_device_tail(target)
+            self._make_low_page_room(target, reserve, incoming_tokens)
+            import torch
 
-                # Freed tail pages must not be the next allocation's first
-                # choice, or a short request immediately pins the tail again.
-                a = self.allocator
-                a.free_pages, _ = torch.sort(a.get_all_free_pages())
-                a.staged_pages = []
-                a.num_staged_pages = 0
+            # Prefer low addresses even when no CPU-backed node was reclaimed.
+            # Otherwise a new short request can pin a free high tail page and
+            # prevent the cold-prefix eviction probe from returning the loan.
+            a = self.allocator
+            a.free_pages, _ = torch.sort(a.get_all_free_pages())
+            a.staged_pages = []
+            a.num_staged_pages = 0
+
+    def _make_low_page_room(self, target, reserve, incoming_tokens):
+        if not incoming_tokens or getattr(self, "evict_hook", None) is None:
+            return
+        if not getattr(self, "reborrow_eligible", False):
+            self.tail_evict_attempts = 0
+        self.reborrow_eligible = True
+        self.reserve = reserve
+        a = self.allocator
+        required = (incoming_tokens + a.page_size - 1) // a.page_size
+        last_page = (target - 2 * reserve - 1) // a.page_size
+        # Clear cold device prefixes before a new short request allocates. A
+        # post-forward eviction cannot relocate that request's active high pages.
+        for _ in range(self.tail_evict_attempts_allowed):
+            low_free = int((a.get_all_free_pages() <= last_page).sum().item())
+            if low_free >= required:
+                return
+            free = self._free_page_mask().tolist()
+            if not self._evict_tail_resident_prefixes(
+                free,
+                a.backed_num_pages,
+                target_capacity=target,
+                extra_tokens=(required - low_free) * a.page_size,
+            ):
+                return
 
     def enqueue_reborrow_probe(self):
         import torch
@@ -274,7 +315,9 @@ class StagedKVLoan:
         mask[a.get_all_free_pages()] = True
         return mask.cpu()
 
-    def _evict_tail_resident_prefixes(self, free, backed):
+    def _evict_tail_resident_prefixes(
+        self, free, backed, *, target_capacity=None, extra_tokens=0
+    ):
         """Evict cold prefix cache so the physical KV tail can be re-loaned.
 
         Only pages above the next lower stage are counted, which bounds the
@@ -291,15 +334,21 @@ class StagedKVLoan:
         # The shrink also keeps a 2 * reserve margin below the next stage, so the
         # pages in the way start there rather than at the boundary itself. Nothing
         # above it means cold prefix cache is not what blocks the re-loan.
-        first_page = (
-            self.policy.capacities[self.policy.index - 1] - 2 * self.reserve
-        ) // self.allocator.page_size
+        capacity = (
+            self.policy.capacities[self.policy.index - 1]
+            if target_capacity is None
+            else target_capacity
+        )
+        first_page = (capacity - 2 * self.reserve) // self.allocator.page_size
         blocked = sum(
             1 for page in range(max(first_page, 1), backed + 1) if not free[page]
         )
-        if blocked == 0:
+        if blocked == 0 and not extra_tokens:
             return False
-        tokens = min(blocked * self.allocator.page_size, self.tail_evict_limit_tokens)
+        tokens = min(
+            blocked * self.allocator.page_size + extra_tokens,
+            self.tail_evict_limit_tokens,
+        )
         self.tail_evict_attempts = getattr(self, "tail_evict_attempts", 0) + 1
         try:
             hook(tokens)

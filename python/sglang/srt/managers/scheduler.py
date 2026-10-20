@@ -613,6 +613,7 @@ class Scheduler(
                 self.tree_cache.evict(EvictParams(num_tokens=tokens))
 
             staged_loan.evict_hook = evict_prefix_for_kv_tail
+            staged_loan.protected_tokens_hook = self.tree_cache.full_protected_size
         if self.enable_hierarchical_cache:
             cache_controller = self.tree_cache.cache_controller
             if cache_controller is not None:
@@ -3855,6 +3856,13 @@ class Scheduler(
                     running_batch.batch_size()
                     * (get_spec().speculative_num_draft_tokens or 1),
                 ),
+                incoming_tokens=max(
+                    (
+                        len(req.origin_input_ids) + len(req.output_ids)
+                        for req in self.waiting_queue
+                    ),
+                    default=0,
+                ),
             )
 
         if self.enable_fpm:
@@ -4615,6 +4623,13 @@ class Scheduler(
             for req in batch.reqs:
                 self.maybe_send_cached_prefix_chunk(req)
 
+        loan = getattr(self.token_to_kv_pool_allocator, "staged_loan", None)
+        if loan is not None:
+            # Include the unprocessed suffix of a chunked long request so its
+            # first small chunk does not spend the next short request's probes.
+            loan.active_request_tokens = sum(
+                len(req.origin_input_ids) + len(req.output_ids) for req in batch.reqs
+            )
         self.token_to_kv_pool_allocator.cache_maintenance_before_forward(
             max(
                 self.chunked_prefill_size or self.max_prefill_tokens,

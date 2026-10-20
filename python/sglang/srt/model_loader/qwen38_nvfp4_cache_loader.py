@@ -14,6 +14,7 @@ import time
 
 import torch
 
+from sglang.srt.environ import envs
 from sglang.srt.layers.moe.qwen38_cache_capacity import resolve_cache_slots
 from sglang.srt.layers.quantization.qwen38_nvfp4_cache import (
     Qwen38CachedModelOptConfig,
@@ -38,6 +39,20 @@ from sglang.srt.model_loader.qwen38_nvfp4_pack.format import (
 from sglang.srt.model_loader.utils import set_default_torch_dtype
 
 logger = logging.getLogger(__name__)
+
+
+def default_cpu_hybrid(config, methods):
+    """Enable shared CPU/GPU compute for the supported threaded A16 runtime."""
+    return (
+        envs.SGLANG_ENABLE_QWEN38_CPU_HYBRID.get()
+        and config.get("runtime_mode", "sync") == "threaded"
+        and config.get("adaptive_cache", False)
+        and config.get("cache_policy", "lfu") == "lfu"
+        and config.get("prefill_arena", True)
+        and config.get("adaptive_cache_mode", "rebalance") == "rebalance"
+        and bool(methods)
+        and all(method.use_w4a16 for method in methods)
+    )
 
 
 def default_prefill_direct_cache(config):
@@ -501,6 +516,15 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                 runtime_options["adaptive_cache"] = self.config.get(
                     "adaptive_cache", False
                 )
+                methods = [
+                    module.quant_method
+                    for module in model.modules()
+                    if isinstance(
+                        getattr(module, "quant_method", None),
+                        Qwen38CachedNvFp4MoeMethod,
+                    )
+                ]
+                runtime_options["cpu_hybrid"] = default_cpu_hybrid(self.config, methods)
                 runtime_options["adaptive_cache_window"] = self.config.get(
                     "adaptive_cache_window", 512
                 )

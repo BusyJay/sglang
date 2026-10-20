@@ -1,0 +1,104 @@
+{
+  "status": "passed",
+  "errors": [],
+  "cpu_initialization": [
+    "[2026-10-20 16:01:39] Qwen38 CPU hybrid enabled: backend=b12x cores=[0, 1, 2, 3] library=/root/.cache/sglang/cpu_nvfp4/334413551251634832f2dab9/kernel.so global_slots=6388"
+  ],
+  "transitions": [
+    {
+      "stage": 0,
+      "expert_slots": 7006,
+      "kv_tokens": 80000,
+      "runs": 128
+    },
+    {
+      "stage": 1,
+      "expert_slots": 6643,
+      "kv_tokens": 160000,
+      "runs": 1152
+    },
+    {
+      "stage": 2,
+      "expert_slots": 6388,
+      "kv_tokens": 220032,
+      "runs": 1664
+    },
+    {
+      "stage": 0,
+      "expert_slots": 7006,
+      "kv_tokens": 80000,
+      "runs": 1920
+    },
+    {
+      "stage": 1,
+      "expert_slots": 6643,
+      "kv_tokens": 160000,
+      "runs": 2176
+    },
+    {
+      "stage": 2,
+      "expert_slots": 6388,
+      "kv_tokens": 220032,
+      "runs": 2688
+    },
+    {
+      "stage": 1,
+      "expert_slots": 6643,
+      "kv_tokens": 160000,
+      "runs": 3328
+    },
+    {
+      "stage": 0,
+      "expert_slots": 7006,
+      "kv_tokens": 80000,
+      "runs": 3456
+    }
+  ],
+  "snapshots_checked": 33,
+  "cpu_stats": {
+    "all_gpu_calls": 48,
+    "evictions": 9733,
+    "fill_bytes": 3022001499392,
+    "hits": 26120,
+    "initial_global_handoff_waits": 1,
+    "insertions": 1093024,
+    "misses": 19086,
+    "prefill_global_hits": 259253,
+    "prefill_gpu_misses": 450510,
+    "resize_events": 8,
+    "resize_evictions": 1236,
+    "resize_moves": 1085,
+    "result_join_waits": 1968,
+    "zero_slot_global_evictions": 0,
+    "zero_slot_waits": 48
+  },
+  "cases": [
+    {
+      "context_tokens": 1024,
+      "seconds": 2.2003014869987965
+    },
+    {
+      "context_tokens": 170000,
+      "seconds": 99.65254165099759
+    },
+    {
+      "context_tokens": 1024,
+      "seconds": 4.702505481996923
+    },
+    {
+      "context_tokens": 170000,
+      "seconds": 100.26210347100277
+    },
+    {
+      "context_tokens": 1024,
+      "seconds": 4.095873857004335
+    }
+  ],
+  "probes": [
+    {
+      "prompt": "What is 17 plus 25? Reply with just the number.",
+      "matched": true,
+      "response": "42"
+    }
+  ]
+}
