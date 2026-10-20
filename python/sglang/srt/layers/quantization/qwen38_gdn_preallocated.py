@@ -3,6 +3,7 @@
 
 import torch
 
+from sglang.srt.distributed.utils import get_group_rank_size
 from sglang.srt.layers.quantization.unquant import UnquantizedLinearMethod
 from sglang.srt.utils import set_weight_attrs
 
@@ -28,7 +29,10 @@ class Qwen38PreallocatedGdnLinearMethod(UnquantizedLinearMethod):
         if params_dtype != torch.bfloat16:
             raise ValueError("preallocated GDN projections require BF16")
         if self.projection == "in_proj_qkvz":
-            ba_rows = 2 * self.value_heads // layer.tp_size
+            # Native lineables keep the group, not a rank/size pair, so the shard
+            # width has to come from the group the layer was partitioned with.
+            _, tp_size = get_group_rank_size(layer.tp_group)
+            ba_rows = 2 * self.value_heads // tp_size
             if self.key in self.pending:
                 raise ValueError("duplicate GDN QKVZ allocation")
             packed = torch.empty(

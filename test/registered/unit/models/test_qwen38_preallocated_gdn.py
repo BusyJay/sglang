@@ -12,11 +12,32 @@ from sglang.srt.layers.linear import MergedColumnParallelLinear
 from sglang.srt.layers.quantization.modelopt_quant import ModelOptMixedPrecisionConfig
 from sglang.srt.layers.quantization.qwen38_gdn_preallocated import preallocated_gdn_weight
 from sglang.srt.layers.quantization.qwen38_nvfp4_cache import Qwen38CachedModelOptConfig
+from sglang.srt.runtime_context import reset_context
+from sglang.srt.server_args import ServerArgs
 from sglang.srt.models.qwen3_5 import Qwen3_5GatedDeltaNet
+from sglang.test.parallel_groups import publish
+from sglang.test.ci.ci_register import register_cpu_ci
+from sglang.test.test_utils import CustomTestCase
+
+register_cpu_ci(est_time=4, stage="base-a", runner_config="cpu")
 
 
-class TestPreallocatedGdn(unittest.TestCase):
+class TestPreallocatedGdn(CustomTestCase):
+    def setUp(self):
+        # Native linear layers read the shard width from the published bag.
+        self.publish(1)
+
+    def publish(self, tp_size):
+        # A published bag keeps its group handles, so a second shard width needs
+        # the previous publication dropped rather than overridden.
+        reset_context()
+        publish(ServerArgs(model_path='dummy', tp_size=tp_size), role='test')
+
+    def tearDown(self):
+        reset_context()
+
     def projections(self, enabled=True, tp_size=1):
+        self.publish(tp_size)
         root = Path(__file__).resolve().parents[4]
         config = json.loads((root / 'flash-next-plan/model-metadata/config.json').read_text())
         delegate = ModelOptMixedPrecisionConfig.from_config(config['quantization_config'])
@@ -30,7 +51,6 @@ class TestPreallocatedGdn(unittest.TestCase):
             layers.append(MergedColumnParallelLinear(
                 4, sizes, bias=False, params_dtype=torch.bfloat16,
                 quant_config=wrapper, prefix='model.layers.0.linear_attn.' + name,
-                tp_rank=0, tp_size=tp_size,
             ))
         gdn = Qwen3_5GatedDeltaNet.__new__(Qwen3_5GatedDeltaNet)
         torch.nn.Module.__init__(gdn)
@@ -106,7 +126,6 @@ class TestPreallocatedGdn(unittest.TestCase):
         linear = MergedColumnParallelLinear(
             4, [2, 2, 2, 2], bias=False, params_dtype=torch.float32,
             quant_config=wrapper, prefix='model.layers.1.linear_attn.in_proj_qkvz',
-            tp_rank=0, tp_size=1,
         )
         self.assertFalse(hasattr(linear, '_qwen38_gdn_packed_weight'))
         self.assertEqual(wrapper._pending_gdn_weights, {})
@@ -133,7 +152,6 @@ class TestPreallocatedGdn(unittest.TestCase):
         linear = MergedColumnParallelLinear(
             4, [2, 2], bias=False, params_dtype=torch.bfloat16,
             quant_config=wrapper, prefix='model.layers.0.linear_attn.out_proj',
-            tp_rank=0, tp_size=1,
         )
         self.assertFalse(hasattr(linear, '_qwen38_gdn_packed_weight'))
         self.assertEqual(wrapper._pending_gdn_weights, {})
