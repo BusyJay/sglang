@@ -513,7 +513,7 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                     ("prefill_direct_cache", default_prefill_direct_cache(self.config)),
                     ("decode_early_cache", False),
                     ("cache_overlap_policy", "auto"),
-                    ("preserve_cache_on_resize", False),
+                    ("preserve_cache_on_resize", True),
                     ("prefill_seed_cache", True),
                     ("resident_alphas", True),
                     ("prefill_copy_mode", "auto"),

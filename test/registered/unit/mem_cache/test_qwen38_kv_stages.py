@@ -25,12 +25,46 @@ class TestKVStages(CustomTestCase):
         loan.runtime = SimpleNamespace(pending_kv_stage=None, kv_reborrow_probe=False)
         loan.reserve = 8192
         loan.used_tokens = lambda: 74048
-        loan.before_forward(3)
+        loan.before_forward(8192)
         self.assertFalse(loan.runtime.kv_reborrow_probe)
         self.assertEqual(loan.reserve, 8192)
         loan.used_tokens = lambda: 1024
-        loan.before_forward(3)
+        loan.before_forward(8192)
         self.assertTrue(loan.runtime.kv_reborrow_probe)
+
+    def test_large_decode_reserve_drops_with_current_request_demand(self):
+        loan = StagedKVLoan.__new__(StagedKVLoan)
+        loan.policy = OneWayKVStages([80000, 160000, 220032], lambda _: None)
+        loan.policy.index = 2
+        loan.runtime = SimpleNamespace(pending_kv_stage=None, kv_reborrow_probe=False)
+        loan.reserve = 0
+        loan.used_tokens = lambda: 1024
+        loan.before_forward(90000)
+        self.assertFalse(loan.runtime.kv_reborrow_probe)
+        loan.before_forward(8192)
+        self.assertEqual(loan.reserve, 8192)
+        self.assertTrue(loan.runtime.kv_reborrow_probe)
+
+    def test_host_cache_reclaim_keeps_active_demand_and_pending_returns(self):
+        from unittest.mock import Mock
+
+        loan = StagedKVLoan.__new__(StagedKVLoan)
+        loan.policy = OneWayKVStages([80000, 160000, 220032], lambda _: None)
+        loan.policy.index = 2
+        loan.runtime = SimpleNamespace(pending_kv_stage=None)
+        cache = Mock()
+        cache.reclaim_device_tail.return_value = 0
+        cache.full_protected_size.return_value = 74048
+        loan.reclaim_host_cached_tail(cache, 8192)
+        cache.reclaim_device_tail.assert_called_once_with(160000)
+        cache.reclaim_device_tail.reset_mock()
+        cache.full_protected_size.return_value = 1024
+        loan.reclaim_host_cached_tail(cache, 8192)
+        cache.reclaim_device_tail.assert_called_once_with(80000)
+        cache.reclaim_device_tail.reset_mock()
+        loan.runtime.pending_kv_stage = 2
+        loan.reclaim_host_cached_tail(cache, 8192)
+        cache.reclaim_device_tail.assert_not_called()
 
     def test_cpu_replay_does_not_charge_or_retain_gpu_embeddings(self):
         """CPU replay's 100 MiB setting used to subtract from the 220K KV budget."""

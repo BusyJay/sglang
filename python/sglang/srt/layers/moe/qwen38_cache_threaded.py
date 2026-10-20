@@ -31,6 +31,7 @@ from sglang.kernels.ops.moe.qwen38_expert_cache import (
     cache_route,
     cache_scatter,
 )
+from sglang.srt.environ import envs
 from sglang.srt.layers.moe.qwen38_borrowed_arena import BorrowedArenaMixin
 from sglang.srt.layers.moe.qwen38_cache_device import Qwen38DeviceExpertRuntime
 from sglang.srt.layers.moe.qwen38_cache_overlap_policy import PREFILL_CACHE_PATHS
@@ -142,7 +143,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         prefill_direct_cache=False,
         decode_early_cache=False,
         cache_overlap_policy="auto",
-        preserve_cache_on_resize=False,
+        preserve_cache_on_resize=True,
         prefill_seed_cache=True,
         resident_alphas=True,
         prefill_copy_mode="auto",
@@ -404,7 +405,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
                 self.alpha_tables[layer] = tables
             self.transfer.synchronize()
         memory_mark(probe, "runtime.after_resident_alphas")
-        if self.adaptive_cache:
+        if self.adaptive_cache and not envs.SGLANG_ENABLE_QWEN38_CPU_HYBRID.get():
             # Extra plan tail exports compact original expert IDs. No second
             # histogram D2H, memset or routing kernel is needed for sampling.
             self.metadata_stream.wait_stream(torch.cuda.current_stream(self.device))
@@ -441,7 +442,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
             from sglang.srt.layers.moe.qwen38_cache_mailbox import DecodeMissMailbox
 
             self.miss_mailbox = DecodeMissMailbox(self)
-        if self.adaptive_cache:
+        if self.adaptive_cache and not envs.SGLANG_ENABLE_QWEN38_CPU_HYBRID.get():
             self.adaptive_worker = threading.Thread(
                 target=self._analyze_routes, name="qwen38-cache-adaptive", daemon=True
             )
@@ -927,6 +928,11 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
 
     def initialize_staged_layout(self):
         """Publish initial adaptive budget after target KV construction."""
+        if getattr(self, "hybrid", None) is not None:
+            self.hybrid.resize(self.staged_pool.budgets[0])
+            self.pending_kv_stage = None
+            self.staged_trim_enqueued = False
+            return
         from sglang.srt.mem_cache.qwen38_kv_stages import distribute_slots
 
         budget = self.staged_pool.budgets[0]
@@ -1015,6 +1021,19 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         Migration writes must finish before KV unmaps/reuses the expert tail.
         This opt-in path pays one migration completion wait at stage changes.
         """
+        if getattr(self, "hybrid", None) is not None:
+            pending = getattr(self, "global_trim_pending", None)
+            if pending is None:
+                return
+            budget, stream = pending
+            if not self.staged_trim_done.query():
+                raise RuntimeError("global trim not covered by result completion")
+            with torch.cuda.stream(stream):
+                self.hybrid.resize(budget)
+                self.staged_trim_done.record(stream)
+                self.staged_trim_done.synchronize()
+            self.global_trim_pending = None
+            return
         pending = getattr(self, "staged_preserve_pending", None)
         if pending is None:
             return
@@ -1047,6 +1066,9 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         from sglang.srt.mem_cache.qwen38_kv_stages import distribute_slots
 
         budget = self.staged_pool.budgets[index]
+        if getattr(self, "hybrid", None) is not None:
+            self.hybrid.resize(budget)
+            return
         target = distribute_slots(
             self.layer_cache_slots,
             budget,
@@ -1121,6 +1143,16 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         Layers whose pool offsets change are invalidated rather than migrated.
         Unchanged prefix layers preserve policy and payload in place.
         """
+        if getattr(self, "hybrid", None) is not None:
+            index = self.pending_kv_stage
+            if index is None or self.staged_trim_enqueued:
+                return
+            stream = torch.cuda.current_stream(self.device)
+            self.global_trim_pending = (self.staged_pool.budgets[index], stream)
+            self.staged_trim_done = torch.cuda.Event()
+            self.staged_trim_done.record(stream)
+            self.staged_trim_enqueued = True
+            return
         from sglang.srt.mem_cache.qwen38_kv_stages import distribute_slots
 
         index = self.pending_kv_stage
@@ -1201,6 +1233,8 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         self.staged_trim_enqueued = True
 
     def enqueue_adaptive_snapshot(self):
+        if getattr(self, "hybrid", None) is not None:
+            return
         """Read policy behind this batch, covered by its existing result fence."""
         if self.borrowed_records is not None or self.adaptive_pending is not None:
             return
@@ -1307,6 +1341,13 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         if getattr(self, "miss_mailbox", None) is not None:
             self.miss_mailbox.flush_stats()
         result = super().stats_snapshot()
+        if getattr(self, "hybrid", None) is not None:
+            result["global_cache_slots"] = len(self.hybrid.policy.keys)
+            result["global_layer_owned_slots"] = [
+                self.hybrid.policy.owner.count(layer)
+                for layer in range(self.manifest.num_layers)
+            ]
+            result["global_cpu_hybrid"] = dict(self.hybrid.stats)
         result["decode_shared_fill_overlap_invocations"] = getattr(
             getattr(self, "miss_mailbox", None), "overlap_invocations", 0
         )
@@ -1615,6 +1656,8 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
     def synchronize(self):
         # CUDA completion alone does not drain the retirement thread. Its
         # event synchronization must finish before a caller starts graph capture.
+        if getattr(self, "hybrid", None) is not None:
+            self.hybrid.drain()
         self.jobs.join()
         if self.miss_mailbox is not None:
             self.miss_mailbox.synchronize()
@@ -1627,32 +1670,44 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
             self.synchronize()
         finally:
             self.closed = True
-            if self.miss_mailbox is not None:
-                self.miss_mailbox.close()
-            if self.worker is not None:
-                self.jobs.put(None)
-                self.worker.join()
-                self.retired.put(None)
-                self.reaper.join()
-            if self.adaptive_worker is not None and self.adaptive_worker.is_alive():
-                self.analysis_stopping.set()
-                self.adaptive_worker.join()
-            if self.adaptive_process is not None:
-                self.adaptive_process.stdin.close()
-                try:
-                    self.adaptive_process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    self.adaptive_process.kill()
-                    self.adaptive_process.wait()
-                self.adaptive_process.stdout.close()
-            if hasattr(self, "staged_pool"):
-                self.caches.clear()
-                self.cache_pool = None
-                self.arena = None
-                self.staged_pool.close()
+            try:
+                if getattr(self, "hybrid", None) is not None:
+                    self.hybrid.close()
+            finally:
+                if self.miss_mailbox is not None:
+                    self.miss_mailbox.close()
+                if self.worker is not None:
+                    self.jobs.put(None)
+                    self.worker.join()
+                    self.retired.put(None)
+                    self.reaper.join()
+                if self.adaptive_worker is not None and self.adaptive_worker.is_alive():
+                    self.analysis_stopping.set()
+                    self.adaptive_worker.join()
+                if self.adaptive_process is not None:
+                    self.adaptive_process.stdin.close()
+                    try:
+                        self.adaptive_process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        self.adaptive_process.kill()
+                        self.adaptive_process.wait()
+                    self.adaptive_process.stdout.close()
+                if hasattr(self, "staged_pool"):
+                    self.caches.clear()
+                    self.cache_pool = None
+                    self.arena = None
+                    self.staged_pool.close()
 
     def memory_budget(self):
         result = super().memory_budget()
+        if getattr(self, "hybrid", None) is not None:
+            result["decode_cache_bytes"] = sum(
+                tensor.numel() * tensor.element_size()
+                for tensor in self.hybrid.pool.values()
+            )
+            result["hybrid_pinned_staging_bytes"] = sum(
+                tensor.numel() for tensor in self.hybrid.staging.values()
+            )
         if self.borrowed_arena:
             result["borrowed_prefill_arena_bytes"] = result["prefill_arena_bytes"]
             result["prefill_arena_bytes"] = 0

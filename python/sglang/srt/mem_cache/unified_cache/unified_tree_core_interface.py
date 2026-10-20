@@ -390,6 +390,10 @@ class UnifiedTreeCoreInterface(ABC):
         """Demote a backed-up node: drop its device value after a successful backup."""
         ...
 
+    def reclaim_device_tail(self, first_token: int) -> DemoteResult:
+        """Demote settled host-backed device leaves touching the KV tail."""
+        return DemoteResult()
+
     @abstractmethod
     def evict_device_end(self, component_type: ComponentType) -> None:
         """Finish the component's device-eviction walk."""

@@ -2053,6 +2053,19 @@ impl<K: ChildKeyType + Send + Sync> TreeCoreBinding<K> {
         })
     }
 
+    fn reclaim_device_tail(
+        &self,
+        py: Python<'_>,
+        first_token: i64,
+    ) -> PyResult<DemoteResultBinding> {
+        let result = py.detach(move || self.core().reclaim_device_tail(first_token));
+        Ok(DemoteResultBinding {
+            tracker: tracker_to_py(result.tracker),
+            new_device_frees: frees_to_py(py, result.device_frees)?,
+            new_host_frees: frees_to_py(py, result.host_frees)?,
+        })
+    }
+
     /// Evict up to num_tokens of one component's host resources.
     fn drive_host_eviction(
         &self,
@@ -3391,6 +3404,10 @@ macro_rules! tree_core_binding {
             /// Release a node's device KV once its host copy exists.
             fn demote(&self, py: Python<'_>, node_id: NodeId) -> PyResult<DemoteResultBinding> {
                 catch_native_panic(|| self.inner.demote(py, node_id))
+            }
+
+            fn reclaim_device_tail(&self, py: Python<'_>, first_token: i64) -> PyResult<DemoteResultBinding> {
+                catch_native_panic(|| self.inner.reclaim_device_tail(py, first_token))
             }
 
             /// Evict up to num_tokens of one component's host resources.

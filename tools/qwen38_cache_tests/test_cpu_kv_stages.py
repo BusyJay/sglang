@@ -49,7 +49,7 @@ class TestStagePolicyWithoutCUDA(unittest.TestCase):
             unittest.TestSuite(module.TestKVStages(n) for n in names).run(result)
             self.assertEqual(result.errors, [])
             self.assertEqual(result.failures, [])
-            self.assertEqual(result.testsRun, 7)
+        self.assertEqual(result.testsRun, 9)
 
 
 if __name__ == "__main__":

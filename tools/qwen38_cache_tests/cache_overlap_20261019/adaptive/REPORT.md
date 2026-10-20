@@ -2,7 +2,7 @@
 
 基准仍是 `d3eb24c40031999b3e62e4e9351c5b6118dfaa24`、同一张 RTX 5090 D、同一镜像 `swallow-sglang:nightly-dev-20261018-b234b5c3` 与同一 FP4-Local checkpoint。本轮只增加选择策略：新增 `cache_overlap_policy`（`auto` / `always`，默认 `auto`），当时三个计算开关仍默认关闭。
 
-本轮结论落地后做了默认值调整：`prefill_direct_cache` 在 threaded + `prefill_reuse_cache` 下改为默认开启（下面的 prefill 档位表就是它开启并由 auto 选路的结果，且 170K 长请求依赖同一开关上的 workspace 上界）；`decode_early_cache`、`preserve_cache_on_resize` 继续默认关闭。当前默认值汇总见 [上层报告](../REPORT.md#当前默认值)。
+本轮结论落地后做了默认值调整：`prefill_direct_cache` 在 threaded + `prefill_reuse_cache` 下改为默认开启（下面的 prefill 档位表就是它开启并由 auto 选路的结果，且 170K 长请求依赖同一开关上的 workspace 上界）；`preserve_cache_on_resize` 也改为默认开启以保留容量切换中的热专家；`decode_early_cache` 继续默认关闭。当前默认值汇总见 [上层报告](../REPORT.md#当前默认值)。
 
 ## 方法
 

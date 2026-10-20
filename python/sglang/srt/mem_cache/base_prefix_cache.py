@@ -573,6 +573,13 @@ class BasePrefixCache(ABC, PrefixCacheTrait):
     def evictable_size(self):
         return 0
 
+    def reclaim_device_tail(self, first_token: int) -> int:
+        """Release CPU-backed GPU prefixes in the tail, preserving host copies.
+
+        Caches without a persistent host tier cannot satisfy this request.
+        """
+        return 0
+
     def full_evictable_size(self):
         return 0
 

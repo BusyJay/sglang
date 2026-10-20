@@ -3844,6 +3844,18 @@ class Scheduler(
     ) -> NextBatchPlan:
         self.process_pending_chunked_abort()
         self._process_hicache_events()
+        loan = getattr(self.token_to_kv_pool_allocator, "staged_loan", None)
+        if loan is not None and (
+            not running_batch.reqs or any(req.finished() for req in running_batch.reqs)
+        ):
+            loan.reclaim_host_cached_tail(
+                self.tree_cache,
+                max(
+                    self.chunked_prefill_size or self.max_prefill_tokens,
+                    running_batch.batch_size()
+                    * (get_spec().speculative_num_draft_tokens or 1),
+                ),
+            )
 
         if self.enable_fpm:
             self._fpm_batch_t0 = time.monotonic()
@@ -4604,9 +4616,10 @@ class Scheduler(
                 self.maybe_send_cached_prefix_chunk(req)
 
         self.token_to_kv_pool_allocator.cache_maintenance_before_forward(
-            (self.chunked_prefill_size or self.max_prefill_tokens)
-            if batch.forward_mode.is_extend()
-            else batch.batch_size() * (get_spec().speculative_num_draft_tokens or 1)
+            max(
+                self.chunked_prefill_size or self.max_prefill_tokens,
+                batch.batch_size() * (get_spec().speculative_num_draft_tokens or 1),
+            )
         )
         # Run forward
         if self.is_generation:

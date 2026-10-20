@@ -2025,6 +2025,36 @@ class UnifiedTreeCore(UnifiedTreeCoreInterface):
         )
         return result
 
+    def reclaim_device_tail(self, first_token: int) -> DemoteResult:
+        """Keep CPU prefixes while releasing unlocked GPU leaves in the tail.
+
+        Demoting a leaf may expose its parent as another device leaf. Repeat
+        until no eligible tail remains; pending backups and loads stay pinned.
+        """
+        result = DemoteResult()
+        while True:
+            progressed = False
+            for node in sorted(self.evictable_device_leaves, key=lambda n: n.id):
+                if (
+                    not self._is_settled_full_host_duplicate(node)
+                    or not self._is_device_leaf(node)
+                    or any(cd.host_lock_ref > 0 for cd in node.component_data)
+                    or any(
+                        cd.value is not None and cd.host_value is None
+                        for cd in node.component_data
+                    )
+                ):
+                    continue
+                value = node.component_data[BASE_COMPONENT_TYPE].value
+                if not bool((value >= first_token).any().item()):
+                    continue
+                self._demote(
+                    node, result.tracker, result.device_frees, result.host_frees
+                )
+                progressed = True
+            if not progressed:
+                return result
+
     def _demote(
         self,
         node: UnifiedTreeNode,

@@ -1501,6 +1501,36 @@ def test_hicache_write_through_and_load_back_round_trip():
     core.sanity_check([], [])
 
 
+@pytest.mark.parametrize("backend", ["python", "rust"])
+def test_reclaim_device_tail_preserves_cpu_prefix_and_skips_unbacked_nodes(backend):
+    core = _tree_core(backend)
+    core.set_hicache_enabled()
+    _insert(core, [1, 2], [10, 11])
+    _insert(core, [1, 2, 3, 4], [10, 11, 12, 13])
+    parent = core.match_prefix(MatchPrefixParams(key=_key([1, 2]))).best_match_node
+    leaf = core.match_prefix(MatchPrefixParams(key=_key([1, 2, 3, 4]))).best_match_node
+    _insert(core, [5, 6], [14, 15])
+    for node, host in ((parent, [100, 101]), (leaf, [102, 103])):
+        core.mark_write_through_pending([node], ack_id=node)
+        core.commit_backup(node, torch.tensor(host, dtype=torch.int64), {})
+        core.finish_write_through([node], node)
+    lock = core.inc_lock_ref(leaf)
+    _accumulate_step(core.reclaim_device_tail(12), {}, {}, {})
+    assert not core.component_has_host_value_only(leaf, ComponentType.FULL)
+    core.dec_lock_ref(leaf, lock.to_dec_params())
+    tracker, device_frees, host_frees = {}, {}, {}
+    _accumulate_step(core.reclaim_device_tail(12), tracker, device_frees, host_frees)
+    assert tracker[ComponentType.FULL] == 2
+    assert core.component_has_host_value_only(leaf, ComponentType.FULL)
+    assert core.build_load_back_spec(leaf)[0].host_indices.tolist() == [102, 103]
+    assert core.match_prefix(MatchPrefixParams(key=_key([5, 6]))).device_prefix_len == 2
+    tracker, device_frees, host_frees = {}, {}, {}
+    _accumulate_step(core.reclaim_device_tail(10), tracker, device_frees, host_frees)
+    assert tracker[ComponentType.FULL] == 2
+    assert core.component_has_host_value_only(parent, ComponentType.FULL)
+    assert not host_frees
+
+
 def test_cache_tracks_one_write_through_ack_across_rust_nodes():
     from sglang.srt.mem_cache.unified_radix_cache import UnifiedRadixCache
 
@@ -4140,6 +4170,27 @@ def test_mamba_tree_round_trips_through_the_adapter():
     core.dec_lock_ref(matched.best_match_node, lock.to_dec_params())
     assert core.mamba_protected_size() == 0
     core.sanity_check([], [])
+
+
+def test_reclaim_device_tail_keeps_mamba_cpu_checkpoint_for_longest_prefix():
+    core = _mamba_tree_core()
+    core.set_hicache_enabled()
+    _mamba_insert(core, [1, 2], [10, 11], 7)
+    node = core.match_prefix(MatchPrefixParams(key=_key([1, 2]))).best_match_node
+    # Full-only backup must not discard the sole Mamba state.
+    core.commit_backup(node, torch.tensor([100, 101], dtype=torch.int64), {})
+    _accumulate_step(core.reclaim_device_tail(10), {}, {}, {})
+    assert core.get_component_device_value(node, ComponentType.MAMBA).tolist() == [7]
+    _complete_backup(core, node)
+    tracker, device_frees, host_frees = {}, {}, {}
+    _accumulate_step(core.reclaim_device_tail(10), tracker, device_frees, host_frees)
+    assert tracker[ComponentType.FULL] == 2
+    assert tracker[ComponentType.MAMBA] == 1
+    assert not host_frees
+    matched = core.match_prefix(MatchPrefixParams(key=_key([1, 2, 3])))
+    assert matched.best_match_node == node
+    assert matched.mamba_host_hit_length == 1
+    assert core.component_has_host_value_only(node, ComponentType.MAMBA)
 
 
 def test_mamba_eviction_walk_frees_slots_through_the_adapter():

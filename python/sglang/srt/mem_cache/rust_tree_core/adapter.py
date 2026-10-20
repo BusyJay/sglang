@@ -674,6 +674,10 @@ class RustUnifiedTreeCore(UnifiedTreeCoreInterface):
         binding_result = self._binding.demote(node_id)
         return _fill_evict_result(binding_result, DemoteResult())
 
+    def reclaim_device_tail(self, first_token: int) -> DemoteResult:
+        binding_result = self._binding.reclaim_device_tail(first_token)
+        return _fill_evict_result(binding_result, DemoteResult())
+
     def evict_device_end(self, component_type: ComponentType) -> None:
         self._binding.evict_device_end(int(component_type))
 

@@ -4765,6 +4765,23 @@ fn demote_node(tc: &mut UnifiedTreeCore<Vec<i64>>, node_id: NodeIdx_) {
 }
 
 #[test]
+fn reclaim_device_tail_keeps_host_prefix_and_low_device_rows() {
+    let mut tc = core();
+    let (parent, child) = backuped_chain(&mut tc);
+    tc.insert(&insert_params(&vec![5, 6], &[14, 15]));
+    let result = tc.reclaim_device_tail(12);
+    assert_eq!(result.tracker[&FULL], 2);
+    assert!(result.host_frees.is_empty());
+    assert!(tc.arena.node(child).evicted() && tc.arena.node(child).backuped());
+    assert!(!tc.arena.node(parent).evicted());
+    let result = tc.reclaim_device_tail(10);
+    assert_eq!(result.tracker[&FULL], 2);
+    assert!(tc.arena.node(parent).evicted() && tc.arena.node(parent).backuped());
+    assert_eq!(tc.full_evictable_size(), 2);
+    tc.sanity_check(&[], &[]);
+}
+
+#[test]
 fn demote_releases_the_device_value_and_keeps_the_host_copy() {
     let mut tc = core();
     let (_parent, child) = backuped_chain(&mut tc);

@@ -61,4 +61,4 @@ MTP=2 的 target 主路径为 3-token verify，不触发单 token decode 提前�
 
 ## 当前默认值
 
-前文的“三个开关均默认 false”是各轮实验当时的状态。基于以上实测，threaded runtime 下的默认值现在是：`prefill_direct_cache=true`（前提 `prefill_reuse_cache`，同为默认；同时带来 CUTLASS 2048-token workspace 上界）、`cache_overlap_policy="auto"`、`decode_early_cache=false`、`preserve_cache_on_resize=false`。理由：prefill 在 auto 选中的档位有可复现净收益且长请求依赖该开关；decode 没有盈利区间；resize 保留的代价是一次阶段切换停顿，收益取决于阶段频率，留给部署方决定。
+前文的“三个开关均默认 false”是各轮实验当时的状态。基于以上实测，threaded runtime 下的默认值现在是：`prefill_direct_cache=true`（前提 `prefill_reuse_cache`，同为默认；同时带来 CUTLASS 2048-token workspace 上界）、`cache_overlap_policy="auto"`、`decode_early_cache=false`、`preserve_cache_on_resize=true`。理由：prefill 在 auto 选中的档位有可复现净收益且长请求依赖该开关；decode 没有盈利区间；resize 默认保留热点，避免动态容量切换清空热专家；代价是阶段切换时的搬迁停顿，显式设置 false 可回退。

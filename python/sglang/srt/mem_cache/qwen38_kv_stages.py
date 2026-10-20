@@ -157,7 +157,9 @@ class StagedKVLoan:
         fence = getattr(self.runtime, "staged_trim_done", None)
         if fence is not None and not fence.query():
             raise RuntimeError("KV trim was not covered by result completion")
-        if getattr(self.runtime, "preserve_cache_on_resize", False):
+        if getattr(self.runtime, "hybrid", None) is not None or getattr(
+            self.runtime, "preserve_cache_on_resize", False
+        ):
             self.runtime.complete_staged_trim()
         self.runtime.staged_pool.release_stage(index)
         capacity = self.policy.capacities[index]
@@ -203,11 +205,9 @@ class StagedKVLoan:
     def before_forward(self, reserve):
         if self.runtime.pending_kv_stage is not None:
             return
-        # Decode can be followed by a new request's full prefill chunk before
-        # another result boundary. Keep the largest batch reserve seen so far;
-        # shrinking on the tiny decode reserve can strand cached prefixes in a
-        # stage with too little physical space for that next chunk.
-        self.reserve = reserve = max(self.reserve, reserve)
+        # The scheduler reserves the next prefill chunk even during decode.
+        # Historical large batches must not permanently prevent reborrowing.
+        self.reserve = reserve
         used = self.used_tokens()
         # Current allocation is already charged. Return before the next batch.
         index = self.policy.index
@@ -220,6 +220,35 @@ class StagedKVLoan:
             and used + 2 * reserve < self.policy.capacities[self.policy.index - 1]
         ):
             self.runtime.kv_reborrow_probe = True
+
+    def reclaim_host_cached_tail(self, tree_cache, reserve):
+        """Demote completed CPU-backed prefixes before matching the next batch.
+
+        This only frees GPU cache rows. Physical backing and expert layout
+        changes still wait for the existing forward/result snapshot boundary.
+        """
+        if self.policy.index == 0 or self.runtime.pending_kv_stage is not None:
+            return
+        demand = tree_cache.full_protected_size() + 2 * reserve
+        target = next(
+            (
+                cap
+                for cap in self.policy.capacities[: self.policy.index]
+                if demand < cap
+            ),
+            None,
+        )
+        if target is not None:
+            reclaimed = tree_cache.reclaim_device_tail(target)
+            if reclaimed:
+                import torch
+
+                # Freed tail pages must not be the next allocation's first
+                # choice, or a short request immediately pins the tail again.
+                a = self.allocator
+                a.free_pages, _ = torch.sort(a.get_all_free_pages())
+                a.staged_pages = []
+                a.num_staged_pages = 0
 
     def enqueue_reborrow_probe(self):
         import torch
