@@ -23,7 +23,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import torch
-
 from sglang.kernels.ops.moe.qwen38_expert_cache import (
     cache_alpha_scatter,
     cache_decode_plan,
@@ -1349,6 +1348,9 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
             self.miss_mailbox.flush_stats()
         result = super().stats_snapshot()
         if getattr(self, "hybrid", None) is not None:
+            planner = getattr(self.hybrid, "device_planner", None)
+            if planner is not None:
+                planner.sync_host()
             result["global_cache_slots"] = len(self.hybrid.policy.keys)
             result["global_layer_owned_slots"] = [
                 len(self.hybrid.policy.owned_slots[layer])
@@ -1719,6 +1721,9 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
             result["hybrid_pinned_staging_bytes"] = sum(
                 tensor.numel() for tensor in self.hybrid.staging.values()
             )
+        planner = getattr(getattr(self, "hybrid", None), "device_planner", None)
+        if planner is not None:
+            result["hybrid_device_bytes"] = planner.device_bytes
         if self.borrowed_arena:
             result["borrowed_prefill_arena_bytes"] = result["prefill_arena_bytes"]
             result["prefill_arena_bytes"] = 0

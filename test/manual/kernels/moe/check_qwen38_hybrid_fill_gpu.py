@@ -6,7 +6,6 @@ import time
 from types import SimpleNamespace
 
 import torch
-
 from sglang.kernels.ops.moe.qwen38_expert_cache import _module
 from sglang.srt.layers.moe.qwen38_hybrid import HybridCache
 
@@ -43,7 +42,6 @@ def main():
     )
     mapped = _module().mailbox_register(source)
     from cuda.bindings import driver
-
     from sglang.srt.utils.cuda_vmm_utils import check_drv
 
     failed = torch.zeros(1, dtype=torch.int32, pin_memory=True)
@@ -143,6 +141,14 @@ def check_hybrid_dispatch():
             subject.timeout = 10
             subject.host_buffers, subject.lookups = {}, {}
             subject.stats = collections.Counter()
+            subject.cost_model = SimpleNamespace(
+                select_cpu=lambda tokens, rows, mapping, rejected: frozenset(rejected)
+            )
+            # Keep all misses LFU-rejected in this transport/partition check.
+            subject._prepare_window = lambda layer, epoch, requested, compute: (
+                epoch,
+                mapping,
+            )
             subject.failure = None
             subject.readback = torch.cuda.Stream()
             subject.result_stream = torch.cuda.Stream()

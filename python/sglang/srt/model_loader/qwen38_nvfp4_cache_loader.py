@@ -13,7 +13,6 @@ import os
 import time
 
 import torch
-
 from sglang.srt.environ import envs
 from sglang.srt.layers.moe.qwen38_cache_capacity import resolve_cache_slots
 from sglang.srt.layers.quantization.qwen38_nvfp4_cache import (
@@ -42,9 +41,15 @@ logger = logging.getLogger(__name__)
 
 
 def default_cpu_hybrid(config, methods):
-    """Enable shared CPU/GPU compute for the supported threaded A16 runtime."""
+    """Opt into shared CPU/GPU compute for a calibrated threaded A16 runtime.
+
+    Default to GPU-only unless explicitly enabled with CPU cost calibration
+    and a supported configuration, avoiding CPU capability initialization
+    and compilation when calibration is absent.
+    """
     return (
         envs.SGLANG_ENABLE_QWEN38_CPU_HYBRID.get()
+        and envs.SGLANG_QWEN38_CPU_COST_CALIBRATION.get() is not None
         and config.get("runtime_mode", "sync") == "threaded"
         and config.get("adaptive_cache", False)
         and config.get("cache_policy", "lfu") == "lfu"
@@ -94,10 +99,12 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             raise ValueError("packed transfer requires threaded runtime")
         unexpected = set(config) - {
             "manifest_path",
+            "scale_compression",
             "checkpoint_revision",
             "sglang_commit",
             "cache_slots_per_layer",
             "cache_slots_total",
+            "cache_budget_bytes",
             "kv_cache_stages",
             "prefill_arena",
             "runtime_mode",
@@ -265,13 +272,21 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             )
         self.config = config
         self.manifest = load_manifest(manifest_path)
+        mode = config.get("scale_compression", "native")
+        if mode not in ("native", "csf"):
+            raise ValueError("scale_compression must be native or csf")
+        compressed = bool(getattr(self.manifest, "scale_encoding", {}))
+        if compressed != (mode == "csf"):
+            raise ValueError("scale_compression must match the expert pack encoding")
         self.manifest.validate_cutlass_layout()
         self.manifest.assert_runtime_compatible(
             checkpoint_revision=config.get("checkpoint_revision"),
             sglang_commit=config.get("sglang_commit"),
         )
+        from sglang.srt.layers.moe.qwen38_cache_capacity import slots_from_byte_budget
+
         self.initial_layer_slots = resolve_cache_slots(
-            config,
+            slots_from_byte_budget(config, self.manifest),
             self.manifest.num_layers,
             self.manifest.num_experts,
             minimum=10,
@@ -626,6 +641,7 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
         model.qwen38_expert_pack = pack
         model.qwen38_expert_runtime = runtime
         model.qwen38_cache_config = {
+            "scale_compression": self.config.get("scale_compression", "native"),
             "slots_per_layer": runtime.slots_per_layer,
             "layer_cache_slots": runtime.layer_cache_slots,
             "cache_slots_total": sum(runtime.layer_cache_slots),

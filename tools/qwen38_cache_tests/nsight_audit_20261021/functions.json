@@ -1,0 +1,71 @@
+[
+  {
+    "module": "sglang.srt.layers.moe.qwen38_hybrid",
+    "functions": [
+      "HybridCache.run",
+      "HybridCache.prefill",
+      "HybridCache._lookup",
+      "HybridCache._remap",
+      "HybridCache._gpu",
+      "HybridCache._gpu_misses",
+      "HybridCache._finish",
+      "HybridCache._copy",
+      "HybridCache._begin_layer",
+      "HybridCache._prepare_window"
+    ]
+  },
+  {
+    "module": "sglang.srt.layers.quantization.qwen38_cached_b12x",
+    "functions": [
+      "CachedB12xW4A16.run",
+      "_PreparedSmallMLaunch.run"
+    ]
+  },
+  {
+    "module": "sglang.srt.layers.quantization.qwen38_cached_w4a16",
+    "functions": [
+      "validate_cache_tensors"
+    ]
+  },
+  {
+    "module": "sglang.kernels.ops.moe.qwen38_route_alphas",
+    "functions": [
+      "refresh_route_alphas"
+    ]
+  },
+  {
+    "module": "sglang.kernels.ops.moe.qwen38_expert_cache",
+    "functions": [
+      "cache_partition_routes"
+    ]
+  },
+  {
+    "module": "sglang.kernels.ops.moe.cpu_nvfp4",
+    "functions": [
+      "CpuNvfp4.run"
+    ]
+  },
+  {
+    "module": "sglang.srt.layers.moe.qwen38_hybrid_policy",
+    "functions": [
+      "GlobalLfu.plan",
+      "HybridCostModel.choose",
+      "HybridCostModel.select_cpu"
+    ]
+  },
+  {
+    "module": "sglang.srt.layers.moe.qwen38_hybrid_device",
+    "functions": [
+      "DeviceHybridPlanner.run",
+      "DeviceHybridPlanner.cpu_task",
+      "DeviceHybridPlanner.sync_host"
+    ]
+  },
+  {
+    "module": "sglang.kernels.ops.moe.qwen38_hybrid_plan",
+    "functions": [
+      "hybrid_plan",
+      "hybrid_wait"
+    ]
+  }
+]

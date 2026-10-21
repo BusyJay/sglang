@@ -149,12 +149,13 @@ class TestGlobalResizeProtocol(CustomTestCase):
         released = []
         subject.cpu = SimpleNamespace(release_worker=lambda: released.append(True))
         subject.cpu_jobs = queue.Queue()
+        subject.mapped_batch_pages = []
 
         def failed_readback():
             raise RuntimeError("injected readback failure")
 
         ready = SimpleNamespace(synchronize=failed_readback)
-        subject.cpu_jobs.put((0, None, None, None, ready, None, {}, result))
+        subject.cpu_jobs.put((0, None, None, None, ready, None, result))
         subject.cpu_jobs.put(None)
         with patch.object(
             self.runtime_module.torch.cuda,
@@ -315,17 +316,17 @@ class TestGlobalResizeProtocol(CustomTestCase):
                 worker.join(timeout=2)
             self.assertFalse(worker.is_alive())
 
-    def test_borrowed_arena_has_no_persistent_cache_owners(self):
+    def test_decode_does_not_reserve_prefill_tail(self):
         subject = self.maintenance_subject()
         subject.runtime.borrowed_arena = True
         subject.runtime.manifest.num_experts = 2
         subject.b12x = {0: object()}
         reserved = subject._reserved_slots(4)
-        self.assertEqual(reserved, {0, 2, 3})
+        self.assertEqual(reserved, {0})
         plan = subject.policy.plan_resize(4, reserved=reserved)
         subject.policy.commit_resize(plan)
-        self.assertEqual(subject.policy.owner, [-1, 1, -1, -1])
-        self.assertEqual(subject.policy.layers[1].mapping, {1: 1})
+        self.assertEqual(subject.policy.owner, [-1, 0, 1, 1])
+        self.assertEqual(subject.policy.layers[1].mapping, {0: 2, 1: 3})
 
     def test_stop_keeps_source_alive_until_outstanding_dma_retires(self):
         import threading

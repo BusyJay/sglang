@@ -57,9 +57,15 @@ def verify(directory, top_k=10):
     # New logs count actual CPU miss work directly. Older logs can prove it
     # by bounding each all-GPU window at M=3 times top_k misses.
     # Exceeding that bound proves misses also executed on the CPU path.
-    if cpu.get("cpu_miss_experts", 0) <= 0 and cpu.get(
-        "misses", 0
-    ) <= 3 * top_k * cpu.get("all_gpu_calls", 0):
+    if "selected_cpu_experts" in cpu:
+        cpu_work_proven = (
+            cpu.get("cpu_calls", 0) > 0 and cpu["selected_cpu_experts"] > 0
+        )
+    else:
+        cpu_work_proven = cpu.get("cpu_miss_experts", 0) > 0 or cpu.get(
+            "misses", 0
+        ) > 3 * top_k * cpu.get("all_gpu_calls", 0)
+    if not cpu_work_proven:
         errors.append("no CPU miss-computation evidence beyond the all-GPU bound")
     # An empty retiring tail requires no moves. Retention still proves that
     # resizing preserved live experts; forced moves are checked by GPU VMM tests.

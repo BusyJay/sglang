@@ -14,7 +14,7 @@ import mmap
 import os
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator, Mapping
 
@@ -95,6 +95,8 @@ class Qwen38ExpertPackManifest:
     intermediate_size: int
     tensors: dict[int, dict[str, TensorRecord]]
 
+    scale_encoding: dict[str, dict[str, Any]] = field(default_factory=dict)
+
     def validate(self) -> None:
         errors: list[str] = []
         if self.num_layers <= 0 or self.num_experts <= 0 or self.top_k <= 0:
@@ -114,6 +116,62 @@ class Qwen38ExpertPackManifest:
         if set(self.tensors) != set(range(self.num_layers)):
             errors.append("tensor table must cover every layer exactly once")
 
+        if not isinstance(self.scale_encoding, dict) or any(
+            not isinstance(spec, dict) for spec in self.scale_encoding.values()
+        ):
+            raise ValueError("Invalid Qwen3.8 expert pack: invalid CSF encoding table")
+        for name, spec in self.scale_encoding.items():
+            if name not in ("w13_blockscale_swizzled", "w2_blockscale_swizzled"):
+                errors.append("unknown CSF scale tensor")
+                continue
+            rows = (
+                (
+                    (
+                        2 * self.intermediate_size
+                        if name.startswith("w13")
+                        else self.hidden_size
+                    )
+                    + 127
+                )
+                // 128
+                * 128
+            )
+            columns = (
+                (
+                    (
+                        self.hidden_size
+                        if name.startswith("w13")
+                        else self.intermediate_size
+                    )
+                    // 16
+                    + 3
+                )
+                // 4
+                * 4
+            )
+            stride = spec.get("stride", 0)
+            if (
+                spec.get("encoding") != "b12x_csf_bitmap_v1"
+                or spec.get("rows") != rows
+                or spec.get("columns") != columns
+                or type(stride) is not int
+                or stride % 16
+                or not 1024 + rows + rows * columns // 2 + rows * columns // 16
+                <= stride
+                < rows * columns
+                or rows * columns >= 1 << 24
+            ):
+                errors.append(
+                    f"invalid CSF geometry/encoding for {name}; regenerate legacy CSF packs offline"
+                )
+            for records in self.tensors.values():
+                record = records.get(name)
+                if (
+                    record is None
+                    or record.shape != (self.num_experts, stride)
+                    or record.dtype != "uint8"
+                ):
+                    errors.append(f"invalid CSF slab storage for {name}")
         ranges: list[tuple[int, int, str]] = []
         for layer, records in sorted(self.tensors.items()):
             missing = sorted(set(PACK_TENSORS) - set(records))
@@ -182,6 +240,8 @@ class Qwen38ExpertPackManifest:
                     )
             for name in ("w13_blockscale_swizzled", "w2_blockscale_swizzled"):
                 record = records[name]
+                if name in self.scale_encoding:
+                    continue
                 if (
                     SUPPORTED_DTYPES[record.dtype] != 1
                     or len(record.shape) < 2
@@ -230,7 +290,8 @@ class Qwen38ExpertPackManifest:
             payload_value = str(payload)
         return {
             "format": FORMAT_NAME,
-            "version": FORMAT_VERSION,
+            "version": 3 if self.scale_encoding else FORMAT_VERSION,
+            "scale_encoding": self.scale_encoding,
             "payload": payload_value,
             "checkpoint_revision": self.checkpoint_revision,
             "sglang_commit": self.sglang_commit,
@@ -274,11 +335,13 @@ def write_manifest(manifest: Qwen38ExpertPackManifest, path: str | Path) -> None
 def load_manifest(path: str | Path) -> Qwen38ExpertPackManifest:
     manifest_path = Path(path).resolve()
     value = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if (
-        value.get("format") != FORMAT_NAME
-        or int(value.get("version", -1)) != FORMAT_VERSION
+    if value.get("format") != FORMAT_NAME or int(value.get("version", -1)) not in (
+        FORMAT_VERSION,
+        3,
     ):
         raise ValueError("unsupported Qwen3.8 expert-pack format or version")
+    if int(value["version"]) == FORMAT_VERSION and value.get("scale_encoding"):
+        raise ValueError("CSF storage requires expert-pack version 3")
     payload_path = Path(value["payload"])
     if not payload_path.is_absolute():
         payload_path = manifest_path.parent / payload_path
@@ -306,6 +369,7 @@ def load_manifest(path: str | Path) -> Qwen38ExpertPackManifest:
         hidden_size=int(value["model"]["hidden_size"]),
         intermediate_size=int(value["model"]["intermediate_size"]),
         tensors=tensors,
+        scale_encoding=value.get("scale_encoding", {}),
     )
     result.validate()
     return result
@@ -342,6 +406,7 @@ class Qwen38ExpertPack:
             self._mapping.close()
             self._stream.close()
             raise ValueError("invalid SGLANG_QWEN38_SOURCE_MODE")
+        self._csf_validated = False
         self._source_prepared = False
         self._source_cache_hit = None
         self._prefetch_active = False
@@ -402,7 +467,8 @@ class Qwen38ExpertPack:
             if offset == size:
                 logger.info(
                     "Expert-pack prefetch completed: %.2f GiB in %.2f s",
-                    offset / (1 << 30), time.perf_counter() - started,
+                    offset / (1 << 30),
+                    time.perf_counter() - started,
                 )
 
     def _prepare_source(self):
@@ -446,7 +512,10 @@ class Qwen38ExpertPack:
                     )
                     self._source_mode = "anonymous_thp"
                     cached = shared_source_path(
-                        os.getenv("SGLANG_QWEN38_SOURCE_CACHE_DIR", "/dev/shm/sglang/qwen38-experts"),
+                        os.getenv(
+                            "SGLANG_QWEN38_SOURCE_CACHE_DIR",
+                            "/dev/shm/sglang/qwen38-experts",
+                        ),
                         source_fd=self._stream.fileno(),
                     )
                     if cached.exists():
@@ -500,7 +569,9 @@ class Qwen38ExpertPack:
             self._prefetch_thread.join()
         if self._source_mode != "file_cow":
             if self._prefetch_error is not None:
-                raise RuntimeError("expert source preparation failed") from self._prefetch_error
+                raise RuntimeError(
+                    "expert source preparation failed"
+                ) from self._prefetch_error
             self._prepare_source()
 
     def _wait_source_readable(self):
@@ -528,6 +599,7 @@ class Qwen38ExpertPack:
         Existing exported views must have been released before promotion.
         """
         self.wait_prefetch()
+        self.validate_scale_slabs()
         if not self._cuda_source_private:
             mapping = mmap.mmap(self._stream.fileno(), 0, access=mmap.ACCESS_COPY)
             try:
@@ -538,6 +610,29 @@ class Qwen38ExpertPack:
             self._mapping = mapping
             self._cuda_source_private = True
         return self._mapping
+
+    def validate_scale_slabs(self):
+        """Validate exception extents before either processor dereferences them."""
+        if self._csf_validated or not self.manifest.scale_encoding:
+            return
+        from .csf import validate_bitmap
+
+        self._wait_source_readable()
+        for layer, records in self.manifest.tensors.items():
+            for name, spec in self.manifest.scale_encoding.items():
+                record = records[name]
+                for expert in range(self.manifest.num_experts):
+                    start = record.offset + expert * spec["stride"]
+                    view = memoryview(self._mapping)[start : start + spec["stride"]]
+                    try:
+                        validate_bitmap(view, spec["rows"], spec["columns"])
+                    except ValueError as exc:
+                        raise ValueError(
+                            f"{exc}: layer {layer} {name} expert {expert}"
+                        ) from exc
+                    finally:
+                        view.release()
+        self._csf_validated = True
 
     def discard_source_file_cache(self) -> None:
         """Release redundant prefetch pages after CUDA materializes private pages."""
@@ -552,9 +647,7 @@ class Qwen38ExpertPack:
             return
         if self._cuda_source_private and hasattr(os, "posix_fadvise"):
             try:
-                os.posix_fadvise(
-                    self._stream.fileno(), 0, 0, os.POSIX_FADV_DONTNEED
-                )
+                os.posix_fadvise(self._stream.fileno(), 0, 0, os.POSIX_FADV_DONTNEED)
             except OSError as exc:
                 logger.warning("Could not discard expert-pack file cache: %s", exc)
 

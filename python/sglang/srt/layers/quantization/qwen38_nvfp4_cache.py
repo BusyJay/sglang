@@ -9,7 +9,6 @@ import re
 from typing import Optional
 
 import torch
-
 from sglang.srt.layers.quantization.base_config import (
     FusedMoEMethodBase,
     QuantizationConfig,
@@ -54,6 +53,7 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
         if self.w4a16_backend == "b12x" and not self.use_w4a16:
             raise ValueError("B12X requires SGLANG_QWEN38_CACHE_W4A16=1")
         self.b12x = None
+        self.b12x_w4a4 = None
         prefill = os.getenv("SGLANG_QWEN38_CACHE_PREFILL_W4A16", enabled)
         if prefill not in ("0", "1"):
             raise ValueError("SGLANG_QWEN38_CACHE_PREFILL_W4A16 must be 0 or 1")
@@ -63,6 +63,9 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
         )
         if not 1 <= self.w4a16_chunk_tokens <= 64:
             raise ValueError("W4A16 chunk tokens must be in 1..64")
+        if getattr(manifest, "scale_encoding", {}):
+            if not self.use_w4a16:
+                raise ValueError("CSF packs require W4A16 for decode/verify")
         self.manifest = manifest
         self.prefix = prefix
         self.layer_id: int | None = None
@@ -141,9 +144,11 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
         self.swiglu_buffers = GrowableSwigluBuffers(
             self.moe_runner_config,
             runtime.device,
-            runtime.manifest.num_layers * runtime.manifest.num_experts
-            if getattr(runtime, "hybrid", None) is not None
-            else runtime.manifest.num_experts,
+            (
+                runtime.manifest.num_layers * runtime.manifest.num_experts
+                if getattr(runtime, "hybrid", None) is not None
+                else runtime.manifest.num_experts
+            ),
         )
         # Seed at the current layer capacity before KV and graph allocation.
         self.swiglu_buffers.get(runtime.slots_for_layer(self.layer_id))
@@ -156,10 +161,13 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
                 runtime.device,
                 self.manifest.hidden_size,
                 self.manifest.intermediate_size,
-                self.manifest.num_layers * self.manifest.num_experts
-                if getattr(runtime, "hybrid", None) is not None
-                else self.manifest.num_experts,
+                (
+                    self.manifest.num_layers * self.manifest.num_experts
+                    if getattr(runtime, "hybrid", None) is not None
+                    else self.manifest.num_experts
+                ),
                 enable_fp32=getattr(runtime, "hybrid", None) is not None,
+                scale_encoding=getattr(self.manifest, "scale_encoding", {}),
             )
             if getattr(runtime, "hybrid", None) is not None:
                 if runtime.hybrid.gpu_backend != self.w4a16_backend:
@@ -172,10 +180,39 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
                     "Qwen38 B12X W4A16 enabled: BF16 decode/verify 1..3 tokens; "
                     "prefill uses its configured backend; unsupported decode/verify raises"
                 )
+        if self.manifest.scale_encoding and not self.prefill_use_w4a16:
+            from sglang.srt.layers.quantization.qwen38_cached_b12x_w4a4 import (
+                CachedB12xW4A4,
+            )
+            from sglang.srt.layers.quantization.qwen38_cached_w4a16 import (
+                validate_runner_config,
+            )
+
+            validate_runner_config(self.moe_runner_config)
+            # Serial expert layers share activation/routing scratch. Only
+            # borrowed slot views vary, including after cache pool resizing.
+            if getattr(runtime, "b12x_w4a4", None) is None:
+                runtime.b12x_w4a4 = CachedB12xW4A4(
+                    runtime.device,
+                    self.manifest.hidden_size,
+                    self.manifest.intermediate_size,
+                    self.manifest.num_layers * self.manifest.num_experts,
+                    self.manifest.top_k,
+                    scale_encoding=self.manifest.scale_encoding,
+                )
+            self.b12x_w4a4 = runtime.b12x_w4a4
         if self.layer_id == 0:
             logging.getLogger(__name__).info(
                 "Qwen38 cache activation mode: prefill=%s decode/verify=%s; W4A16 chunk=%d",
-                "W4A16" if self.prefill_use_w4a16 else "W4A4 CUTLASS",
+                (
+                    "W4A16"
+                    if self.prefill_use_w4a16
+                    else (
+                        "W4A4 B12X inline CSF"
+                        if self.b12x_w4a4 is not None
+                        else "W4A4 CUTLASS"
+                    )
+                ),
                 "W4A16" if self.use_w4a16 else "W4A4 CUTLASS",
                 self.w4a16_chunk_tokens,
             )
@@ -270,9 +307,11 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
                 hidden_states.contiguous(),
                 topk_ids.int().contiguous(),
                 topk_weights.float().contiguous(),
-                (lambda: shared_call.run(shared_input))
-                if shared_call is not None
-                else None,
+                (
+                    (lambda: shared_call.run(shared_input))
+                    if shared_call is not None
+                    else None
+                ),
             )
         from sglang.srt.layers.moe.moe_runner import MoeRunner
         from sglang.srt.layers.moe.moe_runner.flashinfer_cutlass import (
@@ -329,6 +368,25 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
                     output_dtype=output_dtype,
                 )
                 return StandardCombineInput(hidden_states=result)
+            if self.b12x_w4a4 is not None:
+                from sglang.kernels.ops.moe.qwen38_b12x_w4a4 import cached_b12x_w4a4_moe
+                from sglang.srt.layers.moe.token_dispatcher.standard import (
+                    StandardCombineInput,
+                )
+
+                if execution_phase != "prefill" or output_dtype not in (
+                    None,
+                    torch.bfloat16,
+                ):
+                    raise ValueError("B12X W4A4 is the BF16 GPU prefill path")
+                result = cached_b12x_w4a4_moe(
+                    self.b12x_w4a4,
+                    hidden_states,
+                    prepared.topk_ids,
+                    route_weights,
+                    prepared.tensors,
+                )
+                return StandardCombineInput(hidden_states=result)
             capacity = prepared.num_experts
             if capacity not in self.runners:
                 config = replace(
@@ -367,7 +425,6 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
             chunk = 2048
             if (
                 execution_phase == "prefill"
-                and getattr(self.runtime, "prefill_direct_cache", False)
                 and hidden_states.shape[0] > chunk
                 and hidden_states_pre_quant is None
             ):
@@ -526,9 +583,11 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
                 self.layer_id,
                 topk_ids.int().contiguous(),
                 execute,
-                (lambda: shared_call.run(shared_input))
-                if shared_call is not None
-                else None,
+                (
+                    (lambda: shared_call.run(shared_input))
+                    if shared_call is not None
+                    else None
+                ),
             )
         return self.runtime.run(
             self.layer_id, topk_ids, execute, **options

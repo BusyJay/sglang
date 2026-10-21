@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Loader defaults and validation for cache overlap and resize retention."""
+"""Loader defaults and validation for CPU hybrid, overlap and resize retention."""
 
 import ast
 import inspect
@@ -37,12 +37,40 @@ def build(**options):
 
 
 class TestCacheLoaderConfig(CustomTestCase):
-    def test_cpu_hybrid_defaults_to_supported_runtime_and_can_be_disabled(self):
+    def test_cpu_hybrid_defaults_to_gpu_without_enable(self):
         from sglang.srt.environ import envs
 
         config = dict(runtime_mode="threaded", adaptive_cache=True)
         methods = [SimpleNamespace(use_w4a16=True)]
-        with envs.SGLANG_ENABLE_QWEN38_CPU_HYBRID.override(True):
+        with envs.SGLANG_ENABLE_QWEN38_CPU_HYBRID.override(False):
+            envs.SGLANG_ENABLE_QWEN38_CPU_HYBRID.clear()
+            for calibration in (None, "{}"):
+                with (
+                    self.subTest(calibration=calibration),
+                    envs.SGLANG_QWEN38_CPU_COST_CALIBRATION.override(calibration),
+                ):
+                    self.assertFalse(default_cpu_hybrid(config, methods))
+
+    def test_cpu_hybrid_enabled_without_calibration_stays_on_gpu(self):
+        from sglang.srt.environ import envs
+
+        config = dict(runtime_mode="threaded", adaptive_cache=True)
+        methods = [SimpleNamespace(use_w4a16=True)]
+        with (
+            envs.SGLANG_ENABLE_QWEN38_CPU_HYBRID.override(True),
+            envs.SGLANG_QWEN38_CPU_COST_CALIBRATION.override(None),
+        ):
+            self.assertFalse(default_cpu_hybrid(config, methods))
+
+    def test_cpu_hybrid_requires_enable_calibration_and_supported_runtime(self):
+        from sglang.srt.environ import envs
+
+        config = dict(runtime_mode="threaded", adaptive_cache=True)
+        methods = [SimpleNamespace(use_w4a16=True)]
+        with (
+            envs.SGLANG_ENABLE_QWEN38_CPU_HYBRID.override(True),
+            envs.SGLANG_QWEN38_CPU_COST_CALIBRATION.override("{}"),
+        ):
             self.assertTrue(default_cpu_hybrid(config, methods))
             for change in (
                 dict(runtime_mode="sync"),
@@ -59,7 +87,10 @@ class TestCacheLoaderConfig(CustomTestCase):
             self.assertFalse(
                 default_cpu_hybrid(config, [SimpleNamespace(use_w4a16=False)])
             )
-        with envs.SGLANG_ENABLE_QWEN38_CPU_HYBRID.override(False):
+        with (
+            envs.SGLANG_ENABLE_QWEN38_CPU_HYBRID.override(False),
+            envs.SGLANG_QWEN38_CPU_COST_CALIBRATION.override("{}"),
+        ):
             self.assertFalse(default_cpu_hybrid(config, methods))
 
     def test_resize_retention_defaults_on_and_accepts_explicit_false(self):
