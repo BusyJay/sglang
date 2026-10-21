@@ -1,0 +1,38 @@
+{
+  "nsight_version": "NVIDIA Nsight Systems version 2026.3.2.476-263238834031v0",
+  "runtime_commit": "f65e26e5abaaf705c6f4833dcc7e224dc0a8bb7e",
+  "baseline_commit": "1c44f941009071a6de1b2f0c1c7728198de45f5e",
+  "captures": {
+    "baseline": {
+      "path": "captures/baseline.nsys-rep",
+      "bytes": 25268730,
+      "sha256": "8e3ca6e3485058a69b6664f082ece37c047088497bf7d91e706e131cd2393195",
+      "metadata": "captures/baseline.requests.json",
+      "server_log": "captures/baseline.server.log",
+      "instrumentation": "Python function NVTX + CUDA/OSRT",
+      "runtime_source": "baseline commit"
+    },
+    "async": {
+      "path": "captures/async.nsys-rep",
+      "bytes": 29071221,
+      "sha256": "6da1069b3f9263eacb8dc0aff45eecf44f75605fd5f1427830539b0176efff80",
+      "metadata": "captures/async.requests.json",
+      "server_log": "captures/async.server.log",
+      "instrumentation": "Python function NVTX + CUDA/OSRT",
+      "runtime_source": "runtime commit; async capture predates cosmetic cleanup, fallback and close safeguards"
+    },
+    "detailed": {
+      "path": "captures/detailed.nsys-rep",
+      "bytes": 30699577,
+      "sha256": "b7fea1400d0cd73e9bb5f592bb7e590bee4443f31fe92fe5a5f848c8f958e240",
+      "metadata": "captures/detailed.requests.json",
+      "server_log": "captures/detailed.server.log",
+      "instrumentation": "Python function NVTX + CUDA/OSRT + explicit Future/native/stats probes",
+      "runtime_source": "runtime commit, unchanged; probes installed only by launch_profiled.py"
+    }
+  },
+  "probe_sources": {
+    "profile_hooks.py": "8df12bba277178b6197947dbfb44131262edf5ee5cde2c6bac9bd0160242f192",
+    "launch_profiled.py": "6b952697def51a49328c566599db17a0b0562b165b8f38237bd7245a1f0967aa"
+  }
+}

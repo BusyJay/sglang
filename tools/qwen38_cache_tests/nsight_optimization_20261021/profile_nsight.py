@@ -36,6 +36,11 @@ def main():
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--modes", nargs="+", default=["default", "legacy_gpu"])
     parser.add_argument("--annotations", action="store_true")
+    parser.add_argument(
+        "--detailed",
+        action="store_true",
+        help="NVTX CPU native, input and result waits",
+    )
     parser.add_argument("--cpu-sampling", action="store_true")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
@@ -44,6 +49,12 @@ def main():
         "--random-seed",
         "42",
     ]
+    if args.detailed:
+        command = [
+            command[0],
+            "tools/qwen38_cache_tests/async_admission_20261021/launch_profiled.py",
+            *command[3:],
+        ]
     tok = AutoTokenizer.from_pretrained(
         command[command.index("--model-path") + 1], local_files_only=True
     )

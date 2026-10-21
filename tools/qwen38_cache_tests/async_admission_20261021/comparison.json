@@ -1,0 +1,75 @@
+{
+  "baseline_commit": "1c44f941009071a6de1b2f0c1c7728198de45f5e",
+  "environment": "RTX 5090 D / Ryzen 9 9950X, CPU cores 0-3, TP=1, concurrency=1",
+  "baseline_source": "baseline-performance.json",
+  "final_source": "performance.json",
+  "full_run_fill_bytes": {
+    "baseline": 536895300712,
+    "final": 309191243448
+  },
+  "short_median_tokens_per_second": {
+    "baseline": 63.64460512923955,
+    "first": 65.75014898839902,
+    "final": 61.499979115771964
+  },
+  "cases": {
+    "natural_chat": {
+      "baseline": {
+        "ttft_seconds": 0.7367392019950785,
+        "decode_tokens_per_second": 51.87585111023403
+      },
+      "final": {
+        "ttft_seconds": 0.6565397240046877,
+        "decode_tokens_per_second": 59.75468438863761
+      }
+    },
+    "long_170k": {
+      "baseline": {
+        "ttft_seconds": 37.455725985986646,
+        "decode_tokens_per_second": 54.29119252886755
+      },
+      "final": {
+        "ttft_seconds": 33.40753661899362,
+        "decode_tokens_per_second": 39.54389752145784
+      }
+    },
+    "post_resize_short": {
+      "baseline": {
+        "ttft_seconds": 0.9283475249976618,
+        "decode_tokens_per_second": 64.49797430809863
+      },
+      "final": {
+        "ttft_seconds": 0.8248161429946776,
+        "decode_tokens_per_second": 60.55858514598321
+      }
+    }
+  },
+  "nsight_same_request_shapes": {
+    "baseline_source": "../nsight_optimization_20261021/nsight-summary.json:accepted",
+    "final_source": "nsight-summary.json:async",
+    "event_synchronize_calls": {
+      "baseline": 32358,
+      "final": 5443
+    },
+    "memcpy_async_calls": {
+      "baseline": 141011,
+      "final": 155064
+    },
+    "manager_thread_synchronizing_cuda_api_calls": 0
+  },
+  "validation": {
+    "unit_tests_passed": 73,
+    "gpu_pass_labels": 32,
+    "physical_vmm_stage_transitions": 6,
+    "lifecycle": "passed",
+    "old_empty_slot_regression_test": "fails on baseline, passes on current source"
+  },
+  "limitations": [
+    "Sequential runs have differing continuations and MTP acceptance; decode improvement is not established.",
+    "The post-resize short decode is slower than the baseline.",
+    "Borrowed prefill arena permanently reserves 512 slots, plus B12X slot zero; usable slots are 6493/6130/5875.",
+    "Full-run fill_bytes counts background immutable-pack source payload, including mapped-host loads, and excludes foreground prefill transfers.",
+    "Nsight compares identical request shapes to a saved baseline capture; function annotations and generated routes differ.",
+    "An unrelated diagnostic SQLite query briefly overlapped the final performance run; use the two optimized runs as indicative measurements, not a throughput confidence interval."
+  ]
+}
