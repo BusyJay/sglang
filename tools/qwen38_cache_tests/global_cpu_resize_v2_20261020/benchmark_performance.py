@@ -70,7 +70,10 @@ def main():
     parser.add_argument("--reference", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument(
-        "--modes", nargs="+", default=["default", "global_gpu", "legacy_gpu"]
+        "--modes",
+        nargs="+",
+        choices=["default", "legacy_gpu"],
+        default=["default", "legacy_gpu"],
     )
     parser.add_argument(
         "--resume", action="store_true", help="reuse fully completed modes"
@@ -139,17 +142,8 @@ def main():
         env = dict(os.environ)
         env.pop("SGLANG_ENABLE_QWEN38_CPU_HYBRID", None)
         env.pop("SGLANG_QWEN38_CPU_GPU_MISS_THRESHOLD", None)
-        if mode == "global_gpu":
-            env["SGLANG_QWEN38_CPU_GPU_MISS_THRESHOLD"] = "1"
-        elif mode == "legacy_gpu":
+        if mode == "legacy_gpu":
             env["SGLANG_ENABLE_QWEN38_CPU_HYBRID"] = "0"
-        elif mode.startswith("hybrid_"):
-            threshold = int(mode.removeprefix("hybrid_"))
-            if threshold < 1:
-                raise ValueError(mode)
-            env["SGLANG_QWEN38_CPU_GPU_MISS_THRESHOLD"] = str(threshold)
-        elif mode != "default":
-            raise ValueError(mode)
         with socket.socket() as sock:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             sock.bind(("127.0.0.1", 30938))

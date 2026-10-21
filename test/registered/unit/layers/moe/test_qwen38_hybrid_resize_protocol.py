@@ -113,6 +113,8 @@ class TestGlobalResizeProtocol(CustomTestCase):
             self.runtime_module.HybridCache
         )
         subject.lookups = {}
+        subject.readable = {}
+        subject.b12x = {}
         subject.policy = policy
         subject._seed = lambda: None
         subject.drain = lambda: self.operations.append(("drain",))
@@ -139,122 +141,243 @@ class TestGlobalResizeProtocol(CustomTestCase):
         policy.commit_resize = publish
         return subject, storage
 
-    def test_readback_failure_releases_both_cpu_branch_waiters(self):
-        """A failed readback must wake branch selection and the final-result join."""
+    def test_readback_failure_releases_cpu_result_waiter(self):
         from concurrent.futures import Future
 
-        for deferred in (False, True):
-            with self.subTest(deferred=deferred):
-                subject, _ = self.subject()
-                decision = Future() if deferred else None
-                result = Future()
-                released = []
-                subject.cpu = SimpleNamespace(
-                    release_worker=lambda: released.append(True)
-                )
-                subject.cpu_jobs = queue.Queue()
+        subject, _ = self.subject()
+        result = Future()
+        released = []
+        subject.cpu = SimpleNamespace(release_worker=lambda: released.append(True))
+        subject.cpu_jobs = queue.Queue()
 
-                def failed_readback():
-                    raise RuntimeError("injected readback failure")
+        def failed_readback():
+            raise RuntimeError("injected readback failure")
 
-                ready = SimpleNamespace(synchronize=failed_readback)
-                subject.cpu_jobs.put(
-                    (
-                        0,
-                        1,
-                        None,
-                        None,
-                        None,
-                        ready,
-                        None,
-                        {},
-                        None,
-                        None,
-                        decision,
-                        result,
-                    )
-                )
-                subject.cpu_jobs.put(None)
-                with patch.object(
-                    self.runtime_module.torch.cuda,
-                    "device",
-                    lambda _: contextlib.nullcontext(),
-                    create=True,
-                ):
-                    subject._cpu_work()
-                for waiter in (result, decision) if deferred else (result,):
-                    self.assertTrue(waiter.done())
-                    with self.assertRaisesRegex(RuntimeError, "readback failure"):
-                        waiter.result()
-                self.assertEqual(released, [True])
-                self.assertEqual(subject.cpu_jobs.unfinished_tasks, 0)
+        ready = SimpleNamespace(synchronize=failed_readback)
+        subject.cpu_jobs.put((0, None, None, None, ready, None, {}, result))
+        subject.cpu_jobs.put(None)
+        with patch.object(
+            self.runtime_module.torch.cuda,
+            "device",
+            lambda _: contextlib.nullcontext(),
+            create=True,
+        ):
+            subject._cpu_work()
+        self.assertTrue(result.done())
+        with self.assertRaisesRegex(RuntimeError, "readback failure"):
+            result.result()
+        self.assertEqual(released, [True])
+        self.assertEqual(subject.cpu_jobs.unfinished_tasks, 0)
 
-    def test_prefill_arena_lease_covers_copy_and_publication(self):
-        """An arena source cannot become an admission destination or be reused
-        before D2D completion; failed copies never publish their mappings.
-        """
-        for fail in (False, True):
-            with self.subTest(copy_failure=fail):
-                subject, _ = self.subject()
-                policy = self.policy_module.GlobalLfu(2, 8, [2, 2], admission=0)
-                policy.seed(0, {0: 0})
-                policy.reserved.update((2, 3))
-                policy.set_owner(2, -1)
-                policy.set_owner(3, -1)
-                subject.policy = policy
-                subject.closed = False
-                subject.active = {}
-                subject.jobs = queue.Queue()
-                epoch, _ = policy.begin(0)
-                ids = SimpleNamespace(tolist=lambda: [[4, 5]])
-                done = SimpleNamespace(synchronize=lambda: None)
-                subject.pending = (0, epoch, ids, done, [2, 3])
-                subject.release_previous()
-                future = subject.arena_restore
-                self.assertFalse(future.done())
-                self.assertEqual(policy.layers[0].phase, "managing")
-                completion = []
+    def maintenance_subject(self):
+        subject, _ = self.subject()
+        subject.closed = False
+        subject.timeout = 1
+        subject.active = {}
+        subject.jobs = queue.Queue()
+        subject.pending = None
+        subject.current = None
+        subject.seeded = True
+        subject.policy.frequency[0][:2] = [1, 1]
+        subject.policy.frequency[0][3] = 3
+        return subject
 
-                def copy(layer, fills, event):
-                    self.assertEqual(policy.reserved, {2, 3})
-                    self.assertTrue(all(slot < 2 for _, slot in fills))
-                    self.assertTrue({4, 5}.isdisjoint(policy.layers[0].mapping))
+    def test_reader_and_copy_waits_do_not_block_other_layers(self):
+        """A slow reader/copy must not stall another layer's publication."""
+        subject = self.maintenance_subject()
+        p = subject.policy
+        p.frequency[1][3] = 12
+        reader_ready = [False]
+        copy_ready = [False]
+        copies = []
+        for layer in (0, 1):
+            epoch, _ = p.begin(layer)
+            event = SimpleNamespace(query=lambda: reader_ready[0])
+            if layer == 1:
+                event = SimpleNamespace(query=lambda: True)
+            subject.pending = (layer, epoch, (3,), event)
+            subject.release_previous()
+        jobs = [subject.jobs.get_nowait() for _ in range(2)]
+        subject._copy = lambda *args: SimpleNamespace(query=lambda: copy_ready[0])
+        readers = subject._submit_ready(jobs, copies)
+        self.assertEqual(len(readers), 1)
+        self.assertEqual(len(copies), 1)
+        self.assertEqual(p.layers[0].mapping, {0: 0, 1: 1})
+        self.assertEqual(subject._begin_layer(0), (None, {}))
+        self.assertEqual(subject._begin_layer(1), (None, {1: 3}))
+        self.assertNotIn(3, p.layers[1].mapping)
+        self.assertEqual(subject._complete_copies(copies), copies)
+        copy_ready[0] = True
+        self.assertEqual(subject._complete_copies(copies), [])
+        self.assertTrue(subject.active[1].done())
+        self.assertFalse(subject.active[0].done())
+        self.assertIn(3, subject._begin_layer(1)[1])
+        self.assertEqual(p.layers[0].mapping, {0: 0, 1: 1})
+        reader_ready[0] = True
+        copies = []
+        self.assertEqual(subject._submit_ready(readers, copies), [])
+        subject._complete_copies(copies)
+        self.assertEqual(subject.jobs.unfinished_tasks, 0)
 
-                    def synchronize():
-                        if fail:
-                            raise RuntimeError("injected D2D failure")
-                        completion.append("copied")
+    def test_busy_layer_observations_count_without_new_mutation(self):
+        subject = self.maintenance_subject()
+        p = subject.policy
+        epoch, _ = p.begin(0)
+        subject.pending = (0, epoch, (3,), SimpleNamespace(query=lambda: True))
+        subject.release_previous()
+        copies = []
+        subject._copy = lambda *args: SimpleNamespace(query=lambda: False)
+        subject._submit_ready([subject.jobs.get_nowait()], copies)
+        mapping = subject._begin_layer(0)[1]
+        self.assertEqual(mapping, {1: 1})
+        subject.pending = (0, None, (3,), None)
+        subject.release_previous()
+        observation = subject.jobs.get_nowait()
+        self.assertEqual(observation, ("observe", 0, (3,)))
+        p.observe(*observation[1:])
+        subject.jobs.task_done()
+        self.assertEqual(subject._begin_layer(0)[1], mapping)
+        self.assertEqual(p.keys[0], (0, 3))
+        self.assertNotIn(3, p.layers[0].mapping)
+        copies[0][3].query = lambda: True
+        subject._complete_copies(copies)
+        self.assertEqual(subject.jobs.unfinished_tasks, 0)
+        self.assertIn(3, subject._begin_layer(0)[1])
 
-                    return SimpleNamespace(synchronize=synchronize)
+    def test_failed_copy_never_publishes_and_unblocks_drain(self):
+        subject = self.maintenance_subject()
+        epoch, _ = subject.policy.begin(0)
+        subject.pending = (0, epoch, (3,), SimpleNamespace(query=lambda: True))
+        subject.release_previous()
 
-                subject._seed_from_arena = copy
-                publish = policy.commit
+        def failed_query():
+            raise RuntimeError("injected asynchronous copy failure")
 
-                def commit(*args):
-                    self.assertEqual(completion, ["copied"])
-                    publish(*args)
+        subject._copy = lambda *args: SimpleNamespace(query=failed_query)
+        copies = []
+        subject._submit_ready([subject.jobs.get_nowait()], copies)
+        subject._complete_copies(copies)
+        self.assertNotIn(3, subject.policy.layers[0].mapping)
+        with self.assertRaisesRegex(RuntimeError, "asynchronous copy failure"):
+            subject.active[0].result()
+        self.assertEqual(subject.jobs.unfinished_tasks, 0)
+        with self.assertRaisesRegex(RuntimeError, "background failure"):
+            subject._begin_layer(0)
 
-                policy.commit = commit
-                subject.jobs.put(None)
-                with patch.object(
-                    self.runtime_module.torch.cuda,
-                    "device",
-                    lambda _: contextlib.nullcontext(),
-                    create=True,
-                ):
-                    subject._work()
-                if fail:
-                    with self.assertRaisesRegex(RuntimeError, "D2D failure"):
-                        future.result()
-                    self.assertTrue({4, 5}.isdisjoint(policy.layers[0].mapping))
-                    self.assertEqual(policy.reserved, {2, 3})
-                    self.assertIsNotNone(subject.failure)
-                else:
-                    future.result()
-                    self.assertEqual(set(policy.layers[0].mapping), {4, 5})
-                    self.assertEqual(policy.reserved, set())
-                    self.assertEqual(policy.owner[2:], [None, None])
+    def test_worker_publishes_ready_layer_while_another_reader_is_busy(self):
+        import threading
+
+        subject = self.maintenance_subject()
+        subject.policy.frequency[1][3] = 12
+        reader_ready = threading.Event()
+        submitted = [threading.Event(), threading.Event()]
+        copied = [threading.Event(), threading.Event()]
+
+        def copy(layer, fills, done):
+            submitted[layer].set()
+            return SimpleNamespace(query=copied[layer].is_set)
+
+        subject._copy = copy
+        for layer in (0, 1):
+            epoch, _ = subject.policy.begin(layer)
+            event = SimpleNamespace(
+                query=reader_ready.is_set if layer == 0 else lambda: True
+            )
+            subject.pending = (layer, epoch, (3,), event)
+            subject.release_previous()
+        with patch.object(
+            self.runtime_module.torch.cuda,
+            "device",
+            lambda _: contextlib.nullcontext(),
+            create=True,
+        ):
+            worker = threading.Thread(target=subject._work)
+            worker.start()
+            try:
+                self.assertTrue(submitted[1].wait(2))
+                self.assertFalse(submitted[0].is_set())
+                self.assertEqual(subject._begin_layer(0), (None, {}))
+                copied[1].set()
+                subject.active[1].result(timeout=2)
+                self.assertEqual(subject.policy.layers[1].mapping[3], 2)
+                self.assertFalse(subject.active[0].done())
+                reader_ready.set()
+                self.assertTrue(submitted[0].wait(2))
+                copied[0].set()
+                subject._join_queue(subject.jobs)
+                self.assertEqual(subject.policy.layers[0].mapping[3], 0)
                 self.assertEqual(subject.jobs.unfinished_tasks, 0)
+            finally:
+                reader_ready.set()
+                for event in copied:
+                    event.set()
+                subject.jobs.put(None)
+                worker.join(timeout=2)
+            self.assertFalse(worker.is_alive())
+
+    def test_borrowed_arena_has_no_persistent_cache_owners(self):
+        subject = self.maintenance_subject()
+        subject.runtime.borrowed_arena = True
+        subject.runtime.manifest.num_experts = 2
+        subject.b12x = {0: object()}
+        reserved = subject._reserved_slots(4)
+        self.assertEqual(reserved, {0, 2, 3})
+        plan = subject.policy.plan_resize(4, reserved=reserved)
+        subject.policy.commit_resize(plan)
+        self.assertEqual(subject.policy.owner, [-1, 1, -1, -1])
+        self.assertEqual(subject.policy.layers[1].mapping, {1: 1})
+
+    def test_stop_keeps_source_alive_until_outstanding_dma_retires(self):
+        import threading
+
+        subject = self.maintenance_subject()
+        stop_received = threading.Event()
+        stop_polled = threading.Event()
+        submitted = threading.Event()
+        copied = threading.Event()
+
+        class Jobs(queue.Queue):
+            def get(self, *args, **kwargs):
+                job = super().get(*args, **kwargs)
+                if job is None:
+                    stop_received.set()
+                return job
+
+        def query():
+            if stop_received.is_set():
+                stop_polled.set()
+            return copied.is_set()
+
+        def copy(*args):
+            submitted.set()
+            return SimpleNamespace(query=query)
+
+        subject.jobs = Jobs()
+        subject._copy = copy
+        epoch, _ = subject.policy.begin(0)
+        subject.pending = (0, epoch, (3,), SimpleNamespace(query=lambda: True))
+        subject.release_previous()
+        with patch.object(
+            self.runtime_module.torch.cuda,
+            "device",
+            lambda _: contextlib.nullcontext(),
+            create=True,
+        ):
+            worker = threading.Thread(target=subject._work)
+            worker.start()
+            try:
+                self.assertTrue(submitted.wait(2))
+                subject.jobs.put(None)
+                self.assertTrue(stop_received.wait(2))
+                self.assertTrue(stop_polled.wait(2))
+                self.assertTrue(worker.is_alive())
+                self.assertFalse(subject.active[0].done())
+            finally:
+                copied.set()
+                worker.join(timeout=2)
+            self.assertFalse(worker.is_alive())
+        self.assertEqual(subject.policy.layers[0].mapping[3], 0)
+        self.assertEqual(subject.jobs.unfinished_tasks, 0)
 
     def test_all_moves_complete_before_mapping_and_tail_release(self):
         subject, storage = self.subject()

@@ -5,9 +5,10 @@
       "HybridCache.run",
       "HybridCache.prefill",
       "HybridCache._copy",
-      "HybridCache._seed_from_arena",
       "HybridCache._wait_layer",
-      "HybridCache._wait_arena",
+      "HybridCache._begin_layer",
+      "HybridCache._submit_ready",
+      "HybridCache._complete_copies",
       "HybridCache._remap",
       "HybridCache._gpu"
     ]
@@ -15,8 +16,7 @@
   {
     "module": "sglang.srt.layers.moe.qwen38_hybrid_policy",
     "functions": [
-      "GlobalLfu.plan",
-      "GlobalLfu.immediate"
+      "GlobalLfu.plan"
     ]
   },
   {

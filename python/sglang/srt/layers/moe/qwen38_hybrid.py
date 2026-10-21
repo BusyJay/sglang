@@ -5,12 +5,61 @@ import collections
 import logging
 import queue
 import threading
+import time
 from concurrent.futures import Future
 
 import torch
 
 from sglang.srt.environ import envs
-from sglang.srt.layers.moe.qwen38_hybrid_policy import GlobalLfu, choose_all_gpu
+from sglang.srt.layers.moe.qwen38_hybrid_policy import GlobalLfu
+
+
+class _StagedCopy:
+    """Pollable fallback sharing one pinned expert buffer across all layers."""
+
+    def __init__(self, cache, layer, fills, done):
+        self.cache, self.layer, self.fills, self.done = cache, layer, fills, done
+        self.index = 0
+        self.copied = None
+
+    def query(self):
+        if self.copied is not None and not self.copied.query():
+            return False
+        if self.index == len(self.fills):
+            return self.done.query() if self.copied is None else True
+        cache = self.cache
+        busy = getattr(cache, "staging_busy", None)
+        if busy is not None and not busy.query():
+            return False
+        expert, slot = self.fills[self.index]
+        with torch.cuda.stream(cache.fill_stream):
+            cache.fill_stream.wait_event(self.done)
+            for name, tensor in cache.pool.items():
+                record = cache.runtime.manifest.tensors[self.layer][name]
+                count = record.nbytes // cache.runtime.manifest.num_experts
+                source = torch.frombuffer(
+                    cache.cpu.mapping,
+                    dtype=torch.uint8,
+                    count=count,
+                    offset=record.offset + expert * count,
+                )
+                staging = cache.staging[name]
+                staging.copy_(source)
+                tensor[slot].reshape(-1).view(torch.uint8).copy_(
+                    staging, non_blocking=True
+                )
+                cache.stats["fill_bytes"] += count
+            self.copied = torch.cuda.Event()
+            self.copied.record(cache.fill_stream)
+        cache.staging_busy = self.copied
+        cache.stats["insertions"] += 1
+        self.index += 1
+        return False
+
+    def synchronize(self):
+        # Explicit drain/debug callers only; the manager exclusively polls.
+        while not self.query():
+            time.sleep(0.0001)
 
 
 class HybridCache:
@@ -36,9 +85,6 @@ class HybridCache:
             tuple(int(c) for c in envs.SGLANG_QWEN38_CPU_CORES.get()),
             gpu_backend=gpu_backend,
         )
-        self.threshold = envs.SGLANG_QWEN38_CPU_GPU_MISS_THRESHOLD.get()
-        if self.threshold < 1:
-            raise ValueError("hybrid miss threshold must be positive")
         self.timeout = envs.SGLANG_QWEN38_CPU_READY_TIMEOUT.get()
         if not 0 < self.timeout < 3600:
             raise ValueError("hybrid ready timeout must be in (0, 3600)")
@@ -56,13 +102,13 @@ class HybridCache:
             if tensor.shape[0]
         }
         self.result_stream = torch.cuda.Stream(device=runtime.device)
-        self.jobs = queue.Queue(maxsize=m.num_layers + 2)
+        self.jobs = queue.Queue()
         self.pending = None
         self.active = {}
         self.current = None
         self.failure = None
         self.seeded = False
-        self.arena_restore = None
+        self.readable = {}
         self.stats = collections.Counter()
         self.b12x = {}
         self.host_buffers = {}
@@ -93,8 +139,6 @@ class HybridCache:
             raise RuntimeError("CPU hybrid background failure") from self.failure
 
     def _join_queue(self, jobs):
-        import time
-
         deadline = time.monotonic() + self.timeout
         with jobs.all_tasks_done:
             while jobs.unfinished_tasks:
@@ -130,72 +174,89 @@ class HybridCache:
                             1.0, frequencies[local]
                         )
                 offset += slots
-            if self.b12x:
-                # Upstream inactive routes still read expert 0 before masking results.
-                # Keep slot 0 immutable and zero so concurrent fills never race them.
-                key = self.policy.keys[0]
+            # The borrowed arena remains disjoint from persistent cache entries.
+            # This small capacity reservation avoids per-prefill eviction/drain
+            # cycles and lets admissions read the immutable host pack instead.
+            for slot in self._reserved_slots(len(self.policy.keys)):
+                key = self.policy.keys[slot]
                 if key is not None:
                     self.policy.layers[key[0]].mapping.pop(key[1])
-                self.policy.keys[0] = None
-                self.policy.set_owner(0, -1)
-                self.policy.reserved.add(0)
+                self.policy.keys[slot] = None
+                self.policy.set_owner(slot, -1)
+                self.policy.reserved.add(slot)
+            if self.b12x:
+                # Inactive B12X routes read slot zero before masking their output.
                 for tensor in self.pool.values():
                     tensor[0].zero_()
                 torch.cuda.current_stream(r.device).synchronize()
             self.seeded = True
+            self.stats["usable_cache_slots"] = len(self.policy.keys) - len(
+                self.policy.reserved
+            )
             self.runtime.global_cache_slots = len(self.policy.keys)
             self.runtime.caches = {
                 layer: self.pool for layer in range(self.runtime.manifest.num_layers)
             }
             self.stats["initial_global_handoff_waits"] += 1
 
+    def _reserved_slots(self, budget):
+        reserved = {0} if self.b12x and budget else set()
+        if getattr(self.runtime, "borrowed_arena", False):
+            if budget <= self.runtime.manifest.num_experts:
+                raise ValueError("hybrid pool must exceed the borrowed arena")
+            reserved.update(range(budget - self.runtime.manifest.num_experts, budget))
+        return reserved
+
     def release_previous(self):
         self._check()
-        if self.pending is not None:
-            layer, epoch, ids, done, *lease = self.pending
-            self.pending = None
-            self.policy.release(layer, epoch)
-            future = Future()
-            self.active[layer] = future
-            if lease:
-                # The arena is the source of the deferred D2D admission.
-                # Join this fence before any subsequent layer overwrites it.
-                self.arena_restore = future
-                self.jobs.put_nowait(
-                    ("prefill", layer, epoch, ids, done, lease[0], future)
-                )
-            else:
-                self.jobs.put_nowait((layer, epoch, ids, done, future))
+        if self.pending is None:
+            return
+        layer, epoch, requested, done = self.pending
+        self.pending = None
+        if epoch is None:
+            previous = self.active.get(layer)
+            if previous is not None and not previous.done():
+                # This window only read survivors of the in-flight plan. It must
+                # not start another mutation, but its CPU misses still count.
+                self.jobs.put_nowait(("observe", layer, requested))
+                return
+            if previous is not None:
+                previous.result()
+                self.active.pop(layer)
+            epoch, _ = self.policy.begin(layer)
+        self.policy.release(layer, epoch)
+        # Clear before enqueue: a manager may invalidate/overwrite any victim.
+        # Once planning finishes it publishes just the untouched survivors here.
+        self.readable[layer] = {}
+        future = Future()
+        self.active[layer] = future
+        self.jobs.put_nowait((layer, epoch, requested, done, future))
 
     def _wait_layer(self, layer):
+        # Exclusive boundaries (resize/close) drain; ordinary forwards never do.
         future = self.active.pop(layer, None)
-        if future is not None and not future.done():
-            self.stats["not_ready_waits"] += 1
+        if future is not None:
             future.result(timeout=self.timeout)
-        elif future is not None:
-            future.result()
         self._check()
 
-    def _wait_arena(self):
-        if self.arena_restore is not None:
-            self.arena_restore.result(timeout=self.timeout)
-            self.arena_restore = None
+    def _begin_layer(self, layer):
         self._check()
+        future = self.active.get(layer)
+        if future is not None:
+            if not future.done():
+                self.stats["maintenance_bypasses"] += 1
+                return None, self.readable.get(layer, {})
+            future.result()
+            self.active.pop(layer)
+        return self.policy.begin(layer)
 
     def layer_start(self, layer):
-        # Called by the eager graph boundary before the next layer's attention.
+        # No copy-completion wait at the eager graph boundary. Pending fills
+        # remain misses, and CPU execution covers them until publication.
         self.release_previous()
-        self._wait_arena()
         if self.seeded:
-            self._wait_layer(layer)
-            epoch, mapping = self.policy.begin(layer)
+            epoch, mapping = self._begin_layer(layer)
             self.current = (layer, epoch, mapping)
-
-    def _host_copy(self, tensor, stream):
-        host = torch.empty_like(tensor, device="cpu", pin_memory=True)
-        host.copy_(tensor, non_blocking=True)
-        tensor.record_stream(stream)
-        return host
 
     def _cpu_work(self):
         with torch.cuda.device(self.runtime.device):
@@ -205,90 +266,29 @@ class HybridCache:
                     if job is None:
                         self.cpu.release_worker()
                         return
-                    (
-                        layer,
-                        epoch,
-                        x,
-                        ids,
-                        weights,
-                        ready,
-                        result,
-                        mapping,
-                        resident_done,
-                        device_input,
-                        decision,
-                        future,
-                    ) = job
+                    layer, x, ids, weights, ready, result, mapping, future = job
                     ready.synchronize()
                     rows = ids.tolist()
-                    requested = {e for row in rows for e in row if e >= 0}
-                    misses = requested - mapping.keys()
-                    owned = len(self.policy.owned_slots[layer])
+                    requested = tuple(
+                        sorted({e for row in rows for e in row if e >= 0})
+                    )
+                    misses = set(requested) - mapping.keys()
                     self.stats["hits"] += len(requested) - len(misses)
                     self.stats["misses"] += len(misses)
-                    all_gpu = choose_all_gpu(
-                        len(misses), owned, len(requested), self.threshold
-                    )
-                    if owned == 0:
-                        # Explicit slow path: wait pending cache work, then ask
-                        # the sole manager to acquire free/released ownership.
-                        self._join_queue(self.jobs)
-                        self.stats["zero_slot_waits"] += 1
-                        all_gpu = True
-                    if all_gpu and misses:
-                        if decision is not None:
-                            decision.set_result("gpu")
-                        resident_event, enqueued = resident_done
-                        if not enqueued.wait(self.timeout):
-                            raise TimeoutError(
-                                "current-layer GPU boundary not published"
-                            )
-                        filled = Future()
-                        self.jobs.put_nowait(
-                            (
-                                "immediate",
-                                layer,
-                                epoch,
-                                requested,
-                                resident_event,
-                                filled,
-                            )
-                        )
-                        fill_result = filled.result(timeout=self.timeout)
-                        if fill_result is not None:
-                            self.stats["all_gpu_calls"] += 1
-                            future.set_result(("gpu", misses, fill_result))
-                            continue
-                    if decision is not None and not decision.done():
-                        decision.set_result("cpu" if misses else "hit")
-                    ids = ids.clone()
-                    masked_ids = ids.numpy()
-                    for t, row in enumerate(rows):
-                        for k, expert in enumerate(row):
-                            if expert not in misses:
-                                masked_ids[t, k] = -1
                     if misses:
-                        with torch.cuda.stream(self.readback):
-                            self.readback.wait_event(ready)
-                            device_x, device_weights = device_input
-                            x.copy_(device_x, non_blocking=True)
-                            weights.copy_(device_weights, non_blocking=True)
-                            device_x.record_stream(self.readback)
-                            device_weights.record_stream(self.readback)
-                            copied_input = torch.cuda.Event()
-                            copied_input.record(self.readback)
-                        copied_input.synchronize()
+                        ids = ids.clone()
+                        masked_ids = ids.numpy()
+                        for t, row in enumerate(rows):
+                            for k, expert in enumerate(row):
+                                if expert not in misses:
+                                    masked_ids[t, k] = -1
                         self.cpu.run(layer, x, ids, weights, result)
                         self.stats["cpu_calls"] += 1
                         self.stats["cpu_miss_experts"] += len(misses)
-                    else:
-                        result.zero_()
-                    future.set_result(("cpu" if misses else "hit", misses, None))
+                    future.set_result((bool(misses), requested))
                 except BaseException as error:
                     self.failure = error
                     if job is not None:
-                        if job[-2] is not None and not job[-2].done():
-                            job[-2].set_exception(error)
                         job[-1].set_exception(error)
                 finally:
                     self.cpu_jobs.task_done()
@@ -370,135 +370,96 @@ class HybridCache:
                 copied = torch.cuda.Event()
                 copied.record(self.fill_stream)
             return copied
-        # One reusable expert worth of pinned staging, regardless of batch size.
-        # Only the manager waits before reuse; serving overlaps the DMA.
-        copied = done
-        for expert, slot in fills:
-            with torch.cuda.stream(self.fill_stream):
-                self.fill_stream.wait_event(done)
-                for name, tensor in self.pool.items():
-                    record = self.runtime.manifest.tensors[layer][name]
-                    count = record.nbytes // self.runtime.manifest.num_experts
-                    source = torch.frombuffer(
-                        self.cpu.mapping,
-                        dtype=torch.uint8,
-                        count=count,
-                        offset=record.offset + expert * count,
-                    )
-                    staging = self.staging[name]
-                    staging.copy_(source)
-                    tensor[slot].reshape(-1).view(torch.uint8).copy_(
-                        staging, non_blocking=True
-                    )
-                    self.stats["fill_bytes"] += staging.numel()
-                copied = torch.cuda.Event()
-                copied.record(self.fill_stream)
-            copied.synchronize()
-            self.stats["insertions"] += 1
-        return copied
+        # No registered pack: a pollable task leases the bounded staging
+        # buffer only after its previous DMA completes. Other layers can still
+        # plan, submit registered transfers and publish while this task waits.
+        return _StagedCopy(self, layer, fills, done)
 
-    def _seed_from_arena(self, layer, fills, done):
-        from sglang.kernels.ops.moe.qwen38_expert_cache import cache_scatter
+    def _complete_copies(self, copies):
+        remaining = []
+        for layer, epoch, fills, copied, future in copies:
+            try:
+                if not copied.query():
+                    remaining.append((layer, epoch, fills, copied, future))
+                    continue
+                self.policy.commit(layer, epoch, fills)
+                future.set_result(None)
+            except BaseException as error:
+                self.failure = error
+                future.set_exception(error)
+            finally:
+                if future.done():
+                    self.jobs.task_done()
+        return remaining
 
-        # Reverse the existing byte scatter: source rows are expert IDs in the
-        # arena, destination rows are global slots outside its borrowed tail.
-        with torch.cuda.stream(self.fill_stream):
-            self.fill_stream.wait_event(done)
-            if fills:
-                keys = torch.full(
-                    (self.runtime.manifest.num_experts,),
-                    -1,
-                    dtype=torch.int32,
-                    pin_memory=True,
-                )
-                keys.numpy()[[expert for expert, _ in fills]] = [
-                    slot for _, slot in fills
-                ]
-                device_keys = keys.to(self.runtime.device, non_blocking=True)
-                counts = torch.ones(
-                    len(self.policy.keys) + 1,
-                    dtype=torch.int32,
-                    device=self.runtime.device,
-                )
-                for name, tensor in self.pool.items():
-                    cache_scatter(self.runtime.arena[name], tensor, device_keys, counts)
-                    self.stats["prefill_seed_d2d_bytes"] += (
-                        len(fills) * tensor[0].numel() * tensor.element_size()
-                    )
-                self.stats["insertions"] += len(fills)
-                self.stats["prefill_seed_experts"] += len(fills)
-            copied = torch.cuda.Event()
-            copied.record(self.fill_stream)
-        return copied
-
-    def _work(self):
-        with torch.cuda.device(self.runtime.device):
-            while True:
-                job = self.jobs.get()
-                try:
-                    if job is None:
-                        return
-                    if job[0] == "prefill":
-                        _, layer, epoch, ids, done, reserved, future = job
-                        done.synchronize()
-                        requested = [e for row in ids.tolist() for e in row if e >= 0]
-                        evicted, fills = self.policy.plan(layer, epoch, requested)
-                        self.stats["evictions"] += len(evicted)
-                        copied = self._seed_from_arena(layer, fills, done)
-                        copied.synchronize()
-                        self.policy.commit(layer, epoch, fills)
-                        for slot in reserved:
-                            self.policy.reserved.remove(slot)
-                            self.policy.set_owner(slot, None)
-                        future.set_result(None)
-                        continue
-                    if job[0] == "immediate":
-                        _, layer, epoch, requested, done, future = job
-                        done.synchronize()
-                        if len(self.policy.owned_slots[layer]) == 0:
-                            # Exceptional slow path can reclaim globally only
-                            # after the previous owners' readers and fills finish.
-                            for owner, state in enumerate(self.policy.layers):
-                                if (
-                                    owner != layer
-                                    and state.phase == "locked"
-                                    and state.epoch
-                                ):
-                                    event = self.runtime.layer_computed.get(owner)
-                                    if event is not None:
-                                        event.synchronize()
-                            evicted = self.policy.reclaim_zero_slot(
-                                layer, epoch, requested
-                            )
-                            self.stats["zero_slot_global_evictions"] += len(evicted)
-                        fills = self.policy.immediate(layer, epoch, requested)
-                        if fills is None:
-                            raise RuntimeError(
-                                "all-GPU plan exceeded current-layer ownership"
-                            )
-                        else:
-                            copied = self._copy(layer, fills, done)
-                            copied.synchronize()
-                            mapping = self.policy.layers[layer].mapping
-                            for expert, slot in fills:
-                                mapping[expert] = slot
-                            future.set_result(dict(mapping))
-                        continue
-                    layer, epoch, ids, done, future = job
-                    done.synchronize()  # never a main-thread fill wait
-                    requested = [e for row in ids.tolist() for e in row if e >= 0]
-                    evicted, fills = self.policy.plan(layer, epoch, requested)
-                    self.stats["evictions"] += len(evicted)
+    def _submit_ready(self, readers, copies):
+        remaining = []
+        for layer, epoch, requested, done, future in readers:
+            deferred = False
+            try:
+                if not done.query():
+                    remaining.append((layer, epoch, requested, done, future))
+                    deferred = True
+                    continue
+                # Releasing cold slots to the global free pool is safe only
+                # after their old GPU readers finish. Query; never host-wait.
+                evicted, fills = self.policy.plan(layer, epoch, requested)
+                self.stats["evictions"] += len(evicted)
+                self.readable[layer] = dict(self.policy.layers[layer].mapping)
+                if fills:
                     copied = self._copy(layer, fills, done)
-                    copied.synchronize()
+                    copies.append((layer, epoch, fills, copied, future))
+                    deferred = True
+                else:
                     self.policy.commit(layer, epoch, fills)
                     future.set_result(None)
+            except BaseException as error:
+                self.failure = error
+                future.set_exception(error)
+            finally:
+                if not deferred:
+                    self.jobs.task_done()
+        return remaining
+
+    def _work(self):
+        # Keep several layers' DMA in flight. Neither reader completion nor copy
+        # completion stalls dispatch of another layer's maintenance.
+        copies = []
+        readers = []
+        with torch.cuda.device(self.runtime.device):
+            while True:
+                copies = self._complete_copies(copies)
+                readers = self._submit_ready(readers, copies)
+                try:
+                    job = self.jobs.get(timeout=0.0001 if copies or readers else None)
+                except queue.Empty:
+                    continue
+                deferred = False
+                try:
+                    if job is None:
+                        # A timed-out drain must not let close unmap a source
+                        # while DMA still reads it. Keep the worker alive until
+                        # all submitted work retires; close retains the mapping
+                        # if joining this worker times out.
+                        while copies or readers:
+                            copies = self._complete_copies(copies)
+                            readers = self._submit_ready(readers, copies)
+                            if copies or readers:
+                                time.sleep(0.0001)
+                        return
+                    if job[0] == "observe":
+                        _, layer, requested = job
+                        self.policy.observe(layer, requested)
+                        continue
+                    readers.append(job)
+                    deferred = True
                 except BaseException as error:
                     self.failure = error
-                    if job is not None:
+                    if job is not None and job[0] != "observe":
                         job[-1].set_exception(error)
                 finally:
-                    self.jobs.task_done()
+                    if not deferred:
+                        self.jobs.task_done()
 
     def _gpu(self, x, slot_ids, weights, layer):
         if self.gpu_backend == "b12x":
@@ -528,7 +489,8 @@ class HybridCache:
         )
 
     def _remap(self, ids, mapping):
-        # Lookup publication is only at layer entry, after previous dirty clears.
+        # Each table belongs to an immutable compute snapshot. In-flight fills
+        # stay absent; survivor snapshots can also be used during maintenance.
         key = tuple(sorted(mapping.items()))
         entry = self.lookups.get(key)
         if entry is None:
@@ -556,17 +518,16 @@ class HybridCache:
 
     def run(self, layer, x, ids, weights, shared=None):
         self._seed()
-        self._wait_arena()
-        self._wait_layer(layer)
         if self.current is not None:
             current_layer, epoch, mapping = self.current
             if current_layer != layer:
                 raise RuntimeError("hybrid layer-entry/expert order differs")
             self.current = None
         else:
-            epoch, mapping = self.policy.begin(layer)
+            epoch, mapping = self._begin_layer(layer)
         compute = torch.cuda.current_stream(self.runtime.device)
-        # Reuse buffers by layer and shape; its previous management was joined.
+        # CPU jobs finish before return. The next readback fence also covers
+        # the previous result upload before its pinned output is reused.
         shape = (layer, tuple(x.shape), tuple(ids.shape))
         buffers = self.host_buffers.get(shape)
         if buffers is None:
@@ -582,57 +543,32 @@ class HybridCache:
         host_x, host_ids, host_weights, host_result = buffers
         with torch.cuda.stream(self.readback):
             self.readback.wait_stream(compute)
-            host_ids.copy_(ids, non_blocking=True)
-            ids.record_stream(self.readback)
+            # One readback fence instead of a route decision round trip followed
+            # by a second activation/weight readback. Resident GPU work overlaps it.
+            for host, device in ((host_ids, ids), (host_x, x), (host_weights, weights)):
+                host.copy_(device, non_blocking=True)
+                device.record_stream(self.readback)
             ready = torch.cuda.Event()
             ready.record(self.readback)
-        resident_done = torch.cuda.Event()
-        enqueued = threading.Event()
         future = Future()
-        eager_resident = self.threshold > ids.numel()
-        decision = None if eager_resident else Future()
         self.cpu_jobs.put_nowait(
-            (
-                layer,
-                epoch,
-                host_x,
-                host_ids,
-                host_weights,
-                ready,
-                host_result,
-                mapping,
-                (resident_done, enqueued),
-                (x, weights),
-                decision,
-                future,
-            )
+            (layer, host_x, host_ids, host_weights, ready, host_result, mapping, future)
         )
-        # A reachable crossover can choose all-GPU execution. In that case,
-        # run hits and newly filled misses together, avoiding two MoE launches.
-        try:
-            if shared is not None:
-                shared()
-            if eager_resident:
-                resident_slots = self._remap(ids, mapping)
-                gpu = self._gpu(x, resident_slots, weights, layer)
-        finally:
-            resident_done.record(compute)
-            enqueued.set()
-        if decision is not None and decision.result(timeout=self.timeout) != "gpu":
-            # The CPU publishes its branch before computing missing experts.
-            # Enqueue resident GPU work now, while that CPU work is in flight.
-            gpu = self._gpu(x, self._remap(ids, mapping), weights, layer)
-        mode, misses, filled_mapping = future.result(timeout=self.timeout)
-        self.stats["result_join_waits"] += 1
-        if mode == "gpu":
-            if eager_resident:
-                # Only zero-ownership bootstrap can select all-GPU when the
-                # threshold exceeds the window's entire number of routes.
-                miss_mapping = {e: filled_mapping[e] for e in misses}
-                gpu = gpu + self._gpu(x, self._remap(ids, miss_mapping), weights, layer)
-            else:
-                gpu = self._gpu(x, self._remap(ids, filled_mapping), weights, layer)
-        if mode == "cpu":
+        if shared is not None:
+            shared()
+        gpu = (
+            self._gpu(x, self._remap(ids, mapping), weights, layer)
+            if mapping
+            else torch.zeros_like(x, dtype=torch.float32)
+        )
+        if not future.done():
+            started = time.perf_counter()
+            self.stats["result_join_waits"] += 1
+            has_misses, requested = future.result(timeout=self.timeout)
+            self.stats["result_join_seconds"] += time.perf_counter() - started
+        else:
+            has_misses, requested = future.result()
+        if has_misses:
             with torch.cuda.stream(self.result_stream):
                 result = host_result.to(self.runtime.device, non_blocking=True)
                 delivered = torch.cuda.Event()
@@ -643,7 +579,7 @@ class HybridCache:
         done = torch.cuda.Event()
         done.record(compute)
         self.runtime.layer_computed[layer] = done
-        self.pending = (layer, epoch, host_ids, done)
+        self.pending = (layer, epoch, requested, done)
         self.runtime._record_invocation(False, ids, layer)
         self.runtime.finish_layer(layer)
         return gpu.to(x.dtype)
@@ -655,13 +591,12 @@ class HybridCache:
             self.release_previous()
         self._join_queue(self.jobs)
         self._join_queue(self.cpu_jobs)
-        self._wait_arena()
         for layer in list(self.active):
             self._wait_layer(layer)
         self._check()
 
     def prefill(self, layer, ids, execute, shared=None):
-        """Prefill uses the same global mapping and a leased GPU arena.
+        """Prefill uses the same global mapping and a disjoint GPU arena.
 
         CPU A16 is reserved for tiny decode/verify. Large prefill fills its
         misses on GPU; cache retention and subsequent admission stay global.
@@ -669,15 +604,13 @@ class HybridCache:
         from sglang.srt.layers.moe.qwen38_cache_runtime import PreparedExperts
 
         self._seed()
-        self._wait_arena()
-        self._wait_layer(layer)
         if self.current is not None:
             current_layer, epoch, mapping = self.current
             if current_layer != layer:
                 raise RuntimeError("prefill layer-entry/expert order differs")
             self.current = None
         else:
-            epoch, mapping = self.policy.begin(layer)
+            epoch, mapping = self._begin_layer(layer)
         r = self.runtime
         if r.arena is None:
             raise ValueError("global cache prefill requires an arena")
@@ -686,31 +619,13 @@ class HybridCache:
         requested = {int(e) for row in host_ids.tolist() for e in row if e >= 0}
         if bool(((host_ids < -1) | (host_ids >= r.manifest.num_experts)).any()):
             raise ValueError("prefill route outside expert range")
-        # An arena borrowed from the physical tail may overlap ANY layer.
-        # Acquire an exclusive lease. Retire overwritten tail keys rather than
-        # repeatedly restoring unrelated layers' weights after every prefill.
-        # Admissions reuse the GPU arena and cannot allocate into its source.
-        reserved = []
+        # The borrowed tail is reserved at handoff/resize, so no layer's
+        # persistent readers or admissions can overlap the prefill arena.
+        limit = len(self.policy.keys)
         if r.borrowed_arena:
-            self._join_queue(self.jobs)
-            for event in r.layer_computed.values():
-                event.synchronize()
-            limit = len(self.policy.keys) - r.manifest.num_experts
-            for slot in range(limit, len(self.policy.keys)):
-                key = self.policy.keys[slot]
-                if key is not None:
-                    self.policy.layers[key[0]].mapping.pop(key[1])
-                    self.stats["prefill_tail_evictions"] += 1
-                self.policy.keys[slot] = None
-                if slot not in self.policy.reserved:
-                    self.policy.reserved.add(slot)
-                    reserved.append(slot)
-                self.policy.set_owner(slot, -1)
-            mapping = {e: slot for e, slot in mapping.items() if slot < limit}
-        else:
-            limit = len(self.policy.keys)
-            if r.arena_last_use is not None:
-                r.arena_last_use.synchronize()
+            limit -= r.manifest.num_experts
+        if r.arena_last_use is not None:
+            compute.wait_event(r.arena_last_use)
         misses = sorted(requested - mapping.keys())
         hits = requested & mapping.keys()
         if misses:
@@ -751,7 +666,7 @@ class HybridCache:
         done.record(compute)
         r.layer_computed[layer] = done
         r.arena_last_use = done
-        self.pending = (layer, epoch, host_ids, done, reserved)
+        self.pending = (layer, epoch, tuple(sorted(requested)), done)
         self.stats["prefill_global_hits"] += len(hits)
         self.stats["prefill_gpu_misses"] += len(misses)
         r._record_invocation(bool(misses), ids, layer)
@@ -767,7 +682,9 @@ class HybridCache:
             self.current = None
             for event in r.layer_computed.values():
                 event.synchronize()
-            plan = self.policy.plan_resize(budget)
+            plan = self.policy.plan_resize(
+                budget, reserved=self._reserved_slots(budget)
+            )
             # VMM growth was committed by StagedKVLoan before this method;
             # shrink must retain the old backing until all moves complete.
             source = r.staged_pool.pool_views(max(len(self.policy.keys), budget))
@@ -780,6 +697,8 @@ class HybridCache:
                 done.record(stream)
             done.synchronize()
             self.policy.commit_resize(plan)
+            self.stats["usable_cache_slots"] = budget - len(self.policy.reserved)
+            self.readable.clear()
             r.cache_pool = r.staged_pool.pool_views(budget)
             self.pool = r.cache_pool
             self.lookups.clear()

@@ -3,7 +3,7 @@
 
 import unittest
 
-from sglang.srt.layers.moe.qwen38_hybrid_policy import GlobalLfu, choose_all_gpu
+from sglang.srt.layers.moe.qwen38_hybrid_policy import GlobalLfu
 from sglang.test.ci.ci_register import register_cpu_ci
 from sglang.test.test_utils import CustomTestCase
 
@@ -54,6 +54,8 @@ class TestHybridPolicy(CustomTestCase):
 
     def test_cpu_misses_drive_lfu_and_admission(self):
         p = GlobalLfu(1, 4, [1])
+        p.seed(0, {0: 0})
+        p.frequency[0][0] = 1.0
         for iteration in range(2):
             epoch, _ = p.begin(0)
             p.release(0, epoch)
@@ -63,10 +65,34 @@ class TestHybridPolicy(CustomTestCase):
         self.assertAlmostEqual(p.frequency[0][2], 1.95)
         self.assertIn(2, p.layers[0].mapping)
 
+    def test_first_touch_uses_empty_slot_without_probation(self):
+        p = GlobalLfu(2, 8, [1, 0])
+        epoch, _ = p.begin(0)
+        p.release(0, epoch)
+        self.assertEqual(p.plan(0, epoch, [3]), ([], [(3, 0)]))
+        self.assertNotIn(3, p.layers[0].mapping)
+        p.commit(0, epoch, [(3, 0)])
+        self.assertEqual(p.layers[0].mapping, {3: 0})
+
+    def test_new_arena_reservation_relocates_residents_even_inside_prefix(self):
+        p = GlobalLfu(2, 8, [4, 4])
+        p.seed(1, {0: 0, 1: 1, 2: 2, 3: 3})
+        p.frequency[1][:4] = [1, 2, 3, 4]
+        plan = p.plan_resize(6, reserved={0, 3, 4, 5})
+        self.assertEqual(set(key for key in plan.keys if key), {(1, 2), (1, 3)})
+        self.assertTrue(all(plan.keys[slot] is None for slot in plan.reserved))
+        payload = {slot: key for slot, key in enumerate(p.keys)}
+        before = dict(payload)
+        for old, new in plan.moves:
+            payload[new] = before[old]
+        p.commit_resize(plan)
+        self.assertEqual(p.reserved, {0, 3, 4, 5})
+        for expert, slot in p.layers[1].mapping.items():
+            self.assertEqual(payload[slot], (1, expert))
+
     def test_only_released_empty_ownership_can_move(self):
         p = GlobalLfu(2, 8, [2, 0], admission=0)
         epoch, _ = p.begin(1)
-        self.assertIsNone(p.immediate(1, epoch, {3}))
         p.release(1, epoch)
         _, fills = p.plan(1, epoch, [3])
         self.assertEqual(fills, [])
@@ -82,45 +108,6 @@ class TestHybridPolicy(CustomTestCase):
         p.commit(1, epoch, fills)
         self.assertEqual(p.owner[0], 1)
 
-    def test_immediate_protects_resident_and_uses_own_slots(self):
-        p = GlobalLfu(2, 8, [2, 2])
-        p.seed(0, {0: 0, 1: 1})
-        p.seed(1, {6: 2, 7: 3})
-        epoch, _ = p.begin(0)
-        self.assertIsNone(p.immediate(0, epoch, {0, 2, 3}))
-        fills = p.immediate(0, epoch, {0, 2})
-        self.assertEqual(fills, [(2, 1)])
-        self.assertEqual(p.layers[0].mapping, {0: 0})
-        self.assertEqual(p.layers[1].mapping, {6: 2, 7: 3})
-
-    def test_zero_slot_reclaims_completed_lowest_value(self):
-        p = GlobalLfu(3, 8, [2, 1, 0])
-        p.seed(0, {0: 0, 1: 1})
-        p.seed(1, {2: 2})
-        p.frequency[0][0], p.frequency[0][1] = 8, 3
-        p.frequency[1][2] = 1
-        for layer in (0, 1):
-            epoch, _ = p.begin(layer)
-            p.release(layer, epoch)
-            p.commit(layer, epoch, [])
-        epoch, _ = p.begin(2)
-        evicted = p.reclaim_zero_slot(2, epoch, {4, 5})
-        self.assertEqual(evicted, [(1, 2, 2), (0, 1, 1)])
-        self.assertEqual(p.layers[0].mapping, {0: 0})
-        self.assertEqual(p.immediate(2, epoch, {4, 5}), [(4, 1), (5, 2)])
-
-    def test_zero_slot_never_reclaims_active_or_never_released(self):
-        p = GlobalLfu(3, 8, [1, 1, 0])
-        p.seed(0, {0: 0})
-        p.seed(1, {1: 1})
-        p.begin(0)
-        epoch, _ = p.begin(2)
-        with self.assertRaises(RuntimeError):
-            p.reclaim_zero_slot(2, epoch, {2})
-        self.assertEqual(p.owner, [0, 1])
-        self.assertEqual(p.layers[0].mapping, {0: 0})
-        self.assertEqual(p.layers[1].mapping, {1: 1})
-
     def test_cold_eviction_releases_global_slot(self):
         p = GlobalLfu(1, 4, [1])
         p.seed(0, {0: 0})
@@ -131,11 +118,6 @@ class TestHybridPolicy(CustomTestCase):
         self.assertEqual(fills, [])
         self.assertEqual(p.owner, [None])
         p.commit(0, epoch, fills)
-
-    def test_crossover_capacity_gate(self):
-        self.assertFalse(choose_all_gpu(3, 3, 4, 3))
-        self.assertFalse(choose_all_gpu(2, 4, 4, 3))
-        self.assertTrue(choose_all_gpu(3, 4, 4, 3))
 
     def test_commit_rejects_wrong_reservation(self):
         p = GlobalLfu(2, 4, [1, 1])
@@ -224,7 +206,7 @@ class TestHybridPolicy(CustomTestCase):
                 len(old) < capacity, not plan.evicted and capacity > len(old)
             )
 
-    def test_b12x_zero_slot_is_not_admitted_reclaimed_or_resize_destination(self):
+    def test_b12x_zero_slot_is_not_admitted_or_resize_destination(self):
         p = GlobalLfu(2, 8, [2, 2], admission=0)
         p.reserved.add(0)
         p.set_owner(0, -1)
@@ -237,8 +219,9 @@ class TestHybridPolicy(CustomTestCase):
         p.commit_resize(plan)
         self.assertEqual(p.owner[0], -1)
         epoch, _ = p.begin(0)
-        with self.assertRaises(RuntimeError):
-            p.reclaim_zero_slot(0, epoch, {3, 4})
+        p.release(0, epoch)
+        self.assertEqual(p.plan(0, epoch, [3, 4]), ([], []))
+        p.commit(0, epoch, [])
         self.assertEqual(p.owner[0], -1)
 
     def test_deterministic_pressure_preserves_ownership(self):

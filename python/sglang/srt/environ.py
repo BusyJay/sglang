@@ -1128,8 +1128,6 @@ class Envs:
     SGLANG_ENABLE_QWEN38_CPU_HYBRID = EnvBool(True)
     SGLANG_QWEN38_CPU_LIBRARY = EnvStr("")
     SGLANG_QWEN38_CPU_CORES = EnvTuple(())
-    # Small miss sets overlap CPU work with GPU hits; larger sets fill on GPU.
-    SGLANG_QWEN38_CPU_GPU_MISS_THRESHOLD = EnvInt(3)
     SGLANG_QWEN38_CPU_READY_TIMEOUT = EnvFloat(60.0)
     SGLANG_IS_FLASHINFER_AVAILABLE = EnvBool(True)
     SGLANG_FLASHINFER_USE_PAGED = EnvBool(False)
@@ -2079,6 +2077,9 @@ class _DeprecatedEnv:
 # ad-hoc warnings. For a rename where the old name must keep working through a
 # descriptor, use EnvBoolWithAlias / EnvIntWithAlias instead.
 _DEPRECATED_ENVS: Dict[str, _DeprecatedEnv] = {
+    "SGLANG_QWEN38_CPU_GPU_MISS_THRESHOLD": _DeprecatedEnv(
+        note="Decode misses now compute on CPU while LFU admission runs asynchronously."
+    ),
     "SGLANG_FLASHINFER_MNNVL_CUTEDSL_AR_FUSION": _DeprecatedEnv(
         note=(
             "Pass --flashinfer-allreduce-fusion-backend cutedsl instead. "

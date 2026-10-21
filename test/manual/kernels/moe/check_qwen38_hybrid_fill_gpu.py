@@ -2,6 +2,7 @@
 """Check direct registered DMA and staged global fills against immutable bytes."""
 
 import collections
+import time
 from types import SimpleNamespace
 
 import torch
@@ -74,130 +75,124 @@ def main():
                             tensor[slot].cpu(), expected, rtol=0, atol=0
                         )
                 print(f"PASS direct={direct} fills={fills}", flush=True)
+        direct = False
+        done = torch.cuda.Event()
+        done.record()
+        batches = [[(2, 3), (0, 1)], [(3, 0), (1, 2)]]
+        pending = [subject._copy(0, fills, done) for fills in batches]
+        deadline = time.monotonic() + 10
+        while pending:
+            pending = [copied for copied in pending if not copied.query()]
+            if time.monotonic() > deadline:
+                raise TimeoutError("staged copies did not retire")
+            time.sleep(0.0001)
+        for fills in batches:
+            for expert, slot in fills:
+                for name, tensor in subject.pool.items():
+                    record = records[name]
+                    count = record.nbytes // 4
+                    begin = record.offset + expert * count
+                    torch.testing.assert_close(
+                        tensor[slot].cpu(),
+                        source[begin : begin + count],
+                        rtol=0,
+                        atol=0,
+                    )
+        print("PASS concurrent staged buffer leases", flush=True)
     finally:
         subject.fill_stream.synchronize()
         _module().mailbox_unregister(source)
 
 
-def check_arena_seed():
-    for dtype in (torch.uint8, torch.float8_e4m3fn, torch.bfloat16):
-        for borrowed in (False, True):
-            for fills in ([], [(2, 3), (0, 6)], [(3, 1), (1, 7)]):
-                subject = HybridCache.__new__(HybridCache)
-                subject.pool = {
-                    name: torch.zeros((12, width), dtype=dtype, device="cuda")
-                    for name, width in (("weights", 1024), ("alpha", 4))
-                }
-                arena = {
-                    name: tensor[-4:] if borrowed else torch.zeros_like(tensor[:4])
-                    for name, tensor in subject.pool.items()
-                }
-                for tensor in arena.values():
-                    raw = tensor.view(torch.uint8)
-                    raw.copy_(
-                        torch.arange(raw.numel(), device="cuda")
-                        .reshape(raw.shape)
-                        .to(torch.uint8)
+def check_reserved_resize():
+    from sglang.srt.layers.moe.qwen38_hybrid_policy import GlobalLfu
+
+    policy = GlobalLfu(2, 8, [8, 8])
+    for layer in range(2):
+        policy.seed(layer, {e: e for e in range(8)})
+        policy.frequency[layer] = [float(e + 8 * layer) for e in range(8)]
+    payload = torch.arange(16 * 37, device="cuda").to(torch.uint8).reshape(16, 37)
+    expected = {key: payload[slot].clone() for slot, key in enumerate(policy.keys)}
+    for budget in (16, 12, 16, 10, 15):
+        reserved = {0, *range(budget - 4, budget)}
+        plan = policy.plan_resize(budget, reserved=reserved)
+        for old, new in plan.moves:
+            payload[new].copy_(payload[old])
+        torch.cuda.synchronize()
+        policy.commit_resize(plan)
+        for slot, key in enumerate(policy.keys):
+            if key is not None:
+                assert slot not in reserved
+                torch.testing.assert_close(payload[slot], expected[key], rtol=0, atol=0)
+        print(
+            f"PASS reserved resize budget={budget} moves={len(plan.moves)}", flush=True
+        )
+
+
+def check_hybrid_dispatch():
+    # Real D2H/CPU/H2D and route partitioning, including repeated buffer reuse.
+    import queue
+    import threading
+
+    for tokens in (1, 3):
+        for mode in ("cpu", "hit", "all_cpu"):
+            subject = HybridCache.__new__(HybridCache)
+            subject._seed = lambda: None
+            mapping = {} if mode == "all_cpu" else {0: 1, 1: 2}
+            subject.policy = SimpleNamespace(keys=[None] * 8)
+            subject.timeout = 10
+            subject.host_buffers, subject.lookups = {}, {}
+            subject.stats = collections.Counter()
+            subject.failure = None
+            subject.readback = torch.cuda.Stream()
+            subject.result_stream = torch.cuda.Stream()
+            subject.runtime = SimpleNamespace(
+                device=torch.device("cuda"),
+                manifest=SimpleNamespace(num_experts=4, num_layers=1),
+                layer_computed={},
+                _record_invocation=lambda *args: None,
+                finish_layer=lambda _: None,
+            )
+            calls = []
+
+            def gpu(x, slots, weights, layer):
+                calls.append(slots.clone())
+                value = (slots.clamp_min(0).float() * weights).sum(-1, keepdim=True)
+                return value.expand_as(x).contiguous()
+
+            def cpu(layer, x, ids, weights, result):
+                value = ((ids + 1).clamp_min(0).float() * weights).sum(-1, keepdim=True)
+                result.copy_(value.expand_as(x))
+
+            subject._gpu = gpu
+            subject.cpu = SimpleNamespace(run=cpu, release_worker=lambda: None)
+            subject.cpu_jobs = queue.Queue()
+            worker = threading.Thread(target=subject._cpu_work)
+            worker.start()
+            try:
+                for iteration in range(3):
+                    subject.current = (0, iteration + 1, mapping)
+                    route = [0, 1, -1, -1] if mode == "hit" else [0, 1, 2, -1]
+                    ids = torch.tensor(
+                        [route] * tokens, dtype=torch.int32, device="cuda"
                     )
-                expected = {
-                    name: tensor.clone().view(torch.uint8)
-                    for name, tensor in subject.pool.items()
-                }
-                for expert, slot in fills:
-                    for name in expected:
-                        expected[name][slot].copy_(
-                            arena[name][expert].view(torch.uint8)
-                        )
-                subject.policy = SimpleNamespace(keys=[None] * 12)
-                subject.runtime = SimpleNamespace(
-                    device=torch.device("cuda"),
-                    manifest=SimpleNamespace(num_experts=4, num_layers=1),
-                    arena=arena,
-                )
-                subject.fill_stream = torch.cuda.Stream()
-                subject.stats = collections.Counter()
-                done = torch.cuda.Event()
-                done.record()
-                subject._seed_from_arena(0, fills, done).synchronize()
-                for name, tensor in subject.pool.items():
+                    x = torch.zeros((tokens, 32), dtype=torch.bfloat16, device="cuda")
+                    weights = torch.full_like(ids, iteration + 1, dtype=torch.float32)
+                    output = subject.run(0, x, ids, weights)
+                    expected = (3 if mode == "hit" else 6) * (iteration + 1)
                     torch.testing.assert_close(
-                        tensor.view(torch.uint8), expected[name], rtol=0, atol=0
+                        output, torch.full_like(output, expected), rtol=0, atol=0
                     )
-                assert subject.stats["fill_bytes"] == 0
-                print(
-                    f"PASS GPU arena seed dtype={dtype} borrowed={borrowed} fills={fills}",
-                    flush=True,
-                )
-
-
-def check_crossover_dispatch():
-    # Exercise the actual runtime dispatch with a linear GPU oracle, including
-    # deferred CPU, full-GPU, and all-hit windows and the eager bootstrap path.
-    for threshold in (1, 3, 33):
-        for tokens in (1, 3):
-            for mode in ("gpu", "cpu", "hit"):
-                subject = HybridCache.__new__(HybridCache)
-                subject._seed = subject._wait_arena = lambda: None
-                subject._wait_layer = lambda _: None
-                mapping = {0: 1, 1: 2}
-                subject.current = (0, 1, mapping)
-                subject.policy = SimpleNamespace(keys=[None] * 8)
-                subject.threshold = threshold
-                subject.timeout = 10
-                subject.host_buffers, subject.lookups = {}, {}
-                subject.stats = collections.Counter()
-                subject.readback = torch.cuda.Stream()
-                subject.result_stream = torch.cuda.Stream()
-                subject.runtime = SimpleNamespace(
-                    device=torch.device("cuda"),
-                    manifest=SimpleNamespace(num_experts=4, num_layers=1),
-                    layer_computed={},
-                    _record_invocation=lambda *args: None,
-                    finish_layer=lambda _: None,
-                )
-                calls = []
-
-                def gpu(x, slots, weights, layer):
-                    calls.append(slots.clone())
-                    value = (slots.clamp_min(0).float() * weights).sum(-1, keepdim=True)
-                    return value.expand_as(x).contiguous()
-
-                subject._gpu = gpu
-
-                def submit(job):
-                    if mode == "cpu":
-                        job[6].fill_(5)
-                    if job[-2] is not None:
-                        job[-2].set_result(mode)
-                    job[-1].set_result(
-                        (
-                            mode,
-                            {2} if mode != "hit" else set(),
-                            {0: 1, 1: 2, 2: 3} if mode == "gpu" else None,
-                        )
-                    )
-
-                subject.cpu_jobs = SimpleNamespace(put_nowait=submit)
-                ids = torch.tensor(
-                    [[0, 1, 2, -1]] * tokens, dtype=torch.int32, device="cuda"
-                )
-                x = torch.zeros((tokens, 32), dtype=torch.bfloat16, device="cuda")
-                weights = torch.ones_like(ids, dtype=torch.float32)
-                output = subject.run(0, x, ids, weights)
-                expected = 6 if mode == "gpu" else 8 if mode == "cpu" else 3
-                torch.testing.assert_close(
-                    output, torch.full_like(output, expected), rtol=0, atol=0
-                )
-                assert len(calls) == (
-                    2 if mode == "gpu" and threshold > ids.numel() else 1
-                )
-                print(
-                    f"PASS crossover threshold={threshold} tokens={tokens} mode={mode}",
-                    flush=True,
-                )
+                assert len(calls) == (0 if mode == "all_cpu" else 3)
+                assert subject.stats["cpu_calls"] == (0 if mode == "hit" else 3)
+                print(f"PASS hybrid tokens={tokens} mode={mode}", flush=True)
+            finally:
+                subject.cpu_jobs.put(None)
+                worker.join(timeout=10)
+                assert not worker.is_alive()
 
 
 if __name__ == "__main__":
     main()
-    check_arena_seed()
-    check_crossover_dispatch()
+    check_reserved_resize()
+    check_hybrid_dispatch()
