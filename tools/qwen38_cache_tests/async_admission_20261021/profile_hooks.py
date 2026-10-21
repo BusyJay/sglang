@@ -8,7 +8,6 @@ def install():
     import numpy as np
     import nvtx
     import torch
-
     from sglang.kernels.ops.moe.cpu_nvfp4 import CpuNvfp4
     from sglang.srt.layers.moe.qwen38_cache_mailbox import DecodeMissMailbox
     from sglang.srt.layers.moe.qwen38_cache_threaded import Qwen38ThreadedExpertRuntime
@@ -53,11 +52,11 @@ def install():
     @functools.wraps(original_cpu)
     def cpu(tensor, *args, **kwargs):
         caller = sys._getframe(1).f_code
-        if (
-            caller.co_filename.endswith("/qwen38_hybrid.py")
-            and caller.co_name == "prefill"
+        if caller.co_filename.endswith("/qwen38_hybrid.py") and caller.co_name in (
+            "prefill",
+            "run",
         ):
-            with scope("hybrid.prefill.ids_readback"):
+            with scope(f"hybrid.{caller.co_name}.ids_readback"):
                 return original_cpu(tensor, *args, **kwargs)
         return original_cpu(tensor, *args, **kwargs)
 

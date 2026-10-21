@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -42,6 +43,19 @@ def main():
         help="NVTX CPU native, input and result waits",
     )
     parser.add_argument("--cpu-sampling", action="store_true")
+    parser.add_argument(
+        "--nsys",
+        default=shutil.which("nsys") or "/usr/lib/nsight-systems/target-linux-x64/nsys",
+        help="Nsight CLI executable inside the capture environment",
+    )
+    parser.add_argument(
+        "--functions-trace",
+        type=Path,
+        default=Path(
+            "tools/qwen38_cache_tests/nsight_optimization_20261021/functions.json"
+        ),
+        help="Function annotations used with --annotations",
+    )
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     base = Path("tools/qwen38_cache_tests/global_cpu_resize_v2_20261020")
@@ -75,7 +89,7 @@ def main():
         elif mode != "default":
             raise ValueError(mode)
         profiled = [
-            "/usr/lib/nsight-systems/target-linux-x64/nsys",
+            args.nsys,
             "profile",
             "--trace=cuda,nvtx,osrt",
             "--sample=none",
@@ -91,9 +105,7 @@ def main():
             str(args.output / mode),
         ] + command
         if args.annotations:
-            profiled[2:2] = [
-                "--python-functions-trace=tools/qwen38_cache_tests/nsight_optimization_20261021/functions.json"
-            ]
+            profiled[2:2] = [f"--python-functions-trace={args.functions_trace}"]
         if args.cpu_sampling:
             profiled[profiled.index("--sample=none")] = "--sample=process-tree"
             profiled[profiled.index("--cpuctxsw=none")] = "--cpuctxsw=process-tree"

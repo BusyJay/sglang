@@ -3,6 +3,7 @@
 #include "rows.hpp"
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <condition_variable>
 #include <cstdio>
 #include <exception>
@@ -17,6 +18,52 @@
 #include <vector>
 
 namespace {
+struct CsfPlane {
+  const uint8_t *storage;
+  int rows, columns;
+  uint8_t *expanded;
+};
+static void expand_plane(const CsfPlane &p, uint8_t *out, int thread,
+                         int threads) {
+
+  const size_t tiles = size_t(p.rows) * p.columns / 512;
+  const auto *metadata = reinterpret_cast<const uint32_t *>(
+      p.storage + 1024 + p.rows * (1 + p.columns / 2));
+  const auto *records = metadata + tiles * 8;
+  // Decode regular values in native 128-word tiles, then patch only the
+  // bitmap exceptions. This keeps division and metadata out of the SIMD loop.
+  const __m128i nibble = _mm_set1_epi8(15);
+  const __m128i spread =
+      _mm_setr_epi8(0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3);
+  for (size_t tile = tiles * thread / threads;
+       tile < tiles * (thread + 1) / threads; ++tile) {
+    const size_t slab = tile / (p.columns / 4);
+    const auto *fixed = p.storage + 1024 + slab * 128 * (1 + p.columns / 2);
+    const auto *codes = fixed + 128 + (tile % (p.columns / 4)) * 256;
+    for (size_t lane = 0; lane < 128; lane += 4) {
+      uint32_t bases;
+      memcpy(&bases, fixed + lane, 4);
+      __m128i code = _mm_loadl_epi64((const __m128i *)(codes + lane * 2));
+      __m128i lo = _mm_and_si128(code, nibble);
+      __m128i hi = _mm_and_si128(_mm_srli_epi16(code, 4), nibble);
+      __m128i value =
+          _mm_add_epi8(_mm_unpacklo_epi8(lo, hi),
+                       _mm_shuffle_epi8(_mm_cvtsi32_si128(bases), spread));
+      _mm_storeu_si128((__m128i *)(out + tile * 512 + lane * 4), value);
+    }
+    const auto *meta = metadata + tile * 8;
+    size_t rec = meta[0];
+    for (int group = 0; group < 4; ++group) {
+      uint32_t mask = meta[2 + group];
+      while (mask) {
+        unsigned lane = group * 32 + __builtin_ctz(mask);
+        memcpy(out + tile * 512 + lane * 4, records + rec++, 4);
+        mask &= mask - 1;
+      }
+    }
+  }
+}
+
 thread_local char error[256];
 class Workers {
   std::mutex mutex;
@@ -31,6 +78,7 @@ class Workers {
 public:
   const std::vector<int> cores;
   std::vector<uint16_t> hidden;
+  std::vector<uint8_t> expanded;
   std::vector<float> sum, value;
   explicit Workers(const int *ids, int count) : cores(ids, ids + count) {
     for (int index = 0; index < count; index++)
@@ -96,11 +144,40 @@ Workers &pool(const int *cores, int count) {
   return *cached;
 }
 
+// Workers synchronize only inside an active expert task. The pool still sleeps
+// between calls; occasionally yield if another worker has been descheduled.
+class PhaseBarrier {
+  alignas(64) std::atomic<unsigned> remaining;
+  alignas(64) std::atomic<unsigned> phase{0};
+  const unsigned participants;
+
+public:
+  explicit PhaseBarrier(unsigned n) : remaining(n), participants(n) {}
+  void wait() {
+    const unsigned seen = phase.load(std::memory_order_relaxed);
+    if (remaining.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+      // The acq_rel arrival chain publishes every worker's writes before
+      // releasing the next phase (decoded scales, then hidden activations).
+      remaining.store(participants, std::memory_order_relaxed);
+      phase.fetch_add(1, std::memory_order_release);
+    } else {
+      unsigned spins = 0;
+      while (phase.load(std::memory_order_acquire) == seen) {
+        _mm_pause();
+        if (++spins == 4096) {
+          std::this_thread::yield();
+          spins = 0;
+        }
+      }
+    }
+  }
+};
+
 template <int NT>
 void expert(const uint8_t *w13, const uint8_t *w2, const uint8_t *s13,
             const uint8_t *s2, const uint16_t *x, int h, int i,
             const int *tokens, float g1, float g2, bool post_scale,
-            Workers &workers) {
+            Workers &workers, const CsfPlane (&planes)[2]) {
   workers.hidden.resize(NT * i);
   // B12X applies global scales after projection, so both decode tables are
   // constant. Keep one immutable table instead of rebuilding 8192 entries
@@ -119,7 +196,14 @@ void expert(const uint8_t *w13, const uint8_t *w2, const uint8_t *s13,
     hp[t] = workers.hidden.data() + t * i;
   }
   const int threads = workers.cores.size();
+  PhaseBarrier barrier(threads);
   workers.dispatch([&](int thread) {
+    if (planes[0].storage || planes[1].storage) {
+      for (int p = 0; p < 2; ++p)
+        if (planes[p].storage)
+          expand_plane(planes[p], planes[p].expanded, thread, threads);
+      barrier.wait();
+    }
     for (int row = thread * 4; row < i; row += threads * 4) {
       int rows[8];
       for (int j = 0; j < 4; j++) {
@@ -136,8 +220,7 @@ void expert(const uint8_t *w13, const uint8_t *w2, const uint8_t *s13,
               a16::to_bf16(g / (1 + std::exp(-g)) * up);
         }
     }
-  });
-  workers.dispatch([&](int thread) {
+    barrier.wait();
     for (int row = thread * 8; row < h; row += threads * 8) {
       int rows[8];
       for (int j = 0; j < 8; j++)
@@ -152,12 +235,14 @@ void expert(const uint8_t *w13, const uint8_t *w2, const uint8_t *s13,
 }
 } // namespace
 extern "C" int qwen38_cpu_abi() { return 2; }
+extern "C" int qwen38_cpu_csf_abi() { return 2; }
 extern "C" void qwen38_cpu_release() { cached.reset(); }
 extern "C" const char *qwen38_cpu_error() { return error; }
 static int run(const uint8_t *payload, uint64_t bytes, const uint64_t *offsets,
                int experts, int h, int i, const uint16_t *x, const int32_t *ids,
                const float *weights, int nt, int topk, int threads,
-               const int *cores, int nc, float *out, bool post_scale) {
+               const int *cores, int nc, float *out, bool post_scale,
+               const uint64_t *csf_strides = nullptr) {
   try {
     if (!payload || !offsets || !x || !ids || !weights || !out ||
         experts <= 0 || h <= 0 || i <= 0 || h > 65536 || i > 65536 || h % 32 ||
@@ -184,12 +269,22 @@ static int run(const uint8_t *payload, uint64_t bytes, const uint64_t *offsets,
                        size_t((h + 127) / 128 * 128) * ((i / 16 + 3) / 4 * 4),
                        4,
                        4};
+    size_t source_stride[6];
+    std::copy(stride, stride + 6, source_stride);
+    if (csf_strides) {
+      for (int p = 0; p < 2; p++)
+        if (csf_strides[p])
+          source_stride[2 + p] = csf_strides[p];
+    }
     for (int k = 0; k < 6; k++)
-      if (offsets[k] > bytes || stride[k] * experts > bytes - offsets[k])
+      if (offsets[k] > bytes ||
+          source_stride[k] > (bytes - offsets[k]) / experts)
         throw std::runtime_error("CPU source range exceeds payload");
     auto &workers = pool(cores, threads);
     workers.sum.assign(nt * h, 0);
     workers.value.resize(3 * h);
+    if (csf_strides)
+      workers.expanded.resize(stride[2] + stride[3]);
     auto &sum = workers.sum;
     std::vector<int> active;
     for (int k = 0; k < nt * topk; k++)
@@ -224,17 +319,63 @@ static int run(const uint8_t *payload, uint64_t bytes, const uint64_t *offsets,
         throw std::runtime_error("nonfinite CPU global scale");
       const uint8_t *w13 = payload + offsets[0] + e * stride[0],
                     *w2 = payload + offsets[1] + e * stride[1],
-                    *s13 = payload + offsets[2] + e * stride[2],
-                    *s2 = payload + offsets[3] + e * stride[3];
+                    *s13 = payload + offsets[2] + e * source_stride[2],
+                    *s2 = payload + offsets[3] + e * source_stride[3];
+      CsfPlane planes[2]{};
+      if (csf_strides) {
+        const uint8_t *scales[] = {s13, s2};
+        for (int p = 0; p < 2; p++) {
+          if (!csf_strides[p])
+            continue;
+          int rows = ((p == 0 ? 2 * i : h) + 127) / 128 * 128;
+          int cols = (((p == 0 ? h : i) / 16 + 3) / 4) * 4;
+          size_t records_offset =
+              1024 + size_t(rows) * (1 + cols / 2) + size_t(rows) * cols / 16;
+          if (source_stride[2 + p] < records_offset)
+            throw std::runtime_error("invalid CPU CSF slab size");
+          uint32_t count, magic;
+          memcpy(&count, scales[p] + 1008, 4);
+          memcpy(&magic, scales[p] + 1012, 4);
+          if (magic != 0x32465343 ||
+              count > (source_stride[2 + p] - records_offset) / 4)
+            throw std::runtime_error("invalid CPU CSF header");
+          const auto *meta = reinterpret_cast<const uint32_t *>(
+              scales[p] + 1024 + size_t(rows) * (1 + cols / 2));
+          uint32_t expected = 0;
+          for (size_t tile = 0; tile < size_t(rows) * cols / 512;
+               tile++, meta += 8) {
+            if (meta[0] != expected || meta[7])
+              throw std::runtime_error("invalid CPU CSF bitmap offset");
+            uint32_t prefix = 0;
+            for (int group = 0; group < 4; group++) {
+              if (((meta[1] >> (group * 8)) & 255) != prefix)
+                throw std::runtime_error("invalid CPU CSF bitmap rank");
+              prefix += __builtin_popcount(meta[2 + group]);
+            }
+            expected += prefix;
+            if (meta[6] != expected || expected > count)
+              throw std::runtime_error("invalid CPU CSF bitmap extent");
+          }
+          if (expected != count)
+            throw std::runtime_error("invalid CPU CSF replacement count");
+          planes[p] = {scales[p], rows, cols,
+                       workers.expanded.data() + (p ? stride[2] : 0)};
+        }
+        auto *expanded = workers.expanded.data();
+        if (csf_strides[0])
+          s13 = expanded;
+        if (csf_strides[1])
+          s2 = expanded + stride[2];
+      }
       if (n == 1)
         expert<1>(w13, w2, s13, s2, x, h, i, tokens, g1, g2, post_scale,
-                  workers);
+                  workers, planes);
       else if (n == 2)
         expert<2>(w13, w2, s13, s2, x, h, i, tokens, g1, g2, post_scale,
-                  workers);
+                  workers, planes);
       else
         expert<3>(w13, w2, s13, s2, x, h, i, tokens, g1, g2, post_scale,
-                  workers);
+                  workers, planes);
       for (int j = 0; j < n; j++) {
         int t = tokens[j];
         float rw = 0;
@@ -271,3 +412,18 @@ static int run(const uint8_t *payload, uint64_t bytes, const uint64_t *offsets,
 QWEN38_CPU_ENTRY(qwen38_cpu_run, false)
 QWEN38_CPU_ENTRY(qwen38_cpu_run_b12x, true)
 #undef QWEN38_CPU_ENTRY
+
+extern "C" int qwen38_cpu_run_csf(const uint8_t *payload, uint64_t bytes,
+                                  const uint64_t *offsets, int experts, int h,
+                                  int i, const uint16_t *x, const int32_t *ids,
+                                  const float *weights, int nt, int topk,
+                                  int threads, const int *cores, int nc,
+                                  float *out, const uint64_t *csf_strides,
+                                  int post_scale) {
+  if (!csf_strides) {
+    snprintf(error, sizeof(error), "missing CPU CSF strides");
+    return -1;
+  }
+  return run(payload, bytes, offsets, experts, h, i, x, ids, weights, nt, topk,
+             threads, cores, nc, out, post_scale != 0, csf_strides);
+}

@@ -2,6 +2,7 @@
 
 import os
 import unittest
+from collections import OrderedDict
 from types import SimpleNamespace
 from unittest import mock
 
@@ -61,7 +62,9 @@ class TestCachedB12x(unittest.TestCase):
 
         backend = CachedB12xW4A16.__new__(CachedB12xW4A16)
         backend.hidden, backend.width, backend.max_experts = 128, 32, 4
+        backend.scale_encoding = {}
         backend.globals = torch.empty(2, 4)
+        backend.global_views = OrderedDict()
         backend.workspace = torch.zeros(10, dtype=torch.int32)
         backend.intermediate = torch.empty(3 * 128 * 32 * 2, dtype=torch.bfloat16)
         backend.unused = torch.empty(0, dtype=torch.bfloat16)

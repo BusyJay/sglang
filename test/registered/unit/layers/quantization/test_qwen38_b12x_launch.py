@@ -78,7 +78,7 @@ class TestPreparedLaunch(CustomTestCase):
         self.assertEqual(len(prepared.bindings), 8)
         # First two calls share weights/geometry; subsequent replacements rebind.
         self.assertEqual(kernel._compile_w4a16_small_m_direct.call_count, 11)
-        for launch, fixed in prepared.bindings.values():
+        for launch, fixed, tail in prepared.bindings.values():
             self.assertFalse(any(isinstance(value, torch.Tensor) for value in fixed))
 
     def test_geometry_and_id_dtype_change_use_distinct_launch(self):

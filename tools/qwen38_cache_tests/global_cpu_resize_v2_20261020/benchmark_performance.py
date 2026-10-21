@@ -140,7 +140,6 @@ def main():
             print(f"{mode}: reuse completed mode", flush=True)
             continue
         env = dict(os.environ)
-        env.pop("SGLANG_ENABLE_QWEN38_CPU_HYBRID", None)
         env.pop("SGLANG_QWEN38_CPU_GPU_MISS_THRESHOLD", None)
         if mode == "legacy_gpu":
             env["SGLANG_ENABLE_QWEN38_CPU_HYBRID"] = "0"
@@ -153,7 +152,7 @@ def main():
                 key: env[key]
                 for key in (
                     "SGLANG_ENABLE_QWEN38_CPU_HYBRID",
-                    "SGLANG_QWEN38_CPU_GPU_MISS_THRESHOLD",
+                    "SGLANG_QWEN38_CPU_COST_CALIBRATION",
                 )
                 if key in env
             },

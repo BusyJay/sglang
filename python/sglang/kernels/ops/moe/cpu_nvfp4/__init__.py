@@ -82,6 +82,41 @@ class CpuNvfp4:
             ctypes.c_int,
             ctypes.c_void_p,
         ]
+        self.csf_strides = None
+        if pack.manifest.scale_encoding:
+            if (
+                not hasattr(self.library, "qwen38_cpu_run_csf")
+                or not hasattr(self.library, "qwen38_cpu_csf_abi")
+                or self.library.qwen38_cpu_csf_abi() != 2
+            ):
+                raise ValueError("rebuild CPU library for compressed scales")
+            self.native_run = self.library.qwen38_cpu_run_csf
+            self.native_run.argtypes = [
+                ctypes.c_void_p,
+                ctypes.c_uint64,
+                ctypes.c_void_p,
+                ctypes.c_int,
+                ctypes.c_int,
+                ctypes.c_int,
+                ctypes.c_void_p,
+                ctypes.c_void_p,
+                ctypes.c_void_p,
+                ctypes.c_int,
+                ctypes.c_int,
+                ctypes.c_int,
+                ctypes.c_void_p,
+                ctypes.c_int,
+                ctypes.c_void_p,
+                ctypes.c_void_p,
+                ctypes.c_int,
+            ]
+            self.csf_strides = (ctypes.c_uint64 * 2)(
+                *(
+                    pack.manifest.scale_encoding.get(name, {}).get("stride", 0)
+                    for name in ("w13_blockscale_swizzled", "w2_blockscale_swizzled")
+                )
+            )
+        self.post_scale = int(gpu_backend == "b12x")
         self.native_run.restype = ctypes.c_int
         self.library.qwen38_cpu_error.restype = ctypes.c_char_p
         names = (
@@ -137,6 +172,11 @@ class CpuNvfp4:
             self.cores,
             len(self.cores),
             output.data_ptr(),
+            *(
+                (self.csf_strides, self.post_scale)
+                if self.csf_strides is not None
+                else ()
+            ),
         )
         if status:
             # The native ABI checks every route, weight and BF16 activation.

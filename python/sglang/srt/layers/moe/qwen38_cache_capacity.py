@@ -41,3 +41,29 @@ def resolve_cache_slots(config, num_layers, num_experts, minimum=10):
         )
     base, remainder = divmod(total, num_layers)
     return [base + int(layer < remainder) for layer in range(num_layers)]
+
+
+def slots_from_byte_budget(config, manifest):
+    """Size opaque expert slots from actual pack strides, including alphas."""
+    from sglang.srt.model_loader.qwen38_nvfp4_pack.format import REQUIRED_TENSORS
+
+    budget = config.get("cache_budget_bytes")
+    if budget is None:
+        return config
+    if type(budget) is not int or budget <= 0:
+        raise ValueError("cache_budget_bytes must be a positive integer")
+    if any(
+        name in config
+        for name in ("cache_slots_total", "cache_slots_per_layer", "layer_cache_slots")
+    ):
+        raise ValueError(
+            "cache_budget_bytes cannot be combined with slot capacity options"
+        )
+    rows = {
+        sum(records[n].nbytes for n in REQUIRED_TENSORS) // manifest.num_experts
+        for records in manifest.tensors.values()
+    }
+    if len(rows) != 1:
+        raise ValueError("byte budget requires uniform expert row sizes")
+    total = min(budget // rows.pop(), manifest.num_layers * manifest.num_experts)
+    return {**config, "cache_slots_total": total}

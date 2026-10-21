@@ -16,6 +16,7 @@ import triton
 import triton.language as tl
 
 from sglang.srt.layers.quantization.qwen38_fp4_mtp import _decode
+from sglang.kernels.ops.moe.qwen38_csf import load_scale
 
 
 @triton.jit
@@ -44,6 +45,7 @@ def _cache_project(
     TOPK: tl.constexpr,
     E,
     FIRST: tl.constexpr,
+    CSF_STRIDE: tl.constexpr = 0,
     BN: tl.constexpr = 32,
     BK: tl.constexpr = 256,
 ):
@@ -71,7 +73,7 @@ def _cache_project(
             x = tl.load(X + xrow * K + col, mask=col < K, other=0.0).to(tl.float32)
             # Existing CUTLASS ABI stores [up, gate], plain contiguous halves.
             logical_row = n + (N if FIRST else 0)
-            rows = 2 * N if FIRST else N
+            rows: tl.constexpr = 2 * N if FIRST else N
             wr = safe_expert * rows + logical_row
             byte = tl.load(
                 W + wr[:, None] * (K // 2) + col[None, :] // 2,
@@ -79,13 +81,16 @@ def _cache_project(
                 other=0,
             )
             code = (byte >> ((col[None, :] % 2) * 4)) & 15
-            scale = tl.load(
-                S
-                + safe_expert * (tl.cdiv(rows, 128) * 128) * (tl.cdiv(K // 16, 4) * 4)
-                + _scale_offset(logical_row[:, None], col[None, :] // 16, K // 16),
-                mask=(n[:, None] < N) & (col[None, :] < K) & valid,
-                other=0.0,
-            ).to(tl.float32)
+            scale = load_scale(
+                S,
+                safe_expert,
+                logical_row[:, None],
+                col[None, :] // 16,
+                triton.cdiv(rows, 128) * 128,
+                triton.cdiv(K // 16, 4) * 4,
+                CSF_STRIDE,
+                (n[:, None] < N) & (col[None, :] < K) & valid,
+            )
             w = _decode(code, scale, global_scale).to(tl.bfloat16).to(tl.float32)
             acc += tl.sum(w * x[None, :], axis=1)
             if FIRST:
@@ -96,15 +101,16 @@ def _cache_project(
                     other=0,
                 )
                 code_up = (byte_up >> ((col[None, :] % 2) * 4)) & 15
-                scale_up = tl.load(
-                    S
-                    + safe_expert
-                    * (tl.cdiv(rows, 128) * 128)
-                    * (tl.cdiv(K // 16, 4) * 4)
-                    + _scale_offset(n[:, None], col[None, :] // 16, K // 16),
-                    mask=(n[:, None] < N) & (col[None, :] < K) & valid,
-                    other=0.0,
-                ).to(tl.float32)
+                scale_up = load_scale(
+                    S,
+                    safe_expert,
+                    n[:, None],
+                    col[None, :] // 16,
+                    triton.cdiv(rows, 128) * 128,
+                    triton.cdiv(K // 16, 4) * 4,
+                    CSF_STRIDE,
+                    (n[:, None] < N) & (col[None, :] < K) & valid,
+                )
                 w_up = (
                     _decode(code_up, scale_up, global_up).to(tl.bfloat16).to(tl.float32)
                 )
@@ -478,6 +484,20 @@ def validate_cache_tensors(tensors, hidden, width, capacity):
     for name, (shape, dtype) in expected.items():
         value = tensors[name]
         if (
+            name.endswith("blockscale_swizzled")
+            and value.dtype == torch.uint8
+            and value.ndim == 2
+        ):
+            rows, cols = shape[1:]
+            if (
+                value.shape[0] != capacity
+                or not value.is_contiguous()
+                or value.shape[1] % 16
+                or not 16 + rows + rows * cols // 2 <= value.shape[1] < rows * cols
+            ):
+                raise ValueError(f"incompatible CSF cache ABI tensor {name}")
+            continue
+        if (
             tuple(value.shape) != shape
             or value.dtype != dtype
             or not value.is_contiguous()
@@ -544,6 +564,13 @@ def cached_w4a16_moe(
         raise ValueError("cached W4A16 tensors must share the input device")
     if split_k is None:
         split_k = int(os.getenv("SGLANG_QWEN38_CACHE_W4A16_SPLIT_K", "0"))
+    compressed = any(
+        tensors[n].ndim == 2
+        for n in ("w13_blockscale_swizzled", "w2_blockscale_swizzled")
+    )
+    if compressed:
+        split_k = 0
+        verify_mode = "baseline"
     if split_k not in (0, 1, 2, 4, 8):
         raise ValueError("W4A16 split_k must be 0, 1, 2, 4 or 8")
     if verify_mode is None:
@@ -603,6 +630,11 @@ def cached_w4a16_moe(
             TOPK=topk,
             E=capacity,
             FIRST=True,
+            CSF_STRIDE=(
+                tensors["w13_blockscale_swizzled"].shape[1]
+                if tensors["w13_blockscale_swizzled"].ndim == 2
+                else 0
+            ),
         )
         _cache_project[(route_count, triton.cdiv(hidden, 32))](
             intermediate,
@@ -618,6 +650,11 @@ def cached_w4a16_moe(
             TOPK=topk,
             E=capacity,
             FIRST=False,
+            CSF_STRIDE=(
+                tensors["w2_blockscale_swizzled"].shape[1]
+                if tensors["w2_blockscale_swizzled"].ndim == 2
+                else 0
+            ),
         )
         torch.sum(
             projected[:route_count].view(count, topk, hidden),

@@ -58,6 +58,8 @@ class Qwen38SynchronousExpertRuntime:
         route_trace_limit=10000,
     ):
         self.pack = pack
+        if getattr(pack.manifest, "scale_encoding", {}):
+            pack.validate_scale_slabs()
         self.manifest = pack.manifest
         self.device = torch.device(device)
         if self.device.type == "cuda" and self.device.index is None:

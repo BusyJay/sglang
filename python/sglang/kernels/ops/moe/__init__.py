@@ -335,3 +335,93 @@ register_kernel(
         description="Explicitly built experimental AVX512 BF16 NVFP4 expert operator.",
     )
 )
+
+register_kernel(
+    KernelSpec(
+        op="moe.qwen38_hybrid_plan",
+        backend=KernelBackend.JIT,
+        target="sglang.kernels.ops.moe.qwen38_hybrid_plan:hybrid_plan",
+        capabilities=_CUDA,
+        description="Device LFU admission and calibrated CPU subset routing.",
+    )
+)
+
+register_kernel(
+    KernelSpec(
+        op="moe.qwen38_hybrid_plan_indexed",
+        backend=KernelBackend.JIT,
+        target="sglang.kernels.ops.moe.qwen38_hybrid_plan:hybrid_plan_indexed",
+        capabilities=_CUDA,
+        description="Persistent hierarchical LFU heap planning with a free-slot ring.",
+    )
+)
+
+register_kernel(
+    KernelSpec(
+        op="moe.qwen38_hybrid_plan_stage",
+        backend=KernelBackend.JIT,
+        target="sglang.kernels.ops.moe.qwen38_hybrid_plan:hybrid_plan_stage",
+        capabilities=_CUDA,
+        description="Plan GPU/CPU routes and publish selected CPU work to mapped pages.",
+    )
+)
+
+register_kernel(
+    KernelSpec(
+        op="moe.qwen38_hybrid_plan_stage_indexed",
+        backend=KernelBackend.JIT,
+        target="sglang.kernels.ops.moe.qwen38_hybrid_plan:hybrid_plan_stage_indexed",
+        capabilities=_CUDA,
+        description="Indexed LFU planning and conditional mapped CPU publication.",
+    )
+)
+
+register_kernel(
+    KernelSpec(
+        op="moe.qwen38_hybrid_wait",
+        backend=KernelBackend.JIT,
+        target="sglang.kernels.ops.moe.qwen38_hybrid_plan:hybrid_wait",
+        capabilities=_CUDA,
+        description="Wait for selected CPU expert results; bypass GPU-only routes.",
+    )
+)
+
+register_kernel(
+    KernelSpec(
+        op="moe.qwen38_hybrid_stage",
+        backend=KernelBackend.JIT,
+        target="sglang.kernels.ops.moe.qwen38_hybrid_plan:hybrid_stage",
+        capabilities=_CUDA,
+        description="Write a small CPU expert batch into mapped host pages.",
+    )
+)
+
+register_kernel(
+    KernelSpec(
+        op="moe.qwen38_hybrid_result",
+        backend=KernelBackend.JIT,
+        target="sglang.kernels.ops.moe.qwen38_hybrid_plan:hybrid_result",
+        capabilities=_CUDA,
+        description="Read the mapped CPU expert result after completion.",
+    )
+)
+
+register_kernel(
+    KernelSpec(
+        op="moe.qwen38_hybrid_merge",
+        backend=KernelBackend.JIT,
+        target="sglang.kernels.ops.moe.qwen38_hybrid_plan:hybrid_merge",
+        capabilities=_CUDA,
+        description="Conditionally wait for mapped CPU output and merge into BF16.",
+    )
+)
+
+register_kernel(
+    KernelSpec(
+        op="moe.qwen38_b12x_w4a4",
+        backend=KernelBackend.CUTE_DSL,
+        target="sglang.kernels.ops.moe.qwen38_b12x_w4a4:cached_b12x_w4a4_moe",
+        capabilities=frozenset({CapabilityRequirement.cuda(min_sm=(12, 0))}),
+        description="B12X SM12x W4A4 SwiGLU with inline slot-strided CSF scales.",
+    )
+)

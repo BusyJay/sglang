@@ -1,0 +1,137 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Paired CUDA-event latency of scan and indexed Qwen38 planner kernels.
+
+Run on the serving GPU with PYTHONPATH=python python test/manual/kernels/moe/bench_qwen38_hybrid_planner.py.
+The state reset happens before each timed event and is excluded from latency.
+"""
+
+import argparse
+import random
+import statistics
+
+import torch
+
+from sglang.kernels.ops.moe.qwen38_hybrid_plan import hybrid_plan, hybrid_plan_indexed
+from sglang.srt.layers.moe.qwen38_heap_index import build_heap_index
+
+
+def state_for_case(layers, experts, slots, max_slots, free_slots):
+    owners = [-1] * slots
+    owners[0] = -2
+    keys = [-1] * slots
+    lookup = [[-1] * experts for _ in range(layers)]
+    frequency = [[0.0] * experts for _ in range(layers)]
+    next_expert = [0] * layers
+    for slot in range(1, slots - free_slots):
+        layer = (slot - 1) % layers
+        expert = next_expert[layer]
+        next_expert[layer] += 1
+        owners[slot], keys[slot] = layer, expert
+        lookup[layer][expert] = slot
+        frequency[layer][expert] = 10.0 + expert / experts
+    state = tuple(
+        torch.tensor(value, dtype=dtype, device="cuda")
+        for value, dtype in (
+            (lookup, torch.int32),
+            (frequency, torch.float64),
+            (owners, torch.int32),
+            (keys, torch.int32),
+        )
+    )
+    index = build_heap_index(frequency, owners, keys, experts, max_slots).to("cuda")
+    return state, index, next_expert[0]
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--layers", type=int, default=48)
+    parser.add_argument("--experts", type=int, default=512)
+    parser.add_argument("--slots", type=int, default=6388)
+    parser.add_argument("--max-slots", type=int, default=7006)
+    parser.add_argument("--samples", type=int, default=100)
+    parser.add_argument("--warmup", type=int, default=20)
+    args = parser.parse_args()
+    if not torch.cuda.is_available():
+        parser.error("CUDA GPU required")
+    if not (1 < args.slots <= args.max_slots <= args.layers * args.experts):
+        parser.error("invalid slot capacity")
+    if args.samples < 1 or args.warmup < 0:
+        parser.error("invalid sample count")
+    rng = random.Random(617)
+    for case, free_slots in (("all_hit", 0), ("full_miss", 0), ("free_miss", 64)):
+        source, source_index, first_unused = state_for_case(
+            args.layers, args.experts, args.slots, args.max_slots, free_slots
+        )
+        if first_unused + 3 >= args.experts:
+            parser.error("too few unused experts for miss case")
+        ids = torch.tensor(
+            (
+                [[0, 1, 2]]
+                if case == "all_hit"
+                else [[first_unused, first_unused + 1, first_unused + 2]]
+            ),
+            dtype=torch.int32,
+            device="cuda",
+        )
+        costs = torch.empty((0, 70), dtype=torch.float64, device="cuda")
+        state = tuple(torch.empty_like(t) for t in source)
+        index = torch.empty_like(source_index)
+        gpu, cpu = torch.empty_like(ids), torch.empty_like(ids)
+        plan = torch.empty(4 + 2 * ids.numel(), dtype=torch.int32, device="cuda")
+        stats = torch.empty(7, dtype=torch.int64, device="cuda")
+        timings = {False: [], True: []}
+        outcomes = {}
+        for sample in range(args.samples + args.warmup):
+            order = [False, True]
+            rng.shuffle(order)
+            for indexed in order:
+                for target, original in zip(state, source):
+                    target.copy_(original)
+                index.copy_(source_index)
+                stats.zero_()
+                begin, end = torch.cuda.Event(enable_timing=True), torch.cuda.Event(
+                    enable_timing=True
+                )
+                begin.record()
+                call = hybrid_plan_indexed if indexed else hybrid_plan
+                arguments = (ids, *state, costs, gpu, cpu, plan, stats, 0, 0.95, 1.9)
+                if indexed:
+                    arguments += (index,)
+                call(*arguments)
+                end.record()
+                end.synchronize()
+                if sample == 0:
+                    owner_values, key_values = (
+                        tensor.tolist() for tensor in state[2:4]
+                    )
+                    outcomes[indexed] = (
+                        tuple(
+                            sorted(
+                                (owner, key)
+                                for owner, key in zip(owner_values, key_values)
+                                if owner >= 0 and key >= 0
+                            )
+                        ),
+                        tuple(stats.tolist()),
+                        tuple(cpu.reshape(-1).tolist()),
+                        tuple(sorted(plan[4 : 4 + 2 * plan[1].item() : 2].tolist())),
+                    )
+                if sample >= args.warmup:
+                    timings[indexed].append(begin.elapsed_time(end) * 1000)
+        if outcomes[False] != outcomes[True]:
+            raise AssertionError(f"scan and indexed planner differ for {case}")
+        scan, indexed = (statistics.median(timings[key]) for key in (False, True))
+        print(
+            case,
+            "scan_us",
+            round(scan, 3),
+            "indexed_us",
+            round(indexed, 3),
+            "ratio",
+            round(indexed / scan, 3),
+            flush=True,
+        )
+
+
+if __name__ == "__main__":
+    main()

@@ -120,4 +120,5 @@ def fp32_kernel_namespace():
         ),
         namespace,
     )
+    namespace["_qwen38_compile_tree"] = tree
     return SimpleNamespace(**namespace)
