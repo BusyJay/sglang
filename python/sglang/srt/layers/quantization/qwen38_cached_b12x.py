@@ -229,14 +229,18 @@ class CachedB12xW4A16:
         # cancels that scale. No full weight/scales copy or startup snapshot.
         g1, g2 = self.globals[:, :capacity].unbind(0)
         if self.fp32_launch is not None:
+            from sglang.kernels.ops.moe.qwen38_route_alphas import refresh_route_alphas
+
             # Other layers may fill asynchronously. Read only this window's
             # pinned routes and the immutable zero slot for masked IDs.
-            slots = ids.flatten().clamp_min(0).long()
-            g1.index_copy_(
-                0, slots, tensors["g1_alphas"][slots] * tensors["w13_input_scale_quant"]
-            )
-            g2.index_copy_(
-                0, slots, tensors["g2_alphas"][slots] * tensors["w2_input_scale_quant"]
+            refresh_route_alphas(
+                ids,
+                tensors["g1_alphas"],
+                tensors["g2_alphas"],
+                tensors["w13_input_scale_quant"],
+                tensors["w2_input_scale_quant"],
+                g1,
+                g2,
             )
         else:
             torch.mul(tensors["g1_alphas"], tensors["w13_input_scale_quant"], out=g1)

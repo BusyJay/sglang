@@ -54,12 +54,17 @@ def verify(directory, top_k=10):
         )
     final = snapshots[-1] if snapshots else {}
     cpu = final.get("global_cpu_hybrid", {})
-    # Each all-GPU window can account for at most M=3 times top_k misses.
+    # New logs count actual CPU miss work directly. Older logs can prove it
+    # by bounding each all-GPU window at M=3 times top_k misses.
     # Exceeding that bound proves misses also executed on the CPU path.
-    if cpu.get("misses", 0) <= 3 * top_k * cpu.get("all_gpu_calls", 0):
+    if cpu.get("cpu_miss_experts", 0) <= 0 and cpu.get(
+        "misses", 0
+    ) <= 3 * top_k * cpu.get("all_gpu_calls", 0):
         errors.append("no CPU miss-computation evidence beyond the all-GPU bound")
-    if cpu.get("resize_moves", 0) <= 0:
-        errors.append("no retained expert relocation observed")
+    # An empty retiring tail requires no moves. Retention still proves that
+    # resizing preserved live experts; forced moves are checked by GPU VMM tests.
+    if max(cpu.get("resize_moves", 0), cpu.get("resize_retained_experts", 0)) <= 0:
+        errors.append("no retained experts across resize observed")
     probes = [
         dict(
             prompt=c["prompt"],

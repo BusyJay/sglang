@@ -121,10 +121,6 @@ class CpuNvfp4:
             or not all(t.is_contiguous() for t in (x, ids, weights, output))
         ):
             raise ValueError("unsupported CPU hybrid input")
-        if not bool(torch.isfinite(x).all()) or not bool(torch.isfinite(weights).all()):
-            raise ValueError("CPU hybrid accepts finite activations/routes only")
-        if bool(((ids < -1) | (ids >= m.num_experts)).any()):
-            raise ValueError("CPU hybrid route outside expert range")
         status = self.native_run(
             self.address,
             len(self.mapping),
@@ -143,6 +139,14 @@ class CpuNvfp4:
             output.data_ptr(),
         )
         if status:
+            # The native ABI checks every route, weight and BF16 activation.
+            # Recover the public ValueError diagnostics only on its error path.
+            if not bool(torch.isfinite(x).all()) or not bool(
+                torch.isfinite(weights).all()
+            ):
+                raise ValueError("CPU hybrid accepts finite activations/routes only")
+            if bool(((ids < -1) | (ids >= m.num_experts)).any()):
+                raise ValueError("CPU hybrid route outside expert range")
             raise RuntimeError(self.library.qwen38_cpu_error().decode())
 
     def release_worker(self):

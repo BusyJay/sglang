@@ -1,0 +1,111 @@
+{
+  "status": "passed",
+  "errors": [],
+  "cpu_initialization": [
+    "[2026-10-21 01:42:01] Qwen38 CPU hybrid enabled: backend=b12x cores=[0, 1, 2, 3] library=/root/.cache/sglang/cpu_nvfp4/be2f7e6b48d9a134297d05d4/kernel.so global_slots=6388"
+  ],
+  "transitions": [
+    {
+      "stage": 0,
+      "expert_slots": 7006,
+      "kv_tokens": 80000,
+      "runs": 128
+    },
+    {
+      "stage": 1,
+      "expert_slots": 6643,
+      "kv_tokens": 160000,
+      "runs": 3200
+    },
+    {
+      "stage": 2,
+      "expert_slots": 6388,
+      "kv_tokens": 220032,
+      "runs": 3712
+    },
+    {
+      "stage": 0,
+      "expert_slots": 7006,
+      "kv_tokens": 80000,
+      "runs": 6016
+    },
+    {
+      "stage": 1,
+      "expert_slots": 6643,
+      "kv_tokens": 160000,
+      "runs": 8960
+    },
+    {
+      "stage": 2,
+      "expert_slots": 6388,
+      "kv_tokens": 220032,
+      "runs": 9472
+    },
+    {
+      "stage": 1,
+      "expert_slots": 6643,
+      "kv_tokens": 160000,
+      "runs": 12288
+    },
+    {
+      "stage": 0,
+      "expert_slots": 7006,
+      "kv_tokens": 80000,
+      "runs": 12416
+    }
+  ],
+  "snapshots_checked": 120,
+  "cpu_stats": {
+    "all_gpu_calls": 9135,
+    "cpu_calls": 2279,
+    "cpu_miss_experts": 3998,
+    "evictions": 6262,
+    "fill_bytes": 221795662568,
+    "hits": 220163,
+    "initial_global_handoff_waits": 1,
+    "insertions": 91299,
+    "mailbox_fill_calls": 10456,
+    "misses": 82394,
+    "prefill_global_hits": 237260,
+    "prefill_gpu_misses": 475417,
+    "prefill_seed_d2d_bytes": 30628543024,
+    "prefill_seed_experts": 11078,
+    "prefill_tail_evictions": 1557,
+    "resize_events": 8,
+    "resize_evictions": 0,
+    "resize_moves": 0,
+    "resize_retained_experts": 42885,
+    "result_join_waits": 13104,
+    "zero_slot_global_evictions": 0,
+    "zero_slot_waits": 48
+  },
+  "cases": [
+    {
+      "context_tokens": 1024,
+      "seconds": 4.490372989006573
+    },
+    {
+      "context_tokens": 170000,
+      "seconds": 38.3875875800004
+    },
+    {
+      "context_tokens": 1024,
+      "seconds": 3.4096329690073617
+    },
+    {
+      "context_tokens": 170000,
+      "seconds": 38.170527941998444
+    },
+    {
+      "context_tokens": 1024,
+      "seconds": 2.795439142995747
+    }
+  ],
+  "probes": [
+    {
+      "prompt": "What is 17 plus 25? Reply with just the number.",
+      "matched": true,
+      "response": "42"
+    }
+  ]
+}
