@@ -19,6 +19,7 @@ class ResizePlan:
     moves: tuple
     keys: tuple
     evicted: tuple
+    reserved: tuple
 
 
 class GlobalLfu:
@@ -61,7 +62,7 @@ class GlobalLfu:
         elif owner >= 0:
             self.owned_slots[owner].add(slot)
 
-    def plan_resize(self, budget):
+    def plan_resize(self, budget, *, reserved=None):
         """Global LFU retention; preserve surviving prefix addresses in place."""
         if (
             type(budget) is not int
@@ -78,13 +79,19 @@ class GlobalLfu:
         residents.sort(
             key=lambda item: (-self.frequency[item[1][0]][item[1][1]], item[0])
         )
-        reserved = {slot for slot in self.reserved if slot < budget}
+        reserved = (
+            {slot for slot in self.reserved if slot < budget}
+            if reserved is None
+            else set(reserved)
+        )
+        if any(not 0 <= slot < budget for slot in reserved):
+            raise ValueError("reserved slot outside resized cache")
         selected = residents[: max(0, budget - len(reserved))]
         kept = {key for _, key in selected}
         keys = [None] * budget
         moves, tail = [], []
         for slot, key in selected:
-            if slot < budget:
+            if slot < budget and slot not in reserved:
                 keys[slot] = key
             else:
                 tail.append((slot, key))
@@ -104,6 +111,7 @@ class GlobalLfu:
             tuple(moves),
             tuple(keys),
             evicted,
+            tuple(sorted(reserved)),
         )
 
     def commit_resize(self, plan):
@@ -115,6 +123,7 @@ class GlobalLfu:
         ):
             raise RuntimeError("stale global cache resize")
         self.keys = list(plan.keys)
+        self.reserved = set(plan.reserved)
         self.owner = [
             key[0] if key is not None else (-1 if slot in self.reserved else None)
             for slot, key in enumerate(self.keys)
@@ -179,10 +188,12 @@ class GlobalLfu:
             )
         )
         for expert in candidates:
-            if not force and self.frequency[layer][expert] < self.admission:
-                continue
             slot = next(free, None)
             if slot is None:
+                # Empty slots need no probation. Replacing a resident does:
+                # cold misses compute on CPU until they become frequent.
+                if not force and self.frequency[layer][expert] < self.admission:
+                    continue
                 victims = [e for e in state.mapping if e not in requested]
                 if not victims:
                     continue
@@ -221,74 +232,3 @@ class GlobalLfu:
                 raise RuntimeError("invalid cache publication")
             state.mapping[expert] = slot
         state.phase = "locked"
-
-    def reclaim_zero_slot(self, layer, epoch, requested):
-        """Exceptional global reclamation after all earlier maintenance drained.
-
-        Only previously completed compute/maintenance windows are eligible.
-        The caller must join their CUDA completion events before mutation.
-        Ordinary management still touches only its own released layer.
-        """
-        state = self.layers[layer]
-        if state.phase != "computing" or state.epoch != epoch:
-            raise RuntimeError("invalid zero-slot recovery epoch")
-        if self.owned_slots[layer]:
-            raise RuntimeError("global reclamation is only for a zero-slot layer")
-        needed = len(set(requested))
-        free = sorted(self.free_slots)
-        eligible = []
-        for slot, owner in enumerate(self.owner):
-            if owner is None or owner == layer or owner == -1:
-                continue
-            other = self.layers[owner]
-            if other.phase != "locked" or other.epoch == 0:
-                continue
-            key = self.keys[slot]
-            score = self.frequency[owner][key[1]] if key else -1.0
-            eligible.append((score, slot, owner, key))
-        if len(free) + len(eligible) < needed:
-            raise RuntimeError(
-                "zero-slot GPU recovery has insufficient completed slots"
-            )
-        evicted = []
-        for _, slot, owner, key in sorted(eligible)[: max(0, needed - len(free))]:
-            if key is not None:
-                self.layers[owner].mapping.pop(key[1])
-                evicted.append((owner, key[1], slot))
-            self.keys[slot] = None
-            self.set_owner(slot, None)
-            free.append(slot)
-        for slot in free[:needed]:
-            self.set_owner(slot, layer)
-        return evicted
-
-    def immediate(self, layer, epoch, requested):
-        """All-GPU path may use only this layer's existing ownership."""
-        state = self.layers[layer]
-        if state.phase != "computing" or state.epoch != epoch:
-            raise RuntimeError("invalid immediate layer")
-        requested = set(requested)
-        owned = sorted(self.owned_slots[layer])
-        if len(owned) < len(requested):
-            return None
-        missing = sorted(requested - state.mapping.keys())
-        available = [s for s in owned if self.keys[s] is None]
-        victims = sorted(
-            (e for e in state.mapping if e not in requested),
-            key=lambda e: (self.frequency[layer][e], e),
-        )
-        for e in victims:
-            if len(available) >= len(missing):
-                break
-            slot = state.mapping.pop(e)
-            self.keys[slot] = None
-            available.append(slot)
-        fills = []
-        for expert, slot in zip(missing, available):
-            self.keys[slot] = (layer, expert)
-            fills.append((expert, slot))
-        return fills
-
-
-def choose_all_gpu(misses, owned_slots, working_set, threshold):
-    return misses >= threshold and owned_slots >= working_set

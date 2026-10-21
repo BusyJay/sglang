@@ -46,6 +46,8 @@ def main():
             tensor[slot : slot + 1].view(torch.uint8).fill_(slot + 1)
     expected = {key: slot + 1 for slot, key in enumerate(policy.keys)}
     subject = HybridCache.__new__(HybridCache)
+    subject.b12x = {0: object()}
+    subject.readable = {}
     subject.lookups, subject.policy = {}, policy
     subject._seed, subject.drain = lambda: None, lambda: None
     subject.fill_stream = torch.cuda.Stream()
@@ -56,6 +58,7 @@ def main():
         device=torch.device("cuda:0"),
         transfer=torch.cuda.Stream(),
         manifest=manifest,
+        borrowed_arena=True,
         _refresh_staged_arena=lambda: None,
         adaptive_migrated_experts=0,
         adaptive_evicted_experts=0,
@@ -70,6 +73,12 @@ def main():
             else:
                 subject.resize(budgets[stage])
                 pool.release_stage(stage)
+            reserved = {
+                0,
+                *range(budgets[stage] - manifest.num_experts, budgets[stage]),
+            }
+            assert policy.reserved == reserved
+            assert all(policy.keys[slot] is None for slot in reserved)
             for slot, key in enumerate(policy.keys):
                 if key is not None:
                     for tensor in subject.pool.values():

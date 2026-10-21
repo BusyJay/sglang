@@ -23,6 +23,8 @@ def main():
     originals = {key: payload[slot].clone() for slot, key in enumerate(policy.keys)}
     pool = SimpleNamespace(pool_views=lambda budget: {"weight": payload[:budget]})
     subject = HybridCache.__new__(HybridCache)
+    subject.b12x = {}
+    subject.readable = {}
     subject.lookups = {}
     subject.policy = policy
     subject._seed = lambda: None
