@@ -1,0 +1,106 @@
+{
+  "status": "passed",
+  "note": "Fresh short-only control; hybrid changes are bypassed in this mode. Intermediate source before native table caching and batched global fills.",
+  "modes": {
+    "legacy_gpu": {
+      "overrides": {
+        "SGLANG_ENABLE_QWEN38_CPU_HYBRID": "0"
+      },
+      "startup_seconds": 40.01193357699958,
+      "short_aggregate": {
+        "ttft_seconds": {
+          "median": 0.8453814929962391,
+          "min": 0.8063183729973389,
+          "max": 0.8458067199971993
+        },
+        "e2e_seconds": {
+          "median": 5.643294766996405,
+          "min": 5.54397393099498,
+          "max": 5.799213160993531
+        },
+        "decode_tokens_per_second": {
+          "median": 106.50579178151449,
+          "min": 103.16241306609069,
+          "max": 107.86099938573044
+        },
+        "after_64_tokens_per_second": {
+          "median": 110.51836684664973,
+          "min": 107.08265940993603,
+          "max": 111.99941953520081
+        }
+      },
+      "cases": [
+        {
+          "prompt_tokens": 1088,
+          "output_tokens": 128,
+          "ttft_seconds": 1.3108843730005901,
+          "e2e_seconds": 2.7544440229976317,
+          "decode_tokens_per_second": 87.98069412628915,
+          "after_64_tokens_per_second": 117.17066551417945,
+          "mean_time_per_output_token_ms": 11.366129921236825,
+          "name": "warmup",
+          "cached_tokens": 0,
+          "spec_accept_length": 2.4150943396226414
+        },
+        {
+          "prompt_tokens": 1088,
+          "output_tokens": 512,
+          "ttft_seconds": 0.8458067199971993,
+          "e2e_seconds": 5.799213160993531,
+          "decode_tokens_per_second": 103.16241306609069,
+          "after_64_tokens_per_second": 107.08265940993603,
+          "mean_time_per_output_token_ms": 9.693452976515323,
+          "name": "short_0",
+          "cached_tokens": 0,
+          "spec_accept_length": 2.265486725663717
+        },
+        {
+          "prompt_tokens": 1088,
+          "output_tokens": 512,
+          "ttft_seconds": 0.8453814929962391,
+          "e2e_seconds": 5.643294766996405,
+          "decode_tokens_per_second": 106.50579178151449,
+          "after_64_tokens_per_second": 110.51836684664973,
+          "mean_time_per_output_token_ms": 9.389160751477212,
+          "name": "short_1",
+          "cached_tokens": 0,
+          "spec_accept_length": 2.3813953488372093
+        },
+        {
+          "prompt_tokens": 1088,
+          "output_tokens": 512,
+          "ttft_seconds": 0.8063183729973389,
+          "e2e_seconds": 5.54397393099498,
+          "decode_tokens_per_second": 107.86099938573044,
+          "after_64_tokens_per_second": 111.99941953520081,
+          "mean_time_per_output_token_ms": 9.27119167905926,
+          "name": "short_2",
+          "cached_tokens": 0,
+          "spec_accept_length": 2.4265402843601898
+        },
+        {
+          "prompt_tokens": 91,
+          "output_tokens": 512,
+          "ttft_seconds": 0.5161203029856551,
+          "e2e_seconds": 5.511166869997396,
+          "decode_tokens_per_second": 102.30243815227817,
+          "after_64_tokens_per_second": 102.74114732528824,
+          "mean_time_per_output_token_ms": 9.77493809591801,
+          "name": "natural_chat",
+          "cached_tokens": 0,
+          "spec_accept_length": 2.007843137254902
+        }
+      ],
+      "transitions": [
+        {
+          "stage": 0,
+          "kv_backed_tokens": 80000,
+          "global_cache_slots": null
+        }
+      ],
+      "cpu_initialization": [],
+      "final_cpu_stats": null,
+      "final_kv_stage": 0
+    }
+  }
+}

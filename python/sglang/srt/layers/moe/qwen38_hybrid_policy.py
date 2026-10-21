@@ -32,9 +32,34 @@ class GlobalLfu:
         self.frequency = [[0.0] * experts for _ in range(layers)]
         self.owner = [layer for layer, count in enumerate(layout) for _ in range(count)]
         self.keys = [None] * len(self.owner)
+        self._index_owners()
         self.decay, self.admission = decay, admission
         self.generation = 0
         self.reserved = set()
+
+    def _index_owners(self):
+        self.owned_slots = [set() for _ in self.layers]
+        self.free_slots = set()
+        for slot, owner in enumerate(self.owner):
+            if owner is None:
+                self.free_slots.add(slot)
+            elif owner >= 0:
+                self.owned_slots[owner].add(slot)
+
+    def set_owner(self, slot, owner):
+        """Update indexes after the caller retires any previous resident key."""
+        previous = self.owner[slot]
+        if previous == owner:
+            return
+        if previous is None:
+            self.free_slots.remove(slot)
+        elif previous >= 0:
+            self.owned_slots[previous].remove(slot)
+        self.owner[slot] = owner
+        if owner is None:
+            self.free_slots.add(slot)
+        elif owner >= 0:
+            self.owned_slots[owner].add(slot)
 
     def plan_resize(self, budget):
         """Global LFU retention; preserve surviving prefix addresses in place."""
@@ -94,6 +119,7 @@ class GlobalLfu:
             key[0] if key is not None else (-1 if slot in self.reserved else None)
             for slot, key in enumerate(self.keys)
         ]
+        self._index_owners()
         for state in self.layers:
             state.mapping.clear()
             state.epoch += 1
@@ -106,7 +132,7 @@ class GlobalLfu:
         state = self.layers[layer]
         if state.phase != "locked":
             raise RuntimeError("cannot seed dirty layer")
-        owned = [s for s, owner in enumerate(self.owner) if owner == layer]
+        owned = sorted(self.owned_slots[layer])
         for (expert, _), slot in zip(sorted(mapping.items()), owned):
             state.mapping[expert] = slot
             self.keys[slot] = (layer, expert)
@@ -144,15 +170,18 @@ class GlobalLfu:
             key=lambda e: (-self.frequency[layer][e], e),
         )
         evicted, fills = [], []
+        # Reserve each available slot once; candidate admission never creates
+        # another free slot before using its chosen victim immediately.
+        free = iter(
+            sorted(
+                self.free_slots
+                | {slot for slot in self.owned_slots[layer] if self.keys[slot] is None}
+            )
+        )
         for expert in candidates:
             if not force and self.frequency[layer][expert] < self.admission:
                 continue
-            free = [
-                s
-                for s, owner in enumerate(self.owner)
-                if owner in (None, layer) and self.keys[s] is None
-            ]
-            slot = min(free) if free else None
+            slot = next(free, None)
             if slot is None:
                 victims = [e for e in state.mapping if e not in requested]
                 if not victims:
@@ -166,7 +195,7 @@ class GlobalLfu:
                 slot = state.mapping.pop(victim)
                 self.keys[slot] = None
                 evicted.append((victim, slot))
-            self.owner[slot] = layer
+            self.set_owner(slot, layer)
             # New entries stay invisible until the copy-completion commit.
             fills.append((expert, slot))
             self.keys[slot] = (layer, expert)
@@ -175,12 +204,12 @@ class GlobalLfu:
             if expert not in requested and self.frequency[layer][expert] < 0.5:
                 slot = state.mapping.pop(expert)
                 self.keys[slot] = None
-                self.owner[slot] = None
+                self.set_owner(slot, None)
                 evicted.append((expert, slot))
         # Unused ownership returns to the global free pool only in this layer's window.
-        for slot, owner in enumerate(self.owner):
-            if owner == layer and self.keys[slot] is None:
-                self.owner[slot] = None
+        for slot in tuple(self.owned_slots[layer]):
+            if self.keys[slot] is None:
+                self.set_owner(slot, None)
         return evicted, fills
 
     def commit(self, layer, epoch, fills):
@@ -203,10 +232,10 @@ class GlobalLfu:
         state = self.layers[layer]
         if state.phase != "computing" or state.epoch != epoch:
             raise RuntimeError("invalid zero-slot recovery epoch")
-        if layer in self.owner:
+        if self.owned_slots[layer]:
             raise RuntimeError("global reclamation is only for a zero-slot layer")
         needed = len(set(requested))
-        free = [slot for slot, owner in enumerate(self.owner) if owner is None]
+        free = sorted(self.free_slots)
         eligible = []
         for slot, owner in enumerate(self.owner):
             if owner is None or owner == layer or owner == -1:
@@ -227,10 +256,10 @@ class GlobalLfu:
                 self.layers[owner].mapping.pop(key[1])
                 evicted.append((owner, key[1], slot))
             self.keys[slot] = None
-            self.owner[slot] = None
+            self.set_owner(slot, None)
             free.append(slot)
         for slot in free[:needed]:
-            self.owner[slot] = layer
+            self.set_owner(slot, layer)
         return evicted
 
     def immediate(self, layer, epoch, requested):
@@ -239,7 +268,7 @@ class GlobalLfu:
         if state.phase != "computing" or state.epoch != epoch:
             raise RuntimeError("invalid immediate layer")
         requested = set(requested)
-        owned = [s for s, owner in enumerate(self.owner) if owner == layer]
+        owned = sorted(self.owned_slots[layer])
         if len(owned) < len(requested):
             return None
         missing = sorted(requested - state.mapping.keys())

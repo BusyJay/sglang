@@ -118,7 +118,13 @@ bash tools/qwen38_cache_tests/global_cpu_resize_v2_20261020/run_default_lifecycl
 `QWEN38_VERIFY_RESULTS` may point to a different output directory. The runner
 then invokes `verify_lifecycle.py`; it rejects runs without two return cycles,
 maximum expert-budget recovery, physical budget consistency, CPU work,
-retained-expert relocation, graph replay, or the final semantic probe.
+retained experts across resizing, graph replay, or the final semantic probe.
+Forced relocations are checked separately by the GPU VMM test; retiring an
+empty tail legitimately needs zero moves. The replay now generates 128 tokens
+per context so serving decode reaches its periodic graph-replay log.
+
+See [the optimization follow-up](../nsight_optimization_20261021/OPTIMIZATION.md)
+for current behavior and measurements; the results above describe the initial integration.
 
 The remaining scope limits are vision requests, concurrent requests, TP/EP>1,
 full-model benchmark/accuracy suites and the miss crossover threshold. Long

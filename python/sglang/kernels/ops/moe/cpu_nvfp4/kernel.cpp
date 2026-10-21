@@ -9,6 +9,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <pthread.h>
 #include <sched.h>
 #include <stdexcept>
@@ -101,8 +102,17 @@ void expert(const uint8_t *w13, const uint8_t *w2, const uint8_t *s13,
             const int *tokens, float g1, float g2, bool post_scale,
             Workers &workers) {
   workers.hidden.resize(NT * i);
-  a16global::Tables table1(post_scale ? 1.0f : g1),
-      table2(post_scale ? 1.0f : g2);
+  // B12X applies global scales after projection, so both decode tables are
+  // constant. Keep one immutable table instead of rebuilding 8192 entries
+  // for every miss expert. The legacy pre-scale math retains its own tables.
+  static const a16global::Tables unit(1.0f);
+  std::optional<a16global::Tables> scaled1, scaled2;
+  if (!post_scale) {
+    scaled1.emplace(g1);
+    scaled2.emplace(g2);
+  }
+  const auto &table1 = post_scale ? unit : *scaled1;
+  const auto &table2 = post_scale ? unit : *scaled2;
   const uint16_t *ap[NT], *hp[NT];
   for (int t = 0; t < NT; t++) {
     ap[t] = x + size_t(tokens[t]) * h;

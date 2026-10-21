@@ -227,7 +227,7 @@ class TestHybridPolicy(CustomTestCase):
     def test_b12x_zero_slot_is_not_admitted_reclaimed_or_resize_destination(self):
         p = GlobalLfu(2, 8, [2, 2], admission=0)
         p.reserved.add(0)
-        p.owner[0] = -1
+        p.set_owner(0, -1)
         p.seed(1, {1: 2, 2: 3})
         p.frequency[1][1:3] = [8, 9]
         plan = p.plan_resize(2)
@@ -259,6 +259,14 @@ class TestHybridPolicy(CustomTestCase):
                     self.assertEqual(p.keys[slot], (idx, expert))
                     slots.append(slot)
             self.assertEqual(len(slots), len(set(slots)))
+            self.assertEqual(
+                p.free_slots, {s for s, owner in enumerate(p.owner) if owner is None}
+            )
+            for layer in range(4):
+                self.assertEqual(
+                    p.owned_slots[layer],
+                    {s for s, owner in enumerate(p.owner) if owner == layer},
+                )
 
 
 if __name__ == "__main__":

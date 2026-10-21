@@ -1,5 +1,8 @@
 # Full-model performance report
 
+Follow-up: [Nsight optimization and final validation](../nsight_optimization_20261021/OPTIMIZATION.md).
+The measurements below describe the original integration and remain historical evidence.
+
 Measured 2026-10-21 (Asia/Shanghai), runtime source `6399d324a1`.
 This supplements [DEFAULT_ON_VALIDATION.md](DEFAULT_ON_VALIDATION.md): that
 report established correctness and bidirectional resizing, but its 8-token

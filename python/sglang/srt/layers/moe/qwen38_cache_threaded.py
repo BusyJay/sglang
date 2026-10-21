@@ -1351,7 +1351,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         if getattr(self, "hybrid", None) is not None:
             result["global_cache_slots"] = len(self.hybrid.policy.keys)
             result["global_layer_owned_slots"] = [
-                self.hybrid.policy.owner.count(layer)
+                len(self.hybrid.policy.owned_slots[layer])
                 for layer in range(self.manifest.num_layers)
             ]
             result["global_cpu_hybrid"] = dict(self.hybrid.stats)

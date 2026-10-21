@@ -308,6 +308,16 @@ register_kernel(
 
 register_kernel(
     KernelSpec(
+        op="moe.qwen38_refresh_route_alphas",
+        backend=KernelBackend.JIT,
+        target="sglang.kernels.ops.moe.qwen38_route_alphas:refresh_route_alphas",
+        capabilities=_CUDA,
+        description="Refresh only pinned routed B12X alpha rows during concurrent fills.",
+    )
+)
+
+register_kernel(
+    KernelSpec(
         op="moe.qwen38_cache_partition_routes",
         backend=KernelBackend.JIT,
         target="sglang.kernels.ops.moe.qwen38_expert_cache:cache_partition_routes",

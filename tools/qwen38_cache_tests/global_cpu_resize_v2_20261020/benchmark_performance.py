@@ -75,6 +75,11 @@ def main():
     parser.add_argument(
         "--resume", action="store_true", help="reuse fully completed modes"
     )
+    parser.add_argument(
+        "--short-only",
+        action="store_true",
+        help="omit long-context calibration workloads",
+    )
     args = parser.parse_args()
     output = Path(args.output)
     output.mkdir(parents=True, exist_ok=True)
@@ -116,6 +121,8 @@ def main():
         ("long_170k", fixture(170000, 5), 8),
         ("post_resize_short", fixture(1024, 6), 512),
     ]
+    if args.short_only:
+        workloads = workloads[:-2]
     report = {"command": command, "modes": {}, "status": "running"}
     destination = output / "performance.json"
     if args.resume and destination.exists():
@@ -136,6 +143,11 @@ def main():
             env["SGLANG_QWEN38_CPU_GPU_MISS_THRESHOLD"] = "1"
         elif mode == "legacy_gpu":
             env["SGLANG_ENABLE_QWEN38_CPU_HYBRID"] = "0"
+        elif mode.startswith("hybrid_"):
+            threshold = int(mode.removeprefix("hybrid_"))
+            if threshold < 1:
+                raise ValueError(mode)
+            env["SGLANG_QWEN38_CPU_GPU_MISS_THRESHOLD"] = str(threshold)
         elif mode != "default":
             raise ValueError(mode)
         with socket.socket() as sock:

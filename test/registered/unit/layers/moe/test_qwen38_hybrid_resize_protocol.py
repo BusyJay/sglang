@@ -3,6 +3,7 @@
 
 import contextlib
 import importlib.util
+import queue
 import sys
 import unittest
 from pathlib import Path
@@ -138,6 +139,123 @@ class TestGlobalResizeProtocol(CustomTestCase):
         policy.commit_resize = publish
         return subject, storage
 
+    def test_readback_failure_releases_both_cpu_branch_waiters(self):
+        """A failed readback must wake branch selection and the final-result join."""
+        from concurrent.futures import Future
+
+        for deferred in (False, True):
+            with self.subTest(deferred=deferred):
+                subject, _ = self.subject()
+                decision = Future() if deferred else None
+                result = Future()
+                released = []
+                subject.cpu = SimpleNamespace(
+                    release_worker=lambda: released.append(True)
+                )
+                subject.cpu_jobs = queue.Queue()
+
+                def failed_readback():
+                    raise RuntimeError("injected readback failure")
+
+                ready = SimpleNamespace(synchronize=failed_readback)
+                subject.cpu_jobs.put(
+                    (
+                        0,
+                        1,
+                        None,
+                        None,
+                        None,
+                        ready,
+                        None,
+                        {},
+                        None,
+                        None,
+                        decision,
+                        result,
+                    )
+                )
+                subject.cpu_jobs.put(None)
+                with patch.object(
+                    self.runtime_module.torch.cuda,
+                    "device",
+                    lambda _: contextlib.nullcontext(),
+                    create=True,
+                ):
+                    subject._cpu_work()
+                for waiter in (result, decision) if deferred else (result,):
+                    self.assertTrue(waiter.done())
+                    with self.assertRaisesRegex(RuntimeError, "readback failure"):
+                        waiter.result()
+                self.assertEqual(released, [True])
+                self.assertEqual(subject.cpu_jobs.unfinished_tasks, 0)
+
+    def test_prefill_arena_lease_covers_copy_and_publication(self):
+        """An arena source cannot become an admission destination or be reused
+        before D2D completion; failed copies never publish their mappings.
+        """
+        for fail in (False, True):
+            with self.subTest(copy_failure=fail):
+                subject, _ = self.subject()
+                policy = self.policy_module.GlobalLfu(2, 8, [2, 2], admission=0)
+                policy.seed(0, {0: 0})
+                policy.reserved.update((2, 3))
+                policy.set_owner(2, -1)
+                policy.set_owner(3, -1)
+                subject.policy = policy
+                subject.closed = False
+                subject.active = {}
+                subject.jobs = queue.Queue()
+                epoch, _ = policy.begin(0)
+                ids = SimpleNamespace(tolist=lambda: [[4, 5]])
+                done = SimpleNamespace(synchronize=lambda: None)
+                subject.pending = (0, epoch, ids, done, [2, 3])
+                subject.release_previous()
+                future = subject.arena_restore
+                self.assertFalse(future.done())
+                self.assertEqual(policy.layers[0].phase, "managing")
+                completion = []
+
+                def copy(layer, fills, event):
+                    self.assertEqual(policy.reserved, {2, 3})
+                    self.assertTrue(all(slot < 2 for _, slot in fills))
+                    self.assertTrue({4, 5}.isdisjoint(policy.layers[0].mapping))
+
+                    def synchronize():
+                        if fail:
+                            raise RuntimeError("injected D2D failure")
+                        completion.append("copied")
+
+                    return SimpleNamespace(synchronize=synchronize)
+
+                subject._seed_from_arena = copy
+                publish = policy.commit
+
+                def commit(*args):
+                    self.assertEqual(completion, ["copied"])
+                    publish(*args)
+
+                policy.commit = commit
+                subject.jobs.put(None)
+                with patch.object(
+                    self.runtime_module.torch.cuda,
+                    "device",
+                    lambda _: contextlib.nullcontext(),
+                    create=True,
+                ):
+                    subject._work()
+                if fail:
+                    with self.assertRaisesRegex(RuntimeError, "D2D failure"):
+                        future.result()
+                    self.assertTrue({4, 5}.isdisjoint(policy.layers[0].mapping))
+                    self.assertEqual(policy.reserved, {2, 3})
+                    self.assertIsNotNone(subject.failure)
+                else:
+                    future.result()
+                    self.assertEqual(set(policy.layers[0].mapping), {4, 5})
+                    self.assertEqual(policy.reserved, set())
+                    self.assertEqual(policy.owner[2:], [None, None])
+                self.assertEqual(subject.jobs.unfinished_tasks, 0)
+
     def test_all_moves_complete_before_mapping_and_tail_release(self):
         subject, storage = self.subject()
         subject.resize(2)
@@ -172,6 +290,7 @@ class TestGlobalResizeProtocol(CustomTestCase):
         self.assertEqual(subject.policy.owner[4:], [None] * 3)
         self.assertEqual(subject.stats["resize_moves"], 0)
         self.assertEqual(subject.stats["resize_evictions"], 0)
+        self.assertEqual(subject.stats["resize_retained_experts"], 4)
 
     def test_seed_restores_legacy_arena_before_importing_keys(self):
         import collections

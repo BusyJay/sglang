@@ -1128,7 +1128,8 @@ class Envs:
     SGLANG_ENABLE_QWEN38_CPU_HYBRID = EnvBool(True)
     SGLANG_QWEN38_CPU_LIBRARY = EnvStr("")
     SGLANG_QWEN38_CPU_CORES = EnvTuple(())
-    SGLANG_QWEN38_CPU_GPU_MISS_THRESHOLD = EnvInt(33)
+    # Small miss sets overlap CPU work with GPU hits; larger sets fill on GPU.
+    SGLANG_QWEN38_CPU_GPU_MISS_THRESHOLD = EnvInt(3)
     SGLANG_QWEN38_CPU_READY_TIMEOUT = EnvFloat(60.0)
     SGLANG_IS_FLASHINFER_AVAILABLE = EnvBool(True)
     SGLANG_FLASHINFER_USE_PAGED = EnvBool(False)
