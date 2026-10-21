@@ -19,6 +19,8 @@ repos:
       - id: check-ast
       - id: check-added-large-files
         args: ['--maxkb=1500']
+        # Explicit handoff evidence: self-contained Nsight reports, not model data.
+        exclude: ^tools/qwen38_cache_tests/async_admission_20261021/captures/(baseline|async|detailed)\.nsys-rep$
       - id: check-merge-conflict
       - id: check-shebang-scripts-are-executable
       - id: detect-private-key

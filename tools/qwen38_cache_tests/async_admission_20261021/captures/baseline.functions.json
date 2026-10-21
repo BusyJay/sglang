@@ -1,0 +1,28 @@
+[
+  {
+    "module": "sglang.srt.layers.moe.qwen38_hybrid",
+    "functions": [
+      "HybridCache.run",
+      "HybridCache.prefill",
+      "HybridCache._copy",
+      "HybridCache._seed_from_arena",
+      "HybridCache._wait_layer",
+      "HybridCache._wait_arena",
+      "HybridCache._remap",
+      "HybridCache._gpu"
+    ]
+  },
+  {
+    "module": "sglang.srt.layers.moe.qwen38_hybrid_policy",
+    "functions": [
+      "GlobalLfu.plan",
+      "GlobalLfu.immediate"
+    ]
+  },
+  {
+    "module": "sglang.kernels.ops.moe.cpu_nvfp4",
+    "functions": [
+      "CpuNvfp4.run"
+    ]
+  }
+]
