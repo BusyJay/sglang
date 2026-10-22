@@ -29,40 +29,33 @@ struct LayeredHybridArgs {
 /// Compare against the coldest eligible victim conservatively. If too many cold
 /// candidates remain, use the all-GPU branch, rather than extending CPU latency.
 __device__ inline int layered_lfu_select(const int32_t* ids, const int32_t* lookup,
-    const int32_t* keys, const int32_t* counts, int experts, int slots, const LayeredHybridArgs& a,
-    int32_t* filtered) {
-  int misses[30], count = 0, active = 0, free = 0;
-  float victim = __int_as_float(0x7f800000);
-  for (int s = 0; s < slots; ++s) {
-    int e = keys[s];
-    if (e < 0) { ++free; continue; }
-    if (!counts[e] && a.expert_frequency[e] < victim) victim = a.expert_frequency[e];
+    const int32_t* active_ids, int active, int misses, int free, float victim,
+    const LayeredHybridArgs& a, int32_t* filtered) {
+  for (int j = 0; j < a.routes; ++j) filtered[j] = ids[j];
+  if (!a.max_cpu_experts || !misses || misses <= free) return 0;
+  int cold[30], count = 0;
+  for (int j = 0; j < active; ++j) {
+    int e = active_ids[j];
+    if (lookup[e] < 0 && a.expert_frequency[e] < victim) cold[count++] = e;
   }
-  for (int j = 0; j < a.routes; ++j) {
-    int e = ids[j]; filtered[j] = e;
-    if (e < 0 || e >= experts) continue;
-    bool seen = false;
-    for (int k = 0; k < j; ++k) seen |= ids[k] == e;
-    if (seen) continue;
-    ++active;
-    if (lookup[e] >= 0) continue;
-    int p = count;
-    while (p && (a.expert_frequency[misses[p-1]] > a.expert_frequency[e] ||
-        (a.expert_frequency[misses[p-1]] == a.expert_frequency[e] && misses[p-1] > e))) {
-      misses[p] = misses[p-1]; --p;
+  // Reserving the hottest `free` misses leaves this many cold candidates.
+  // Most calls select none or exceed the limit: neither needs a sort.
+  int selected = count < misses - free ? count : misses - free;
+  if (selected > a.max_cpu_experts || active > a.slots ||
+      (a.safe_mask && selected == active)) return 0;
+  if (selected && selected < count) {
+    for (int j = 1; j < count; ++j) {
+      int e = cold[j], p = j;
+      while (p && (a.expert_frequency[cold[p-1]] > a.expert_frequency[e] ||
+          (a.expert_frequency[cold[p-1]] == a.expert_frequency[e] && cold[p-1] > e))) {
+        cold[p] = cold[p-1]; --p;
+      }
+      cold[p] = e;
     }
-    misses[p] = e; ++count;
   }
-  int selected = 0;
-  // The hottest `free` misses go directly into unused slots. Of the rest,
-  // only experts strictly colder than a victim are eligible to stay on CPU.
-  while (selected < count - free && a.expert_frequency[misses[selected]] < victim)
-    ++selected;
-  if (selected > a.max_cpu_experts || active > slots ||
-      (a.safe_mask && selected == active)) selected = 0;
   for (int j = 0; j < a.routes; ++j)
     for (int k = 0; k < selected; ++k)
-      if (ids[j] == misses[k]) filtered[j] = -1;
+      if (ids[j] == cold[k]) filtered[j] = -1;
   return selected;
 }
 

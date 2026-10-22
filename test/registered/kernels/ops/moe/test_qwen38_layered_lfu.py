@@ -94,6 +94,27 @@ class TestLayeredLfuAdmission(CustomTestCase):
         )
         return cpu, fills
 
+    def test_admission_metadata_spans_warps_and_partial_capacity(self):
+        """Resident heat and empty slots must include the entire expert domain."""
+        self.buffers = AdaptiveMetadataBuffers(1, 512, 129, torch.device("cuda"))
+        for free_slot in (False, True):
+            with self.subTest(free_slot=free_slot):
+                self.state = self.buffers.reset(0, 129)
+                self.heat = torch.zeros(512, dtype=torch.float32, device="cuda")
+                records = [(e, 10, e + 1) for e in range(128)]
+                if not free_slot:
+                    # The eligible minimum lies outside the first 128 experts.
+                    records.append((511, 0.5, 129))
+                self.restore(records)
+                self.heat[401] = 2
+                cpu, fills = self.run_plan([[0, 400, 401]], 1)
+                self.assertEqual(cpu, {400} if free_slot else set())
+                self.assertEqual(fills, {401} if free_slot else {400, 401})
+                torch.testing.assert_close(
+                    self.heat[[0, 127, 400, 401]],
+                    torch.tensor([10.5, 9.5, 1, 2.9], device="cuda"),
+                )
+
     def test_count_gate_is_all_or_nothing_and_hits_are_protected(self):
         for limit, routes, expected in (
             (1, [[0, 4]], {4}),
@@ -131,6 +152,12 @@ class TestLayeredLfuAdmission(CustomTestCase):
         self.restore([(0, 10, 1), (1, 10, 2), (2, 10, 3)])
         self.heat[5] = 2
         self.assertEqual(self.run_plan([[0, 4, 5]], 1), ({4}, {5}))
+        # Equal-heat misses reserve the larger expert ID for the free slot,
+        # independently of their order in the router output.
+        self.state = self.buffers.reset(0, 4)
+        self.heat.zero_()
+        self.restore([(0, 10, 1), (1, 10, 2), (2, 10, 3)])
+        self.assertEqual(self.run_plan([[0, 5, 4]], 1), ({4}, {5}))
         self.state = self.buffers.reset(0, 4)
         self.heat.zero_()
         self.restore([(0, 2, 1), (1, 2, 2), (2, 2, 3), (3, 2, 4)])
