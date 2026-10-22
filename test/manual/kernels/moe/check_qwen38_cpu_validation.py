@@ -29,6 +29,7 @@ def main():
     )
     pack = SimpleNamespace(
         manifest=SimpleNamespace(
+            scale_encoding={},
             hidden_size=64,
             intermediate_size=32,
             num_experts=3,
@@ -53,6 +54,30 @@ def main():
         ):
             cpu.run(0, x, ids, weights, output)
         assert torch.isfinite(output).all()
+        expected = output.clone()
+        completed = torch.zeros(1, dtype=torch.int32)
+        with patch.object(
+            torch, "isfinite", side_effect=AssertionError("duplicate Torch validation")
+        ):
+            cpu.run(0, x, ids, weights, output, completed=completed, sequence=7)
+        assert completed.item() == 7
+        torch.testing.assert_close(output, expected, rtol=0, atol=0)
+        for bad_sequence in (0, -1, 2**31, True, 1.0):
+            try:
+                cpu.run(
+                    0,
+                    x,
+                    ids,
+                    weights,
+                    output,
+                    completed=completed,
+                    sequence=bad_sequence,
+                )
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("invalid completion sequence was accepted")
+        print("PASS native completion publishes the exact FP32 result", flush=True)
         for tensor, index, bad in (
             (ids, (0, 0), 3),
             (ids, (1, 1), -2),
@@ -63,8 +88,11 @@ def main():
             saved = tensor[index].clone()
             tensor[index] = bad
             try:
-                cpu.run(0, x, ids, weights, output)
+                cpu.run(0, x, ids, weights, output, completed=completed, sequence=8)
             except ValueError:
+                assert (
+                    completed.item() == 7
+                ), "failure published a successful completion"
                 print(f"PASS rejected {tensor.dtype} value={bad}", flush=True)
             else:
                 raise AssertionError("invalid input was accepted")

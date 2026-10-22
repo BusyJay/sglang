@@ -5,6 +5,7 @@ import mmap
 import time
 
 import torch
+
 from sglang.kernels.ops.moe.qwen38_expert_cache import _module as fill_module
 from sglang.kernels.ops.moe.qwen38_hybrid_plan import (
     COST_COLUMNS,
@@ -128,15 +129,7 @@ class DeviceHybridPlanner:
             device=cache.runtime.device,
         )
         self.sequence = 0
-        rows = []
-        for key, (cpu_us, gpu_us) in cache.cost_model.samples.items():
-            if cpu_us >= gpu_us * (1 - cache.cost_model.margin):
-                continue
-            tokens, gpu_routes, cpu_routes, cpu_experts, profile, rejected = key
-            row = [tokens, gpu_routes, cpu_routes, cpu_experts, len(rejected), cpu_us]
-            row += list(profile) + [0] * (MAX_ROUTES - len(profile))
-            row += list(rejected) + [0] * (MAX_ROUTES - len(rejected))
-            rows.append(row)
+        rows = cache.cost_model.device_cost_rows(MAX_ROUTES)
         self.costs = torch.tensor(
             rows, dtype=torch.float64, device=cache.runtime.device
         )
@@ -307,9 +300,15 @@ class DeviceHybridPlanner:
                 ids,
                 batch.weights[:tokens],
                 batch.result[:tokens],
+                **(
+                    {"completed": batch.completed, "sequence": sequence}
+                    if c.gpu_backend == "b12x"
+                    else {}
+                ),
             )
+            if c.gpu_backend != "b12x":
+                self.publish(sequence)
             c.stats["cpu_calls"] += 1
-            self.publish(sequence)
         except BaseException as error:
             c.failure = error
             c.runtime.poisoned = True

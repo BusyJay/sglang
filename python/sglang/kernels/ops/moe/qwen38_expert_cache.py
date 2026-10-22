@@ -21,6 +21,8 @@ def _module():
             ("decode_plan_mailbox", "Qwen38CacheDecodePlan::run_mailbox"),
             ("decode_plan_parallel", "Qwen38CacheDecodePlan::run_parallel"),
             ("decode_plan_parallel_early", "Qwen38CacheDecodePlan::run_parallel_early"),
+            ("decode_plan_layered", "Qwen38CacheDecodePlan::run_layered"),
+            ("decode_plan_layered_lfu", "Qwen38CacheDecodePlan::run_layered_lfu"),
             ("packed_scatter", "Qwen38PackedScatter::run"),
             ("mailbox_register", "Qwen38MailboxRegister::run"),
             ("mailbox_unregister", "Qwen38MailboxUnregister::run"),
@@ -137,3 +139,13 @@ def cache_partition_routes(ids, lookup, slot_limit):
     cache, arena = torch.empty_like(ids), torch.empty_like(ids)
     _partition_module().partition(ids, lookup, cache, arena, slot_limit)
     return cache, arena
+
+
+def cache_decode_plan_layered(*args):
+    """Per-layer LFU plan with exact calibrated CPU bypass and mapped publication."""
+    return _module().decode_plan_layered(*args)
+
+
+def cache_decode_plan_layered_lfu(*args):
+    """Layer-local LFU admission with CPU-inclusive expert heat and a count gate."""
+    return _module().decode_plan_layered_lfu(*args)

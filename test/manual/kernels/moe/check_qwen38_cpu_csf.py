@@ -146,6 +146,12 @@ class Library:
         for name in ("qwen38_cpu_run", "qwen38_cpu_run_b12x"):
             getattr(self.lib, name).argtypes = COMMON
         self.lib.qwen38_cpu_run_csf.argtypes = COMMON + [C.c_void_p, C.c_int]
+        self.lib.qwen38_cpu_run_csf_publish.argtypes = COMMON + [
+            C.c_void_p,
+            C.c_int,
+            C.c_void_p,
+            C.c_int,
+        ]
 
     def call(self, data, h, width, rows, cores, backend, compressed=True):
         native, no, packed, po, strides, x = data
@@ -248,6 +254,27 @@ def main():
             if rows == [[-1]] * 3:
                 assert not any(actual)
             checks += 1
+        # Completion is published only after the identical full FP32 result.
+        completed = C.c_int32(0)
+        for compression in ((True, True), (True, False), (False, True), (False, False)):
+            data = fixture(160, 160, compression=compression)
+            fn, params, expected = lib.call(
+                data, 160, 160, [[0, 1], [2, 3], [0, 2]], cores, "b12x"
+            )
+            checked(fn, params, lib)
+            _, params, actual = lib.call(
+                data, 160, 160, [[0, 1], [2, 3], [0, 2]], cores, "b12x"
+            )
+            sequence = completed.value + 1
+            checked(
+                lib.lib.qwen38_cpu_run_csf_publish,
+                params + [C.byref(completed), sequence],
+                lib,
+            )
+            assert completed.value == sequence
+            assert bytes(actual) == bytes(expected)
+            checks += 1
+        data = fixture(160, 160)
         # Invalid extent/rank must reject before workers dereference exceptions.
         packed, offsets = data[2:4]
         meta = offsets[2] + 1024 + 384 * (1 + 12 // 2)
@@ -261,6 +288,14 @@ def main():
             struct.pack_into("<I", packed, pos, value)
             fn, params, _ = lib.call(data, 160, 160, [[0]] * 3, cores, "b12x")
             assert fn(*params) != 0, ("accepted malformed CSF", pos)
+            previous = completed.value
+            assert (
+                lib.lib.qwen38_cpu_run_csf_publish(
+                    *params, C.byref(completed), previous + 1
+                )
+                != 0
+            )
+            assert completed.value == previous, "malformed CSF published completion"
             packed[pos : pos + 4] = original
             checked(fn, params, lib)
             checks += 1

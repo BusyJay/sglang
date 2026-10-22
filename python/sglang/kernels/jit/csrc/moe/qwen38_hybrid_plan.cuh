@@ -8,7 +8,7 @@
 namespace sglang {
 namespace details {
 constexpr int kRoutes = 32;
-constexpr int kCostColumns = 6 + 2 * kRoutes;
+constexpr int kCostColumns = 7 + 2 * kRoutes;
 
 // Keep the cheapest at most kRoutes victims in a max heap. An invocation can
 // insert no more than kRoutes distinct experts. Admission and forced placement
@@ -116,17 +116,6 @@ __global__ void hybrid_plan_kernel(
       layer_position[e] = index_data[layers * experts + layer * experts + e];
     }
   }
-  if (samples <= kCachedCostRows)
-    for (int32_t i = threadIdx.x; i < samples * kCostColumns; i += blockDim.x)
-      cached_costs[i] = costs[i];
-  if (local_top) {
-    const int32_t* sizes = index_data + 2 * layers * experts;
-    for (int32_t i = threadIdx.x; i < 2 * layers + 1; i += blockDim.x)
-      local_top[i] = sizes[layers + i];
-    for (int32_t l = threadIdx.x; l < layers; l += blockDim.x) {
-      if (sizes[l] > 0) local_top_heat[l] = frequency[l * experts + index_data[l * experts]];
-    }
-  }
   if (threadIdx.x == 0) {
     cache_plan[0] = cache_plan[1] = cache_plan[2] = cache_plan[3] = 0;
     active_count = rejected_count = selected = 0;
@@ -146,37 +135,56 @@ __global__ void hybrid_plan_kernel(
     if (threadIdx.x == 0) asm volatile("trap;");
     return;
   }
+  bool needs_policy = false;
   for (int32_t e = threadIdx.x; e < experts; e += blockDim.x) {
     layer_frequency[e] = __dadd_rn(__dmul_rn(layer_frequency[e], decay), histogram[e] > 0 ? 1.0 : 0.0);
     if (!Indexed) global_layer_frequency[e] = layer_frequency[e];
+    needs_policy |= (histogram[e] > 0 && layer_lookup[e] < 0) ||
+                    (histogram[e] == 0 && layer_lookup[e] >= 0 && layer_frequency[e] < 0.5);
   }
-  __syncthreads();
-  // Every warp compacts one expert word. Prefixes preserve expert-id order,
-  // including duplicate and masked routes, without a serial insertion sort.
-  int32_t lane = threadIdx.x % 32;
-  for (int32_t word = threadIdx.x / 32; word < (experts + 31) / 32; word += blockDim.x / 32) {
-    int32_t e = word * 32 + lane;
-    bool active = e < experts && histogram[e] > 0;
-    bool cold = e < experts && layer_lookup[e] >= 0 && !active && layer_frequency[e] < 0.5;
-    uint32_t routes_in_word = __ballot_sync(0xffffffff, active);
-    uint32_t cold_in_word = __ballot_sync(0xffffffff, cold);
-    if (!lane) {
-      route_mask[word] = routes_in_word;
-      cold_mask[word] = cold_in_word;
+  // CTA-uniform decision also publishes the updated heats. All-hit must still
+  // reclaim cold residents; only the indexed path can bypass ownership scans.
+  int32_t policy_required = __syncthreads_or(needs_policy);
+  bool hit_only = Indexed && !policy_required;
+  if (!hit_only) {
+    if (samples <= kCachedCostRows)
+      for (int32_t i = threadIdx.x; i < samples * kCostColumns; i += blockDim.x)
+        cached_costs[i] = costs[i];
+    if (local_top) {
+      const int32_t* sizes = index_data + 2 * layers * experts;
+      for (int32_t i = threadIdx.x; i < 2 * layers + 1; i += blockDim.x)
+        local_top[i] = sizes[layers + i];
+      for (int32_t l = threadIdx.x; l < layers; l += blockDim.x) {
+        if (sizes[l] > 0) local_top_heat[l] = frequency[l * experts + index_data[l * experts]];
+      }
     }
-  }
-  __syncthreads();
-  if (threadIdx.x == 0) {
-    int32_t count = 0;
-    for (int32_t word = 0; word < (experts + 31) / 32; ++word) {
-      route_offset[word] = count;
-      count += __popc(route_mask[word]);
+    // Every warp compacts one expert word. Prefixes preserve expert-id order,
+    // including duplicate and masked routes, without a serial insertion sort.
+    int32_t lane = threadIdx.x % 32;
+    for (int32_t word = threadIdx.x / 32; word < (experts + 31) / 32; word += blockDim.x / 32) {
+      int32_t e = word * 32 + lane;
+      bool active = e < experts && histogram[e] > 0;
+      bool cold = e < experts && layer_lookup[e] >= 0 && !active && layer_frequency[e] < 0.5;
+      uint32_t routes_in_word = __ballot_sync(0xffffffff, active);
+      uint32_t cold_in_word = __ballot_sync(0xffffffff, cold);
+      if (!lane) {
+        route_mask[word] = routes_in_word;
+        cold_mask[word] = cold_in_word;
+      }
     }
-    requested_count = count;
+    __syncthreads();
+    if (threadIdx.x == 0) {
+      int32_t count = 0;
+      for (int32_t word = 0; word < (experts + 31) / 32; ++word) {
+        route_offset[word] = count;
+        count += __popc(route_mask[word]);
+      }
+      requested_count = count;
+    }
+    __syncthreads();
+    for (int32_t e = threadIdx.x; e < experts; e += blockDim.x)
+      if (histogram[e]) requested[route_offset[e / 32] + __popc(route_mask[e / 32] & ((1u << (e % 32)) - 1))] = e;
   }
-  __syncthreads();
-  for (int32_t e = threadIdx.x; e < experts; e += blockDim.x)
-    if (histogram[e]) requested[route_offset[e / 32] + __popc(route_mask[e / 32] & ((1u << (e % 32)) - 1))] = e;
   // Updating every heat before heap repair is safe with bottom-up heapify.
   // Nodes on the same level own disjoint subtrees; all lower levels finish
   // before their parents. Heap shape may change, but the minimum tie-break
@@ -203,6 +211,38 @@ __global__ void hybrid_plan_kernel(
         index.sift_expert(layer, i);
       __syncthreads();
     }
+  }
+  if (hit_only) {
+    // Heats can change heap order even without misses. Retain exact bottom-up
+    // repair, then update only this layer's global minimum using the live top
+    // heap. Avoid loading/storing the entire top index or reading cost samples.
+    if (threadIdx.x == 0) {
+      HybridHeapIndex index(
+          index_data,
+          frequency,
+          layers,
+          experts,
+          index_slots,
+          layer,
+          layer_heap,
+          layer_position,
+          &layer_heap_size,
+          layer_frequency);
+      index.refresh_top(layer, layer_heap_size > 0);
+      ++stats[1];
+    }
+    for (int32_t e = threadIdx.x; e < experts; e += blockDim.x) {
+      global_layer_frequency[e] = layer_frequency[e];
+      index_data[layer * experts + e] = layer_heap[e];
+      index_data[layers * experts + layer * experts + e] = layer_position[e];
+    }
+    for (int32_t route = threadIdx.x; route < routes; route += blockDim.x) {
+      int32_t e = ids[route];
+      cache_ids[route] = e >= 0 ? layer_lookup[e] : -1;
+    }
+    // cpu_ids and plan headers were cleared before validation. Never publish
+    // a CPU request or change cache payload ownership on this path.
+    return;
   }
   __syncthreads();
   if (threadIdx.x == 0) {
@@ -346,15 +386,36 @@ __global__ void hybrid_plan_kernel(
     int32_t cpu_routes = 0;
     for (int32_t k = 1; k <= rejected_count; ++k) {
       cpu_routes += histogram[rejected[k - 1]];
-      for (int32_t n = 0; n < samples; ++n) {
+      // Scalar buckets stay sorted on upload. Search only the matching
+      // bucket; table growth no longer multiplies every prefix/profile scan.
+      int32_t target[6] = {
+          tokens, total_routes - cpu_routes, cpu_routes, k, rejected_count, cache_plan[1] + rejected_count - k};
+      int32_t lo = 0, hi = samples;
+      while (lo < hi) {
+        int32_t mid = lo + (hi - lo) / 2;
+        const double* row = policy_costs + mid * kCostColumns;
+        int32_t cmp = 0;
+        for (int32_t i = 0; i < 6; ++i) {
+          double value = row[i < 5 ? i : 6];
+          if (value != target[i]) {
+            cmp = value < target[i] ? -1 : 1;
+            break;
+          }
+        }
+        if (cmp < 0)
+          lo = mid + 1;
+        else
+          hi = mid;
+      }
+      for (int32_t n = lo; n < samples; ++n) {
         const double* row = policy_costs + n * kCostColumns;
         if (row[0] != tokens || row[1] != total_routes - cpu_routes || row[2] != cpu_routes || row[3] != k ||
-            row[4] != rejected_count)
-          continue;
+            row[4] != rejected_count || row[6] != target[5])
+          break;
         bool match = true;
         for (int32_t i = 0; i < rejected_count; ++i) {
-          if (row[6 + kRoutes + i] != histogram[rejected[i]]) match = false;
-          if (i < k && row[6 + i] != histogram[rejected[i]]) match = false;
+          if (row[7 + kRoutes + i] != histogram[rejected[i]]) match = false;
+          if (i < k && row[7 + i] != histogram[rejected[i]]) match = false;
         }
         if (match && row[5] < best) {
           best = row[5];

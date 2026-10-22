@@ -14,6 +14,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import torch
+
 from sglang.test.ci.ci_register import register_cpu_ci
 from sglang.test.test_utils import CustomTestCase
 
@@ -238,11 +239,13 @@ class TestHybridDispatch(CustomTestCase):
 
         subject._prepare_window = prepare
 
-        def select_cpu(tokens, rows, mapping, rejected):
+        def select_cpu(tokens, rows, mapping, rejected, *, admitted_experts=0):
+            self.admission_decisions.append(admitted_experts)
             self.decisions.append((tokens, rows, dict(mapping), frozenset(rejected)))
             operations.append(("select_cpu", frozenset(rejected)))
             return frozenset(self.cpu_selection & rejected)
 
+        self.admission_decisions = []
         subject.cost_model = SimpleNamespace(select_cpu=select_cpu)
 
         def gpu(x, ids, weights, tensors, output_dtype):
@@ -359,7 +362,7 @@ class TestHybridDispatch(CustomTestCase):
         planner.frequency = torch.empty((2, 12))
         planner.owners = torch.empty(16, dtype=torch.int32)
         planner.keys = torch.empty(16, dtype=torch.int32)
-        planner.costs = torch.empty((0, 70), dtype=torch.float64)
+        planner.costs = torch.empty((0, 71), dtype=torch.float64)
         planner.device_stats = torch.zeros(7, dtype=torch.int64)
         planner.flag = torch.zeros(1, dtype=torch.int32)
         planner.heap_index = torch.empty(1, dtype=torch.int32)
@@ -491,6 +494,7 @@ class TestHybridDispatch(CustomTestCase):
         )
         planner = device.DeviceHybridPlanner.__new__(device.DeviceHybridPlanner)
         planner.cache = self.subject
+        self.subject.gpu_backend = "triton"
         published = []
         planner.publish = lambda sequence: published.append(
             (sequence, self.subject.mapped_batch_pages[0].batch.result[0].clone())
@@ -512,6 +516,36 @@ class TestHybridDispatch(CustomTestCase):
         torch.testing.assert_close(batch.result[0], torch.full((2,), 7.0))
         self.assertEqual(published[0][0], 2)
         torch.testing.assert_close(published[0][1], torch.full((2,), 7.0))
+        self.assertEqual(self.subject.stats["cpu_calls"], 1)
+
+    def test_device_native_completion_precedes_python_statistics(self):
+        device = load_source(
+            "hybrid_device_native_complete_subject",
+            "python/sglang/srt/layers/moe/qwen38_hybrid_device.py",
+        )
+        planner = device.DeviceHybridPlanner.__new__(device.DeviceHybridPlanner)
+        planner.cache = self.subject
+        self.subject.gpu_backend = "b12x"
+        batch = SimpleNamespace(
+            x=torch.ones((3, 2)),
+            ids=torch.ones((3, 2), dtype=torch.int32),
+            weights=torch.ones((3, 2)),
+            result=torch.zeros((3, 2)),
+            completed=torch.zeros(1, dtype=torch.int32),
+        )
+
+        def run(layer, x, ids, weights, output, *, completed, sequence):
+            output.fill_(7)
+            self.assertEqual(self.subject.stats["cpu_calls"], 0)
+            completed.fill_(sequence)
+
+        self.subject.cpu = SimpleNamespace(run=run)
+        planner.publish = lambda sequence: self.fail(
+            "successful B12X returned to Python publication"
+        )
+        planner.cpu_task(0, batch, 1, 3)
+        self.assertEqual(batch.completed.item(), 3)
+        torch.testing.assert_close(batch.result[0], torch.full((2,), 7.0))
         self.assertEqual(self.subject.stats["cpu_calls"], 1)
 
     def test_b12x_completion_publishes_to_mapped_page(self):
@@ -625,7 +659,7 @@ class TestHybridDispatch(CustomTestCase):
         self.subject.runtime.miss_mailbox = SimpleNamespace(_abort=aborted.append)
         error = RuntimeError("native failure")
 
-        def fail(*args):
+        def fail(*args, **kwargs):
             raise error
 
         self.subject.cpu = SimpleNamespace(run=fail)
@@ -634,6 +668,7 @@ class TestHybridDispatch(CustomTestCase):
             ids=torch.tensor([[2, -1], [-1, -1], [-1, -1]], dtype=torch.int32),
             weights=torch.ones((3, 2)),
             result=torch.zeros((3, 2)),
+            completed=torch.zeros(1, dtype=torch.int32),
         )
         planner.cpu_task(0, batch, 1, 1)
         self.assertIs(self.subject.failure, error)
@@ -841,6 +876,7 @@ class TestHybridDispatch(CustomTestCase):
             self.decisions,
             [(1, [list(range(2, 12))], mapping, frozenset(range(7, 12)))],
         )
+        self.assertEqual(self.admission_decisions, [5])
         self.assertEqual(len(self.cpu_calls), 1)
         self.assertEqual(self.cpu_calls[0][0].tolist(), [[-1] * 7 + [9, -1, -1]])
         self.assertEqual(

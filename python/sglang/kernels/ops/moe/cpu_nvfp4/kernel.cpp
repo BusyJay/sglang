@@ -174,30 +174,19 @@ public:
 };
 
 template <int NT>
-void expert(const uint8_t *w13, const uint8_t *w2, const uint8_t *s13,
-            const uint8_t *s2, const uint16_t *x, int h, int i,
-            const int *tokens, float g1, float g2, bool post_scale,
-            Workers &workers, const CsfPlane (&planes)[2]) {
-  workers.hidden.resize(NT * i);
-  // B12X applies global scales after projection, so both decode tables are
-  // constant. Keep one immutable table instead of rebuilding 8192 entries
-  // for every miss expert. The legacy pre-scale math retains its own tables.
-  static const a16global::Tables unit(1.0f);
-  std::optional<a16global::Tables> scaled1, scaled2;
-  if (!post_scale) {
-    scaled1.emplace(g1);
-    scaled2.emplace(g2);
-  }
-  const auto &table1 = post_scale ? unit : *scaled1;
-  const auto &table2 = post_scale ? unit : *scaled2;
+void expert_worker(const uint8_t *w13, const uint8_t *w2,
+                   const uint8_t *s13, const uint8_t *s2, const uint16_t *x,
+                   int h, int i, const int *tokens, float g1, float g2,
+                   bool post_scale, Workers &workers,
+                   const CsfPlane (&planes)[2], const a16global::Tables &table1,
+                   const a16global::Tables &table2, PhaseBarrier &barrier,
+                   int thread, const float *route_weights = nullptr) {
   const uint16_t *ap[NT], *hp[NT];
   for (int t = 0; t < NT; t++) {
     ap[t] = x + size_t(tokens[t]) * h;
     hp[t] = workers.hidden.data() + t * i;
   }
   const int threads = workers.cores.size();
-  PhaseBarrier barrier(threads);
-  workers.dispatch([&](int thread) {
     if (planes[0].storage || planes[1].storage) {
       for (int p = 0; p < 2; ++p)
         if (planes[p].storage)
@@ -229,10 +218,47 @@ void expert(const uint8_t *w13, const uint8_t *w2, const uint8_t *s13,
       a16global::project<NT, 8>(w2, s2, rows, hp, i, table2, v);
       for (int j = 0; j < 8; j++)
         for (int t = 0; t < NT; t++)
-          workers.value[t * h + row + j] = v[j][t] * (post_scale ? g2 : 1.0f);
+        {
+          float value = v[j][t] * (post_scale ? g2 : 1.0f);
+          workers.value[t * h + row + j] = value;
+          if (route_weights)
+            workers.sum[tokens[t] * h + row + j] += route_weights[t] * value;
+        }
     }
+    // The next expert may reuse hidden, value and CSF expansion storage only
+    // after every worker finishes this expert's FC2 and aggregation.
+  if (route_weights) barrier.wait();
+}
+
+template <int NT>
+void expert(const uint8_t *w13, const uint8_t *w2, const uint8_t *s13,
+            const uint8_t *s2, const uint16_t *x, int h, int i,
+            const int *tokens, float g1, float g2, bool post_scale,
+            Workers &workers, const CsfPlane (&planes)[2]) {
+  workers.hidden.resize(NT * i);
+  static const a16global::Tables unit(1.0f);
+  std::optional<a16global::Tables> scaled1, scaled2;
+  if (!post_scale) {
+    scaled1.emplace(g1);
+    scaled2.emplace(g2);
+  }
+  const auto &table1 = post_scale ? unit : *scaled1;
+  const auto &table2 = post_scale ? unit : *scaled2;
+  PhaseBarrier barrier(workers.cores.size());
+  workers.dispatch([&](int thread) {
+    expert_worker<NT>(w13, w2, s13, s2, x, h, i, tokens, g1, g2,
+                      post_scale, workers, planes, table1, table2, barrier,
+                      thread);
   });
 }
+
+struct BatchExpert {
+  const uint8_t *w13, *w2, *s13, *s2;
+  CsfPlane planes[2];
+  int tokens[3], count;
+  float g1, g2, route_weights[3];
+  std::unique_ptr<a16global::Tables> scaled1, scaled2;
+};
 } // namespace
 extern "C" int qwen38_cpu_abi() { return 2; }
 extern "C" int qwen38_cpu_csf_abi() { return 2; }
@@ -242,8 +268,12 @@ static int run(const uint8_t *payload, uint64_t bytes, const uint64_t *offsets,
                int experts, int h, int i, const uint16_t *x, const int32_t *ids,
                const float *weights, int nt, int topk, int threads,
                const int *cores, int nc, float *out, bool post_scale,
-               const uint64_t *csf_strides = nullptr) {
+               const uint64_t *csf_strides = nullptr,
+               int32_t *completed = nullptr, int sequence = 0,
+               bool batch_dispatch = false) {
   try {
+    if ((completed && sequence <= 0) || (!completed && sequence != 0))
+      throw std::runtime_error("invalid CPU completion sequence");
     if (!payload || !offsets || !x || !ids || !weights || !out ||
         experts <= 0 || h <= 0 || i <= 0 || h > 65536 || i > 65536 || h % 32 ||
         i % 32 || nt < 1 || nt > 3 || topk < 1 || topk > 32 || threads < 1 ||
@@ -292,6 +322,8 @@ static int run(const uint8_t *payload, uint64_t bytes, const uint64_t *offsets,
         active.push_back(ids[k]);
     std::sort(active.begin(), active.end());
     active.erase(std::unique(active.begin(), active.end()), active.end());
+    std::vector<BatchExpert> batch;
+    if (batch_dispatch) batch.reserve(active.size());
     for (int e : active) {
       int tokens[3], n = 0;
       for (int t = 0; t < nt; t++) {
@@ -367,6 +399,24 @@ static int run(const uint8_t *payload, uint64_t bytes, const uint64_t *offsets,
         if (csf_strides[1])
           s2 = expanded + stride[2];
       }
+      if (batch_dispatch) {
+        BatchExpert task{};
+        task.w13 = w13; task.w2 = w2; task.s13 = s13; task.s2 = s2;
+        task.planes[0] = planes[0]; task.planes[1] = planes[1];
+        task.count = n; task.g1 = g1; task.g2 = g2;
+        for (int j = 0; j < n; ++j) {
+          task.tokens[j] = tokens[j];
+          for (int k = 0; k < topk; ++k)
+            if (ids[tokens[j] * topk + k] == e)
+              task.route_weights[j] += weights[tokens[j] * topk + k];
+        }
+        if (!post_scale) {
+          task.scaled1 = std::make_unique<a16global::Tables>(g1);
+          task.scaled2 = std::make_unique<a16global::Tables>(g2);
+        }
+        batch.push_back(std::move(task));
+        continue;
+      }
       if (n == 1)
         expert<1>(w13, w2, s13, s2, x, h, i, tokens, g1, g2, post_scale,
                   workers, planes);
@@ -386,11 +436,35 @@ static int run(const uint8_t *payload, uint64_t bytes, const uint64_t *offsets,
           sum[t * h + k] += rw * workers.value[j * h + k];
       }
     }
+    if (batch_dispatch && !batch.empty()) {
+      workers.hidden.resize(3 * i);
+      static const a16global::Tables unit(1.0f);
+      PhaseBarrier barrier(threads);
+      workers.dispatch([&](int thread) {
+        for (const auto &task : batch) {
+          const auto &table1 = post_scale ? unit : *task.scaled1;
+          const auto &table2 = post_scale ? unit : *task.scaled2;
+#define RUN_BATCH_EXPERT(N) \
+          expert_worker<N>(task.w13, task.w2, task.s13, task.s2, x, h, i, \
+                           task.tokens, task.g1, task.g2, post_scale, workers, \
+                           task.planes, table1, table2, barrier, thread, \
+                           task.route_weights)
+          if (task.count == 1) RUN_BATCH_EXPERT(1);
+          else if (task.count == 2) RUN_BATCH_EXPERT(2);
+          else RUN_BATCH_EXPERT(3);
+#undef RUN_BATCH_EXPERT
+        }
+      });
+    }
     for (size_t k = 0; k < sum.size(); k++) {
       if (!std::isfinite(sum[k]))
         throw std::runtime_error("nonfinite CPU output");
       out[k] = sum[k];
     }
+    // Publish while ctypes still has the GIL released. GPU result consumption
+    // must not wait for Python statistics or the return-path GIL acquisition.
+    if (completed)
+      __atomic_store_n(completed, sequence, __ATOMIC_RELEASE);
     return 0;
   } catch (const std::exception &e) {
     snprintf(error, sizeof(error), "%s", e.what());
@@ -426,4 +500,81 @@ extern "C" int qwen38_cpu_run_csf(const uint8_t *payload, uint64_t bytes,
   }
   return run(payload, bytes, offsets, experts, h, i, x, ids, weights, nt, topk,
              threads, cores, nc, out, post_scale != 0, csf_strides);
+}
+
+// Additive ABI: old synchronous entry points retain their signatures. A failed
+// computation leaves completion untouched; the runtime poisons before releasing
+// its GPU consumer through the existing exception path.
+extern "C" int qwen38_cpu_run_b12x_publish(
+    const uint8_t *payload, uint64_t bytes, const uint64_t *offsets,
+    int experts, int h, int i, const uint16_t *x, const int32_t *ids,
+    const float *weights, int nt, int topk, int threads, const int *cores,
+    int nc, float *out, int32_t *completed, int sequence) {
+  return run(payload, bytes, offsets, experts, h, i, x, ids, weights, nt, topk,
+             threads, cores, nc, out, true, nullptr, completed, sequence);
+}
+extern "C" int qwen38_cpu_run_csf_publish(
+    const uint8_t *payload, uint64_t bytes, const uint64_t *offsets,
+    int experts, int h, int i, const uint16_t *x, const int32_t *ids,
+    const float *weights, int nt, int topk, int threads, const int *cores,
+    int nc, float *out, const uint64_t *csf_strides, int post_scale,
+    int32_t *completed, int sequence) {
+  if (!csf_strides) {
+    snprintf(error, sizeof(error), "missing CPU CSF strides");
+    return -1;
+  }
+  return run(payload, bytes, offsets, experts, h, i, x, ids, weights, nt, topk,
+             threads, cores, nc, out, post_scale != 0, csf_strides, completed,
+             sequence);
+}
+
+// One native service owns an ordered mapped page. The Python launcher only
+// starts/stops the service; route acquisition, dispatch and publication stay here.
+extern "C" int qwen38_cpu_layered_service(
+    const uint8_t *payload, uint64_t bytes, const uint64_t *all_offsets,
+    const uint64_t *all_csf_strides, int layers, int experts, int h, int i,
+    int topk, int threads, const int *cores, int32_t *page,
+    int32_t *failed, int32_t *stop, int post_scale) {
+  if (!page || !failed || !stop || !all_offsets || layers <= 0 || topk <= 0 ||
+      topk > 10 || h <= 0 || !payload) return -1;
+  auto *x = reinterpret_cast<const uint16_t*>(page + 3);
+  auto *ids = reinterpret_cast<const int32_t*>(x + 3 * h);
+  auto *weights = reinterpret_cast<const float*>(ids + 3 * topk);
+  auto *result = const_cast<float*>(weights + 3 * topk);
+  auto *completed = reinterpret_cast<int32_t*>(result + 3 * h);
+  int32_t seen = 0;
+  while (!__atomic_load_n(stop, __ATOMIC_ACQUIRE)) {
+    int32_t seq = __atomic_load_n(page, __ATOMIC_ACQUIRE);
+    if (seq == seen) {
+#if defined(__x86_64__)
+      __builtin_ia32_pause();
+#endif
+      std::this_thread::yield();
+      continue;
+    }
+    if (seq <= 0 || seq <= seen) {
+      __atomic_store_n(failed, 1, __ATOMIC_RELEASE);
+      return -1;
+    }
+    seen = seq;
+    int layer = page[1], tokens = page[2];
+    if (layer < 0 || layer >= layers || tokens < 1 || tokens > 3) {
+      __atomic_store_n(failed, 1, __ATOMIC_RELEASE);
+      return -1;
+    }
+    const uint64_t *strides = all_csf_strides ? all_csf_strides + 2 * layer : nullptr;
+    int rc = run(payload, bytes, all_offsets + 8 * layer, experts, h, i,
+                 x, ids, weights, tokens, topk, threads, cores, threads,
+                 result, post_scale != 0, strides, completed, seq, true);
+    if (rc) {
+      __atomic_store_n(failed, 1, __ATOMIC_RELEASE);
+      return rc;
+    }
+  }
+  cached.reset();
+  return 0;
+}
+
+extern "C" void qwen38_cpu_layered_stop(int32_t *stop) {
+  if (stop) __atomic_store_n(stop, 1, __ATOMIC_RELEASE);
 }

@@ -6,16 +6,22 @@ The state reset happens before each timed event and is excluded from latency.
 """
 
 import argparse
+import hashlib
+import json
 import random
 import statistics
+from pathlib import Path
 
 import torch
 
 from sglang.kernels.ops.moe.qwen38_hybrid_plan import (
+    COST_COLUMNS,
+    MAX_ROUTES,
     hybrid_plan,
     hybrid_plan_indexed,
 )
 from sglang.srt.layers.moe.qwen38_heap_index import build_heap_index
+from sglang.srt.layers.moe.qwen38_hybrid_policy import HybridCostModel
 
 
 def state_for_case(layers, experts, slots, max_slots, free_slots):
@@ -55,6 +61,16 @@ def main():
     parser.add_argument("--top-k", type=int, default=3)
     parser.add_argument("--samples", type=int, default=100)
     parser.add_argument("--warmup", type=int, default=20)
+    parser.add_argument(
+        "--calibration",
+        type=Path,
+        help="Include a real cost table in plan timing; routes remain synthetic",
+    )
+    parser.add_argument(
+        "--baseline-source",
+        type=Path,
+        help="Compile a saved pre-change planner for paired indexed comparison",
+    )
     args = parser.parse_args()
     if not torch.cuda.is_available():
         parser.error("CUDA GPU required")
@@ -66,6 +82,44 @@ def main():
         parser.error("invalid route shape")
     if args.samples < 1 or args.warmup < 0:
         parser.error("invalid sample count")
+    cost_rows = []
+    if args.calibration is not None:
+        table = json.loads(args.calibration.read_text())
+        metadata = {
+            name: table[name]
+            for name in ("backend", "hidden", "width", "top_k", "cores", "gpu", "cpu")
+        }
+        metadata.update(
+            {
+                name: table[name]
+                for name in ("transport", "runtime_version")
+                if name in table
+            }
+        )
+        cost_rows = HybridCostModel(table, **metadata).device_cost_rows(MAX_ROUTES)
+    costs = torch.tensor(cost_rows, dtype=torch.float64, device="cuda").reshape(
+        -1, COST_COLUMNS
+    )
+    print("profitable cost rows", len(cost_rows), flush=True)
+    baseline_indexed = None
+    if args.baseline_source is not None:
+        from sglang.kernels.jit.utils import load_jit
+
+        path = args.baseline_source.resolve()
+        fingerprint = hashlib.sha256(path.read_bytes()).hexdigest()[:16]
+        baseline = load_jit(
+            "qwen38_hit_baseline",
+            fingerprint,
+            cuda_files=[str(path)],
+            extra_include_paths=[
+                str(
+                    Path(__file__).resolve().parents[4]
+                    / "python/sglang/kernels/jit/csrc/moe"
+                )
+            ],
+            cuda_wrappers=[("plan_indexed", "qwen38_hybrid_plan_indexed")],
+        )
+        baseline_indexed = baseline.plan_indexed
     rng = random.Random(617)
     for case, free_slots in (("all_hit", 0), ("full_miss", 0), ("free_miss", 64)):
         source, source_index, first_unused = state_for_case(
@@ -79,7 +133,6 @@ def main():
             dtype=torch.int32,
             device="cuda",
         )
-        costs = torch.empty((0, 70), dtype=torch.float64, device="cuda")
         state = tuple(torch.empty_like(t) for t in source)
         index = torch.empty_like(source_index)
         gpu, cpu = torch.empty_like(ids), torch.empty_like(ids)
@@ -89,6 +142,8 @@ def main():
             "scan": hybrid_plan,
             "indexed": hybrid_plan_indexed,
         }
+        if baseline_indexed is not None:
+            functions["before_indexed"] = baseline_indexed
         timings = {name: [] for name in functions}
         outcomes = {}
         for sample in range(args.samples + args.warmup):
@@ -106,7 +161,7 @@ def main():
                 begin.record()
                 call = functions[mode]
                 arguments = (ids, *state, costs, gpu, cpu, plan, stats, 0, 0.95, 1.9)
-                if mode == "indexed":
+                if mode in ("indexed", "before_indexed"):
                     arguments += (index,)
                 call(*arguments)
                 end.record()
@@ -123,6 +178,7 @@ def main():
                                 if owner >= 0 and key >= 0
                             )
                         ),
+                        tuple(state[1].reshape(-1).tolist()),
                         tuple(stats.tolist()),
                         tuple(cpu.reshape(-1).tolist()),
                         tuple(sorted(plan[4 : 4 + 2 * plan[1].item() : 2].tolist())),
@@ -134,8 +190,17 @@ def main():
         print(
             case,
             {
-                name + "_us": round(statistics.median(values), 3)
+                name + suffix: round(value, 3)
                 for name, values in timings.items()
+                for suffix, value in (
+                    ("_p50_us", statistics.median(values)),
+                    (
+                        "_p95_us",
+                        sorted(values)[
+                            min(len(values) - 1, (95 * len(values) + 99) // 100 - 1)
+                        ],
+                    ),
+                )
             },
             flush=True,
         )

@@ -27,6 +27,9 @@ class HybridCostModel:
     ``rejected_tokens`` records sorted route counts for all LFU-rejected
     experts before CPU selection, distinguishing GPU cache routes from
     rejected routes that still require GPU transfers.
+    ``gpu_fill_experts`` counts distinct nonresident GPU experts after CPU
+    selection, including both admitted and forced GPU placements. Expert
+    payload size is fixed by the matching pack geometry.
     Optional transport and runtime version metadata must match exactly when
     supplied by either the runtime or the calibration table.
     """
@@ -54,9 +57,9 @@ class HybridCostModel:
             raise ValueError("calibration must be a JSON object")
         if (
             type(calibration.get("schema_version")) is not int
-            or calibration["schema_version"] != 1
+            or calibration["schema_version"] != 2
         ):
-            raise ValueError("calibration.schema_version must be 1")
+            raise ValueError("calibration.schema_version must be 2")
 
         metadata = dict(
             backend=backend,
@@ -154,7 +157,18 @@ class HybridCostModel:
                     "integer counts within total routes, containing miss_tokens "
                     "as a multiset subset"
                 )
-            key += (tuple(miss_tokens), tuple(rejected_tokens))
+            gpu_fill = sample.get("gpu_fill_experts")
+            remaining = len(rejected_tokens) - miss_experts
+            resident_routes = hit_routes - (sum(rejected_tokens) - miss_routes)
+            if (
+                type(gpu_fill) is not int
+                or not remaining <= gpu_fill <= remaining + resident_routes
+            ):
+                raise ValueError(
+                    f"calibration.{path}.gpu_fill_experts must count remaining "
+                    "rejected GPU experts plus admitted experts within GPU routes"
+                )
+            key += (tuple(miss_tokens), tuple(rejected_tokens), gpu_fill)
             cpu_us = self._number(sample.get("cpu_us"), f"{path}.cpu_us")
             gpu_us = self._number(sample.get("gpu_us"), f"{path}.gpu_us")
             if cpu_us <= 0 or gpu_us <= 0:
@@ -183,6 +197,7 @@ class HybridCostModel:
         miss_experts,
         miss_tokens=None,
         rejected_tokens=None,
+        gpu_fill_experts=0,
     ):
         """Compare exact costs; omitted rejected profile equals the CPU profile."""
         if (
@@ -228,8 +243,23 @@ class HybridCostModel:
             or Counter(profile) - Counter(rejected_profile)
         ):
             return "gpu"
+        remaining = len(rejected_profile) - miss_experts
+        resident_routes = hit_routes - (sum(rejected_profile) - miss_routes)
+        if (
+            type(gpu_fill_experts) is not int
+            or not remaining <= gpu_fill_experts <= remaining + resident_routes
+        ):
+            return "gpu"
         sample = self.samples.get(
-            (tokens, hit_routes, miss_routes, miss_experts, profile, rejected_profile)
+            (
+                tokens,
+                hit_routes,
+                miss_routes,
+                miss_experts,
+                profile,
+                rejected_profile,
+                gpu_fill_experts,
+            )
         )
         if sample is not None:
             cpu_us, gpu_us = sample
@@ -237,7 +267,30 @@ class HybridCostModel:
                 return "cpu"
         return "gpu"
 
-    def select_cpu(self, tokens, rows, mapping, rejected):
+    def device_cost_rows(self, max_routes):
+        """Pack profitable samples sorted by scalar bucket for device binary search."""
+        rows = []
+        for key, (cpu_us, gpu_us) in self.samples.items():
+            if cpu_us >= gpu_us * (1 - self.margin):
+                continue
+            tokens, gpu_routes, cpu_routes, experts, profile, rejected, fills = key
+            if max(len(profile), len(rejected)) > max_routes:
+                raise ValueError("cost profile exceeds device route capacity")
+            row = [
+                tokens,
+                gpu_routes,
+                cpu_routes,
+                experts,
+                len(rejected),
+                cpu_us,
+                fills,
+            ]
+            row += list(profile) + [0] * (max_routes - len(profile))
+            row += list(rejected) + [0] * (max_routes - len(rejected))
+            rows.append(row)
+        return sorted(rows, key=lambda row: (*row[:5], row[6]))
+
+    def select_cpu(self, tokens, rows, mapping, rejected, *, admitted_experts=0):
         """Choose the fastest eligible measured prefix of LFU-rejected experts.
 
         Prefixes sort by (route count, expert id). Hits and admitted misses
@@ -245,7 +298,12 @@ class HybridCostModel:
         CPU experts; negative route ids are padding and do not count.
         """
         empty = frozenset()
-        if type(tokens) is not int or not 1 <= tokens <= 3:
+        if (
+            type(tokens) is not int
+            or not 1 <= tokens <= 3
+            or type(admitted_experts) is not int
+            or admitted_experts < 0
+        ):
             return empty
         if not isinstance(mapping, dict) or any(
             type(expert) is not int or expert < 0 or type(slot) is not int or slot < 0
@@ -285,6 +343,7 @@ class HybridCostModel:
                 k,
                 tuple(profile),
                 rejected_profile,
+                admitted_experts + len(candidates) - k,
             )
             if self.choose(*key) == "cpu":
                 cpu_us = self.samples[key][0]

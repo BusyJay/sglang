@@ -52,6 +52,7 @@ class CpuNvfp4:
         from sglang.kernels.ops.moe.cpu_nvfp4.build import resolve_library
 
         self.library = ctypes.CDLL(str(resolve_library(library, cores[0])))
+        self.library_path = Path(self.library._name).resolve()
         if (
             not hasattr(self.library, "qwen38_cpu_abi")
             or self.library.qwen38_cpu_abi() != 2
@@ -116,6 +117,23 @@ class CpuNvfp4:
                     for name in ("w13_blockscale_swizzled", "w2_blockscale_swizzled")
                 )
             )
+        self.native_publish = None
+        if gpu_backend == "b12x":
+            publish_symbol = (
+                "qwen38_cpu_run_csf_publish"
+                if self.csf_strides is not None
+                else "qwen38_cpu_run_b12x_publish"
+            )
+            if not hasattr(self.library, publish_symbol):
+                raise ValueError(
+                    "rebuild CPU library for native completion publication"
+                )
+            self.native_publish = getattr(self.library, publish_symbol)
+            self.native_publish.argtypes = self.native_run.argtypes + [
+                ctypes.c_void_p,
+                ctypes.c_int,
+            ]
+            self.native_publish.restype = ctypes.c_int
         self.post_scale = int(gpu_backend == "b12x")
         self.native_run.restype = ctypes.c_int
         self.library.qwen38_cpu_error.restype = ctypes.c_char_p
@@ -134,7 +152,7 @@ class CpuNvfp4:
             for layer, records in pack.manifest.tensors.items()
         }
 
-    def run(self, layer, x, ids, weights, output):
+    def run(self, layer, x, ids, weights, output, *, completed=None, sequence=0):
         import torch
 
         m = self.pack.manifest
@@ -156,7 +174,21 @@ class CpuNvfp4:
             or not all(t.is_contiguous() for t in (x, ids, weights, output))
         ):
             raise ValueError("unsupported CPU hybrid input")
-        status = self.native_run(
+        if completed is not None:
+            if (
+                self.native_publish is None
+                or completed.device.type != "cpu"
+                or completed.dtype != torch.int32
+                or completed.shape != (1,)
+                or not completed.is_contiguous()
+                or type(sequence) is not int
+                or not 0 < sequence < 2**31
+            ):
+                raise ValueError("unsupported CPU completion target/sequence")
+        elif sequence != 0:
+            raise ValueError("CPU completion sequence requires a target")
+        native = self.native_publish if completed is not None else self.native_run
+        status = native(
             self.address,
             len(self.mapping),
             self.offsets[layer],
@@ -177,6 +209,7 @@ class CpuNvfp4:
                 if self.csf_strides is not None
                 else ()
             ),
+            *((completed.data_ptr(), sequence) if completed is not None else ()),
         )
         if status:
             # The native ABI checks every route, weight and BF16 activation.

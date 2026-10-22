@@ -108,6 +108,8 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             "kv_cache_stages",
             "prefill_arena",
             "runtime_mode",
+            "cpu_hybrid_mode",
+            "layered_cpu_max_experts",
             "stats_log_interval",
             "staging_buffers",
             "staging_buffer_bytes",
@@ -269,6 +271,39 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
         ):
             raise ValueError(
                 "kv_cache_stages requires adaptive_cache and threaded runtime"
+            )
+        limit = config.get("layered_cpu_max_experts", 1)
+        if type(limit) is not int or not 0 <= limit <= 30:
+            raise ValueError("layered_cpu_max_experts must be an integer in [0, 30]")
+        if (
+            "layered_cpu_max_experts" in config
+            and config.get("cpu_hybrid_mode") != "layered_lfu"
+        ):
+            raise ValueError("layered_cpu_max_experts requires layered_lfu mode")
+        mode = config.get("cpu_hybrid_mode")
+        if mode is not None and mode not in (
+            "off",
+            "global",
+            "layered",
+            "layered_zero",
+            "layered_probe",
+            "layered_lfu",
+        ):
+            raise ValueError(
+                "cpu_hybrid_mode must be off/global/layered/layered_zero/layered_probe/layered_lfu"
+            )
+        if (
+            mode not in (None, "off")
+            and config.get("runtime_mode", "sync") != "threaded"
+        ):
+            raise ValueError("cpu_hybrid_mode requires threaded runtime")
+        if mode in ("layered", "layered_zero", "layered_probe", "layered_lfu") and (
+            config.get("decode_early_cache", False)
+            or not config.get("fused_decode_plan", True)
+            or not config.get("decode_device_gate", True)
+        ):
+            raise ValueError(
+                "layered CPU hybrid requires fused device gate without early cache"
             )
         self.config = config
         self.manifest = load_manifest(manifest_path)
@@ -539,7 +574,46 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                         Qwen38CachedNvFp4MoeMethod,
                     )
                 ]
-                runtime_options["cpu_hybrid"] = default_cpu_hybrid(self.config, methods)
+                mode = self.config.get("cpu_hybrid_mode")
+                if mode is None:
+                    mode = (
+                        "global" if default_cpu_hybrid(self.config, methods) else "off"
+                    )
+                if mode not in (
+                    "off",
+                    "global",
+                    "layered",
+                    "layered_zero",
+                    "layered_probe",
+                    "layered_lfu",
+                ):
+                    raise ValueError(
+                        "cpu_hybrid_mode must be off/global/layered/layered_zero/layered_probe/layered_lfu"
+                    )
+                if mode == "layered":
+                    calibration = envs.SGLANG_QWEN38_LAYERED_CPU_CALIBRATION.get()
+                    if calibration is None or not calibration.get("samples"):
+                        logger.info(
+                            "Layered CPU calibration absent; selecting per-layer GPU mode"
+                        )
+                        mode = "off"
+                if mode.startswith("layered") and (
+                    not methods
+                    or not all(method.use_w4a16 for method in methods)
+                    or not self.config.get("adaptive_cache", False)
+                    or self.config.get("cache_policy", "lfu") != "lfu"
+                    or not self.config.get("prefill_arena", True)
+                ):
+                    raise ValueError(
+                        "layered CPU hybrid requires W4A16, adaptive LFU and prefill arena"
+                    )
+                runtime_options["cpu_hybrid"] = mode == "global"
+                runtime_options["layered_cpu_mode"] = (
+                    mode if mode.startswith("layered") else None
+                )
+                runtime_options["layered_cpu_max_experts"] = self.config.get(
+                    "layered_cpu_max_experts", 1
+                )
                 runtime_options["adaptive_cache_window"] = self.config.get(
                     "adaptive_cache_window", 512
                 )

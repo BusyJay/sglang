@@ -11,6 +11,7 @@ from concurrent.futures import Future
 from pathlib import Path
 
 import torch
+
 from sglang.srt.environ import envs
 from sglang.srt.layers.moe.qwen38_hybrid_policy import GlobalLfu, HybridCostModel
 
@@ -191,6 +192,7 @@ class HybridCache:
             root / "quantization/qwen38_cached_b12x.py",
             root / "quantization/qwen38_b12x_hybrid.py",
             root / "quantization/qwen38_cached_w4a16.py",
+            root.parents[1] / "kernels/ops/moe/cpu_nvfp4/__init__.py",
             Path(self.cpu.library._name),
         ):
             digest.update(source.read_bytes())
@@ -797,7 +799,9 @@ class HybridCache:
         if misses:
             epoch, mapping = self._prepare_window(layer, epoch, requested, compute)
         rejected = set(requested) - mapping.keys()
-        cpu_experts = self.cost_model.select_cpu(x.shape[0], rows, mapping, rejected)
+        cpu_experts = self.cost_model.select_cpu(
+            x.shape[0], rows, mapping, rejected, admitted_experts=len(misses - rejected)
+        )
         gpu_misses = rejected - cpu_experts
         self.stats["lfu_rejected_experts"] += len(rejected)
         self.stats["selected_cpu_experts"] += len(cpu_experts)

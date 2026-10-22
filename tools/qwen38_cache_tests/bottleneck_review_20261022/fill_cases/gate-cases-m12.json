@@ -1,0 +1,3555 @@
+{
+  "geometry": {
+    "hidden_size": 2560,
+    "intermediate_size": 640,
+    "num_experts": 512,
+    "num_layers": 48,
+    "top_k": 10
+  },
+  "budget": 7006,
+  "provenance": {
+    "python/sglang/kernels/jit/csrc/moe/qwen38_hybrid_plan.cuh": "a71bfec5695b07e1053c7e8d2e7d264f0a21f1169dd755a520523775ea71dd46",
+    "python/sglang/kernels/jit/csrc/moe/qwen38_heap_index.cuh": "c5a295c32a42354e384f9aebdd9e06489a821ac556f37b317d74d7de377e2fc1",
+    "python/sglang/srt/layers/moe/qwen38_hybrid_device.py": "eaf76d1f9e22fd4b0a46b135338a007f9648064f7645ce3098e1be15ccdcb214",
+    "python/sglang/srt/layers/moe/qwen38_heap_index.py": "ca4fdfd54b12af7e80aa93a50e4fcda5f80d00cce0b5f1dd121229e7fbddfceb",
+    "python/sglang/srt/layers/quantization/qwen38_cached_b12x.py": "b348c34b2cd5eb2e284e257b2ebcfa154f6beed365b0bfbdde768358660b8c20",
+    "python/sglang/srt/layers/quantization/qwen38_b12x_hybrid.py": "29c05a49e319943195fa128a2d85986982bba41fd2c4c16f0d4a4e15349a99b0",
+    "python/sglang/kernels/jit/csrc/moe/qwen38_mailbox.cc": "211ff71deaca1ccefdd6ba14fc5477bb139571bce68c5f63beaa1f3f47d4f167",
+    "python/sglang/kernels/ops/moe/qwen38_hybrid_plan.py": "043582dad1246c6106681914ee81d5edbd4fa6dfef7898f858e86ae4687fdf56",
+    "tools/qwen38_cache_tests/verify_reuse_diagnosis_20261018/service/verify-routes.jsonl.gz": "e8e0a5684acacaef00ff866798dea7fc0b28ee50c17377821bc1e082d55f73e7",
+    "tools/qwen38_cache_tests/migration_20261021/transfer-replay.json": "86ce599e779e78e9e3b5531c3f71ba34bc532c462179f9f1e7e94e26cde88e65",
+    "tools/qwen38_cache_tests/plan_20261022/route-cases.json": "ecdbd86152ef690f3216534edf119c07ab9f88a2ed1b826df4b65abddf33f0f4",
+    "tools/qwen38_cache_tests/bottleneck_review_20261022/prepare_fill_cases.py": "34339e4e5631d36a37e488010ef4b86d05372aadd749ce4f5c8764594b592d81",
+    "python/sglang/srt/layers/moe/qwen38_hybrid_policy.py": "eaf5948db315ba7a001ca1a783b8d8c833897c70bd5ac69dff46b7066ba8af8f",
+    "python/sglang/srt/layers/moe/qwen38_hybrid.py": "110c3346b512fda4afdf2328b3e86648db09e38b164eb3f88f1757334c7929a3",
+    "test/manual/kernels/moe/bench_qwen38_hybrid_gate.py": "9d02b9e06e52c999c09ab9aed3c7668481301f3ad1cada4d935f5b7a2f8362d7"
+  },
+  "source_replay_provenance": {
+    "python/sglang/kernels/jit/csrc/moe/qwen38_hybrid_plan.cuh": "f88f7e1cd6d01b57dfcbe649c8554751fd2295cab77ee9e0544c89f53286e428",
+    "python/sglang/kernels/jit/csrc/moe/qwen38_heap_index.cuh": "c5a295c32a42354e384f9aebdd9e06489a821ac556f37b317d74d7de377e2fc1",
+    "python/sglang/srt/layers/moe/qwen38_hybrid_device.py": "7906ef7406581cff71318c7b6d12664c78dbdfc5802ddb4bf4b422dc66b9e3f2",
+    "python/sglang/srt/layers/moe/qwen38_heap_index.py": "ca4fdfd54b12af7e80aa93a50e4fcda5f80d00cce0b5f1dd121229e7fbddfceb",
+    "python/sglang/srt/layers/quantization/qwen38_cached_b12x.py": "b348c34b2cd5eb2e284e257b2ebcfa154f6beed365b0bfbdde768358660b8c20",
+    "python/sglang/srt/layers/quantization/qwen38_b12x_hybrid.py": "29c05a49e319943195fa128a2d85986982bba41fd2c4c16f0d4a4e15349a99b0",
+    "python/sglang/kernels/jit/csrc/moe/qwen38_mailbox.cc": "211ff71deaca1ccefdd6ba14fc5477bb139571bce68c5f63beaa1f3f47d4f167",
+    "python/sglang/kernels/ops/moe/qwen38_hybrid_plan.py": "c435a3bc63060897d6d72b279eacd2968a4c3529a2db65a736811a64be35abc1",
+    "tools/qwen38_cache_tests/verify_reuse_diagnosis_20261018/service/verify-routes.jsonl.gz": "e8e0a5684acacaef00ff866798dea7fc0b28ee50c17377821bc1e082d55f73e7",
+    "tools/qwen38_cache_tests/migration_20261021/transfer-replay.json": "86ce599e779e78e9e3b5531c3f71ba34bc532c462179f9f1e7e94e26cde88e65"
+  },
+  "cases": [
+    {
+      "key": [
+        2,
+        19,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        0
+      ],
+      "rows": [
+        [
+          508,
+          380,
+          222,
+          81,
+          184,
+          187,
+          275,
+          89,
+          291,
+          133
+        ],
+        [
+          508,
+          81,
+          184,
+          222,
+          291,
+          89,
+          380,
+          275,
+          350,
+          133
+        ]
+      ],
+      "layer": 15,
+      "cpu_experts": [
+        187
+      ],
+      "rejected_experts": [
+        187
+      ],
+      "admitted_experts": [],
+      "case": "short",
+      "count": 6291,
+      "paired_frame": [
+        0,
+        2
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          103,
+          388,
+          421,
+          420,
+          146,
+          211,
+          373,
+          393,
+          30,
+          266
+        ]
+      ],
+      "layer": 9,
+      "cpu_experts": [
+        393
+      ],
+      "rejected_experts": [
+        393
+      ],
+      "admitted_experts": [
+        146
+      ],
+      "case": "short",
+      "count": 3091,
+      "paired_frame": [
+        1,
+        1
+      ]
+    },
+    {
+      "key": [
+        2,
+        19,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          103,
+          388,
+          421,
+          420,
+          146,
+          211,
+          373,
+          393,
+          30,
+          266
+        ],
+        [
+          256,
+          420,
+          391,
+          211,
+          103,
+          263,
+          373,
+          307,
+          388,
+          266
+        ]
+      ],
+      "layer": 9,
+      "cpu_experts": [
+        393
+      ],
+      "rejected_experts": [
+        393
+      ],
+      "admitted_experts": [
+        146
+      ],
+      "case": "short",
+      "count": 3091,
+      "paired_frame": [
+        1,
+        2
+      ]
+    },
+    {
+      "key": [
+        2,
+        19,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        0
+      ],
+      "rows": [
+        [
+          365,
+          150,
+          28,
+          105,
+          2,
+          442,
+          99,
+          220,
+          125,
+          138
+        ],
+        [
+          99,
+          138,
+          342,
+          76,
+          133,
+          28,
+          365,
+          109,
+          105,
+          232
+        ]
+      ],
+      "layer": 27,
+      "cpu_experts": [
+        232
+      ],
+      "rejected_experts": [
+        232
+      ],
+      "admitted_experts": [],
+      "case": "short",
+      "count": 2536,
+      "paired_frame": [
+        3,
+        2
+      ]
+    },
+    {
+      "key": [
+        2,
+        19,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        0
+      ],
+      "rows": [
+        [
+          205,
+          189,
+          277,
+          92,
+          350,
+          129,
+          25,
+          124,
+          77,
+          486
+        ],
+        [
+          205,
+          486,
+          92,
+          124,
+          277,
+          189,
+          77,
+          104,
+          25,
+          129
+        ]
+      ],
+      "layer": 13,
+      "cpu_experts": [
+        104
+      ],
+      "rejected_experts": [
+        104
+      ],
+      "admitted_experts": [],
+      "case": "short",
+      "count": 1820,
+      "paired_frame": [
+        4,
+        2
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          84,
+          111,
+          15,
+          381,
+          503,
+          290,
+          122,
+          433,
+          351,
+          126
+        ]
+      ],
+      "layer": 45,
+      "cpu_experts": [
+        433
+      ],
+      "rejected_experts": [
+        433
+      ],
+      "admitted_experts": [
+        122
+      ],
+      "case": "short",
+      "count": 1677,
+      "paired_frame": [
+        5,
+        1
+      ]
+    },
+    {
+      "key": [
+        2,
+        19,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          84,
+          111,
+          15,
+          381,
+          503,
+          290,
+          122,
+          433,
+          351,
+          126
+        ],
+        [
+          15,
+          111,
+          84,
+          381,
+          290,
+          503,
+          189,
+          230,
+          351,
+          122
+        ]
+      ],
+      "layer": 45,
+      "cpu_experts": [
+        433
+      ],
+      "rejected_experts": [
+        433
+      ],
+      "admitted_experts": [
+        122
+      ],
+      "case": "short",
+      "count": 1677,
+      "paired_frame": [
+        5,
+        2
+      ]
+    },
+    {
+      "key": [
+        2,
+        19,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        0
+      ],
+      "rows": [
+        [
+          65,
+          220,
+          297,
+          213,
+          482,
+          153,
+          221,
+          271,
+          42,
+          277
+        ],
+        [
+          65,
+          482,
+          220,
+          153,
+          297,
+          18,
+          501,
+          42,
+          213,
+          271
+        ]
+      ],
+      "layer": 32,
+      "cpu_experts": [
+        18
+      ],
+      "rejected_experts": [
+        18
+      ],
+      "admitted_experts": [],
+      "case": "short",
+      "count": 755,
+      "paired_frame": [
+        10,
+        2
+      ]
+    },
+    {
+      "key": [
+        2,
+        19,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        0
+      ],
+      "rows": [
+        [
+          2,
+          215,
+          283,
+          107,
+          382,
+          133,
+          391,
+          158,
+          324,
+          346
+        ],
+        [
+          348,
+          47,
+          368,
+          213,
+          101,
+          63,
+          478,
+          37,
+          140,
+          46
+        ]
+      ],
+      "layer": 5,
+      "cpu_experts": [
+        46
+      ],
+      "rejected_experts": [
+        46
+      ],
+      "admitted_experts": [],
+      "case": "short",
+      "count": 675,
+      "paired_frame": [
+        14,
+        2
+      ]
+    },
+    {
+      "key": [
+        2,
+        19,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          350,
+          92,
+          277,
+          124,
+          189,
+          205,
+          486,
+          433,
+          25,
+          129
+        ],
+        [
+          350,
+          92,
+          486,
+          25,
+          189,
+          277,
+          124,
+          433,
+          48,
+          199
+        ]
+      ],
+      "layer": 29,
+      "cpu_experts": [
+        199
+      ],
+      "rejected_experts": [
+        199
+      ],
+      "admitted_experts": [
+        48
+      ],
+      "case": "short",
+      "count": 672,
+      "paired_frame": [
+        15,
+        2
+      ]
+    },
+    {
+      "key": [
+        2,
+        19,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        0
+      ],
+      "rows": [
+        [
+          20,
+          410,
+          232,
+          419,
+          342,
+          16,
+          197,
+          478,
+          480,
+          355
+        ],
+        [
+          137,
+          419,
+          139,
+          482,
+          177,
+          202,
+          355,
+          232,
+          342,
+          480
+        ]
+      ],
+      "layer": 42,
+      "cpu_experts": [
+        137
+      ],
+      "rejected_experts": [
+        137
+      ],
+      "admitted_experts": [],
+      "case": "short",
+      "count": 584,
+      "paired_frame": [
+        17,
+        2
+      ]
+    },
+    {
+      "key": [
+        2,
+        19,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          205,
+          189,
+          277,
+          92,
+          350,
+          129,
+          25,
+          124,
+          77,
+          486
+        ],
+        [
+          205,
+          486,
+          92,
+          124,
+          277,
+          189,
+          77,
+          104,
+          25,
+          129
+        ]
+      ],
+      "layer": 13,
+      "cpu_experts": [
+        104
+      ],
+      "rejected_experts": [
+        104
+      ],
+      "admitted_experts": [
+        124
+      ],
+      "case": "short",
+      "count": 580,
+      "paired_frame": [
+        18,
+        2
+      ]
+    },
+    {
+      "key": [
+        2,
+        19,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          46,
+          344,
+          210,
+          76,
+          367,
+          73,
+          195,
+          171,
+          98,
+          126
+        ],
+        [
+          76,
+          406,
+          344,
+          98,
+          46,
+          207,
+          437,
+          143,
+          195,
+          235
+        ]
+      ],
+      "layer": 14,
+      "cpu_experts": [
+        207
+      ],
+      "rejected_experts": [
+        207
+      ],
+      "admitted_experts": [
+        235
+      ],
+      "case": "short",
+      "count": 417,
+      "paired_frame": [
+        25,
+        2
+      ]
+    },
+    {
+      "key": [
+        2,
+        19,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          223,
+          446,
+          136,
+          134,
+          120,
+          95,
+          74,
+          49,
+          344,
+          104
+        ],
+        [
+          28,
+          446,
+          134,
+          223,
+          136,
+          74,
+          49,
+          95,
+          104,
+          35
+        ]
+      ],
+      "layer": 44,
+      "cpu_experts": [
+        28
+      ],
+      "rejected_experts": [
+        28
+      ],
+      "admitted_experts": [
+        344
+      ],
+      "case": "short",
+      "count": 331,
+      "paired_frame": [
+        31,
+        2
+      ]
+    },
+    {
+      "key": [
+        2,
+        19,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          63,
+          30,
+          44,
+          106,
+          253,
+          367,
+          495,
+          451,
+          460,
+          493
+        ],
+        [
+          433,
+          360,
+          292,
+          264,
+          388,
+          20,
+          154,
+          367,
+          253,
+          252
+        ]
+      ],
+      "layer": 2,
+      "cpu_experts": [
+        460
+      ],
+      "rejected_experts": [
+        460
+      ],
+      "admitted_experts": [
+        388
+      ],
+      "case": "short",
+      "count": 197,
+      "paired_frame": [
+        46,
+        2
+      ]
+    },
+    {
+      "key": [
+        2,
+        19,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        0
+      ],
+      "rows": [
+        [
+          46,
+          319,
+          96,
+          171,
+          98,
+          333,
+          504,
+          195,
+          45,
+          206
+        ],
+        [
+          46,
+          319,
+          98,
+          171,
+          333,
+          471,
+          33,
+          302,
+          96,
+          56
+        ]
+      ],
+      "layer": 30,
+      "cpu_experts": [
+        45
+      ],
+      "rejected_experts": [
+        45
+      ],
+      "admitted_experts": [],
+      "case": "short",
+      "count": 181,
+      "paired_frame": [
+        52,
+        2
+      ]
+    },
+    {
+      "key": [
+        2,
+        19,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          288,
+          333,
+          67,
+          254,
+          51,
+          152,
+          314,
+          44,
+          437,
+          36
+        ],
+        [
+          333,
+          288,
+          67,
+          254,
+          152,
+          314,
+          44,
+          36,
+          89,
+          51
+        ]
+      ],
+      "layer": 35,
+      "cpu_experts": [
+        89
+      ],
+      "rejected_experts": [
+        89
+      ],
+      "admitted_experts": [
+        36
+      ],
+      "case": "short",
+      "count": 161,
+      "paired_frame": [
+        56,
+        2
+      ]
+    },
+    {
+      "key": [
+        2,
+        19,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          236,
+          353,
+          439,
+          16,
+          87,
+          273,
+          229,
+          29,
+          245,
+          171
+        ],
+        [
+          236,
+          439,
+          87,
+          29,
+          229,
+          217,
+          335,
+          273,
+          415,
+          258
+        ]
+      ],
+      "layer": 41,
+      "cpu_experts": [
+        16
+      ],
+      "rejected_experts": [
+        16
+      ],
+      "admitted_experts": [
+        217
+      ],
+      "case": "short",
+      "count": 136,
+      "paired_frame": [
+        62,
+        2
+      ]
+    },
+    {
+      "key": [
+        2,
+        19,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        0
+      ],
+      "rows": [
+        [
+          315,
+          436,
+          288,
+          226,
+          297,
+          290,
+          89,
+          386,
+          95,
+          413
+        ],
+        [
+          93,
+          288,
+          418,
+          95,
+          189,
+          386,
+          478,
+          123,
+          349,
+          133
+        ]
+      ],
+      "layer": 36,
+      "cpu_experts": [
+        478
+      ],
+      "rejected_experts": [
+        478
+      ],
+      "admitted_experts": [],
+      "case": "short",
+      "count": 122,
+      "paired_frame": [
+        67,
+        2
+      ]
+    },
+    {
+      "key": [
+        2,
+        19,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        0
+      ],
+      "rows": [
+        [
+          202,
+          500,
+          28,
+          126,
+          188,
+          64,
+          359,
+          334,
+          314,
+          5
+        ],
+        [
+          28,
+          359,
+          64,
+          449,
+          500,
+          202,
+          334,
+          314,
+          141,
+          44
+        ]
+      ],
+      "layer": 45,
+      "cpu_experts": [
+        449
+      ],
+      "rejected_experts": [
+        449
+      ],
+      "admitted_experts": [],
+      "case": "short",
+      "count": 99,
+      "paired_frame": [
+        76,
+        2
+      ]
+    },
+    {
+      "key": [
+        2,
+        19,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        0
+      ],
+      "rows": [
+        [
+          98,
+          171,
+          195,
+          46,
+          143,
+          73,
+          142,
+          206,
+          437,
+          197
+        ],
+        [
+          242,
+          381,
+          504,
+          98,
+          251,
+          96,
+          206,
+          432,
+          46,
+          171
+        ]
+      ],
+      "layer": 14,
+      "cpu_experts": [
+        197
+      ],
+      "rejected_experts": [
+        197
+      ],
+      "admitted_experts": [],
+      "case": "short",
+      "count": 99,
+      "paired_frame": [
+        77,
+        2
+      ]
+    },
+    {
+      "key": [
+        2,
+        19,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          420,
+          419,
+          373,
+          180,
+          222,
+          17,
+          92,
+          398,
+          355,
+          446
+        ],
+        [
+          303,
+          92,
+          328,
+          345,
+          277,
+          252,
+          72,
+          239,
+          168,
+          373
+        ]
+      ],
+      "layer": 13,
+      "cpu_experts": [
+        252
+      ],
+      "rejected_experts": [
+        252
+      ],
+      "admitted_experts": [
+        72
+      ],
+      "case": "short",
+      "count": 93,
+      "paired_frame": [
+        80,
+        2
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          497,
+          510,
+          471,
+          127,
+          49,
+          483,
+          42,
+          184,
+          6,
+          50
+        ]
+      ],
+      "layer": 18,
+      "cpu_experts": [
+        50
+      ],
+      "rejected_experts": [
+        50
+      ],
+      "admitted_experts": [
+        6
+      ],
+      "case": "short",
+      "count": 80,
+      "paired_frame": [
+        89,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          2,
+          215,
+          382,
+          133,
+          399,
+          33,
+          283,
+          346,
+          158,
+          340
+        ]
+      ],
+      "layer": 5,
+      "cpu_experts": [
+        399
+      ],
+      "rejected_experts": [
+        399
+      ],
+      "admitted_experts": [
+        215
+      ],
+      "case": "short",
+      "count": 61,
+      "paired_frame": [
+        110,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          95,
+          365,
+          5,
+          103,
+          359,
+          223,
+          261,
+          44,
+          390,
+          426
+        ]
+      ],
+      "layer": 7,
+      "cpu_experts": [
+        95
+      ],
+      "rejected_experts": [
+        95
+      ],
+      "admitted_experts": [
+        223
+      ],
+      "case": "short",
+      "count": 56,
+      "paired_frame": [
+        116,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          487,
+          448,
+          420,
+          278,
+          499,
+          241,
+          412,
+          399,
+          2,
+          78
+        ]
+      ],
+      "layer": 24,
+      "cpu_experts": [
+        241
+      ],
+      "rejected_experts": [
+        241
+      ],
+      "admitted_experts": [
+        78
+      ],
+      "case": "short",
+      "count": 48,
+      "paired_frame": [
+        126,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          77,
+          83,
+          119,
+          43,
+          412,
+          164,
+          167,
+          32,
+          252,
+          459
+        ]
+      ],
+      "layer": 37,
+      "cpu_experts": [
+        77
+      ],
+      "rejected_experts": [
+        77
+      ],
+      "admitted_experts": [
+        164
+      ],
+      "case": "short",
+      "count": 42,
+      "paired_frame": [
+        139,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          288,
+          314,
+          44,
+          333,
+          240,
+          482,
+          130,
+          440,
+          76,
+          238
+        ]
+      ],
+      "layer": 19,
+      "cpu_experts": [
+        130
+      ],
+      "rejected_experts": [
+        130
+      ],
+      "admitted_experts": [
+        440
+      ],
+      "case": "short",
+      "count": 39,
+      "paired_frame": [
+        144,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          369,
+          307,
+          257,
+          115,
+          232,
+          415,
+          189,
+          231,
+          291,
+          354
+        ]
+      ],
+      "layer": 26,
+      "cpu_experts": [
+        115
+      ],
+      "rejected_experts": [
+        115
+      ],
+      "admitted_experts": [
+        189
+      ],
+      "case": "short",
+      "count": 35,
+      "paired_frame": [
+        152,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          292,
+          204,
+          94,
+          507,
+          120,
+          97,
+          377,
+          181,
+          214,
+          139
+        ]
+      ],
+      "layer": 11,
+      "cpu_experts": [
+        97
+      ],
+      "rejected_experts": [
+        97
+      ],
+      "admitted_experts": [
+        120
+      ],
+      "case": "short",
+      "count": 20,
+      "paired_frame": [
+        214,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          284,
+          305,
+          257,
+          308,
+          472,
+          272,
+          291,
+          386,
+          256,
+          91
+        ]
+      ],
+      "layer": 18,
+      "cpu_experts": [
+        308
+      ],
+      "rejected_experts": [
+        308
+      ],
+      "admitted_experts": [
+        257
+      ],
+      "case": "short",
+      "count": 13,
+      "paired_frame": [
+        272,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          190,
+          126,
+          322,
+          325,
+          360,
+          377,
+          148,
+          353,
+          151,
+          442
+        ]
+      ],
+      "layer": 24,
+      "cpu_experts": [
+        322
+      ],
+      "rejected_experts": [
+        322
+      ],
+      "admitted_experts": [
+        148
+      ],
+      "case": "short",
+      "count": 12,
+      "paired_frame": [
+        281,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          95,
+          224,
+          363,
+          390,
+          102,
+          58,
+          467,
+          84,
+          68,
+          382
+        ]
+      ],
+      "layer": 39,
+      "cpu_experts": [
+        84
+      ],
+      "rejected_experts": [
+        84
+      ],
+      "admitted_experts": [
+        382
+      ],
+      "case": "short",
+      "count": 11,
+      "paired_frame": [
+        304,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          263,
+          44,
+          18,
+          352,
+          233,
+          261,
+          121,
+          364,
+          253,
+          396
+        ]
+      ],
+      "layer": 40,
+      "cpu_experts": [
+        364
+      ],
+      "rejected_experts": [
+        364
+      ],
+      "admitted_experts": [
+        18
+      ],
+      "case": "short",
+      "count": 10,
+      "paired_frame": [
+        311,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          333,
+          152,
+          409,
+          24,
+          254,
+          21,
+          242,
+          82,
+          314,
+          411
+        ]
+      ],
+      "layer": 35,
+      "cpu_experts": [
+        411
+      ],
+      "rejected_experts": [
+        411
+      ],
+      "admitted_experts": [
+        82
+      ],
+      "case": "short",
+      "count": 10,
+      "paired_frame": [
+        325,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          35,
+          154,
+          503,
+          356,
+          26,
+          87,
+          335,
+          233,
+          205,
+          304
+        ]
+      ],
+      "layer": 24,
+      "cpu_experts": [
+        335
+      ],
+      "rejected_experts": [
+        335
+      ],
+      "admitted_experts": [
+        304
+      ],
+      "case": "short",
+      "count": 9,
+      "paired_frame": [
+        331,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          100,
+          129,
+          84,
+          1,
+          98,
+          468,
+          63,
+          448,
+          445,
+          112
+        ]
+      ],
+      "layer": 5,
+      "cpu_experts": [
+        445
+      ],
+      "rejected_experts": [
+        445
+      ],
+      "admitted_experts": [
+        1
+      ],
+      "case": "short",
+      "count": 7,
+      "paired_frame": [
+        378,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          129,
+          145,
+          220,
+          495,
+          132,
+          388,
+          202,
+          42,
+          214,
+          318
+        ]
+      ],
+      "layer": 6,
+      "cpu_experts": [
+        202
+      ],
+      "rejected_experts": [
+        202
+      ],
+      "admitted_experts": [
+        214
+      ],
+      "case": "short",
+      "count": 6,
+      "paired_frame": [
+        399,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          136,
+          151,
+          161,
+          2,
+          345,
+          388,
+          3,
+          6,
+          51,
+          158
+        ]
+      ],
+      "layer": 28,
+      "cpu_experts": [
+        3
+      ],
+      "rejected_experts": [
+        3
+      ],
+      "admitted_experts": [
+        136
+      ],
+      "case": "short",
+      "count": 6,
+      "paired_frame": [
+        408,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          229,
+          340,
+          494,
+          39,
+          409,
+          411,
+          158,
+          234,
+          80,
+          337
+        ]
+      ],
+      "layer": 22,
+      "cpu_experts": [
+        409
+      ],
+      "rejected_experts": [
+        409
+      ],
+      "admitted_experts": [
+        80
+      ],
+      "case": "long-0",
+      "count": 6,
+      "paired_frame": [
+        419,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          150,
+          131,
+          507,
+          444,
+          142,
+          370,
+          243,
+          30,
+          349,
+          358
+        ]
+      ],
+      "layer": 0,
+      "cpu_experts": [
+        358
+      ],
+      "rejected_experts": [
+        358
+      ],
+      "admitted_experts": [
+        30
+      ],
+      "case": "short",
+      "count": 5,
+      "paired_frame": [
+        424,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          483,
+          110,
+          399,
+          106,
+          335,
+          250,
+          333,
+          436,
+          113,
+          207
+        ]
+      ],
+      "layer": 19,
+      "cpu_experts": [
+        335
+      ],
+      "rejected_experts": [
+        335
+      ],
+      "admitted_experts": [
+        483
+      ],
+      "case": "short",
+      "count": 5,
+      "paired_frame": [
+        442,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          0,
+          62,
+          211,
+          239,
+          304,
+          171,
+          155,
+          161,
+          225,
+          69
+        ]
+      ],
+      "layer": 9,
+      "cpu_experts": [
+        161
+      ],
+      "rejected_experts": [
+        161
+      ],
+      "admitted_experts": [
+        171
+      ],
+      "case": "short",
+      "count": 5,
+      "paired_frame": [
+        452,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          74,
+          199,
+          379,
+          442,
+          237,
+          6,
+          173,
+          284,
+          218,
+          329
+        ]
+      ],
+      "layer": 17,
+      "cpu_experts": [
+        379
+      ],
+      "rejected_experts": [
+        379
+      ],
+      "admitted_experts": [
+        6
+      ],
+      "case": "raft",
+      "count": 5,
+      "paired_frame": [
+        457,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          303,
+          227,
+          307,
+          27,
+          289,
+          280,
+          44,
+          211,
+          176,
+          173
+        ]
+      ],
+      "layer": 26,
+      "cpu_experts": [
+        176
+      ],
+      "rejected_experts": [
+        176
+      ],
+      "admitted_experts": [
+        211
+      ],
+      "case": "raft",
+      "count": 5,
+      "paired_frame": [
+        459,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          445,
+          242,
+          398,
+          343,
+          79,
+          254,
+          417,
+          207,
+          296,
+          255
+        ]
+      ],
+      "layer": 47,
+      "cpu_experts": [
+        255
+      ],
+      "rejected_experts": [
+        255
+      ],
+      "admitted_experts": [
+        296
+      ],
+      "case": "long-0",
+      "count": 5,
+      "paired_frame": [
+        462,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          32,
+          97,
+          505,
+          235,
+          74,
+          51,
+          158,
+          88,
+          303,
+          323
+        ]
+      ],
+      "layer": 1,
+      "cpu_experts": [
+        97
+      ],
+      "rejected_experts": [
+        97
+      ],
+      "admitted_experts": [
+        74
+      ],
+      "case": "short",
+      "count": 4,
+      "paired_frame": [
+        497,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          24,
+          456,
+          31,
+          38,
+          500,
+          85,
+          124,
+          349,
+          151,
+          170
+        ]
+      ],
+      "layer": 43,
+      "cpu_experts": [
+        151
+      ],
+      "rejected_experts": [
+        151
+      ],
+      "admitted_experts": [
+        170
+      ],
+      "case": "long-0",
+      "count": 4,
+      "paired_frame": [
+        529,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          356,
+          304,
+          205,
+          503,
+          35,
+          160,
+          87,
+          233,
+          154,
+          335
+        ]
+      ],
+      "layer": 8,
+      "cpu_experts": [
+        335
+      ],
+      "rejected_experts": [
+        335
+      ],
+      "admitted_experts": [
+        35
+      ],
+      "case": "short",
+      "count": 3,
+      "paired_frame": [
+        539,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          66,
+          383,
+          331,
+          174,
+          452,
+          212,
+          122,
+          127,
+          63,
+          145
+        ]
+      ],
+      "layer": 35,
+      "cpu_experts": [
+        383
+      ],
+      "rejected_experts": [
+        383
+      ],
+      "admitted_experts": [
+        63
+      ],
+      "case": "short",
+      "count": 3,
+      "paired_frame": [
+        547,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          274,
+          503,
+          212,
+          390,
+          24,
+          200,
+          92,
+          233,
+          36,
+          393
+        ]
+      ],
+      "layer": 36,
+      "cpu_experts": [
+        200
+      ],
+      "rejected_experts": [
+        200
+      ],
+      "admitted_experts": [
+        212
+      ],
+      "case": "raft",
+      "count": 3,
+      "paired_frame": [
+        607,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          189,
+          89,
+          133,
+          190,
+          341,
+          478,
+          506,
+          24,
+          125,
+          386
+        ]
+      ],
+      "layer": 20,
+      "cpu_experts": [
+        24
+      ],
+      "rejected_experts": [
+        24
+      ],
+      "admitted_experts": [
+        341
+      ],
+      "case": "short",
+      "count": 2,
+      "paired_frame": [
+        660,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          282,
+          431,
+          146,
+          186,
+          502,
+          443,
+          177,
+          269,
+          324,
+          194
+        ]
+      ],
+      "layer": 1,
+      "cpu_experts": [
+        443
+      ],
+      "rejected_experts": [
+        443
+      ],
+      "admitted_experts": [
+        269
+      ],
+      "case": "short",
+      "count": 2,
+      "paired_frame": [
+        686,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          469,
+          92,
+          305,
+          500,
+          193,
+          273,
+          247,
+          100,
+          184,
+          253
+        ]
+      ],
+      "layer": 8,
+      "cpu_experts": [
+        273
+      ],
+      "rejected_experts": [
+        273
+      ],
+      "admitted_experts": [
+        247
+      ],
+      "case": "short",
+      "count": 2,
+      "paired_frame": [
+        690,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          110,
+          491,
+          235,
+          196,
+          390,
+          178,
+          105,
+          376,
+          398,
+          33
+        ]
+      ],
+      "layer": 11,
+      "cpu_experts": [
+        398
+      ],
+      "rejected_experts": [
+        398
+      ],
+      "admitted_experts": [
+        235
+      ],
+      "case": "raft",
+      "count": 2,
+      "paired_frame": [
+        701,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          361,
+          57,
+          248,
+          56,
+          309,
+          181,
+          37,
+          419,
+          179,
+          291
+        ]
+      ],
+      "layer": 18,
+      "cpu_experts": [
+        291
+      ],
+      "rejected_experts": [
+        291
+      ],
+      "admitted_experts": [
+        181
+      ],
+      "case": "long-0",
+      "count": 2,
+      "paired_frame": [
+        764,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          380,
+          130,
+          202,
+          382,
+          93,
+          419,
+          260,
+          138,
+          482,
+          187
+        ]
+      ],
+      "layer": 42,
+      "cpu_experts": [
+        380
+      ],
+      "rejected_experts": [
+        380
+      ],
+      "admitted_experts": [
+        202
+      ],
+      "case": "long-1",
+      "count": 2,
+      "paired_frame": [
+        775,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          227,
+          122,
+          246,
+          81,
+          168,
+          62,
+          309,
+          306,
+          93,
+          304
+        ]
+      ],
+      "layer": 18,
+      "cpu_experts": [
+        227
+      ],
+      "rejected_experts": [
+        227
+      ],
+      "admitted_experts": [
+        246
+      ],
+      "case": "long-1",
+      "count": 2,
+      "paired_frame": [
+        778,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          105,
+          387,
+          353,
+          134,
+          341,
+          393,
+          60,
+          103,
+          284,
+          198
+        ]
+      ],
+      "layer": 39,
+      "cpu_experts": [
+        198
+      ],
+      "rejected_experts": [
+        198
+      ],
+      "admitted_experts": [
+        60
+      ],
+      "case": "long-1",
+      "count": 2,
+      "paired_frame": [
+        801,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          458,
+          277,
+          412,
+          149,
+          273,
+          279,
+          251,
+          85,
+          177,
+          86
+        ]
+      ],
+      "layer": 2,
+      "cpu_experts": [
+        279
+      ],
+      "rejected_experts": [
+        279
+      ],
+      "admitted_experts": [
+        458
+      ],
+      "case": "short",
+      "count": 1,
+      "paired_frame": [
+        893,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          103,
+          95,
+          107,
+          93,
+          119,
+          289,
+          340,
+          471,
+          443,
+          394
+        ]
+      ],
+      "layer": 0,
+      "cpu_experts": [
+        340
+      ],
+      "rejected_experts": [
+        340
+      ],
+      "admitted_experts": [
+        443
+      ],
+      "case": "short",
+      "count": 1,
+      "paired_frame": [
+        894,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          121,
+          137,
+          376,
+          185,
+          419,
+          230,
+          436,
+          182,
+          485,
+          397
+        ]
+      ],
+      "layer": 7,
+      "cpu_experts": [
+        397
+      ],
+      "rejected_experts": [
+        397
+      ],
+      "admitted_experts": [
+        419
+      ],
+      "case": "short",
+      "count": 1,
+      "paired_frame": [
+        900,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          316,
+          155,
+          275,
+          84,
+          404,
+          120,
+          151,
+          327,
+          105,
+          496
+        ]
+      ],
+      "layer": 28,
+      "cpu_experts": [
+        120
+      ],
+      "rejected_experts": [
+        120
+      ],
+      "admitted_experts": [
+        496
+      ],
+      "case": "raft",
+      "count": 1,
+      "paired_frame": [
+        930,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          92,
+          469,
+          393,
+          212,
+          274,
+          390,
+          503,
+          28,
+          14,
+          310
+        ]
+      ],
+      "layer": 20,
+      "cpu_experts": [
+        503
+      ],
+      "rejected_experts": [
+        503
+      ],
+      "admitted_experts": [
+        212
+      ],
+      "case": "raft",
+      "count": 1,
+      "paired_frame": [
+        940,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          125,
+          345,
+          309,
+          474,
+          274,
+          158,
+          410,
+          493,
+          439,
+          19
+        ]
+      ],
+      "layer": 6,
+      "cpu_experts": [
+        19
+      ],
+      "rejected_experts": [
+        19
+      ],
+      "admitted_experts": [
+        439
+      ],
+      "case": "long-0",
+      "count": 1,
+      "paired_frame": [
+        1000,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          168,
+          420,
+          372,
+          195,
+          252,
+          412,
+          52,
+          510,
+          484,
+          304
+        ]
+      ],
+      "layer": 13,
+      "cpu_experts": [
+        52
+      ],
+      "rejected_experts": [
+        52
+      ],
+      "admitted_experts": [
+        195
+      ],
+      "case": "long-0",
+      "count": 1,
+      "paired_frame": [
+        1022,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          481,
+          168,
+          220,
+          493,
+          307,
+          158,
+          324,
+          471,
+          170,
+          221
+        ]
+      ],
+      "layer": 45,
+      "cpu_experts": [
+        307
+      ],
+      "rejected_experts": [
+        307
+      ],
+      "admitted_experts": [
+        170
+      ],
+      "case": "long-0",
+      "count": 1,
+      "paired_frame": [
+        1023,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          499,
+          233,
+          378,
+          204,
+          506,
+          84,
+          27,
+          324,
+          152,
+          260
+        ]
+      ],
+      "layer": 21,
+      "cpu_experts": [
+        84
+      ],
+      "rejected_experts": [
+        84
+      ],
+      "admitted_experts": [
+        152
+      ],
+      "case": "long-1",
+      "count": 1,
+      "paired_frame": [
+        1066,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          283,
+          174,
+          87,
+          74,
+          111,
+          336,
+          357,
+          443,
+          440,
+          104
+        ]
+      ],
+      "layer": 17,
+      "cpu_experts": [
+        357
+      ],
+      "rejected_experts": [
+        357
+      ],
+      "admitted_experts": [
+        440
+      ],
+      "case": "long-1",
+      "count": 1,
+      "paired_frame": [
+        1102,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          193,
+          453,
+          101,
+          346,
+          449,
+          211,
+          456,
+          418,
+          57,
+          219
+        ]
+      ],
+      "layer": 17,
+      "cpu_experts": [
+        456
+      ],
+      "rejected_experts": [
+        456
+      ],
+      "admitted_experts": [
+        219
+      ],
+      "case": "long-1",
+      "count": 1,
+      "paired_frame": [
+        1105,
+        1
+      ]
+    },
+    {
+      "key": [
+        1,
+        9,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          480,
+          504,
+          423,
+          108,
+          157,
+          74,
+          199,
+          48,
+          494,
+          476
+        ]
+      ],
+      "layer": 0,
+      "cpu_experts": [
+        48
+      ],
+      "rejected_experts": [
+        48
+      ],
+      "admitted_experts": [
+        494
+      ],
+      "case": "long-1",
+      "count": 1,
+      "paired_frame": [
+        1158,
+        1
+      ]
+    },
+    {
+      "key": [
+        2,
+        19,
+        1,
+        1,
+        [
+          1
+        ],
+        [
+          1
+        ],
+        1
+      ],
+      "rows": [
+        [
+          390,
+          163,
+          198,
+          223,
+          131,
+          199,
+          73,
+          346,
+          24,
+          370
+        ],
+        [
+          465,
+          198,
+          325,
+          390,
+          506,
+          59,
+          131,
+          156,
+          233,
+          222
+        ]
+      ],
+      "layer": 4,
+      "cpu_experts": [
+        233
+      ],
+      "rejected_experts": [
+        233
+      ],
+      "admitted_experts": [
+        222
+      ],
+      "case": "long-1",
+      "count": 1,
+      "paired_frame": [
+        1173,
+        2
+      ]
+    }
+  ],
+  "complete_keys": [
+    [
+      1,
+      9,
+      1,
+      1,
+      [
+        1
+      ],
+      [
+        1
+      ],
+      1
+    ],
+    [
+      2,
+      19,
+      1,
+      1,
+      [
+        1
+      ],
+      [
+        1
+      ],
+      0
+    ],
+    [
+      2,
+      19,
+      1,
+      1,
+      [
+        1
+      ],
+      [
+        1
+      ],
+      1
+    ]
+  ],
+  "note": "Prepare fill-aware branch fixtures without dropping layer/expert representatives.\n\nThe source is an earlier replay, not a replay of the modified serving cache.\nOutputs retain its provenance separately and fingerprint the current adapters;\nall branch timings must be measured again on the target GPU/CPU.\n"
+}
