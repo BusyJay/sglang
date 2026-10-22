@@ -85,6 +85,14 @@ class CpuNvfp4:
         ]
         self.csf_strides = None
         if pack.manifest.scale_encoding:
+            if any(
+                s["encoding"] == "b12x_csf_tiered_v1"
+                for s in pack.manifest.scale_encoding.values()
+            ) and (
+                not hasattr(self.library, "qwen38_cpu_csf_tiered_abi")
+                or self.library.qwen38_cpu_csf_tiered_abi() != 1
+            ):
+                raise ValueError("rebuild CPU library for tiered compressed scales")
             if (
                 not hasattr(self.library, "qwen38_cpu_run_csf")
                 or not hasattr(self.library, "qwen38_cpu_csf_abi")

@@ -65,5 +65,13 @@ def slots_from_byte_budget(config, manifest):
     }
     if len(rows) != 1:
         raise ValueError("byte budget requires uniform expert row sizes")
-    total = min(budget // rows.pop(), manifest.num_layers * manifest.num_experts)
+    banks = sum(
+        region["nbytes"]
+        for spec in manifest.scale_encoding.values()
+        if spec["encoding"] == "b12x_csf_tiered_v1"
+        for region in spec["overflow"].values()
+    )
+    total = min(
+        (budget - banks) // rows.pop(), manifest.num_layers * manifest.num_experts
+    )
     return {**config, "cache_slots_total": total}

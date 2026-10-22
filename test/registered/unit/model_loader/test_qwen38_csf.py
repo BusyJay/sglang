@@ -78,6 +78,88 @@ def fixture(root, *, h=256, i=128, experts=4, native_fallback=True):
 
 
 class TestCsfPack(CustomTestCase):
+    def test_tiered_banks_roundtrip_cpu_and_budget(self):
+        """External records retain CPU results and count against GPU byte budgets."""
+        from sglang.srt.layers.moe.qwen38_cache_capacity import slots_from_byte_budget
+        from sglang.srt.model_loader.qwen38_nvfp4_pack.tiered import (
+            fixed_bytes,
+            restore_slab,
+            tier_pack,
+        )
+        import mmap
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            native, chunks = fixture(root, h=2560, i=640, native_fallback=False)
+            compress_pack(root / "native.json", root / "csf.bin", root / "csf.json")
+            old = load_manifest(root / "csf.json")
+            sizes = {
+                n: fixed_bytes(s["rows"], s["columns"])
+                for n, s in old.scale_encoding.items()
+            }
+            report = tier_pack(
+                root / "csf.json",
+                root / "tier.bin",
+                root / "tier.json",
+                base_strides=sizes,
+            )
+            tiered = load_manifest(root / "tier.json")
+            banks = sum(v["resident_bytes"] for v in report["planes"].values())
+            self.assertGreater(banks, 0)
+            budget = banks + 3 * report["slot_bytes"]
+            self.assertEqual(
+                slots_from_byte_budget({"cache_budget_bytes": budget}, tiered)[
+                    "cache_slots_total"
+                ],
+                3,
+            )
+            with (
+                tiered.payload_path.open("rb") as stream,
+                mmap.mmap(stream.fileno(), 0, access=mmap.ACCESS_READ) as mapping,
+            ):
+                for name, spec in tiered.scale_encoding.items():
+                    for expert in range(tiered.num_experts):
+                        start = tiered.tensors[0][name].offset + expert * spec["stride"]
+                        restored = restore_slab(
+                            mapping, start, spec, spec["overflow"]["0"]
+                        )
+                        self.assertEqual(
+                            decode(restored, spec["rows"], spec["columns"]),
+                            chunks[name][expert].tobytes(),
+                        )
+            operators, packs = [], []
+            try:
+                for manifest in (native, tiered):
+                    pack = Qwen38ExpertPack(manifest, source_mode="file_cow")
+                    packs.append(pack)
+                    operators.append(CpuNvfp4("", pack, (), gpu_backend="b12x"))
+                torch.manual_seed(101)
+                for nt in (1, 3):
+                    x = (torch.randn(nt, 2560) * 0.05).bfloat16()
+                    ids = torch.tensor(
+                        [[0, 1, -1], [1, 3, 1], [2, 0, 3]][:nt], dtype=torch.int32
+                    )
+                    weights = torch.rand(nt, 3)
+                    outputs = []
+                    for op in operators:
+                        out = torch.empty(nt, 2560)
+                        op.run(0, x, ids, weights, out)
+                        outputs.append(out)
+                    torch.testing.assert_close(*outputs, rtol=0, atol=0)
+            finally:
+                for op in operators:
+                    op.close()
+                for pack in packs:
+                    pack.close()
+            # Reject an out-of-payload bank before GPU registration or CPU work.
+            with tiered.payload_path.open("r+b") as stream:
+                name = next(iter(tiered.scale_encoding))
+                stream.seek(tiered.tensors[0][name].offset + 976)
+                stream.write(struct.pack("<Q", tiered.payload_nbytes + 16))
+            with Qwen38ExpertPack(tiered, source_mode="file_cow") as pack:
+                with self.assertRaisesRegex(ValueError, "bank extent"):
+                    pack.validate_scale_slabs()
+
     def test_roundtrip_padding_exceptions_and_invalid_extent(self):
         rng = np.random.default_rng(13)
         for rows, cols in ((128, 4), (1280, 160), (2560, 40)):

@@ -455,3 +455,13 @@ register_kernel(
         description="Per-layer admission with CPU-inclusive LFU heat and a CPU expert-count gate.",
     )
 )
+
+register_kernel(
+    KernelSpec(
+        op="moe.qwen38_csf_headers",
+        backend=KernelBackend.JIT,
+        target="sglang.kernels.ops.moe.qwen38_expert_cache:csf_patch_headers",
+        capabilities=_CUDA,
+        description="Bind immutable exception banks in tiered CSF cache headers.",
+    )
+)

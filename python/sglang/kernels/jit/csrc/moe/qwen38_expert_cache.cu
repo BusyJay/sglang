@@ -11,7 +11,7 @@ namespace {
 // NVFP4/SM120 policy, indexed by miss count. Use three CTAs across 5-7 misses;
 // counts above this table retain eight CTAs.
 __device__ __constant__ int kMailboxCtasByMiss[11] = {8, 8, 5, 4, 4, 3, 3, 3, 2, 2, 1};
-template <bool Adaptive = false>
+template <bool Adaptive = false, bool Tiered = false>
 __global__ void mailbox_fill_kernel(
     const int32_t* plan,
     const int64_t* layout,
@@ -36,10 +36,11 @@ __global__ void mailbox_fill_kernel(
   __syncthreads();
   int slot = plan[5 + 2 * miss];
   int expert = plan[4 + 2 * miss];
+  constexpr int columns = Tiered ? 4 : 3;
   for (int tensor = 0; tensor < tensors; ++tensor) {
-    int64_t bytes = layout[3 * tensor + 1];
-    auto* destination = reinterpret_cast<uint8_t*>(layout[3 * tensor]) + slot * bytes;
-    const uint8_t* source = reinterpret_cast<const uint8_t*>(layout[3 * tensor + 2]) +
+    int64_t bytes = layout[columns * tensor + 1];
+    auto* destination = reinterpret_cast<uint8_t*>(layout[columns * tensor]) + slot * bytes;
+    const uint8_t* source = reinterpret_cast<const uint8_t*>(layout[columns * tensor + 2]) +
         static_cast<int64_t>(expert) * bytes;
     int64_t i = static_cast<int64_t>(blockIdx.y) * blockDim.x + threadIdx.x;
     int64_t stride = static_cast<int64_t>(blockDim.x) * ctas;
@@ -50,6 +51,14 @@ __global__ void mailbox_fill_kernel(
                      : "=r"(value.x), "=r"(value.y), "=r"(value.z), "=r"(value.w)
                      : "l"(source + 16 * i)
                      : "memory");
+        if constexpr (Tiered) {
+          if (i == 62 && layout[columns * tensor + 3]) {
+            const uint64_t offset = *reinterpret_cast<const volatile uint64_t*>(source + 976);
+            const uint64_t pointer = offset ? offset + layout[columns * tensor + 3] : 0;
+            value.x = static_cast<uint32_t>(pointer);
+            value.y = static_cast<uint32_t>(pointer >> 32);
+          }
+        }
         reinterpret_cast<uint4*>(destination)[i] = value;
       }
     } else {
@@ -114,12 +123,22 @@ struct Qwen38MailboxFill {
     CHECK_DIM(1, plan);
     CHECK_DIM(2, layout);
     CHECK_DEVICE(plan, layout);
-    TVM_FFI_ICHECK_EQ(layout.size(1), 3);
+    TVM_FFI_ICHECK(layout.size(1) == 3 || layout.size(1) == 4);
     TVM_FFI_ICHECK_GT(failed, 0);
     TVM_FFI_ICHECK_GE(plan.size(0), 4);
     TVM_FFI_ICHECK_GT(top_k, 0);
     TVM_FFI_ICHECK_LE(top_k, 32);
-    if (grid_y == 0) {
+    if (layout.size(1) == 4 && grid_y == 0) {
+      mailbox_fill_kernel<true, true><<<dim3(top_k, 8), 256, 0, get_stream(plan.device())>>>(
+          static_cast<const int32_t*>(plan.data_ptr()),
+          static_cast<const int64_t*>(layout.data_ptr()), layout.size(0),
+          reinterpret_cast<const volatile int32_t*>(failed));
+    } else if (layout.size(1) == 4) {
+      mailbox_fill_kernel<false, true><<<dim3(top_k, grid_y), 256, 0, get_stream(plan.device())>>>(
+          static_cast<const int32_t*>(plan.data_ptr()),
+          static_cast<const int64_t*>(layout.data_ptr()), layout.size(0),
+          reinterpret_cast<const volatile int32_t*>(failed));
+    } else if (grid_y == 0) {
       mailbox_fill_kernel<true><<<dim3(top_k, 8), 256, 0, get_stream(plan.device())>>>(
           static_cast<const int32_t*>(plan.data_ptr()),
           static_cast<const int64_t*>(layout.data_ptr()), layout.size(0),
@@ -133,6 +152,37 @@ struct Qwen38MailboxFill {
     TVM_FFI_ICHECK_EQ(cudaGetLastError(), cudaSuccess);
   }
 };
+
+namespace sglang {
+namespace {
+__global__ void csf_headers_kernel(uint8_t* heads, int32_t count, int64_t stride, int64_t delta, uint64_t lower, uint64_t upper) {
+  const int32_t expert = static_cast<int32_t>(blockIdx.x * blockDim.x + threadIdx.x);
+  if (expert >= count) return;
+  uint8_t* head = heads + static_cast<int64_t>(expert) * stride;
+  const uint64_t offset = *reinterpret_cast<const uint64_t*>(head + 976);
+  if (offset >= lower && offset < upper)
+    *reinterpret_cast<uint64_t*>(head + 992) = offset + delta;
+}
+}  // namespace
+
+/// Bind immutable exception banks after prefill uploads; decode fills bind in-place.
+struct Qwen38CsfHeaders {
+  static void run(TensorView heads, int64_t delta, int64_t lower, int64_t upper) {
+    CHECK_INPUT_AND_TYPE(heads, dl_uint8);
+    CHECK_DIM(2, heads);
+    CHECK_CONTIGUOUS(heads);
+    TVM_FFI_ICHECK_GE(heads.size(1), 1024);
+    TVM_FFI_ICHECK_EQ(heads.size(1) % 16, 0);
+    TVM_FFI_ICHECK_GE(delta, 0);
+    TVM_FFI_ICHECK_GE(lower, 0);
+    TVM_FFI_ICHECK_GE(upper, lower);
+    if (!heads.size(0) || lower == upper) return;
+    csf_headers_kernel<<<(heads.size(0) + 127) / 128, 128, 0, get_stream(heads.device())>>>(
+        static_cast<uint8_t*>(heads.data_ptr()), static_cast<int32_t>(heads.size(0)), heads.size(1), delta, lower, upper);
+    TVM_FFI_ICHECK_EQ(cudaGetLastError(), cudaSuccess);
+  }
+};
+}  // namespace sglang
 
 namespace {
 __global__ void alpha_scatter_kernel(

@@ -22,6 +22,7 @@ struct CsfPlane {
   const uint8_t *storage;
   int rows, columns;
   uint8_t *expanded;
+  const uint32_t *external = nullptr;
 };
 static void expand_plane(const CsfPlane &p, uint8_t *out, int thread,
                          int threads) {
@@ -29,7 +30,7 @@ static void expand_plane(const CsfPlane &p, uint8_t *out, int thread,
   const size_t tiles = size_t(p.rows) * p.columns / 512;
   const auto *metadata = reinterpret_cast<const uint32_t *>(
       p.storage + 1024 + p.rows * (1 + p.columns / 2));
-  const auto *records = metadata + tiles * 8;
+  const auto *records = p.external ? p.external : metadata + tiles * 8;
   // Decode regular values in native 128-word tiles, then patch only the
   // bitmap exceptions. This keeps division and metadata out of the SIMD loop.
   const __m128i nibble = _mm_set1_epi8(15);
@@ -262,6 +263,7 @@ struct BatchExpert {
 } // namespace
 extern "C" int qwen38_cpu_abi() { return 2; }
 extern "C" int qwen38_cpu_csf_abi() { return 2; }
+extern "C" int qwen38_cpu_csf_tiered_abi() { return 1; }
 extern "C" void qwen38_cpu_release() { cached.reset(); }
 extern "C" const char *qwen38_cpu_error() { return error; }
 static int run(const uint8_t *payload, uint64_t bytes, const uint64_t *offsets,
@@ -368,8 +370,23 @@ static int run(const uint8_t *payload, uint64_t bytes, const uint64_t *offsets,
           uint32_t count, magic;
           memcpy(&count, scales[p] + 1008, 4);
           memcpy(&magic, scales[p] + 1012, 4);
+          uint32_t tier_magic, base_stride, extent;
+          uint64_t external_offset;
+          memcpy(&tier_magic, scales[p] + 1016, 4);
+          memcpy(&base_stride, scales[p] + 1020, 4);
+          memcpy(&extent, scales[p] + 1000, 4);
+          memcpy(&external_offset, scales[p] + 976, 8);
+          const bool tiered = tier_magic == 0x31524954;
+          const uint32_t *external = nullptr;
+          if (tiered && (base_stride != source_stride[2 + p] ||
+              (external_offset && (external_offset % 16 || extent % 16384 ||
+               external_offset > bytes || extent > bytes - external_offset ||
+               uint64_t(count) * 4 > extent)) || (!external_offset && extent)))
+            throw std::runtime_error("invalid CPU tiered CSF bank");
+          if (tiered && external_offset)
+            external = reinterpret_cast<const uint32_t *>(payload + external_offset);
           if (magic != 0x32465343 ||
-              count > (source_stride[2 + p] - records_offset) / 4)
+              (!external && count > (source_stride[2 + p] - records_offset) / 4))
             throw std::runtime_error("invalid CPU CSF header");
           const auto *meta = reinterpret_cast<const uint32_t *>(
               scales[p] + 1024 + size_t(rows) * (1 + cols / 2));
@@ -391,7 +408,7 @@ static int run(const uint8_t *payload, uint64_t bytes, const uint64_t *offsets,
           if (expected != count)
             throw std::runtime_error("invalid CPU CSF replacement count");
           planes[p] = {scales[p], rows, cols,
-                       workers.expanded.data() + (p ? stride[2] : 0)};
+                       workers.expanded.data() + (p ? stride[2] : 0), external};
         }
         auto *expanded = workers.expanded.data();
         if (csf_strides[0])

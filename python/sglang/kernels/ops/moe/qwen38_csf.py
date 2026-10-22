@@ -48,6 +48,14 @@ def load_scale(
         records = (base + 1024 + rows * (1 + columns // 2) + rows * columns // 16).to(
             tl.pointer_type(tl.uint32)
         )
+        external = tl.load(
+            base.to(tl.pointer_type(tl.uint64)) + 124 + tl.full(pos.shape, 0, tl.int32),
+            mask=present,
+            other=0,
+        )
+        records = tl.where(
+            external != 0, external.to(tl.pointer_type(tl.uint32)), records
+        )
         replacement = tl.load(records + start + rank, mask=present, other=0)
         value = tl.where(present, (replacement >> ((pos % 4) * 8)) & 255, value)
         return value.to(tl.uint8).to(tl.float8e4nv, bitcast=True).to(tl.float32)

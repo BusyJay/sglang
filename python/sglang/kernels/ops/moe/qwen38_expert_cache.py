@@ -29,6 +29,7 @@ def _module():
             ("mailbox_fill", "Qwen38MailboxFill::run"),
             ("mailbox_fill_grid", "Qwen38MailboxFill::run_config"),
             ("registered_copy", "Qwen38RegisteredCopy::run"),
+            ("csf_headers", "sglang::Qwen38CsfHeaders::run"),
         ],
     )
 
@@ -37,6 +38,11 @@ def cache_route(topk_ids, lookup, remapped, counts):
     if topk_ids.dtype != torch.int32:
         raise ValueError("Qwen3.8 JIT routing requires int32 IDs")
     _module().route(topk_ids, lookup, remapped, counts)
+
+
+def csf_patch_headers(heads, bank_delta, lower, upper):
+    """Bind a tiered slab's immutable exception bank after a prefill upload."""
+    _module().csf_headers(heads, bank_delta, lower, upper)
 
 
 def cache_route_counts(topk_ids, counts):

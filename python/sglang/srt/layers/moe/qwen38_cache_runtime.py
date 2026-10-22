@@ -58,6 +58,7 @@ class Qwen38SynchronousExpertRuntime:
         route_trace_limit=10000,
     ):
         self.pack = pack
+        self.csf_banks = None
         if getattr(pack.manifest, "scale_encoding", {}):
             pack.validate_scale_slabs()
         self.manifest = pack.manifest
@@ -226,6 +227,13 @@ class Qwen38SynchronousExpertRuntime:
         )
 
         probe = get_startup_memory_probe(self.device)
+        if self.csf_banks is None and any(
+            s["encoding"] == "b12x_csf_tiered_v1"
+            for s in self.manifest.scale_encoding.values()
+        ):
+            from sglang.srt.layers.moe.qwen38_csf_banks import CsfBanks
+
+            self.csf_banks = CsfBanks(self.pack, self.device)
         with self.lock:
             for layer_id in self.manifest.tensors:
                 memory_mark(probe, f"base.layer.{layer_id:02d}.before")
@@ -398,6 +406,9 @@ class Qwen38SynchronousExpertRuntime:
             for records in self.manifest.tensors.values()
         ]
         return {
+            "resident_csf_bank_bytes": self.csf_banks.bytes
+            if self.csf_banks is not None
+            else 0,
             "decode_cache_bytes": sum(
                 size // self.manifest.num_experts * self.slots_for_layer(layer)
                 for layer, size in zip(self.manifest.tensors, per_layer)

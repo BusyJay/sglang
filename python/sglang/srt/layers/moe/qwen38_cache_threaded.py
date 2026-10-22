@@ -1571,6 +1571,11 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
                             )
                         if loaded:
                             self.arena_loads += 1
+                        if self.csf_banks is not None:
+                            # Bind before seeding: hit slots must inherit valid
+                            # bank pointers even when decode performs no fill.
+                            with torch.cuda.stream(self.transfer):
+                                self.csf_banks.patch(job.layer, self.arena)
                         seed = (
                             not job.verify
                             and self.prefill_seed_cache
@@ -1750,6 +1755,9 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
             self.cache_pool = None
             self.arena = None
             self.staged_pool.close()
+        if getattr(self, "csf_banks", None) is not None:
+            self.csf_banks.close()
+            self.csf_banks = None
         self.closed = True
 
     def memory_budget(self):
