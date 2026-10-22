@@ -1,0 +1,82 @@
+[
+  {
+    "label": "checkpoint",
+    "window": {
+      "span_ms": 2842.020893,
+      "gpu_busy_pct": 96.84768710811866,
+      "gpu_idle_ms": 89.589391
+    },
+    "kernels": [
+      {
+        "name": "mailbox_fill_kernel",
+        "calls": 5184,
+        "ms": 1074.012666,
+        "share_pct": 35.29737233263204,
+        "mean_us": 207.17836921296296,
+        "p50_us": 132.445,
+        "p95_us": 607.921,
+        "overlap_other_kernels_ms": 99.920767
+      },
+      {
+        "name": "hybrid_plan_kernel",
+        "calls": 5184,
+        "ms": 253.982613,
+        "share_pct": 8.347125821582992,
+        "mean_us": 48.99355960648148,
+        "p50_us": 44.383,
+        "p95_us": 85.31,
+        "overlap_other_kernels_ms": 0.0
+      },
+      {
+        "name": "hybrid_merge_kernel",
+        "calls": 5184,
+        "ms": 157.163921,
+        "share_pct": 5.1651843711062595,
+        "mean_us": 30.3171143904321,
+        "p50_us": 1.44,
+        "p95_us": 247.226,
+        "overlap_other_kernels_ms": 0.0
+      }
+    ]
+  },
+  {
+    "label": "final",
+    "window": {
+      "span_ms": 2891.286272,
+      "gpu_busy_pct": 96.93077849608383,
+      "gpu_idle_ms": 88.73998
+    },
+    "kernels": [
+      {
+        "name": "mailbox_fill_kernel",
+        "calls": 5136,
+        "ms": 1046.893022,
+        "share_pct": 33.97786041475268,
+        "mean_us": 203.83431113707167,
+        "p50_us": 133.759,
+        "p95_us": 602.267,
+        "overlap_other_kernels_ms": 93.27669
+      },
+      {
+        "name": "hybrid_merge_kernel",
+        "calls": 5136,
+        "ms": 318.026293,
+        "share_pct": 10.32183113717921,
+        "mean_us": 61.92100720404984,
+        "p50_us": 1.44,
+        "p95_us": 356.285,
+        "overlap_other_kernels_ms": 0.0
+      },
+      {
+        "name": "hybrid_plan_kernel",
+        "calls": 5136,
+        "ms": 183.550918,
+        "share_pct": 5.957311148076137,
+        "mean_us": 35.73810708722741,
+        "p50_us": 31.168,
+        "p95_us": 70.879,
+        "overlap_other_kernels_ms": 0.0
+      }
+    ]
+  }
+]
