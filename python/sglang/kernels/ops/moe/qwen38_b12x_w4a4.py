@@ -6,6 +6,7 @@ its persistent MoE kernel; there is no expansion allocation or decode launch.
 """
 
 import ast
+import hashlib
 import inspect
 import tempfile
 import textwrap
@@ -109,9 +110,16 @@ def dynamic_kernel_namespace(specs):
         if columns % 8:
             raise ValueError("Qwen38 W4A4 requires full K128 scale operands")
         stride = spec["stride"] if spec else 0
-        if spec and spec.get("encoding", "b12x_csf_bitmap_v1") != "b12x_csf_bitmap_v1":
+        if spec and spec.get("encoding", "b12x_csf_bitmap_v1") not in (
+            "b12x_csf_bitmap_v1",
+            "b12x_csf_tiered_v1",
+        ):
             raise ValueError("W4A4 requires a bitmap/rank pack; convert it offline")
-        local = dict(ns, _slot_stride=stride)
+        local = dict(
+            ns,
+            _slot_stride=stride,
+            _tiered=bool(spec and spec.get("encoding") == "b12x_csf_tiered_v1"),
+        )
         reader_directory = directory / name
         reader_directory.mkdir(exist_ok=True)
 
@@ -141,6 +149,11 @@ def dynamic_kernel_namespace(specs):
                 def visit_If(self, node):
                     if ast.unparse(node.test) == "count > Int32(0)":
                         return ast.parse("""address = (origin + records).toint()
+if cutlass.const_expr(_tiered):
+    descriptor = cute.recast_ptr(zero + Int64(992), dtype=cutlass.Uint32)
+    external = (_load_at(descriptor, Int64(0)).to(Int64) & Int64(0xFFFFFFFF)) | (_load_at(descriptor, Int64(1)).to(Int64) << Int64(32))
+    if external != Int64(0):
+        address = external
 st_shared_u32((target + Int32(704)).toint(), address.to(Uint32))
 st_shared_u32((target + Int32(708)).toint(), (address >> Int64(32)).to(Uint32))
 cute.arch.fence_proxy("async.shared", space="cta")""").body
@@ -161,7 +174,7 @@ cute.arch.fence_proxy("async.shared", space="cta")""").body
             source = (
                 source[:start]
                 + """    pair = ld_shared_v2_u32((target + Int32(704)).toint())
-    records_address = pair[0].to(Int64) | (pair[1].to(Int64) << Int64(32))"""
+    records_address = (pair[0].to(Int64) & Int64(0xFFFFFFFF)) | (pair[1].to(Int64) << Int64(32))"""
                 + source[end:]
             )
             old = "second_values = self._read_shared_operand(second_target, records_address,"
@@ -170,7 +183,7 @@ cute.arch.fence_proxy("async.shared", space="cta")""").body
             source = source.replace(
                 old,
                 """pair2 = ld_shared_v2_u32((second_target + Int32(704)).toint())
-        second_records = pair2[0].to(Int64) | (pair2[1].to(Int64) << Int64(32))
+        second_records = (pair2[0].to(Int64) & Int64(0xFFFFFFFF)) | (pair2[1].to(Int64) << Int64(32))
         second_values = self._read_shared_operand(second_target, second_records,""",
             )
             return ast.parse(source)
@@ -285,7 +298,7 @@ cute.arch.fence_proxy("async.shared", space="cta")""").body
     host["_get_activation_kernel_spec"] = lambda *a, **kw: replace(
         original_spec(*a, **kw), dynamic_kernel_cls=cls
     )
-    signature = repr(
+    signature = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()[:16] + repr(
         sorted(
             (n, tuple(sorted(s.items())))
             for n, s in specs.items()

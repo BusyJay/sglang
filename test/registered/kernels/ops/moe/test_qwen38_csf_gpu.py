@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Compressed/native GPU parity, including GPU-only prefill and pool relocation."""
 
+import struct
 import unittest
 
 import numpy as np
@@ -64,6 +65,141 @@ def tensors():
 
 @unittest.skipUnless(torch.cuda.is_available(), "requires CUDA")
 class TestCsfGpu(CustomTestCase):
+    def test_tiered_banks_decode_prefill_and_relocation(self):
+        """Slot migration preserves outlier-bank pointers in both B12X readers."""
+        from sglang.kernels.ops.moe.qwen38_expert_cache import (
+            _module,
+            csf_patch_headers,
+        )
+        from sglang.srt.model_loader.qwen38_nvfp4_pack.tiered import (
+            TIER_MAGIC,
+            fixed_bytes,
+        )
+
+        native, _, _ = tensors()
+        tiered, specs, banks = dict(native), {}, []
+        rng = np.random.default_rng(177)
+        for name, rows, cols in (
+            ("w13_blockscale_swizzled", 1280, 160),
+            ("w2_blockscale_swizzled", 2560, 40),
+        ):
+            raw = rng.integers(48, 64, (4, rows, cols), dtype=np.uint8)
+            # Different record densities exercise inline, small and large banks.
+            for expert, step in ((1, 997), (2, 31), (3, 11)):
+                raw[expert].reshape(-1)[::step] = 75
+            raw[0] = 0
+            native[name] = torch.from_numpy(raw).cuda().view(torch.float8_e4m3fn)
+            slabs = [encode(a.tobytes(), rows, cols) for a in raw]
+            stride = len(slabs[1])
+            fixed = fixed_bytes(rows, cols)
+            heads = np.zeros((4, stride), dtype=np.uint8)
+            bank = bytearray()
+            for expert, slab in enumerate(slabs):
+                if not expert:
+                    continue
+                head = bytearray(stride)
+                count = struct.unpack_from("<I", slab, 1008)[0]
+                if len(slab) > stride:
+                    head[:fixed] = slab[:fixed]
+                    extent = (count * 4 + 16383) // 16384 * 16384
+                    struct.pack_into("<Q", head, 976, 4096 + len(bank))
+                    struct.pack_into("<I", head, 1000, extent)
+                    bank.extend(slab[fixed : fixed + count * 4])
+                    bank.extend(bytes(extent - count * 4))
+                else:
+                    head[: len(slab)] = slab
+                struct.pack_into("<2I", head, 1016, TIER_MAGIC, stride)
+                heads[expert] = np.frombuffer(head, np.uint8)
+            gpu_bank = torch.from_numpy(np.frombuffer(bank, np.uint8).copy()).cuda()
+            banks.append(gpu_bank)
+            tiered[name] = torch.from_numpy(heads).cuda()
+            csf_patch_headers(
+                tiered[name], gpu_bank.data_ptr() - 4096, 4096, 4096 + len(bank)
+            )
+            # Decode fills must bind an uploaded source header inside the
+            # existing fill launch, including the adaptive CTA configuration.
+            source = tiered[name].clone()
+            source[:, 992:1000].zero_()
+            target = torch.zeros((2, stride), device="cuda", dtype=torch.uint8)
+            plan = torch.tensor(
+                [0, 2, 0, 0, 2, 0, 1, 1], device="cuda", dtype=torch.int32
+            )
+            layout = torch.tensor(
+                [
+                    [
+                        target.data_ptr(),
+                        stride,
+                        source.data_ptr(),
+                        gpu_bank.data_ptr() - 4096,
+                    ]
+                ],
+                device="cuda",
+                dtype=torch.int64,
+            )
+            failed = torch.zeros(1, device="cuda", dtype=torch.int32)
+            for ctas in (0, 8):
+                _module().mailbox_fill_grid(plan, layout, 2, failed.data_ptr(), ctas)
+                torch.testing.assert_close(target, tiered[name][[2, 1]], rtol=0, atol=0)
+            specs[name] = dict(
+                encoding="b12x_csf_tiered_v1", rows=rows, columns=cols, stride=stride
+            )
+        # Repeated binding must not rewrite another layer's already-bound words.
+        heads = tiered["w13_blockscale_swizzled"]
+        saved = heads.clone()
+        csf_patch_headers(heads, 12345, 1 << 40, (1 << 40) + 100)
+        torch.testing.assert_close(heads, saved, rtol=0, atol=0)
+        a = CachedB12xW4A16(torch.device("cuda"), 2560, 640, 4, enable_fp32=True)
+        b = CachedB12xW4A16(
+            torch.device("cuda"), 2560, 640, 4, enable_fp32=True, scale_encoding=specs
+        )
+        order = torch.tensor([0, 3, 1, 2], device="cuda")
+        nn = {n: t[order].clone() if t.ndim else t for n, t in native.items()}
+        cc = {n: t[order].clone() if t.ndim else t for n, t in tiered.items()}
+        for nt in (1, 3):
+            x = (torch.randn(nt, 2560, device="cuda") * 0.05).bfloat16()
+            ids = torch.tensor([[1, 2, -1]] * nt, device="cuda", dtype=torch.int32)
+            weights = torch.rand(nt, 3, device="cuda") / 3
+            for dtype in (torch.bfloat16, torch.float32):
+                expected = a.run(x, ids, weights, nn, output_dtype=dtype)
+                actual = b.run(x, ids, weights, cc, output_dtype=dtype)
+                torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+                self.assertGreater(actual.abs().max().item(), 0)
+            expected = cached_w4a16_moe(x, ids, weights, nn)
+            actual = cached_w4a16_moe(x, ids, weights, cc)
+            torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+        a4 = CachedB12xW4A4(
+            torch.device("cuda"),
+            2560,
+            640,
+            4,
+            3,
+            scale_encoding={},
+            deterministic_output=True,
+        )
+        b4 = CachedB12xW4A4(
+            torch.device("cuda"),
+            2560,
+            640,
+            4,
+            3,
+            scale_encoding=specs,
+            deterministic_output=True,
+        )
+        for capacity in (4, 3):
+            nv = {n: t[:capacity] if t.ndim else t for n, t in nn.items()}
+            cv = {n: t[:capacity] if t.ndim else t for n, t in cc.items()}
+            for nt in (3, 129):
+                x = (torch.randn(nt, 2560, device="cuda") * 0.05).bfloat16()
+                ids = torch.randint(
+                    1, capacity, (nt, 3), device="cuda", dtype=torch.int32
+                )
+                ids[0] = -1
+                weights = torch.rand(nt, 3, device="cuda") / 3
+                expected = a4.run(x, ids, weights, nv)
+                actual = b4.run(x, ids, weights, cv)
+                torch.testing.assert_close(actual, expected, rtol=0.02, atol=0.0001)
+                self.assertGreater(actual[1:].abs().max().item(), 0)
+
     def test_gpu_prefill_and_relocated_slots(self):
         native, compressed, _ = tensors()
         # Copy opaque CSF rows exactly as cache rebalancing does.

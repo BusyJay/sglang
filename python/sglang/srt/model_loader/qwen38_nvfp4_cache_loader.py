@@ -313,6 +313,28 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
         compressed = bool(getattr(self.manifest, "scale_encoding", {}))
         if compressed != (mode == "csf"):
             raise ValueError("scale_compression must match the expert pack encoding")
+        if any(
+            s["encoding"] == "b12x_csf_tiered_v1"
+            for s in getattr(self.manifest, "scale_encoding", {}).values()
+        ):
+            cpu_mode = config.get("cpu_hybrid_mode")
+            if (
+                config.get("runtime_mode", "sync") != "threaded"
+                or cpu_mode
+                not in (
+                    "off",
+                    "layered",
+                    "layered_zero",
+                    "layered_probe",
+                    "layered_lfu",
+                )
+                or not config.get("fused_decode_plan", True)
+                or not config.get("decode_device_gate", True)
+                or config.get("packed_decode", "direct") != "direct"
+            ):
+                raise ValueError(
+                    "tiered CSF requires explicit per-layer threaded mode and direct fused device-gate decode"
+                )
         self.manifest.validate_cutlass_layout()
         self.manifest.assert_runtime_compatible(
             checkpoint_revision=config.get("checkpoint_revision"),

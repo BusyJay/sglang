@@ -7,6 +7,7 @@ into CSF loads; no expanded GPU buffer or separate decompression launch exists.
 
 import ast
 import copy
+import hashlib
 import inspect
 import tempfile
 import textwrap
@@ -76,6 +77,11 @@ def csf_method(source, specs):
                     base,
                     ast.BinOp(left=node.args[0], op=ast.Sub(), right=base),
                     *[ast.Constant(spec[k]) for k in ("rows", "columns", "stride")],
+                    *(
+                        [ast.Constant(True)]
+                        if spec.get("encoding") == "b12x_csf_tiered_v1"
+                        else []
+                    ),
                 ],
                 keywords=[],
             )
@@ -86,8 +92,17 @@ def csf_method(source, specs):
 
 def csf_kernel_namespace(native, specs):
     """Called once at adapter startup; derive from the installed/pinned class."""
+    specs = {
+        name: {
+            "encoding": spec.get("encoding", "b12x_csf_bitmap_v1"),
+            **{key: spec[key] for key in ("rows", "columns", "stride")},
+        }
+        for name, spec in specs.items()
+    }
+    source_hash = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()[:16]
     if any(
-        s.get("encoding", "b12x_csf_bitmap_v1") != "b12x_csf_bitmap_v1"
+        s.get("encoding", "b12x_csf_bitmap_v1")
+        not in ("b12x_csf_bitmap_v1", "b12x_csf_tiered_v1")
         for s in specs.values()
     ):
         raise ValueError("B12X requires bitmap/rank CSF; regenerate the pack offline")
@@ -119,6 +134,7 @@ def csf_kernel_namespace(native, specs):
         rows: micro.cutlass.Constexpr,
         columns: micro.cutlass.Constexpr,
         stride: micro.cutlass.Constexpr,
+        tiered: micro.cutlass.Constexpr = False,
     ) -> Uint32:
         size = Int64(rows * columns)
         expert = offset // size
@@ -155,6 +171,13 @@ def csf_kernel_namespace(native, specs):
             records = slab + Int64(
                 1024 + rows * (1 + columns // 2) + rows * columns // 16
             )
+            if micro.cutlass.const_expr(tiered):
+                external = (
+                    micro.ld_global_nc_u32(slab + Int64(992)).to(Int64)
+                    & Int64(0xFFFFFFFF)
+                ) | (micro.ld_global_nc_u32(slab + Int64(996)).to(Int64) << Int64(32))
+                if external != Int64(0):
+                    records = external
             word = micro.ld_global_nc_u32(records + (start + rank).to(Int64) * Int64(4))
         return word
 
@@ -209,8 +232,10 @@ def csf_kernel_namespace(native, specs):
                 ("w4a16_small_m_direct", "moe.w4a16.small_m_direct")
             )
         ):
-            node.value += ".csf." + repr(
-                sorted((n, tuple(sorted(s.items()))) for n, s in specs.items())
+            node.value += (
+                ".csf."
+                + source_hash
+                + repr(sorted((n, tuple(sorted(s.items()))) for n, s in specs.items()))
             )
     exec(
         compile(

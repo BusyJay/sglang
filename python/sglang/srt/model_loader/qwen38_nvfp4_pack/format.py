@@ -151,7 +151,7 @@ class Qwen38ExpertPackManifest:
             )
             stride = spec.get("stride", 0)
             if (
-                spec.get("encoding") != "b12x_csf_bitmap_v1"
+                spec.get("encoding") not in ("b12x_csf_bitmap_v1", "b12x_csf_tiered_v1")
                 or spec.get("rows") != rows
                 or spec.get("columns") != columns
                 or type(stride) is not int
@@ -197,6 +197,27 @@ class Qwen38ExpertPackManifest:
                     errors.append(f"{label} byte size is not divisible by num_experts")
                 ranges.append((record.offset, record.offset + record.nbytes, label))
 
+        for name, spec in self.scale_encoding.items():
+            if spec.get("encoding") != "b12x_csf_tiered_v1":
+                continue
+            regions = spec.get("overflow", {})
+            if set(regions) != {str(i) for i in range(self.num_layers)}:
+                errors.append(f"incomplete tiered CSF bank table for {name}")
+                continue
+            for layer, region in regions.items():
+                offset, size = region.get("offset"), region.get("nbytes")
+                if (
+                    type(offset) is not int
+                    or type(size) is not int
+                    or offset < 0
+                    or size < 0
+                    or offset % 16
+                    or size % 16384
+                    or offset + size > self.payload_nbytes
+                ):
+                    errors.append(f"invalid tiered CSF bank for {name} layer {layer}")
+                elif size:
+                    ranges.append((offset, offset + size, f"{layer} {name} bank"))
         ranges.sort()
         for previous, current in zip(ranges, ranges[1:]):
             if previous[1] > current[0]:
@@ -623,6 +644,13 @@ class Qwen38ExpertPack:
                 record = records[name]
                 for expert in range(self.manifest.num_experts):
                     start = record.offset + expert * spec["stride"]
+                    if spec["encoding"] == "b12x_csf_tiered_v1":
+                        from .tiered import restore_slab
+
+                        restore_slab(
+                            self._mapping, start, spec, spec["overflow"][str(layer)]
+                        )
+                        continue
                     view = memoryview(self._mapping)[start : start + spec["stride"]]
                     try:
                         validate_bitmap(view, spec["rows"], spec["columns"])

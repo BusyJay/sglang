@@ -271,7 +271,9 @@ class DecodeMissMailbox:
                 (
                     0
                     if component.mode == "zero"
-                    else 1 if component.mode == "probe" else -1
+                    else 1
+                    if component.mode == "probe"
+                    else -1
                 ),
                 int(component.backend == "b12x"),
                 int(during_fill is not None),
@@ -378,6 +380,11 @@ class DecodeMissMailbox:
                         r.caches[layer][name].data_ptr(),
                         size,
                         self.pack_address + r.manifest.tensors[layer][name].offset,
+                        *(
+                            [r.csf_banks.delta(layer, name)]
+                            if r.csf_banks is not None
+                            else []
+                        ),
                     ]
                     for name, size in zip(r.decode_copy_names, self.sizes[layer])
                 ],
