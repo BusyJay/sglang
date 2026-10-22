@@ -54,11 +54,12 @@ class DecodeMissMailbox:
             raise ValueError("SGLANG_QWEN38_FILL_CTA must be 1..8 or adaptive")
         self.fill_cta = 0 if fill_cta == "adaptive" else int(fill_cta)
         layers, experts = runtime.manifest.num_layers, runtime.manifest.num_experts
-        # hits, all-hit calls, misses, miss calls; one row per layer.
+        # Original hits, all-hit calls, original misses, GPU fill calls.
         self.hit_stats = torch.zeros(
             (layers, 4), dtype=torch.int64, device=runtime.device
         )
         self.observed = [[0, 0, 0, 0] for _ in range(layers)]
+        self.observed_cpu_experts = [0] * layers
         self.native_active = False
         self.failed = torch.zeros(1, dtype=torch.int32, pin_memory=True)
         self.failed_address = int(
@@ -143,6 +144,7 @@ class DecodeMissMailbox:
         sample=None,
         during_fill=None,
         early_cache=None,
+        layered=None,
     ):
         r = self.runtime
         compute = torch.cuda.current_stream(r.device)
@@ -172,6 +174,8 @@ class DecodeMissMailbox:
             else:
                 raise RuntimeError("decode completion event pool exhausted")
         state = r.device_states[layer]
+        if layered is not None and early_cache is not None:
+            raise ValueError("layered CPU hybrid and early cache are exclusive")
         early_ids = torch.empty_like(ids) if early_cache is not None else None
         late_ids = torch.empty_like(ids) if early_cache is not None else None
         remapped = torch.empty_like(ids)
@@ -183,34 +187,96 @@ class DecodeMissMailbox:
         # The planner consumes a sorted/unique union but remaps every route.
         # Flatten small verify batches without losing token/route output shape.
         # The native kernel's existing histogram handles cross-token duplicates.
-        planner = (
-            _module().decode_plan_parallel_early
-            if early_ids is not None
-            else _module().decode_plan_parallel
-        )
-        planner(
-            ids.view(1, -1),
-            remapped.view(1, -1),
-            state["counts"],
-            state["lookup"],
-            state["keys"],
-            state["frequency"],
-            state["ages"],
-            state["generation"],
-            state["clock"],
-            state["plan"],
-            0.95,
-            int(r.cache_policy == "slru"),
-            r.cache_protected_fraction,
-            self.hit_stats.data_ptr() + self.hit_stats.stride(0) * 8 * layer,
-            capture,
-            int(os.getenv("SGLANG_QWEN38_PARALLEL_MISS_PLAN", "2")),
-            *(
-                (early_ids.view(1, -1), late_ids.view(1, -1))
+        cpu_ids = gpu_weights = None
+        if layered is None:
+            planner = (
+                _module().decode_plan_parallel_early
                 if early_ids is not None
-                else ()
-            ),
-        )
+                else _module().decode_plan_parallel
+            )
+            planner(
+                ids.view(1, -1),
+                remapped.view(1, -1),
+                state["counts"],
+                state["lookup"],
+                state["keys"],
+                state["frequency"],
+                state["ages"],
+                state["generation"],
+                state["clock"],
+                state["plan"],
+                0.95,
+                int(r.cache_policy == "slru"),
+                r.cache_protected_fraction,
+                self.hit_stats.data_ptr() + self.hit_stats.stride(0) * 8 * layer,
+                capture,
+                int(os.getenv("SGLANG_QWEN38_PARALLEL_MISS_PLAN", "2")),
+                *(
+                    (early_ids.view(1, -1), late_ids.view(1, -1))
+                    if early_ids is not None
+                    else ()
+                ),
+            )
+        else:
+            component, x, weights = layered
+            sequence = component.next_sequence()
+            gpu_weights = component.gpu_weights[x.shape[0]]
+            cpu_ids = component.cpu_ids[x.shape[0]]
+            # Exact original route samples are emitted by the planner even
+            # when selected CPU routes are removed from GPU LFU maintenance.
+            from sglang.kernels.ops.moe.qwen38_expert_cache import (
+                cache_decode_plan_layered,
+            )
+
+            if component.mode == "lfu":
+                from sglang.kernels.ops.moe.qwen38_expert_cache import (
+                    cache_decode_plan_layered_lfu,
+                )
+
+                planner = cache_decode_plan_layered_lfu
+                policy_args = (
+                    component.expert_frequency[layer],
+                    component.max_cpu_experts,
+                )
+            else:
+                planner = cache_decode_plan_layered
+                policy_args = ()
+            planner(
+                ids.view(1, -1),
+                remapped.view(1, -1),
+                state["counts"],
+                state["lookup"],
+                state["keys"],
+                state["frequency"],
+                state["ages"],
+                state["generation"],
+                state["clock"],
+                state["plan"],
+                0.95,
+                0,
+                r.cache_protected_fraction,
+                self.hit_stats.data_ptr() + self.hit_stats.stride(0) * 8 * layer,
+                capture,
+                component.parallel_miss_plan,
+                x,
+                weights,
+                component.table,
+                gpu_weights,
+                cpu_ids,
+                component.descriptor,
+                component.stats[layer],
+                component.page.address,
+                layer,
+                sequence,
+                (
+                    0
+                    if component.mode == "zero"
+                    else 1 if component.mode == "probe" else -1
+                ),
+                int(component.backend == "b12x"),
+                int(during_fill is not None),
+                *policy_args,
+            )
         self.native_active = True
         if capture:
             self.sampler.commit(layer, sample, compute)
@@ -259,6 +325,22 @@ class DecodeMissMailbox:
                 self.overlap_invocations += 1
                 if early_ids is not None:
                     self.early_cache_invocations += 1
+            if layered is not None:
+                from sglang.kernels.ops.moe.qwen38_hybrid_plan import hybrid_merge
+
+                gpu = component.run_gpu(layer, x, remapped, gpu_weights)
+                result = torch.empty_like(x)
+                hybrid_merge(
+                    cpu_ids,
+                    gpu,
+                    component.descriptor[:1],
+                    result,
+                    component.page.batch.device_addresses[3],
+                    sequence,
+                    self.failed_address,
+                    completed_address=component.page.batch.device_addresses[5],
+                )
+                return result
             return execute(
                 PreparedExperts(
                     {**r.caches[layer], **r.layer_scales[layer]},
@@ -375,22 +457,33 @@ class DecodeMissMailbox:
             compute.wait_event(event)
         values = self.hit_stats.cpu().tolist()
         r = self.runtime
+        layered = getattr(r, "layered_hybrid", None)
+        cpu_experts = (
+            layered.stats[:, 1].cpu().tolist() if layered is not None else None
+        )
         for layer, (current, previous) in enumerate(zip(values, self.observed)):
-            hits, calls, misses, miss_calls = (
+            hits, calls, misses, gpu_fill_calls = (
                 value - old for value, old in zip(current, previous)
             )
-            size = sum(self.sizes[layer]) * misses
+            actual_fills = (
+                misses - (cpu_experts[layer] - self.observed_cpu_experts[layer])
+                if cpu_experts is not None
+                else misses
+            )
+            size = sum(self.sizes[layer]) * actual_fills
             r.hits += hits
             r.layer_hits[layer] += hits
             r.decode_device_gate_hits += calls
             r.misses += misses
             r.layer_misses[layer] += misses
             r.transferred_bytes += size
-            r.decode_device_gate_copy_calls += miss_calls
+            r.decode_device_gate_copy_calls += gpu_fill_calls
             r.decode_device_gate_copy_bytes += size
             if r.resident_alphas:
-                r.decode_alpha_h2d_calls_avoided += 2 * misses
+                r.decode_alpha_h2d_calls_avoided += 2 * actual_fills
         self.observed = values
+        if cpu_experts is not None:
+            self.observed_cpu_experts = cpu_experts
 
     def close(self):
         if self.sampler is not None:

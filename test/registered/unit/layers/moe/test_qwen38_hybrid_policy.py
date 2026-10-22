@@ -26,7 +26,7 @@ class TestHybridCostModel(CustomTestCase):
     def calibration(self, **overrides):
         result = dict(
             self.METADATA,
-            schema_version=1,
+            schema_version=2,
             samples=[
                 dict(
                     tokens=1,
@@ -42,20 +42,90 @@ class TestHybridCostModel(CustomTestCase):
         result.update(overrides)
         if isinstance(result["samples"], list):
             result["samples"] = [
-                dict(
-                    sample,
-                    rejected_tokens=sample.get(
-                        "rejected_tokens", copy.deepcopy(sample.get("miss_tokens"))
-                    ),
+                (
+                    dict(
+                        sample,
+                        gpu_fill_experts=sample.get(
+                            "gpu_fill_experts",
+                            len(
+                                sample.get(
+                                    "rejected_tokens", sample.get("miss_tokens", [])
+                                )
+                                or []
+                            )
+                            - sample.get("miss_experts", 0),
+                        ),
+                        rejected_tokens=sample.get(
+                            "rejected_tokens", copy.deepcopy(sample.get("miss_tokens"))
+                        ),
+                    )
+                    if isinstance(sample, dict)
+                    else sample
                 )
-                if isinstance(sample, dict)
-                else sample
                 for sample in result["samples"]
             ]
         return result
 
     def model(self, calibration):
         return HybridCostModel(calibration, **self.METADATA)
+
+    def test_fill_buckets_separate_opposite_branch_outcomes(self):
+        samples = [
+            dict(
+                self.calibration()["samples"][0],
+                gpu_fill_experts=fills,
+                cpu_us=cpu_us,
+                gpu_us=gpu_us,
+            )
+            for fills, cpu_us, gpu_us in [(0, 160, 100), (2, 80, 100)]
+        ]
+        model = self.model(self.calibration(samples=samples))
+        self.assertEqual(model.choose(1, 2, 2, 1, [2], [2], 0), "gpu")
+        self.assertEqual(model.choose(1, 2, 2, 1, [2], [2], 2), "cpu")
+        self.assertEqual(model.choose(1, 2, 2, 1, [2], [2], 1), "gpu")
+        rows = [[0, 1, 2, 2]]
+        self.assertEqual(model.select_cpu(1, rows, {0: 0, 1: 1}, {2}), set())
+        self.assertEqual(
+            model.select_cpu(1, rows, {0: 0, 1: 1}, {2}, admitted_experts=2), {2}
+        )
+
+    def test_fill_counts_validate_schema_and_runtime(self):
+        for value in [-1, 3, True, 1.0, None, "0"]:
+            with self.subTest(value=value):
+                table = self.calibration()
+                table["samples"][0]["gpu_fill_experts"] = value
+                with self.assertRaisesRegex(ValueError, "gpu_fill_experts"):
+                    self.model(table)
+                self.assertEqual(
+                    self.model(self.calibration()).choose(1, 2, 2, 1, [2], [2], value),
+                    "gpu",
+                )
+        table = self.calibration()
+        del table["samples"][0]["gpu_fill_experts"]
+        with self.assertRaisesRegex(ValueError, "gpu_fill_experts"):
+            self.model(table)
+        table = self.calibration()
+        table["samples"][0].update(
+            hit_routes=2, miss_tokens=[2], rejected_tokens=[1, 2], gpu_fill_experts=0
+        )
+        with self.assertRaisesRegex(ValueError, "gpu_fill_experts"):
+            self.model(table)
+
+    def test_device_rows_filter_and_sort_scalar_buckets(self):
+        sample = self.calibration()["samples"][0]
+        samples = [
+            dict(sample, gpu_fill_experts=fills, cpu_us=cpu_us)
+            for fills, cpu_us in [(2, 70), (0, 80), (1, 90)]
+        ]
+        model = self.model(self.calibration(samples=samples))
+        rows = model.device_cost_rows(32)
+        self.assertEqual([row[6] for row in rows], [0, 2])
+        self.assertEqual([row[5] for row in rows], [80, 70])
+        self.assertTrue(all(len(row) == 71 for row in rows))
+        self.assertEqual(rows[0][7:9], [2, 0])
+        self.assertEqual(rows[0][39:41], [2, 0])
+        with self.assertRaisesRegex(ValueError, "route capacity"):
+            model.device_cost_rows(0)
 
     def test_full_branch_cost_and_strict_default_margin(self):
         # End-to-end times, rather than worker/kernel time, decide the branch.
@@ -196,7 +266,7 @@ class TestHybridCostModel(CustomTestCase):
             with self.subTest(calibration=calibration):
                 with self.assertRaisesRegex(ValueError, "JSON object"):
                     self.model(calibration)
-        for version in [None, 0, 2, True, 1.0, "1"]:
+        for version in [None, 0, 1, 3, True, 2.0, "2"]:
             with self.subTest(version=version):
                 with self.assertRaisesRegex(ValueError, "schema_version"):
                     self.model(self.calibration(schema_version=version))
@@ -411,6 +481,7 @@ class TestHybridCostModel(CustomTestCase):
                 miss_experts=k,
                 miss_tokens=[1] * k,
                 rejected_tokens=[1] * 5,
+                gpu_fill_experts=10 - k,
                 cpu_us=80 if k == 1 else 95,
                 gpu_us=100,
             )
@@ -421,13 +492,16 @@ class TestHybridCostModel(CustomTestCase):
         # All ten admitted, even though they are not resident hits yet.
         self.assertEqual(model.select_cpu(3, rows, {}, set()), frozenset())
         # Five admitted + five rejected; only k=1 beats the strict margin.
-        selected = model.select_cpu(3, rows, {}, {5, 6, 7, 8, 9})
+        selected = model.select_cpu(3, rows, {}, {5, 6, 7, 8, 9}, admitted_experts=5)
         self.assertEqual(selected, frozenset({5}))
         self.assertEqual(sum(e not in selected for row in rows for e in row), 9)
         for sample in samples:
             sample["cpu_us"] = 90  # Equality at the margin is not eligible.
         model = self.model(self.calibration(samples=samples))
-        self.assertEqual(model.select_cpu(3, rows, {}, {5, 6, 7, 8, 9}), frozenset())
+        self.assertEqual(
+            model.select_cpu(3, rows, {}, {5, 6, 7, 8, 9}, admitted_experts=5),
+            frozenset(),
+        )
 
     def test_select_cpu_minimizes_full_branch_time_over_all_prefixes(self):
         samples = [

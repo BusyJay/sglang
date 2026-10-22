@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cuda_runtime.h>
+#include "qwen38_layered_policy.cuh"
 
 namespace {
 // NVFP4/SM120 policy, indexed by miss count. Use three CTAs across 5-7 misses;
@@ -564,16 +565,26 @@ __global__ void decode_plan_kernel(
     int32_t* sample,
     int parallel_miss,
     int32_t* early_ids = nullptr,
-    int32_t* late_ids = nullptr) {
+    int32_t* late_ids = nullptr,
+    sglang::LayeredHybridArgs hybrid_args = {}) {
+  const auto* hybrid = hybrid_args.descriptor ? &hybrid_args : nullptr;
+  const int route_count = hybrid ? hybrid->routes : top_k;
   __shared__ int32_t histogram[513];
   __shared__ int32_t active_ids[32];
   __shared__ int active_count;
   __shared__ bool all_hit;
   __shared__ int64_t clock_before;
+  __shared__ int32_t filtered_ids[32];
+  const int32_t* original_ids = ids;
+  __shared__ int original_active;
+  __shared__ int original_misses;
+  __shared__ int32_t original_active_ids[32];
+  __shared__ int safe_slot;
+  __shared__ int cpu_count;
   for (int e = threadIdx.x; e <= experts; e += blockDim.x)
     histogram[e] = 0;
   __syncthreads();
-  if (threadIdx.x < top_k) {
+  if (threadIdx.x < route_count) {
     int expert = ids[threadIdx.x];
     if (early_ids) early_ids[threadIdx.x] =
         (expert >= 0 && expert < experts) ? lookup[expert] : -1;
@@ -585,7 +596,7 @@ __global__ void decode_plan_kernel(
   __syncthreads();
   if (threadIdx.x == 0) {
     int active = 0;
-    for (int i = 0; i < top_k; ++i) {
+    for (int i = 0; i < route_count; ++i) {
       int expert = ids[i];
       if (expert < 0 || expert >= experts) continue;
       int pos = 0;
@@ -597,16 +608,74 @@ __global__ void decode_plan_kernel(
       active_ids[pos] = expert;
       ++active;
     }
+    original_active = active;
+    for (int j = 0; j < active; ++j) original_active_ids[j] = active_ids[j];
+    original_misses = 0;
+    for (int j = 0; j < active; ++j) original_misses += lookup[active_ids[j]] < 0;
     active_count = active;
-    all_hit = !policy && !histogram[experts] && active <= slots;
-    for (int i = 0; i < active && all_hit; ++i) {
+  }
+  __syncthreads();
+  if (hybrid && hybrid->expert_frequency && !histogram[experts] && original_active <= slots) {
+    // Slot restoration can follow a prefill or resize. Seed residents, retaining
+    // the nonresident history, then update heat in parallel for the full union.
+    for (int s = threadIdx.x; s < slots; s += blockDim.x)
+      if (keys[s] >= 0) hybrid->expert_frequency[keys[s]] = frequency[s];
+    __syncthreads();
+    for (int e = threadIdx.x; e < experts; e += blockDim.x) {
+      hybrid->expert_frequency[e] *= decay;
+      if (histogram[e]) hybrid->expert_frequency[e] += 1.0f;
+    }
+    __syncthreads();
+  }
+  if (threadIdx.x == 0) {
+    int active = original_active;
+    cpu_count = 0;
+    if (hybrid && !histogram[experts] && active <= slots) {
+      if (hybrid->expert_frequency) {
+        if (original_misses) {
+          cpu_count = sglang::layered_lfu_select(ids, lookup, keys, histogram, experts, slots, *hybrid, filtered_ids);
+        } else {
+          for (int j = 0; j < route_count; ++j) filtered_ids[j] = ids[j];
+        }
+      } else {
+        cpu_count = sglang::layered_select(ids, lookup, experts, slots, *hybrid, filtered_ids);
+      }
+      for (int j = 0; j < route_count; ++j) {
+        int e = ids[j];
+        if (e >= 0 && e < experts && filtered_ids[j] < 0) histogram[e] = 0;
+      }
+      int gpu_active = 0;
+      for (int j = 0; j < active; ++j)
+        if (histogram[active_ids[j]]) active_ids[gpu_active++] = active_ids[j];
+      active = gpu_active;
+      hybrid->descriptor[0] = cpu_count;
+      hybrid->descriptor[1] = hybrid->sequence;
+      hybrid->stats[0] += original_misses;
+      hybrid->stats[1] += cpu_count;
+      // GPU fill count is recorded after the LFU plan is complete.
+      hybrid->stats[3] += cpu_count != 0;
+    } else if (hybrid) {
+      hybrid->stats[0] += original_misses;
+      for (int j = 0; j < route_count; ++j) filtered_ids[j] = ids[j];
+      hybrid->descriptor[0] = 0;
+      hybrid->descriptor[1] = hybrid->sequence;
+    }
+    active_count = active;
+    safe_slot = -1;
+  }
+  __syncthreads();
+  if (hybrid && cpu_count) sglang::layered_publish(original_ids, filtered_ids, *hybrid);
+  if (hybrid) ids = filtered_ids;
+  if (threadIdx.x == 0) {
+    all_hit = !policy && !histogram[experts] && active_count <= slots;
+    for (int i = 0; i < active_count && all_hit; ++i) {
       all_hit = lookup[active_ids[i]] >= 0;
     }
     if (all_hit) {
       clock_before = clock[0];
-      clock[0] += active;
+      clock[0] += active_count;
       plan[0] = plan[1] = plan[3] = 0;
-      plan[2] = active;
+      plan[2] = active_count;
     } else if (!parallel_miss || policy) {
       apply_plan(
           histogram,
@@ -624,7 +693,7 @@ __global__ void decode_plan_kernel(
           protected_slots,
           export_routes,
           active_ids,
-          active);
+          active_count);
     }
   }
   __syncthreads();
@@ -647,11 +716,35 @@ __global__ void decode_plan_kernel(
       if (export_routes) plan[4 + 3 * slots + threadIdx.x] = expert;
     }
   }
+  if (hybrid && hybrid->expert_frequency) {
+    __syncthreads();
+    for (int j = threadIdx.x; j < active_count; j += blockDim.x) {
+      int e = active_ids[j], slot = lookup[e];
+      if (slot >= 0) frequency[slot] = hybrid->expert_frequency[e];
+    }
+  }
   for (int e = threadIdx.x; e <= experts; e += blockDim.x)
     counts[e] = histogram[e];
-  if (threadIdx.x < top_k) {
+  if (hybrid && hybrid->safe_mask) {
+    if (threadIdx.x == 0) {
+      for (int i = 0; i < route_count; ++i) {
+        int expert = ids[i];
+        if (expert >= 0 && expert < experts && lookup[expert] >= 0) {
+          safe_slot = lookup[expert]; break;
+        }
+      }
+    }
+    __syncthreads();
+  }
+  if (threadIdx.x < route_count) {
     int expert = ids[threadIdx.x];
     int slot = (expert >= 0 && expert < experts) ? lookup[expert] : -1;
+    if (hybrid) {
+      hybrid->cpu_ids[threadIdx.x] = original_ids[threadIdx.x] >= 0 && original_ids[threadIdx.x] < experts && expert < 0
+          ? original_ids[threadIdx.x] : -1;
+      hybrid->gpu_weights[threadIdx.x] = expert < 0 ? 0.0f : hybrid->weights[threadIdx.x];
+      if (hybrid->safe_mask && slot < 0 && safe_slot >= 0) slot = safe_slot;
+    }
     output[threadIdx.x] = slot;
     if (early_ids) {
       // Only mixed plans need two contributions. All-hit and all-miss plans
@@ -662,7 +755,7 @@ __global__ void decode_plan_kernel(
       late_ids[threadIdx.x] = mixed && hit >= 0 ? -1 : slot;
     }
   }
-  if (hit_stats || sample) {
+  if (hit_stats || sample || hybrid) {
     __syncthreads();
     if (plan[0] || plan[3]) {
       if (threadIdx.x == 0) asm volatile("trap;");
@@ -672,17 +765,29 @@ __global__ void decode_plan_kernel(
       // Prior readers and updates are ordered by the caller's stream/events.
       // Accumulate every plan on device; a host snapshot cannot lose misses
       // when several invocations of the same layer are already queued.
+      if (hybrid) {
+        hybrid->stats[2] += plan[1];
+        hybrid->stats[4] += plan[1] != 0;
+      }
       if (hit_stats) {
-        hit_stats[0] += plan[2] - plan[1];
-        hit_stats[1] += plan[1] == 0;
-        hit_stats[2] += plan[1];
+        hit_stats[0] += hybrid ? original_active - original_misses : plan[2] - plan[1];
+        hit_stats[1] += (hybrid ? original_misses : plan[1]) == 0;
+        hit_stats[2] += hybrid ? original_misses : plan[1];
+        // Copy-call accounting follows actual GPU fills, including CPU-only
+        // misses whose original miss count is nonzero but need no DMA.
         hit_stats[3] += plan[1] != 0;
       }
       if (sample) {
         // Original expert IDs, sorted and unique, including hits. Never emit
         // remapped cache slots or stale padding from the reusable plan tail.
-        sample[0] = active_count;
-        for (int i = 0; i < active_count; ++i) sample[1 + i] = active_ids[i];
+        if (hybrid) {
+          sample[0] = original_active;
+          for (int i = 0; i < original_active; ++i)
+            sample[1 + i] = original_active_ids[i];
+        } else {
+          sample[0] = active_count;
+          for (int i = 0; i < active_count; ++i) sample[1 + i] = active_ids[i];
+        }
       }
     }
   }
@@ -912,6 +1017,45 @@ struct Qwen38CacheDecodePlan {
         sample, parallel_miss, reinterpret_cast<int64_t>(early_ids.data_ptr()),
         reinterpret_cast<int64_t>(late_ids.data_ptr()));
   }
+  static void run_layered(
+      TensorView ids, TensorView output, TensorView counts, TensorView lookup,
+      TensorView keys, TensorView frequency, TensorView ages, TensorView generation,
+      TensorView clock, TensorView plan, double decay, int64_t policy,
+      double protected_fraction, int64_t hit_stats, int64_t sample, int64_t parallel_miss,
+      TensorView x, TensorView weights, TensorView table, TensorView gpu_weights,
+      TensorView cpu_ids, TensorView descriptor,
+      TensorView stats, int64_t host_page, int64_t layer, int64_t sequence, int64_t forced, int64_t safe_mask,
+      int64_t overlap) {
+    auto args = sglang::layered_args(ids, x, weights, table, gpu_weights, cpu_ids,
+                                    descriptor, stats, host_page, layer, sequence, forced, safe_mask, overlap, keys.size(0));
+    TVM_FFI_ICHECK_EQ(policy, 0);
+    run_parallel_impl(ids, output, counts, lookup, keys, frequency, ages,
+        generation, clock, plan, decay, policy, protected_fraction, hit_stats,
+        sample, parallel_miss, 0, 0, &args);
+  }
+  static void run_layered_lfu(
+      TensorView ids, TensorView output, TensorView counts, TensorView lookup,
+      TensorView keys, TensorView frequency, TensorView ages, TensorView generation,
+      TensorView clock, TensorView plan, double decay, int64_t policy,
+      double protected_fraction, int64_t hit_stats, int64_t sample, int64_t parallel_miss,
+      TensorView x, TensorView weights, TensorView table, TensorView gpu_weights,
+      TensorView cpu_ids, TensorView descriptor,
+      TensorView stats, int64_t host_page, int64_t layer, int64_t sequence, int64_t forced, int64_t safe_mask,
+      int64_t overlap, TensorView expert_frequency, int64_t max_cpu_experts) {
+    auto args = sglang::layered_args(ids, x, weights, table, gpu_weights, cpu_ids,
+                                    descriptor, stats, host_page, layer, sequence, forced, safe_mask, overlap, keys.size(0));
+    CHECK_INPUT_AND_TYPE(expert_frequency, dl_float32);
+    CHECK_CONTIGUOUS(expert_frequency); CHECK_DIM(1, expert_frequency);
+    CHECK_DEVICE(ids, expert_frequency);
+    TVM_FFI_ICHECK_EQ(expert_frequency.size(0), lookup.size(0));
+    TVM_FFI_ICHECK_GE(max_cpu_experts, 0); TVM_FFI_ICHECK_LE(max_cpu_experts, 30);
+    args.expert_frequency = static_cast<float*>(expert_frequency.data_ptr());
+    args.max_cpu_experts = static_cast<int>(max_cpu_experts);
+    TVM_FFI_ICHECK_EQ(policy, 0);
+    run_parallel_impl(ids, output, counts, lookup, keys, frequency, ages,
+        generation, clock, plan, decay, policy, protected_fraction, hit_stats,
+        sample, parallel_miss, 0, 0, &args);
+  }
   static void run_parallel_impl(
       TensorView ids,
       TensorView output,
@@ -930,7 +1074,8 @@ struct Qwen38CacheDecodePlan {
       int64_t sample,
       int64_t parallel_miss,
       int64_t early_ids,
-      int64_t late_ids) {
+      int64_t late_ids,
+      const sglang::LayeredHybridArgs* hybrid = nullptr) {
     TVM_FFI_ICHECK_GE(parallel_miss, 0);
     TVM_FFI_ICHECK_LE(parallel_miss, 2);
     CHECK_INPUT_AND_TYPE(ids, dl_int32);
@@ -1003,7 +1148,7 @@ struct Qwen38CacheDecodePlan {
         plan.size(0) == 4 + 4 * slots,
         reinterpret_cast<int64_t*>(hit_stats),
         reinterpret_cast<int32_t*>(sample), parallel_miss,
-        reinterpret_cast<int32_t*>(early_ids), reinterpret_cast<int32_t*>(late_ids));
+        reinterpret_cast<int32_t*>(early_ids), reinterpret_cast<int32_t*>(late_ids), hybrid ? *hybrid : sglang::LayeredHybridArgs{});
     auto status = cudaGetLastError();
     TVM_FFI_ICHECK_EQ(status, cudaSuccess) << cudaGetErrorString(status);
   }

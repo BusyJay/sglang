@@ -133,6 +133,8 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         max_pending=64,
         adaptive_cache=False,
         cpu_hybrid=False,
+        layered_cpu_mode=None,
+        layered_cpu_max_experts=1,
         adaptive_cache_window=512,
         adaptive_cache_interval=4096,
         adaptive_cache_mode="rebalance",
@@ -186,6 +188,26 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
             not adaptive_cache or cache_policy != "lfu" or not self.prefill_arena
         ):
             raise ValueError("CPU hybrid requires adaptive LFU and a prefill arena")
+        if layered_cpu_mode not in (
+            None,
+            "layered",
+            "layered_zero",
+            "layered_probe",
+            "layered_lfu",
+        ):
+            raise ValueError("invalid layered_cpu_mode")
+        if layered_cpu_mode and (
+            cpu_hybrid or not adaptive_cache or cache_policy != "lfu"
+        ):
+            raise ValueError("layered CPU hybrid requires per-layer adaptive LFU")
+        if (
+            type(layered_cpu_max_experts) is not int
+            or not 0 <= layered_cpu_max_experts <= 30
+        ):
+            raise ValueError("layered_cpu_max_experts must be an integer in [0, 30]")
+        self.layered_cpu_max_experts = layered_cpu_max_experts
+        self.layered_cpu_mode = layered_cpu_mode
+        self.layered_hybrid = None
         self.cpu_hybrid_enabled = cpu_hybrid
         if type(adaptive_cache_window) is not int or adaptive_cache_window < 16:
             raise ValueError("adaptive_cache_window must be an integer >= 16")
@@ -1347,6 +1369,20 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         if getattr(self, "miss_mailbox", None) is not None:
             self.miss_mailbox.flush_stats()
         result = super().stats_snapshot()
+        if self.layered_hybrid is not None:
+            values = self.layered_hybrid.stats.sum(dim=0).cpu().tolist()
+            result["layered_cpu_hybrid"] = dict(
+                zip(
+                    (
+                        "original_miss_experts",
+                        "cpu_experts",
+                        "gpu_fill_experts",
+                        "cpu_calls",
+                        "gpu_fill_calls",
+                    ),
+                    values,
+                )
+            )
         if getattr(self, "hybrid", None) is not None:
             planner = getattr(self.hybrid, "device_planner", None)
             if planner is not None:
@@ -1451,7 +1487,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
             raise RuntimeError(
                 "background expert transfer failed; recreate runtime"
             ) from self.worker_error
-        if self.closed or self.worker is None:
+        if self.closed or getattr(self, "_close_started", False) or self.worker is None:
             raise RuntimeError("threaded expert runtime must be reserved and open")
 
     def _fail_job(self, job, error):
@@ -1679,37 +1715,42 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
     def close(self):
         if self.closed:
             return
-        try:
+        self._close_started = True
+        if not getattr(self, "_close_drained", False):
             self.synchronize()
-        finally:
-            self.closed = True
+            self._close_drained = True
+        if getattr(self, "hybrid", None) is not None:
+            self.hybrid.close()
+        # The CPU service may still own the mapped page after a timed-out
+        # join. Keep the mailbox and pack mapping live until a retry succeeds.
+        if self.layered_hybrid is not None:
+            self.layered_hybrid.close()
+        if self.miss_mailbox is not None:
+            self.miss_mailbox.close()
+            self.miss_mailbox = None
+        if self.worker is not None:
+            self.jobs.put(None)
+            self.worker.join()
+            self.retired.put(None)
+            self.reaper.join()
+            self.worker = None
+        if self.adaptive_worker is not None and self.adaptive_worker.is_alive():
+            self.analysis_stopping.set()
+            self.adaptive_worker.join()
+        if self.adaptive_process is not None:
+            self.adaptive_process.stdin.close()
             try:
-                if getattr(self, "hybrid", None) is not None:
-                    self.hybrid.close()
-            finally:
-                if self.miss_mailbox is not None:
-                    self.miss_mailbox.close()
-                if self.worker is not None:
-                    self.jobs.put(None)
-                    self.worker.join()
-                    self.retired.put(None)
-                    self.reaper.join()
-                if self.adaptive_worker is not None and self.adaptive_worker.is_alive():
-                    self.analysis_stopping.set()
-                    self.adaptive_worker.join()
-                if self.adaptive_process is not None:
-                    self.adaptive_process.stdin.close()
-                    try:
-                        self.adaptive_process.wait(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        self.adaptive_process.kill()
-                        self.adaptive_process.wait()
-                    self.adaptive_process.stdout.close()
-                if hasattr(self, "staged_pool"):
-                    self.caches.clear()
-                    self.cache_pool = None
-                    self.arena = None
-                    self.staged_pool.close()
+                self.adaptive_process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self.adaptive_process.kill()
+                self.adaptive_process.wait()
+            self.adaptive_process.stdout.close()
+        if hasattr(self, "staged_pool"):
+            self.caches.clear()
+            self.cache_pool = None
+            self.arena = None
+            self.staged_pool.close()
+        self.closed = True
 
     def memory_budget(self):
         result = super().memory_budget()
@@ -1768,6 +1809,20 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         result["decode_mailbox_pinned_bytes"] = (
             self.miss_mailbox.pinned_bytes if self.miss_mailbox is not None else 0
         )
+        if self.layered_hybrid is not None:
+            result["layered_cpu_device_bytes"] = (
+                self.layered_hybrid.table.nbytes
+                + (
+                    self.layered_hybrid.expert_frequency.nbytes
+                    if self.layered_hybrid.expert_frequency is not None
+                    else 0
+                )
+                + self.layered_hybrid.descriptor.nbytes
+                + self.layered_hybrid.stats.nbytes
+                + sum(t.nbytes for t in self.layered_hybrid.gpu_weights.values())
+                + sum(t.nbytes for t in self.layered_hybrid.cpu_ids.values())
+            )
+            result["layered_cpu_pinned_bytes"] = self.layered_hybrid.page.bytes.nbytes
         return result
 
     def _use_prefill_arena(self, layer_id, route_bound):
@@ -1789,6 +1844,22 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
 
     supports_execution_phase = True
     supports_fill_overlap = True
+
+    def run_layered(
+        self, layer_id, x, ids, weights, during_fill=None, *, execution_phase="decode"
+    ):
+        if self.layered_hybrid is None:
+            raise RuntimeError("layered CPU hybrid was not initialized")
+        result = self._run(
+            layer_id,
+            ids,
+            None,
+            execution_phase=execution_phase,
+            during_fill=during_fill,
+            layered=(self.layered_hybrid, x, weights),
+        )
+        self.finish_layer(layer_id)
+        return result
 
     def run(
         self,
@@ -1838,6 +1909,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         during_fill=None,
         early_cache=None,
         prefill_w4a4=False,
+        layered=None,
     ):
         with self.lock, torch.no_grad(), torch.cuda.device(self.device):
             self._raise_error()
@@ -1883,13 +1955,18 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
                 self.miss_mailbox is not None
                 and (
                     execution_phase == "verify"
+                    or layered is not None
                     or early_cache is not None
                     or layer_id in self.gate_warmed_layers
                     or sample is not None
                 )
                 and self.fused_decode_plan
                 and not arena
-                and (topk_ids.shape[0] == 1 or execution_phase == "verify")
+                and (
+                    topk_ids.shape[0] == 1
+                    or execution_phase == "verify"
+                    or layered is not None
+                )
                 and 0 < topk_ids.numel() <= 32
             ):
                 result = self.miss_mailbox.run(
@@ -1900,9 +1977,14 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
                     sample=sample,
                     during_fill=during_fill,
                     early_cache=early_cache,
+                    layered=layered,
                 )
                 self.gate_warmed_layers.add(layer_id)
                 return result
+            if layered is not None:
+                raise ValueError(
+                    "layered CPU hybrid requires fused decode mailbox capacity"
+                )
             if during_fill is not None:
                 # Cold non-sampling decode may still warm via the legacy path.
                 # Compute the shared branch once, with its original math.
@@ -2108,9 +2190,9 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
                         else None
                     ),
                     cache_experts=job.cache_experts,
-                    cache_lookup=state["lookup"]
-                    if job.cache_experts is not None
-                    else None,
+                    cache_lookup=(
+                        state["lookup"] if job.cache_experts is not None else None
+                    ),
                     cache_slot_limit=(
                         self.borrowed_layers[layer_id][0]
                         if layer_id in self.borrowed_layers

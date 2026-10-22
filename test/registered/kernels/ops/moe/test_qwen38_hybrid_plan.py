@@ -1,11 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 """Compare device admission and CPU subsets to the independent host policy."""
 
+import math
 import mmap
 import random
 import unittest
 
 import torch
+
 from sglang.kernels.ops.moe.qwen38_hybrid_plan import (
     COST_COLUMNS,
     hybrid_merge,
@@ -98,14 +100,19 @@ class TestHybridPlan(CustomTestCase):
                 [[0, 1], [2, 3], [4, -1]], device="cuda", dtype=torch.int32
             )
             weights = torch.ones((3, 2), device="cuda", dtype=torch.float32)
-            cost_row = [3, 4, 1, 1, 1, 1] + [1] + [0] * 31 + [1] + [0] * 31
+            cost_row = [3, 4, 1, 1, 1, 1, 0] + [1] + [0] * 31 + [1] + [0] * 31
             costs = torch.tensor([cost_row], device="cuda", dtype=torch.float64)
 
-            def run(with_costs, sequence):
+            def run(with_costs, sequence, all_hit=False):
                 policy = GlobalLfu(2, 16, [4, 1])
                 policy.seed(0, {e: e for e in range(4)})
                 policy.seed(1, {10: 4})
                 policy.frequency[1][10] = 10
+                if all_hit:
+                    policy = GlobalLfu(2, 16, [5, 1])
+                    policy.seed(0, {e: e for e in range(5)})
+                    policy.seed(1, {10: 5})
+                    policy.frequency = [[2.0] * 16 for _ in range(2)]
                 state = self.tensors(policy)
                 cache_ids, cpu_ids = torch.empty_like(ids), torch.empty_like(ids)
                 plan = torch.empty(
@@ -153,6 +160,12 @@ class TestHybridPlan(CustomTestCase):
             host_weights.fill_(93)
             gpu_only = run(costs[:0], 2)
             self.assertTrue((gpu_only == -1).all())
+            self.assertEqual(head.tolist(), [77, 77, 77])
+            self.assertTrue((host_x == 91).all())
+            self.assertTrue((host_ids == 92).all())
+            self.assertTrue((host_weights == 93).all())
+            all_hit = run(costs, 3, all_hit=True)
+            self.assertTrue((all_hit == -1).all())
             self.assertEqual(head.tolist(), [77, 77, 77])
             self.assertTrue((host_x == 91).all())
             self.assertTrue((host_ids == 92).all())
@@ -307,7 +320,7 @@ class TestHybridPlan(CustomTestCase):
         self.assertTrue((routes[1] == -1).all())
         p = self.five_rejected_policy()
         # Five free slots; five hot global residents prevent LFU replacement.
-        row = [1, 9, 1, 1, 5, 10] + [1] + [0] * 31 + [1] * 5 + [0] * 27
+        row = [1, 9, 1, 1, 5, 10, 9] + [1] + [0] * 31 + [1] * 5 + [0] * 27
         # Exercise both shared-table capacity and the global-memory fallback.
         # Only the final row matches, so truncating a large table loses CPU work.
         for count in (1, 32, 33, 64, 65):
@@ -327,6 +340,48 @@ class TestHybridPlan(CustomTestCase):
                 self.assertEqual(routes[1][routes[1] >= 0].tolist(), [5])
                 self.assertEqual(int((routes[0] >= 0).sum()), 9)
                 self.assertEqual(stats[5].item(), 1)
+
+    def test_fill_bucket_mismatch_defaults_to_gpu(self):
+        for fills, selected in [(8, 0), (9, 1), (10, 0)]:
+            for indexed in (False, True):
+                with self.subTest(fills=fills, indexed=indexed):
+                    p = self.five_rejected_policy()
+                    state = self.tensors(p)
+                    index = (
+                        build_heap_index(
+                            p.frequency,
+                            state[2].tolist(),
+                            state[3].tolist(),
+                            p.experts,
+                            len(p.keys),
+                        ).to("cuda")
+                        if indexed
+                        else None
+                    )
+                    row = (
+                        [1, 9, 1, 1, 5, 10, fills] + [1] + [0] * 31 + [1] * 5 + [0] * 27
+                    )
+                    costs = torch.tensor([row], dtype=torch.float64, device="cuda")
+                    routes, plans, _ = self.invoke(
+                        [list(range(10))], state, costs, index=index
+                    )
+                    self.assertEqual(plans[0][2].item(), selected)
+                    self.assertEqual(plans[0][1].item(), 10 - selected)
+                    self.assertEqual(int((routes[1] >= 0).sum()), selected)
+
+    def test_sorted_large_cost_table_searches_matching_bucket(self):
+        p = self.five_rejected_policy()
+        row = [1, 9, 1, 1, 5, 10, 9] + [1] + [0] * 31 + [1] * 5 + [0] * 27
+        # Matching scalar bucket has both a mismatching and matching histogram.
+        rows = [list(row) for _ in range(100)]
+        for i, candidate in enumerate(rows):
+            candidate[6] = i
+        rows[9][7] = 2
+        rows.insert(10, row)
+        costs = torch.tensor(rows, dtype=torch.float64, device="cuda")
+        routes, plans, _ = self.invoke([list(range(10))], self.tensors(p), costs)
+        self.assertEqual(plans[0][2].item(), 1)
+        self.assertEqual(routes[1][routes[1] >= 0].tolist(), [5])
 
     def test_random_windows_match_global_lfu(self):
         for experts, slots, width in ((16, 6, 4), (512, 20, 10)):
@@ -391,6 +446,120 @@ class TestHybridPlan(CustomTestCase):
         self.assertEqual(state[0][1, 2].item(), -1)
         self.assertEqual(state[2].tolist(), [0, 0])
         self.assertEqual(plans[0][1].item(), 1)
+
+    def assert_heap_matches_residents(self, state, index):
+        lookup, frequency, _, _ = [tensor.cpu().tolist() for tensor in state]
+        packed = index.cpu().tolist()
+        layers, experts = len(lookup), len(lookup[0])
+        sizes = packed[2 * layers * experts : 2 * layers * experts + layers]
+        for layer, count in enumerate(sizes):
+            heap = packed[layer * experts : layer * experts + count]
+            residents = {e for e, slot in enumerate(lookup[layer]) if slot >= 0}
+            self.assertEqual(set(heap), residents)
+            self.assertEqual(len(heap), len(residents))
+            for position, expert in enumerate(heap):
+                self.assertEqual(
+                    packed[layers * experts + layer * experts + expert], position
+                )
+                if position:
+                    parent = heap[(position - 1) // 2]
+                    self.assertLessEqual(
+                        (frequency[layer][parent], parent),
+                        (frequency[layer][expert], expert),
+                    )
+        start = 2 * layers * experts + layers
+        count = packed[start + 2 * layers]
+        top = packed[start : start + count]
+        self.assertEqual(
+            set(top), {layer_index for layer_index, size in enumerate(sizes) if size}
+        )
+
+        def minimum(layer):
+            expert = packed[layer * experts]
+            return frequency[layer][expert], layer, expert
+
+        for position, layer in enumerate(top):
+            self.assertEqual(packed[start + layers + layer], position)
+            if position:
+                self.assertLessEqual(minimum(top[(position - 1) // 2]), minimum(layer))
+
+    def test_indexed_hit_cold_reclaim_threshold_and_reserved_slot(self):
+        for heat, evictions in (
+            (math.nextafter(0.5 / 0.95, math.inf), 0),
+            (0.49 / 0.95, 1),
+        ):
+            with self.subTest(heat=heat):
+                policy = GlobalLfu(2, 16, [2, 1])
+                policy.seed(0, {0: 0, 1: 1})
+                policy.reserved = {2}
+                policy.owner[2] = -1
+                policy.frequency[0][0], policy.frequency[0][1] = 2.0, heat
+                state = self.tensors(policy)
+                state[2][2] = -2
+                index = build_heap_index(
+                    policy.frequency, state[2].tolist(), state[3].tolist(), 16, 3
+                ).to("cuda")
+                _, plans, stats = self.invoke([[0, 0, -1]], state, index=index)
+                self.assertEqual(stats[0].item(), evictions)
+                self.assertEqual(stats[1].item(), 1)
+                self.assertEqual(plans[0][:4].tolist(), [0, 0, 0, 0])
+                self.assertEqual(state[2][2].item(), -2)
+                self.assertEqual(state[0][0, 1].item() >= 0, evictions == 0)
+                self.assert_heap_matches_residents(state, index)
+
+    def test_indexed_hits_preserve_heat_heaps_and_next_global_victim(self):
+        for layers in (2, 48, 65):
+            with self.subTest(layers=layers):
+                policy = GlobalLfu(layers, 16, [4] * layers)
+                for layer in range(layers):
+                    policy.seed(layer, dict(enumerate(range(4))))
+                    policy.frequency[layer] = [1.0 + layer / 100] * 16
+                state = self.tensors(policy)
+                reference = tuple(t.clone() for t in state)
+                index = build_heap_index(
+                    policy.frequency,
+                    state[2].tolist(),
+                    state[3].tolist(),
+                    policy.experts,
+                    len(policy.keys),
+                ).to("cuda")
+                # Duplicate hits increment once; masked calls eventually reclaim cold residents.
+                windows = [(0, [[0, 0, 1], [0, 2, -1], [3, -1, -1]])] * 3
+                windows += [(1, [[-1, -1]])] * 15
+                windows += [(0, [[4, 5, -1]]), (1, [[6, 7, -1]])]
+                for layer, rows in windows:
+                    actual = self.invoke(rows, state, layer=layer, index=index)
+                    expected = self.invoke(rows, reference, layer=layer)
+                    torch.testing.assert_close(state[1], reference[1], rtol=0, atol=0)
+                    self.assertEqual(
+                        (state[0] >= 0).tolist(), (reference[0] >= 0).tolist()
+                    )
+                    torch.testing.assert_close(actual[2], expected[2], rtol=0, atol=0)
+                    self.assertEqual(actual[1][0][1].item(), expected[1][0][1].item())
+                    self.assert_heap_matches_residents(state, index)
+
+    def test_indexed_hit_updates_global_top_before_other_layer_miss(self):
+        policy = GlobalLfu(2, 16, [1, 1])
+        policy.seed(0, {0: 0})
+        policy.seed(1, {1: 1})
+        policy.frequency[0][0] = 1.0
+        policy.frequency[1][1] = 1.5
+        state = self.tensors(policy)
+        index = build_heap_index(
+            policy.frequency, state[2].tolist(), state[3].tolist(), 16, 2
+        ).to("cuda")
+        _, plans, stats = self.invoke([[0, 0, -1]], state, index=index)
+        self.assertEqual(plans[0][:4].tolist(), [0, 0, 0, 0])
+        self.assertEqual(stats.tolist(), [0, 1, 0, 0, 0, 0, 0])
+        self.assertEqual(state[1][0, 0].item(), 1.95)
+        self.assert_heap_matches_residents(state, index)
+        # Layer 0's former minimum is now warmer; a miss there must evict layer 1.
+        _, plans, _ = self.invoke([[2]], state, index=index)
+        self.assertEqual(plans[0][1].item(), 1)
+        self.assertEqual(state[0][0, 0].item(), 0)
+        self.assertEqual(state[0][0, 2].item(), 1)
+        self.assertEqual(state[0][1, 1].item(), -1)
+        self.assert_heap_matches_residents(state, index)
 
     def test_indexed_global_minima_follow_repeated_replacements(self):
         """Shared layer minima must follow empty/refilled layers and heat ties."""
@@ -466,7 +635,7 @@ class TestHybridPlan(CustomTestCase):
 
     def test_cost_profile_mismatch_keeps_all_gpu(self):
         p = self.five_rejected_policy()
-        row = [1, 9, 1, 1, 1, 1] + [1] + [0] * 31 + [1] + [0] * 31
+        row = [1, 9, 1, 1, 1, 1, 9] + [1] + [0] * 31 + [1] + [0] * 31
         costs = torch.tensor([row], dtype=torch.float64, device="cuda")
         routes, plans, _ = self.invoke([list(range(10))], self.tensors(p), costs)
         self.assertTrue((routes[1] == -1).all())

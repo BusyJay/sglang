@@ -6,7 +6,7 @@ import sysconfig
 from sglang.kernels.jit.utils import cache_once, load_jit
 
 MAX_ROUTES = 32
-COST_COLUMNS = 6 + 2 * MAX_ROUTES
+COST_COLUMNS = 7 + 2 * MAX_ROUTES
 
 
 @cache_once
@@ -53,7 +53,9 @@ def hybrid_plan(
     Plans use the existing mailbox layout: status/count/unused/unused followed
     by (original expert, destination slot) pairs. Costs are prefiltered full
     branch samples, packed as tokens/GPU routes/CPU routes/CPU experts/rejected
-    experts/CPU elapsed followed by two zero-padded route-count profiles.
+    experts/CPU elapsed/GPU fill experts followed by two zero-padded profiles.
+    Rows must be sorted by (tokens, GPU routes, CPU routes, CPU experts,
+    rejected experts, GPU fill experts); use HybridCostModel.device_cost_rows.
     """
     _module().plan(
         ids,

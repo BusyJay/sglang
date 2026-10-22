@@ -1,0 +1,169 @@
+{
+  "base_commit": "9321a3f4504534811676c4d1f39d62341089e610",
+  "files": [
+    {
+      "path": "python/sglang/kernels/jit/csrc/moe/qwen38_expert_cache.cu",
+      "sha256": "e7c3b57577c5389cc467699768f3b69fc3f1316a35af5174552ff8fcc818d595"
+    },
+    {
+      "path": "python/sglang/kernels/jit/csrc/moe/qwen38_hybrid_plan.cuh",
+      "sha256": "a71bfec5695b07e1053c7e8d2e7d264f0a21f1169dd755a520523775ea71dd46"
+    },
+    {
+      "path": "python/sglang/kernels/jit/csrc/moe/qwen38_layered_policy.cuh",
+      "sha256": "fb9369877067d5d4bfd6d8486e8a4370bbe27c3ad9798771561b73595eeb91c6"
+    },
+    {
+      "path": "python/sglang/kernels/ops/moe/__init__.py",
+      "sha256": "df72a52b0c6a700814a2a07cb1585e60fb22ee339cd9be22721de8f358e0698f"
+    },
+    {
+      "path": "python/sglang/kernels/ops/moe/cpu_nvfp4/__init__.py",
+      "sha256": "4fc4b6543d146f6f162fdb1286bb1b505200de0cab5e81313d3325b1e89dc57f"
+    },
+    {
+      "path": "python/sglang/kernels/ops/moe/cpu_nvfp4/kernel.cpp",
+      "sha256": "7a0d5bfd039dc15f93ada1265e5b7a0887d1d64f3d7e5504f2f5e77f1e3aaaef"
+    },
+    {
+      "path": "python/sglang/kernels/ops/moe/qwen38_expert_cache.py",
+      "sha256": "03689af9c8cc0391e31e5dbbed8d9d0669bf039bff01cc11734167acf7fa8035"
+    },
+    {
+      "path": "python/sglang/kernels/ops/moe/qwen38_hybrid_plan.py",
+      "sha256": "043582dad1246c6106681914ee81d5edbd4fa6dfef7898f858e86ae4687fdf56"
+    },
+    {
+      "path": "python/sglang/srt/environ.py",
+      "sha256": "0b8bffd4985c0cac61c0271e8679f4b452d5755bb57f7626121ab1da08e9b954"
+    },
+    {
+      "path": "python/sglang/srt/layers/moe/qwen38_cache_mailbox.py",
+      "sha256": "b2f64de8310eb16cae955fe0e3d316e76201106dd2f8037834ff8ff53fa901c8"
+    },
+    {
+      "path": "python/sglang/srt/layers/moe/qwen38_cache_threaded.py",
+      "sha256": "4f2c4f2d579a6c23e7c69b203315f50a5d0ad13383cc783c5b89c6335169c8af"
+    },
+    {
+      "path": "python/sglang/srt/layers/moe/qwen38_hybrid.py",
+      "sha256": "110c3346b512fda4afdf2328b3e86648db09e38b164eb3f88f1757334c7929a3"
+    },
+    {
+      "path": "python/sglang/srt/layers/moe/qwen38_hybrid_device.py",
+      "sha256": "eaf76d1f9e22fd4b0a46b135338a007f9648064f7645ce3098e1be15ccdcb214"
+    },
+    {
+      "path": "python/sglang/srt/layers/moe/qwen38_hybrid_policy.py",
+      "sha256": "eaf5948db315ba7a001ca1a783b8d8c833897c70bd5ac69dff46b7066ba8af8f"
+    },
+    {
+      "path": "python/sglang/srt/layers/moe/qwen38_layered_hybrid.py",
+      "sha256": "eeddb42cf208f0dd2a22dff1e1264dc77b17fba649f868d14ae3f35090ca4f37"
+    },
+    {
+      "path": "python/sglang/srt/layers/moe/qwen38_layered_policy.py",
+      "sha256": "bf6f26510770b31b16c92a19c1b9a0a6266df46fd619b10e0aec830c3820b604"
+    },
+    {
+      "path": "python/sglang/srt/layers/quantization/qwen38_nvfp4_cache.py",
+      "sha256": "bb6c75858d46d8f1564fcae87969850fda10fedc2fcebda06f8fadf975d3b945"
+    },
+    {
+      "path": "python/sglang/srt/model_loader/qwen38_nvfp4_cache_loader.py",
+      "sha256": "3cc75f9727aa42159b1319ab636eca9f666314977ed5ec6a4cb9edac2a27a74d"
+    },
+    {
+      "path": "test/manual/kernels/moe/bench_qwen38_hybrid_gate.py",
+      "sha256": "9d02b9e06e52c999c09ab9aed3c7668481301f3ad1cada4d935f5b7a2f8362d7"
+    },
+    {
+      "path": "test/manual/kernels/moe/bench_qwen38_hybrid_planner.py",
+      "sha256": "0e5f2663a614652ad736b50ffc4cdcba7f751ae5d9f3a7545d66fc1579f56d49"
+    },
+    {
+      "path": "test/manual/kernels/moe/check_qwen38_cpu_csf.py",
+      "sha256": "863610f4062156f62cc51f49499ed18b0f8cbb155ca9e036f04318454481d1bf"
+    },
+    {
+      "path": "test/manual/kernels/moe/check_qwen38_cpu_validation.py",
+      "sha256": "0a29612da58fc8a7a720071774fc0ad4489dab9acadae388b102546c71d9931e"
+    },
+    {
+      "path": "test/manual/kernels/moe/check_qwen38_layered_service.py",
+      "sha256": "8d175f612dc034d509289ef2636cdf06358bfeeae772b7fce17da1a83960c13f"
+    },
+    {
+      "path": "test/registered/kernels/ops/moe/test_qwen38_hybrid_plan.py",
+      "sha256": "b05da76f58c2cd3ed3c866e9aaa14f14cbf5557250956ee87ba700d9f136e926"
+    },
+    {
+      "path": "test/registered/kernels/ops/moe/test_qwen38_layered_plan.py",
+      "sha256": "4cf38c458bef645150e79bfbebd142d6d5ce8ccc5ee0fcc6ab0776a582123731"
+    },
+    {
+      "path": "test/registered/unit/layers/moe/test_qwen38_hybrid_dispatch.py",
+      "sha256": "39c2fe692a487f7502d0bb40045048b3a04afc57ad77fdf9631b1db05e63f583"
+    },
+    {
+      "path": "test/registered/unit/layers/moe/test_qwen38_hybrid_policy.py",
+      "sha256": "b6861ba8c45dc74ba2376d020108d36c08f2fba376806039444b17f67e60a1b0"
+    },
+    {
+      "path": "test/registered/unit/layers/moe/test_qwen38_layered_close.py",
+      "sha256": "ccbd6b83e5049bdbb57b7f6fd0b55d831d75d835e88665fd8a75bfcf9ae26222"
+    },
+    {
+      "path": "test/registered/unit/layers/moe/test_qwen38_layered_policy.py",
+      "sha256": "8f24a9851902f390ca68d99115367ab1bfd64baca4eae7dce792d60d51462919"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/LAYERED_CPU_HYBRID_ACCEPTANCE.md",
+      "sha256": "7c037eb5617ccf14e914d7a14356d3c1b8bb42f322fbb8f8ef708a2926a01c5d"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/LAYERED_CPU_HYBRID_DESIGN.md",
+      "sha256": "831baf87bb1c01658ed464c91dec5ea08d7bbe6cb0484f7ca23f55cdb8c8a6c2"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/bottleneck_review_20261022/IMPLEMENTATION.md",
+      "sha256": "049ecf06eb829786fd76a9e2902060437f8cf85fb8e7adcf8fe3ca88ab6967ee"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/bottleneck_review_20261022/REPORT.md",
+      "sha256": "73964d658c684bfc484d6374292ca0326394d6b4b95c6ea9ba6c7b634719c53b"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/bottleneck_review_20261022/analyze_fill_potential.py",
+      "sha256": "830889f9eff1ddc5c3f7bdcdf681352af7edaf248f0a25594cd2c8ba1d40299f"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/bottleneck_review_20261022/fill_cases/gate-cases-m12.json",
+      "sha256": "196d301c6a773d788d36dab76e7f16d70f92c9c1a7a10193514f953ec5c12099"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/bottleneck_review_20261022/fill_cases/gate-cases-m3.json",
+      "sha256": "ee1bfb7b723e153af91699c32cf2935759936e84978a51a87fd5c8efa0cab2ba"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/bottleneck_review_20261022/fill_potential.json",
+      "sha256": "a86c893e020e281ef8f72404cdc31254b18307eac18230ae95d438a012214933"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/bottleneck_review_20261022/hit_fast_path/README.md",
+      "sha256": "b8973b1d1a5b2aa02de20779bf16acf0e3c3236b57f9210d57bed983ccedac60"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/bottleneck_review_20261022/hit_fast_path/planner_before.cuh",
+      "sha256": "892f5151127db08c75d471ab9b96e4a2d0276dc8f981fd56b4334001bbce8352"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/bottleneck_review_20261022/prepare_fill_cases.py",
+      "sha256": "34339e4e5631d36a37e488010ef4b86d05372aadd749ce4f5c8764594b592d81"
+    },
+    {
+      "path": "tools/qwen38_cache_tests/bottleneck_review_20261022/run_fill_gate.sh",
+      "sha256": "3117d37cdf0ba8ce1c3a65343ab6c6e3120fa3f2d08de9081d8dfd52d6f57f68"
+    }
+  ]
+}

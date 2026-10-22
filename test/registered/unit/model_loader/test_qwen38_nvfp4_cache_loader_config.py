@@ -37,6 +37,31 @@ def build(**options):
 
 
 class TestCacheLoaderConfig(CustomTestCase):
+    def test_layered_lfu_limit_validation(self):
+        for limit in (0, 1, 3, 30):
+            with self.subTest(limit=limit):
+                loader = build(
+                    runtime_mode="threaded",
+                    cpu_hybrid_mode="layered_lfu",
+                    layered_cpu_max_experts=limit,
+                )
+                self.assertEqual(loader.config["layered_cpu_max_experts"], limit)
+        for limit in (-1, 31, True, 1.5):
+            with self.subTest(limit=limit), self.assertRaisesRegex(
+                ValueError, "layered_cpu_max_experts"
+            ):
+                build(
+                    runtime_mode="threaded",
+                    cpu_hybrid_mode="layered_lfu",
+                    layered_cpu_max_experts=limit,
+                )
+        with self.assertRaisesRegex(ValueError, "requires layered_lfu"):
+            build(
+                runtime_mode="threaded",
+                cpu_hybrid_mode="off",
+                layered_cpu_max_experts=1,
+            )
+
     def test_cpu_hybrid_defaults_to_gpu_without_enable(self):
         from sglang.srt.environ import envs
 

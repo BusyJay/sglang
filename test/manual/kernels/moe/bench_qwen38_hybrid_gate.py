@@ -68,6 +68,7 @@ def main():
 
     import torch
     from cuda.bindings import driver
+
     from sglang.kernels.ops.moe.cpu_nvfp4 import CpuNvfp4
     from sglang.kernels.ops.moe.qwen38_expert_cache import _module as fill_module
     from sglang.kernels.ops.moe.qwen38_hybrid_plan import (
@@ -96,9 +97,9 @@ def main():
         raise ValueError("route replay produced no complete workload keys")
 
     def normalized_key(key):
-        if len(key) != 6:
+        if len(key) != 7:
             raise ValueError("invalid workload key in route replay")
-        return (*key[:4], tuple(sorted(key[4])), tuple(sorted(key[5])))
+        return (*key[:4], tuple(sorted(key[4])), tuple(sorted(key[5])), key[6])
 
     complete_keys = {normalized_key(key) for key in selected["complete_keys"]}
     case_keys = {normalized_key(case["key"]) for case in selected["cases"]}
@@ -233,7 +234,7 @@ def main():
             )
         ),
     )
-    table = dict(schema_version=1, margin=args.margin, samples=[], **metadata)
+    table = dict(schema_version=2, margin=args.margin, samples=[], **metadata)
     rng = random.Random(617)
     sequence = 0
     thread.start()
@@ -366,6 +367,7 @@ def main():
                     len(cpu_experts),
                     len(rejected),
                     0,
+                    len(case["admitted_experts"]) + len(rejected) - len(cpu_experts),
                 ]
                 + cpu_profile
                 + [0] * (32 - len(cpu_profile))
@@ -508,6 +510,10 @@ def main():
             report["cases"].append(row)
             raw_key = case["key"]
             key = normalized_key(raw_key)
+            if key[6] != len(case["admitted_experts"]) + len(rejected) - len(
+                cpu_experts
+            ):
+                raise ValueError("route key does not match actual GPU fill count")
             key_measurements[key].append(row)
             args.output.write_text(json.dumps(report, indent=2) + "\n")
             print(
@@ -520,8 +526,9 @@ def main():
                 row["accepted"],
                 flush=True,
             )
-        # Exact runtime keys cannot distinguish layer or admitted/rejected GPU
-        # mix. Admit a key only if every measured representative wins; use the
+        # Fill counts distinguish transfer workloads, but layer/expert identity
+        # and CPU cache temperature still vary. Require every representative to
+        # win within each exact fill bucket; use the
         # worst measured paired ratio to keep the gate conservative. Mixing
         # CPU time from one workload with GPU time from another destroys the
         # paired comparison (different layers can have different fill counts).
@@ -546,6 +553,7 @@ def main():
                     miss_experts=key[3],
                     miss_tokens=list(sorted(key[4])),
                     rejected_tokens=list(sorted(key[5])),
+                    gpu_fill_experts=key[6],
                     cpu_us=cpu_us,
                     gpu_us=gpu_us,
                 )

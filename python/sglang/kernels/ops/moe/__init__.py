@@ -435,3 +435,23 @@ register_kernel(
         description="Expert histogram plus invalid-route count, without remapping output.",
     )
 )
+
+register_kernel(
+    KernelSpec(
+        op="moe.qwen38_decode_plan_layered",
+        backend=KernelBackend.JIT,
+        target="sglang.kernels.ops.moe.qwen38_expert_cache:cache_decode_plan_layered",
+        capabilities=_CUDA,
+        description="Per-layer LFU routing with calibrated CPU bypass and mapped task publication.",
+    )
+)
+
+register_kernel(
+    KernelSpec(
+        op="moe.qwen38_decode_plan_layered_lfu",
+        backend=KernelBackend.JIT,
+        target="sglang.kernels.ops.moe.qwen38_expert_cache:cache_decode_plan_layered_lfu",
+        capabilities=_CUDA,
+        description="Per-layer admission with CPU-inclusive LFU heat and a CPU expert-count gate.",
+    )
+)

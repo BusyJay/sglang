@@ -112,7 +112,9 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
 
     def bind_runtime(self, runtime) -> None:
         self.runtime = runtime
-        if getattr(runtime, "cpu_hybrid_enabled", False):
+        if getattr(runtime, "cpu_hybrid_enabled", False) or getattr(
+            runtime, "layered_cpu_mode", None
+        ):
             config = self.moe_runner_config
             if (
                 config.activation != "silu"
@@ -130,7 +132,32 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
                 )
             if not self.use_w4a16:
                 raise ValueError("CPU hybrid requires target W4A16")
-            if getattr(runtime, "hybrid", None) is None:
+            if getattr(runtime, "layered_cpu_mode", None):
+                if runtime.layered_hybrid is None:
+                    from sglang.srt.layers.moe.qwen38_layered_hybrid import (
+                        LayeredCpuHybrid,
+                    )
+
+                    runtime.layered_hybrid = LayeredCpuHybrid(
+                        runtime,
+                        self.w4a16_backend,
+                        (
+                            "zero"
+                            if runtime.layered_cpu_mode == "layered_zero"
+                            else (
+                                "lfu"
+                                if runtime.layered_cpu_mode == "layered_lfu"
+                                else (
+                                    "probe"
+                                    if runtime.layered_cpu_mode == "layered_probe"
+                                    else "calibrated"
+                                )
+                            )
+                        ),
+                    )
+                elif runtime.layered_hybrid.backend != self.w4a16_backend:
+                    raise ValueError("all layered CPU layers must use one backend")
+            elif getattr(runtime, "hybrid", None) is None:
                 from sglang.srt.layers.moe.qwen38_hybrid import HybridCache
 
                 runtime.hybrid = HybridCache(runtime, self.w4a16_backend)
@@ -166,7 +193,10 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
                     if getattr(runtime, "hybrid", None) is not None
                     else self.manifest.num_experts
                 ),
-                enable_fp32=getattr(runtime, "hybrid", None) is not None,
+                enable_fp32=(
+                    getattr(runtime, "hybrid", None) is not None
+                    or runtime.layered_hybrid is not None
+                ),
                 scale_encoding=getattr(self.manifest, "scale_encoding", {}),
             )
             if getattr(runtime, "hybrid", None) is not None:
@@ -175,6 +205,8 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
                         "all global-cache layers must use the same GPU backend"
                     )
                 runtime.hybrid.b12x[self.layer_id] = self.b12x
+            if runtime.layered_hybrid is not None:
+                runtime.layered_hybrid.b12x[self.layer_id] = self.b12x
             if self.layer_id == 0:
                 logging.getLogger(__name__).info(
                     "Qwen38 B12X W4A16 enabled: BF16 decode/verify 1..3 tokens; "
@@ -313,6 +345,31 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
                     else None
                 ),
             )
+        layered = getattr(self.runtime, "layered_hybrid", None)
+        if layered is not None and execution_phase in ("decode", "verify"):
+            if (
+                hidden_states.dtype != torch.bfloat16
+                or not 1 <= hidden_states.shape[0] <= 3
+            ):
+                raise ValueError("layered CPU hybrid supports BF16 target M=1..3")
+            if layered.supports(
+                self.layer_id,
+                hidden_states.shape[0],
+                self.runtime.slots_for_layer(self.layer_id),
+                shared_call is not None,
+            ) and not self.runtime._use_prefill_arena(self.layer_id, topk_ids.numel()):
+                return self.runtime.run_layered(
+                    self.layer_id,
+                    hidden_states.contiguous(),
+                    topk_ids.int().contiguous(),
+                    topk_weights.float().contiguous(),
+                    (
+                        (lambda: shared_call.run(shared_input))
+                        if shared_call is not None
+                        else None
+                    ),
+                    execution_phase=execution_phase,
+                )
         from sglang.srt.layers.moe.moe_runner import MoeRunner
         from sglang.srt.layers.moe.moe_runner.flashinfer_cutlass import (
             FlashInferCutlassMoeQuantInfo,

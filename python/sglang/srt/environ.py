@@ -1131,6 +1131,8 @@ class Envs:
     SGLANG_QWEN38_CPU_READY_TIMEOUT = EnvFloat(60.0)
     # Paired full-path timing samples; uncalibrated hybrid misses execute on GPU.
     SGLANG_QWEN38_CPU_COST_CALIBRATION = EnvJSON(None)
+    # Separate calibration for per-layer LFU bypass; never reuse global rows.
+    SGLANG_QWEN38_LAYERED_CPU_CALIBRATION = EnvJSON(None)
     SGLANG_IS_FLASHINFER_AVAILABLE = EnvBool(True)
     SGLANG_FLASHINFER_USE_PAGED = EnvBool(False)
     # Default to the pick from flashinfer
