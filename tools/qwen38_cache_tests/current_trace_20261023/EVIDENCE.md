@@ -1,0 +1,15 @@
+# Evidence and reproduction
+
+Source revision: cc57b1194e. No inference source was modified during this analysis. Image: swallow-sglang:nightly-dev-20261018-b234b5c3. GPU 0 only, network none, host IPC; existing model/cache mounts were reused. GPU 1 was left untouched.
+
+`capture.py` reproduces the original skill-helper synthetic profiles on current n=0/1. `crop_decode.py` removes prefill plus the first decode round and reduces the Python-function payload while retaining GPU events; `postprocess.py` generates the skill's three-table text and `current-summary.json`. The synthetic n=1 sequence had zero CPU expert calls. It is kept as a negative control, not evidence of real CPU compute overlap.
+
+`capture_active.py` starts fresh n=0 and n=1 servers serially, warms up with the existing performance benchmark's 1088→128 fixture, then records a 1088→512 short request and a natural chat→512 request. It uses /start_profile and /stop_profile with CPU/GPU activities, with_stack=False, record_shapes=False. This substantially reduces Python tracing interference. Periodic stats every 576 layer-runtime calls are diagnostic and still add synchronization/logging overhead; request speeds under profiler are not production benchmark results.
+
+`analyze_active.py` computes full steady-decode summaries after dropping the first decode round, and writes middle-window traces (24 decode rounds) for the skill. `postprocess_active.py` drives it and runs the skill's three tables. The table in REPORT.md is based on full steady decode, not the smaller triage windows. CPU counter windows are bounded by the first/last periodic snapshots within each profile; their boundaries do not exactly equal the steady-decode bounds. Counter identities and retained planner counts were checked.
+
+Mount this directory at /results, this repository at /workspace/sglang:ro, the profiler skill at /profile-skill:ro, the existing HF cache at /hf-cache:ro and existing production cache at /root/.cache. Set PYTHONPATH=/workspace/sglang/python, PYTHONDONTWRITEBYTECODE=1, and offline HF/Transformers environment. The scripts expect the existing shared source cache at /dev/shm/sglang-qwen38-startup. Run each capture once into fresh output paths; the recorded profiles and request outputs should not be overwritten.
+
+Tracked: report, summaries, commands, scripts, source/evidence hashes, and the skill's unedited three-table text. Local only: raw Chrome traces, derived .json.gz windows, server logs, warmup and request stream/text output. These local artifacts remain under profile-n0/, profile-n1/, active-n0/short/, active-n0/natural/, active-n1/short/ and active-n1/natural/. No weights or native binary are committed.
+
+Triage uses independent single traces. There is no graph-off mapping trace, no native per-expert CPU timing instrumentation, and no hardware bandwidth/occupancy counters. The report distinguishes trace observations from proposed root causes. Automated fusion suggestions are not considered validated optimizations.

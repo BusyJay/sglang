@@ -1,0 +1,414 @@
+{
+  "n0": {
+    "short": {
+      "trace": "/results/active-n0/short/n0-short-TP-0.trace.json.gz",
+      "retained_decode_layers": 10608,
+      "groups": {
+        "planner": {
+          "count": 10608,
+          "total_ms": 321.661383,
+          "us_per_layer": 30.322528563348413,
+          "share_pct": 5.896053901974731,
+          "median_us": 29.728,
+          "p95_us": 46.24,
+          "max_us": 83.297
+        },
+        "other": {
+          "count": 327106,
+          "total_ms": 718.599252,
+          "us_per_layer": 67.74125678733031,
+          "share_pct": 13.171925968218334,
+          "median_us": 1.376,
+          "p95_us": 6.592,
+          "max_us": 124.001
+        },
+        "fill": {
+          "count": 10608,
+          "total_ms": 1906.480128,
+          "us_per_layer": 179.7209773755656,
+          "share_pct": 34.94578520086661,
+          "median_us": 128.161,
+          "p95_us": 551.808,
+          "max_us": 1924.45
+        },
+        "mxfp8": {
+          "count": 53037,
+          "total_ms": 902.687221,
+          "us_per_layer": 85.0949491892911,
+          "share_pct": 16.546258870122987,
+          "median_us": 15.808,
+          "p95_us": 30.656,
+          "max_us": 132.992
+        },
+        "routed": {
+          "count": 10608,
+          "total_ms": 647.661956,
+          "us_per_layer": 61.054105957767725,
+          "share_pct": 11.871645166788289,
+          "median_us": 60.912499999999994,
+          "p95_us": 65.536,
+          "max_us": 70.688
+        },
+        "merge": {
+          "count": 10608,
+          "total_ms": 16.015007,
+          "us_per_layer": 1.5097103129713423,
+          "share_pct": 0.2935551157302045,
+          "median_us": 1.472,
+          "p95_us": 1.664,
+          "max_us": 2.08
+        },
+        "bf16_gemm": {
+          "count": 13258,
+          "total_ms": 260.86335,
+          "us_per_layer": 24.59119061085973,
+          "share_pct": 4.781625815025797,
+          "median_us": 4.032,
+          "p95_us": 39.84,
+          "max_us": 778.593
+        },
+        "hc_mix": {
+          "count": 22758,
+          "total_ms": 307.515021,
+          "us_per_layer": 28.988972567873304,
+          "share_pct": 5.636751053460749,
+          "median_us": 13.472,
+          "p95_us": 14.433,
+          "max_us": 15.488
+        },
+        "gemv": {
+          "count": 1761,
+          "total_ms": 374.053357,
+          "us_per_layer": 35.26144013951735,
+          "share_pct": 6.85639890781231,
+          "median_us": 22.336,
+          "p95_us": 804.129,
+          "max_us": 806.85
+        }
+      },
+      "total_gpu_activity_ms": 5455.536674999999,
+      "fill_mxfp8_overlap_pct": 7.34671605948006,
+      "slow_merge_count": 0,
+      "slow_merge_ms": 0.0,
+      "slow_fill_count": 7904,
+      "slow_fill_median_us": 180.768,
+      "counter_window": {
+        "runtime_calls": 10368,
+        "copy_bytes": 75202560000,
+        "cpu_calls": 0,
+        "cpu_experts": 0,
+        "gpu_fill_calls": 7667,
+        "gpu_fill_experts": 27200,
+        "original_miss_experts": 27200
+      }
+    },
+    "natural": {
+      "trace": "/results/active-n0/natural/n0-natural-TP-0.trace.json.gz",
+      "retained_decode_layers": 12384,
+      "groups": {
+        "other": {
+          "count": 381874,
+          "total_ms": 792.432236,
+          "us_per_layer": 63.9883911498708,
+          "share_pct": 14.931897163649811,
+          "median_us": 1.376,
+          "p95_us": 6.528,
+          "max_us": 94.369
+        },
+        "fill": {
+          "count": 12384,
+          "total_ms": 1285.546621,
+          "us_per_layer": 103.80705918927649,
+          "share_pct": 24.22371159551048,
+          "median_us": 77.632,
+          "p95_us": 369.44,
+          "max_us": 1422.786
+        },
+        "mxfp8": {
+          "count": 61917,
+          "total_ms": 1005.999762,
+          "us_per_layer": 81.23383091085272,
+          "share_pct": 18.956176074644425,
+          "median_us": 15.424,
+          "p95_us": 30.336,
+          "max_us": 74.72
+        },
+        "routed": {
+          "count": 12384,
+          "total_ms": 769.578657,
+          "us_per_layer": 62.14297940891473,
+          "share_pct": 14.501264390339276,
+          "median_us": 62.0325,
+          "p95_us": 66.88,
+          "max_us": 70.496
+        },
+        "merge": {
+          "count": 12384,
+          "total_ms": 18.575716,
+          "us_per_layer": 1.4999770671834625,
+          "share_pct": 0.3500244796365962,
+          "median_us": 1.472,
+          "p95_us": 1.633,
+          "max_us": 2.112
+        },
+        "hc_mix": {
+          "count": 26569,
+          "total_ms": 354.424064,
+          "us_per_layer": 28.619514211886305,
+          "share_pct": 6.678455816846449,
+          "median_us": 13.312,
+          "p95_us": 14.24,
+          "max_us": 15.488
+        },
+        "bf16_gemm": {
+          "count": 15478,
+          "total_ms": 303.014087,
+          "us_per_layer": 24.468191779715763,
+          "share_pct": 5.709731357043426,
+          "median_us": 3.968,
+          "p95_us": 40.128,
+          "max_us": 776.738
+        },
+        "planner": {
+          "count": 12384,
+          "total_ms": 340.36127500000003,
+          "us_per_layer": 27.483953084625323,
+          "share_pct": 6.413468970473247,
+          "median_us": 27.36,
+          "p95_us": 40.192,
+          "max_us": 69.152
+        },
+        "gemv": {
+          "count": 2057,
+          "total_ms": 437.043831,
+          "us_per_layer": 35.2910070251938,
+          "share_pct": 8.2352701518563,
+          "median_us": 21.92,
+          "p95_us": 804.385,
+          "max_us": 808.001
+        }
+      },
+      "total_gpu_activity_ms": 5306.976249,
+      "fill_mxfp8_overlap_pct": 8.220849186220672,
+      "slow_merge_count": 0,
+      "slow_merge_ms": 0.0,
+      "slow_fill_count": 7226,
+      "slow_fill_median_us": 128.641,
+      "counter_window": {
+        "runtime_calls": 11520,
+        "copy_bytes": 45768499200,
+        "cpu_calls": 0,
+        "cpu_experts": 0,
+        "gpu_fill_calls": 6505,
+        "gpu_fill_experts": 16554,
+        "original_miss_experts": 16554
+      }
+    }
+  },
+  "n1": {
+    "short": {
+      "trace": "/results/active-n1/short/n1-short-TP-0.trace.json.gz",
+      "retained_decode_layers": 10224,
+      "groups": {
+        "planner": {
+          "count": 10224,
+          "total_ms": 331.00499099999996,
+          "us_per_layer": 32.37529254694835,
+          "share_pct": 6.110281114443888,
+          "median_us": 31.712,
+          "p95_us": 50.976,
+          "max_us": 94.144
+        },
+        "other": {
+          "count": 315261,
+          "total_ms": 696.548181,
+          "us_per_layer": 68.12873444835681,
+          "share_pct": 12.858129972017682,
+          "median_us": 1.376,
+          "p95_us": 6.592,
+          "max_us": 117.952
+        },
+        "fill": {
+          "count": 10224,
+          "total_ms": 1958.165527,
+          "us_per_layer": 191.52636218701096,
+          "share_pct": 36.147315490427644,
+          "median_us": 128.928,
+          "p95_us": 602.465,
+          "max_us": 1783.523
+        },
+        "mxfp8": {
+          "count": 51117,
+          "total_ms": 876.1931310000001,
+          "us_per_layer": 85.69964113849765,
+          "share_pct": 16.174337204947946,
+          "median_us": 15.872,
+          "p95_us": 30.688,
+          "max_us": 122.848
+        },
+        "routed": {
+          "count": 10224,
+          "total_ms": 622.505642,
+          "us_per_layer": 60.88670207355243,
+          "share_pct": 11.49132058841786,
+          "median_us": 60.768,
+          "p95_us": 65.185,
+          "max_us": 70.272
+        },
+        "merge": {
+          "count": 10224,
+          "total_ms": 23.999345,
+          "us_per_layer": 2.34735377543036,
+          "share_pct": 0.44302275947411124,
+          "median_us": 1.472,
+          "p95_us": 1.792,
+          "max_us": 98.56
+        },
+        "bf16_gemm": {
+          "count": 12778,
+          "total_ms": 251.74700399999998,
+          "us_per_layer": 24.62314201877934,
+          "share_pct": 4.647195679774599,
+          "median_us": 4.033,
+          "p95_us": 39.776,
+          "max_us": 778.945
+        },
+        "hc_mix": {
+          "count": 21934,
+          "total_ms": 296.49495,
+          "us_per_layer": 28.999897300469485,
+          "share_pct": 5.473233161952488,
+          "median_us": 13.504,
+          "p95_us": 14.495,
+          "max_us": 20.352
+        },
+        "gemv": {
+          "count": 1697,
+          "total_ms": 360.52228499999995,
+          "us_per_layer": 35.26235181924882,
+          "share_pct": 6.655164028543779,
+          "median_us": 22.431,
+          "p95_us": 804.193,
+          "max_us": 807.073
+        }
+      },
+      "total_gpu_activity_ms": 5417.181055999999,
+      "fill_mxfp8_overlap_pct": 7.274098641046541,
+      "slow_merge_count": 279,
+      "slow_merge_ms": 9.039747,
+      "slow_fill_count": 7834,
+      "slow_fill_median_us": 181.696,
+      "counter_window": {
+        "runtime_calls": 9792,
+        "copy_bytes": 74881843200,
+        "cpu_calls": 277,
+        "cpu_experts": 277,
+        "gpu_fill_calls": 7422,
+        "gpu_fill_experts": 27084,
+        "original_miss_experts": 27361
+      }
+    },
+    "natural": {
+      "trace": "/results/active-n1/natural/n1-natural-TP-0.trace.json.gz",
+      "retained_decode_layers": 12864,
+      "groups": {
+        "other": {
+          "count": 396679,
+          "total_ms": 820.4640579999999,
+          "us_per_layer": 63.77985525497512,
+          "share_pct": 15.043314166584835,
+          "median_us": 1.376,
+          "p95_us": 6.528,
+          "max_us": 103.2
+        },
+        "hc_mix": {
+          "count": 27599,
+          "total_ms": 367.95105800000005,
+          "us_per_layer": 28.60316060323383,
+          "share_pct": 6.746430034868486,
+          "median_us": 13.312,
+          "p95_us": 14.176,
+          "max_us": 15.456
+        },
+        "gemv": {
+          "count": 2137,
+          "total_ms": 454.026965,
+          "us_per_layer": 35.294384717039804,
+          "share_pct": 8.324642874966763,
+          "median_us": 21.952,
+          "p95_us": 804.418,
+          "max_us": 808.609
+        },
+        "mxfp8": {
+          "count": 64317,
+          "total_ms": 1041.514545,
+          "us_per_layer": 80.9635062966418,
+          "share_pct": 19.096303313633587,
+          "median_us": 15.424,
+          "p95_us": 30.336,
+          "max_us": 88.352
+        },
+        "bf16_gemm": {
+          "count": 16078,
+          "total_ms": 314.639489,
+          "us_per_layer": 24.45891550062189,
+          "share_pct": 5.768955551543141,
+          "median_us": 3.968,
+          "p95_us": 39.872,
+          "max_us": 777.153
+        },
+        "planner": {
+          "count": 12864,
+          "total_ms": 364.145276,
+          "us_per_layer": 28.307313121890548,
+          "share_pct": 6.676650531772283,
+          "median_us": 28.576,
+          "p95_us": 41.92,
+          "max_us": 75.904
+        },
+        "fill": {
+          "count": 12864,
+          "total_ms": 1266.4383810000002,
+          "us_per_layer": 98.44825722947762,
+          "share_pct": 23.220310813425133,
+          "median_us": 77.44,
+          "p95_us": 367.936,
+          "max_us": 1714.243
+        },
+        "routed": {
+          "count": 12864,
+          "total_ms": 801.22394,
+          "us_per_layer": 62.2841993159204,
+          "share_pct": 14.690544125223482,
+          "median_us": 62.176,
+          "p95_us": 66.88,
+          "max_us": 70.944
+        },
+        "merge": {
+          "count": 12864,
+          "total_ms": 23.607611000000002,
+          "us_per_layer": 1.8351687655472637,
+          "share_pct": 0.43284858798229525,
+          "median_us": 1.472,
+          "p95_us": 1.664,
+          "max_us": 2129.828
+        }
+      },
+      "total_gpu_activity_ms": 5454.011323,
+      "fill_mxfp8_overlap_pct": 8.233568065692324,
+      "slow_merge_count": 59,
+      "slow_merge_ms": 4.395272,
+      "slow_fill_count": 7278,
+      "slow_fill_median_us": 128.608,
+      "counter_window": {
+        "runtime_calls": 12096,
+        "copy_bytes": 46716825600,
+        "cpu_calls": 56,
+        "cpu_experts": 56,
+        "gpu_fill_calls": 6707,
+        "gpu_fill_experts": 16897,
+        "original_miss_experts": 16953
+      }
+    }
+  }
+}
