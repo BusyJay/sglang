@@ -1,0 +1,29 @@
+{
+  "checkpoint": "0d9dcf3a2c",
+  "files": {
+    "python/sglang/kernels/jit/csrc/moe/qwen38_heap_index.cuh": "c5a295c32a42354e384f9aebdd9e06489a821ac556f37b317d74d7de377e2fc1",
+    "python/sglang/kernels/jit/csrc/moe/qwen38_hybrid_plan.cuh": "f88f7e1cd6d01b57dfcbe649c8554751fd2295cab77ee9e0544c89f53286e428",
+    "test/registered/kernels/ops/moe/test_qwen38_hybrid_plan.py": "eaf94eb8196cbf06396c23b1740e7b6df83a49bb63c578d137b6bbe6cbe5ccaf",
+    "tools/qwen38_cache_tests/nsight_audit_20261021/replay_transfer.py": "59598e09327f99ad2aa97cf9247e66a5fe64469119bcc491f2a85f9a86c136e6"
+  },
+  "microbench_geometry": {
+    "layers": 48,
+    "experts": 512,
+    "slots": 7006,
+    "tokens": 3,
+    "top_k": 10,
+    "unique_experts": 12
+  },
+  "legacy_geometry": {
+    "layers": 1,
+    "experts": 512,
+    "slots": 146,
+    "routes": 30,
+    "parallel_miss": 2,
+    "heat_dtype": "float32"
+  },
+  "global_heat_dtype": "float64",
+  "runtime_version": "3234a1272d75c41e97da8d17c27cd573672c2ff0f245e88af88fe33641668736",
+  "calibration_sha256": "165d8f807c13b5ddb8a12fbe78af802ed17553b994674cf9675be0bcd321b5a5",
+  "trace_sha256": "bab08b865619fad509d017a3b8afbacb02c1b56fd399b3d7f3e34886ccc7c771"
+}

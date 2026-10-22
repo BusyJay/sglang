@@ -1,0 +1,7268 @@
+{
+  "status": "actual_planner_host_replay",
+  "geometry": {
+    "hidden_size": 2560,
+    "intermediate_size": 640,
+    "num_experts": 512,
+    "num_layers": 48,
+    "top_k": 10
+  },
+  "expert_payload_bytes": 2764800,
+  "reports": [
+    {
+      "layout": [
+        134,
+        134,
+        134,
+        134,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133
+      ],
+      "global_reserved_slots": 1,
+      "scored_sweeps": 296,
+      "warmup_sweeps": 128,
+      "results": {
+        "per_layer_gpu": {
+          "calls": 14208,
+          "unique_accesses": 297728,
+          "gpu_fills": 40185,
+          "all_hit_calls": 3390,
+          "hit_fraction": 0.8650278106190885,
+          "expert_h2d_bytes": 111103488000
+        },
+        "global_gpu": {
+          "calls": 14208,
+          "unique_accesses": 297728,
+          "gpu_fills": 36255,
+          "all_hit_calls": 2775,
+          "lfu_admitted": 3737,
+          "forced_placements": 32518,
+          "evictions": 36929,
+          "hit_fraction": 0.8782277783748925,
+          "expert_h2d_bytes": 100237824000
+        }
+      },
+      "per_layer": {
+        "per_layer_gpu": [
+          {
+            "calls": 296,
+            "unique_accesses": 8268,
+            "gpu_fills": 3058,
+            "all_hit_calls": 12
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 7273,
+            "gpu_fills": 2181,
+            "all_hit_calls": 17
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 7161,
+            "gpu_fills": 1907,
+            "all_hit_calls": 19
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6260,
+            "gpu_fills": 517,
+            "all_hit_calls": 81
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6625,
+            "gpu_fills": 885,
+            "all_hit_calls": 49
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6805,
+            "gpu_fills": 1078,
+            "all_hit_calls": 42
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6679,
+            "gpu_fills": 1363,
+            "all_hit_calls": 38
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6868,
+            "gpu_fills": 1515,
+            "all_hit_calls": 30
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5925,
+            "gpu_fills": 707,
+            "all_hit_calls": 51
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5657,
+            "gpu_fills": 439,
+            "all_hit_calls": 92
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6204,
+            "gpu_fills": 1061,
+            "all_hit_calls": 34
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5857,
+            "gpu_fills": 590,
+            "all_hit_calls": 65
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6816,
+            "gpu_fills": 1177,
+            "all_hit_calls": 40
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6405,
+            "gpu_fills": 1116,
+            "all_hit_calls": 16
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6420,
+            "gpu_fills": 742,
+            "all_hit_calls": 38
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 4810,
+            "gpu_fills": 125,
+            "all_hit_calls": 205
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5371,
+            "gpu_fills": 230,
+            "all_hit_calls": 164
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5938,
+            "gpu_fills": 444,
+            "all_hit_calls": 96
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6840,
+            "gpu_fills": 1307,
+            "all_hit_calls": 19
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5951,
+            "gpu_fills": 564,
+            "all_hit_calls": 76
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6044,
+            "gpu_fills": 599,
+            "all_hit_calls": 71
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6257,
+            "gpu_fills": 1128,
+            "all_hit_calls": 41
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 7017,
+            "gpu_fills": 1679,
+            "all_hit_calls": 36
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5609,
+            "gpu_fills": 372,
+            "all_hit_calls": 122
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6034,
+            "gpu_fills": 638,
+            "all_hit_calls": 53
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5739,
+            "gpu_fills": 374,
+            "all_hit_calls": 108
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6324,
+            "gpu_fills": 822,
+            "all_hit_calls": 43
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6078,
+            "gpu_fills": 516,
+            "all_hit_calls": 80
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6701,
+            "gpu_fills": 901,
+            "all_hit_calls": 41
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6430,
+            "gpu_fills": 871,
+            "all_hit_calls": 41
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6271,
+            "gpu_fills": 687,
+            "all_hit_calls": 61
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 4883,
+            "gpu_fills": 101,
+            "all_hit_calls": 226
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5502,
+            "gpu_fills": 209,
+            "all_hit_calls": 170
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6047,
+            "gpu_fills": 550,
+            "all_hit_calls": 70
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6642,
+            "gpu_fills": 1219,
+            "all_hit_calls": 27
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5882,
+            "gpu_fills": 554,
+            "all_hit_calls": 75
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5806,
+            "gpu_fills": 531,
+            "all_hit_calls": 88
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6042,
+            "gpu_fills": 792,
+            "all_hit_calls": 64
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6807,
+            "gpu_fills": 1398,
+            "all_hit_calls": 31
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5147,
+            "gpu_fills": 306,
+            "all_hit_calls": 142
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5506,
+            "gpu_fills": 331,
+            "all_hit_calls": 126
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5566,
+            "gpu_fills": 431,
+            "all_hit_calls": 105
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6369,
+            "gpu_fills": 830,
+            "all_hit_calls": 40
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5616,
+            "gpu_fills": 424,
+            "all_hit_calls": 122
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5936,
+            "gpu_fills": 602,
+            "all_hit_calls": 67
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6225,
+            "gpu_fills": 619,
+            "all_hit_calls": 64
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6365,
+            "gpu_fills": 799,
+            "all_hit_calls": 46
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6750,
+            "gpu_fills": 896,
+            "all_hit_calls": 46
+          }
+        ],
+        "global_gpu": [
+          {
+            "calls": 296,
+            "unique_accesses": 8268,
+            "gpu_fills": 1420,
+            "all_hit_calls": 30,
+            "lfu_admitted": 120,
+            "forced_placements": 1300,
+            "evictions": 1454
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 7273,
+            "gpu_fills": 1263,
+            "all_hit_calls": 33,
+            "lfu_admitted": 113,
+            "forced_placements": 1150,
+            "evictions": 1315
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 7161,
+            "gpu_fills": 1164,
+            "all_hit_calls": 32,
+            "lfu_admitted": 98,
+            "forced_placements": 1066,
+            "evictions": 1201
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6260,
+            "gpu_fills": 687,
+            "all_hit_calls": 54,
+            "lfu_admitted": 77,
+            "forced_placements": 610,
+            "evictions": 722
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6625,
+            "gpu_fills": 823,
+            "all_hit_calls": 48,
+            "lfu_admitted": 67,
+            "forced_placements": 756,
+            "evictions": 867
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6805,
+            "gpu_fills": 841,
+            "all_hit_calls": 48,
+            "lfu_admitted": 73,
+            "forced_placements": 768,
+            "evictions": 876
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6679,
+            "gpu_fills": 1002,
+            "all_hit_calls": 50,
+            "lfu_admitted": 63,
+            "forced_placements": 939,
+            "evictions": 1049
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6868,
+            "gpu_fills": 981,
+            "all_hit_calls": 47,
+            "lfu_admitted": 73,
+            "forced_placements": 908,
+            "evictions": 1021
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5925,
+            "gpu_fills": 759,
+            "all_hit_calls": 42,
+            "lfu_admitted": 76,
+            "forced_placements": 683,
+            "evictions": 795
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5657,
+            "gpu_fills": 608,
+            "all_hit_calls": 59,
+            "lfu_admitted": 85,
+            "forced_placements": 523,
+            "evictions": 594
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6204,
+            "gpu_fills": 907,
+            "all_hit_calls": 37,
+            "lfu_admitted": 93,
+            "forced_placements": 814,
+            "evictions": 931
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5857,
+            "gpu_fills": 687,
+            "all_hit_calls": 55,
+            "lfu_admitted": 88,
+            "forced_placements": 599,
+            "evictions": 696
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6816,
+            "gpu_fills": 835,
+            "all_hit_calls": 51,
+            "lfu_admitted": 69,
+            "forced_placements": 766,
+            "evictions": 864
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6405,
+            "gpu_fills": 917,
+            "all_hit_calls": 24,
+            "lfu_admitted": 100,
+            "forced_placements": 817,
+            "evictions": 938
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6420,
+            "gpu_fills": 763,
+            "all_hit_calls": 39,
+            "lfu_admitted": 94,
+            "forced_placements": 669,
+            "evictions": 761
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 4810,
+            "gpu_fills": 370,
+            "all_hit_calls": 125,
+            "lfu_admitted": 45,
+            "forced_placements": 325,
+            "evictions": 361
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5371,
+            "gpu_fills": 444,
+            "all_hit_calls": 102,
+            "lfu_admitted": 43,
+            "forced_placements": 401,
+            "evictions": 435
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5938,
+            "gpu_fills": 587,
+            "all_hit_calls": 68,
+            "lfu_admitted": 78,
+            "forced_placements": 509,
+            "evictions": 574
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6840,
+            "gpu_fills": 861,
+            "all_hit_calls": 37,
+            "lfu_admitted": 77,
+            "forced_placements": 784,
+            "evictions": 889
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5951,
+            "gpu_fills": 690,
+            "all_hit_calls": 54,
+            "lfu_admitted": 87,
+            "forced_placements": 603,
+            "evictions": 692
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6044,
+            "gpu_fills": 657,
+            "all_hit_calls": 53,
+            "lfu_admitted": 64,
+            "forced_placements": 593,
+            "evictions": 657
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6257,
+            "gpu_fills": 902,
+            "all_hit_calls": 51,
+            "lfu_admitted": 78,
+            "forced_placements": 824,
+            "evictions": 933
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 7017,
+            "gpu_fills": 988,
+            "all_hit_calls": 52,
+            "lfu_admitted": 78,
+            "forced_placements": 910,
+            "evictions": 1036
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5609,
+            "gpu_fills": 607,
+            "all_hit_calls": 71,
+            "lfu_admitted": 74,
+            "forced_placements": 533,
+            "evictions": 615
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6034,
+            "gpu_fills": 709,
+            "all_hit_calls": 39,
+            "lfu_admitted": 73,
+            "forced_placements": 636,
+            "evictions": 723
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5739,
+            "gpu_fills": 589,
+            "all_hit_calls": 67,
+            "lfu_admitted": 68,
+            "forced_placements": 521,
+            "evictions": 589
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6324,
+            "gpu_fills": 833,
+            "all_hit_calls": 39,
+            "lfu_admitted": 92,
+            "forced_placements": 741,
+            "evictions": 834
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6078,
+            "gpu_fills": 663,
+            "all_hit_calls": 58,
+            "lfu_admitted": 83,
+            "forced_placements": 580,
+            "evictions": 650
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6701,
+            "gpu_fills": 781,
+            "all_hit_calls": 52,
+            "lfu_admitted": 67,
+            "forced_placements": 714,
+            "evictions": 800
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6430,
+            "gpu_fills": 794,
+            "all_hit_calls": 46,
+            "lfu_admitted": 84,
+            "forced_placements": 710,
+            "evictions": 788
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6271,
+            "gpu_fills": 753,
+            "all_hit_calls": 52,
+            "lfu_admitted": 91,
+            "forced_placements": 662,
+            "evictions": 747
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 4883,
+            "gpu_fills": 367,
+            "all_hit_calls": 129,
+            "lfu_admitted": 35,
+            "forced_placements": 332,
+            "evictions": 364
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5502,
+            "gpu_fills": 469,
+            "all_hit_calls": 107,
+            "lfu_admitted": 56,
+            "forced_placements": 413,
+            "evictions": 459
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6047,
+            "gpu_fills": 648,
+            "all_hit_calls": 53,
+            "lfu_admitted": 72,
+            "forced_placements": 576,
+            "evictions": 655
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6642,
+            "gpu_fills": 874,
+            "all_hit_calls": 47,
+            "lfu_admitted": 89,
+            "forced_placements": 785,
+            "evictions": 896
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5882,
+            "gpu_fills": 674,
+            "all_hit_calls": 50,
+            "lfu_admitted": 68,
+            "forced_placements": 606,
+            "evictions": 677
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5806,
+            "gpu_fills": 656,
+            "all_hit_calls": 67,
+            "lfu_admitted": 85,
+            "forced_placements": 571,
+            "evictions": 652
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6042,
+            "gpu_fills": 711,
+            "all_hit_calls": 75,
+            "lfu_admitted": 63,
+            "forced_placements": 648,
+            "evictions": 733
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6807,
+            "gpu_fills": 838,
+            "all_hit_calls": 58,
+            "lfu_admitted": 65,
+            "forced_placements": 773,
+            "evictions": 877
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5147,
+            "gpu_fills": 559,
+            "all_hit_calls": 92,
+            "lfu_admitted": 76,
+            "forced_placements": 483,
+            "evictions": 553
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5506,
+            "gpu_fills": 574,
+            "all_hit_calls": 83,
+            "lfu_admitted": 69,
+            "forced_placements": 505,
+            "evictions": 574
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5566,
+            "gpu_fills": 628,
+            "all_hit_calls": 66,
+            "lfu_admitted": 70,
+            "forced_placements": 558,
+            "evictions": 635
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6369,
+            "gpu_fills": 772,
+            "all_hit_calls": 53,
+            "lfu_admitted": 100,
+            "forced_placements": 672,
+            "evictions": 768
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5616,
+            "gpu_fills": 641,
+            "all_hit_calls": 77,
+            "lfu_admitted": 80,
+            "forced_placements": 561,
+            "evictions": 649
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5936,
+            "gpu_fills": 714,
+            "all_hit_calls": 52,
+            "lfu_admitted": 97,
+            "forced_placements": 617,
+            "evictions": 714
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6225,
+            "gpu_fills": 681,
+            "all_hit_calls": 53,
+            "lfu_admitted": 77,
+            "forced_placements": 604,
+            "evictions": 692
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6365,
+            "gpu_fills": 748,
+            "all_hit_calls": 51,
+            "lfu_admitted": 72,
+            "forced_placements": 676,
+            "evictions": 782
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6750,
+            "gpu_fills": 816,
+            "all_hit_calls": 47,
+            "lfu_admitted": 92,
+            "forced_placements": 724,
+            "evictions": 842
+          }
+        ]
+      },
+      "global_warmup_occupancy": [
+        247,
+        192,
+        195,
+        115,
+        136,
+        150,
+        174,
+        187,
+        125,
+        106,
+        148,
+        129,
+        164,
+        147,
+        124,
+        54,
+        86,
+        122,
+        172,
+        124,
+        134,
+        161,
+        189,
+        82,
+        132,
+        102,
+        129,
+        120,
+        158,
+        140,
+        131,
+        47,
+        84,
+        130,
+        179,
+        127,
+        124,
+        150,
+        180,
+        70,
+        79,
+        108,
+        142,
+        95,
+        120,
+        110,
+        128,
+        139
+      ],
+      "global_final_occupancy": [
+        190,
+        161,
+        141,
+        116,
+        118,
+        120,
+        122,
+        130,
+        103,
+        115,
+        132,
+        115,
+        125,
+        138,
+        139,
+        69,
+        84,
+        107,
+        129,
+        109,
+        105,
+        121,
+        129,
+        101,
+        119,
+        102,
+        132,
+        120,
+        126,
+        136,
+        135,
+        61,
+        87,
+        103,
+        136,
+        108,
+        117,
+        103,
+        123,
+        106,
+        111,
+        110,
+        140,
+        115,
+        128,
+        125,
+        123,
+        128
+      ],
+      "case": "short",
+      "budget": 6388,
+      "transfer_delta_fraction": -0.0977976857036208
+    },
+    {
+      "layout": [
+        134,
+        134,
+        134,
+        134,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133
+      ],
+      "global_reserved_slots": 1,
+      "scored_sweeps": 314,
+      "warmup_sweeps": 128,
+      "results": {
+        "per_layer_gpu": {
+          "calls": 15072,
+          "unique_accesses": 318988,
+          "gpu_fills": 43224,
+          "all_hit_calls": 3681,
+          "hit_fraction": 0.8644964700866491,
+          "expert_h2d_bytes": 119505715200
+        },
+        "global_gpu": {
+          "calls": 15072,
+          "unique_accesses": 318988,
+          "gpu_fills": 36662,
+          "all_hit_calls": 3084,
+          "lfu_admitted": 1908,
+          "forced_placements": 34754,
+          "evictions": 36662,
+          "hit_fraction": 0.88506777684427,
+          "expert_h2d_bytes": 101363097600
+        }
+      },
+      "per_layer": {
+        "per_layer_gpu": [
+          {
+            "calls": 314,
+            "unique_accesses": 8857,
+            "gpu_fills": 2969,
+            "all_hit_calls": 0
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 8338,
+            "gpu_fills": 2685,
+            "all_hit_calls": 1
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 8386,
+            "gpu_fills": 2791,
+            "all_hit_calls": 0
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7324,
+            "gpu_fills": 868,
+            "all_hit_calls": 43
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7441,
+            "gpu_fills": 864,
+            "all_hit_calls": 40
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7398,
+            "gpu_fills": 1199,
+            "all_hit_calls": 25
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7662,
+            "gpu_fills": 1801,
+            "all_hit_calls": 2
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7742,
+            "gpu_fills": 1907,
+            "all_hit_calls": 6
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6581,
+            "gpu_fills": 870,
+            "all_hit_calls": 42
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6073,
+            "gpu_fills": 378,
+            "all_hit_calls": 109
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6976,
+            "gpu_fills": 1225,
+            "all_hit_calls": 22
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6531,
+            "gpu_fills": 706,
+            "all_hit_calls": 57
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7637,
+            "gpu_fills": 1336,
+            "all_hit_calls": 9
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6742,
+            "gpu_fills": 1180,
+            "all_hit_calls": 15
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6547,
+            "gpu_fills": 582,
+            "all_hit_calls": 67
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 4892,
+            "gpu_fills": 43,
+            "all_hit_calls": 277
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 5345,
+            "gpu_fills": 104,
+            "all_hit_calls": 237
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6484,
+            "gpu_fills": 585,
+            "all_hit_calls": 72
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7623,
+            "gpu_fills": 1572,
+            "all_hit_calls": 3
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6324,
+            "gpu_fills": 655,
+            "all_hit_calls": 58
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6634,
+            "gpu_fills": 687,
+            "all_hit_calls": 70
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7084,
+            "gpu_fills": 1199,
+            "all_hit_calls": 19
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7955,
+            "gpu_fills": 1643,
+            "all_hit_calls": 5
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 5876,
+            "gpu_fills": 348,
+            "all_hit_calls": 151
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6526,
+            "gpu_fills": 733,
+            "all_hit_calls": 50
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6039,
+            "gpu_fills": 314,
+            "all_hit_calls": 132
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6719,
+            "gpu_fills": 808,
+            "all_hit_calls": 50
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6481,
+            "gpu_fills": 576,
+            "all_hit_calls": 77
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7262,
+            "gpu_fills": 1111,
+            "all_hit_calls": 17
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6582,
+            "gpu_fills": 907,
+            "all_hit_calls": 29
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6384,
+            "gpu_fills": 553,
+            "all_hit_calls": 82
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 4832,
+            "gpu_fills": 57,
+            "all_hit_calls": 268
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 5273,
+            "gpu_fills": 180,
+            "all_hit_calls": 205
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6254,
+            "gpu_fills": 655,
+            "all_hit_calls": 60
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7327,
+            "gpu_fills": 1422,
+            "all_hit_calls": 8
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6252,
+            "gpu_fills": 602,
+            "all_hit_calls": 76
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6177,
+            "gpu_fills": 578,
+            "all_hit_calls": 75
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6664,
+            "gpu_fills": 733,
+            "all_hit_calls": 53
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7646,
+            "gpu_fills": 1072,
+            "all_hit_calls": 29
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 4940,
+            "gpu_fills": 156,
+            "all_hit_calls": 209
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 5380,
+            "gpu_fills": 293,
+            "all_hit_calls": 163
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 5907,
+            "gpu_fills": 514,
+            "all_hit_calls": 96
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6566,
+            "gpu_fills": 487,
+            "all_hit_calls": 119
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 5648,
+            "gpu_fills": 429,
+            "all_hit_calls": 145
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 5976,
+            "gpu_fills": 375,
+            "all_hit_calls": 150
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6160,
+            "gpu_fills": 738,
+            "all_hit_calls": 104
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6623,
+            "gpu_fills": 881,
+            "all_hit_calls": 75
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6918,
+            "gpu_fills": 853,
+            "all_hit_calls": 79
+          }
+        ],
+        "global_gpu": [
+          {
+            "calls": 314,
+            "unique_accesses": 8857,
+            "gpu_fills": 1367,
+            "all_hit_calls": 25,
+            "lfu_admitted": 72,
+            "forced_placements": 1295,
+            "evictions": 1380
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 8338,
+            "gpu_fills": 1388,
+            "all_hit_calls": 10,
+            "lfu_admitted": 74,
+            "forced_placements": 1314,
+            "evictions": 1382
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 8386,
+            "gpu_fills": 1410,
+            "all_hit_calls": 13,
+            "lfu_admitted": 80,
+            "forced_placements": 1330,
+            "evictions": 1413
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7324,
+            "gpu_fills": 806,
+            "all_hit_calls": 45,
+            "lfu_admitted": 39,
+            "forced_placements": 767,
+            "evictions": 818
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7441,
+            "gpu_fills": 782,
+            "all_hit_calls": 46,
+            "lfu_admitted": 42,
+            "forced_placements": 740,
+            "evictions": 805
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7398,
+            "gpu_fills": 881,
+            "all_hit_calls": 45,
+            "lfu_admitted": 45,
+            "forced_placements": 836,
+            "evictions": 884
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7662,
+            "gpu_fills": 1140,
+            "all_hit_calls": 11,
+            "lfu_admitted": 57,
+            "forced_placements": 1083,
+            "evictions": 1145
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7742,
+            "gpu_fills": 1055,
+            "all_hit_calls": 23,
+            "lfu_admitted": 69,
+            "forced_placements": 986,
+            "evictions": 1036
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6581,
+            "gpu_fills": 780,
+            "all_hit_calls": 44,
+            "lfu_admitted": 43,
+            "forced_placements": 737,
+            "evictions": 780
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6073,
+            "gpu_fills": 567,
+            "all_hit_calls": 64,
+            "lfu_admitted": 32,
+            "forced_placements": 535,
+            "evictions": 557
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6976,
+            "gpu_fills": 974,
+            "all_hit_calls": 36,
+            "lfu_admitted": 60,
+            "forced_placements": 914,
+            "evictions": 976
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6531,
+            "gpu_fills": 735,
+            "all_hit_calls": 54,
+            "lfu_admitted": 38,
+            "forced_placements": 697,
+            "evictions": 737
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7637,
+            "gpu_fills": 846,
+            "all_hit_calls": 35,
+            "lfu_admitted": 40,
+            "forced_placements": 806,
+            "evictions": 848
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6742,
+            "gpu_fills": 908,
+            "all_hit_calls": 36,
+            "lfu_admitted": 44,
+            "forced_placements": 864,
+            "evictions": 913
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6547,
+            "gpu_fills": 652,
+            "all_hit_calls": 59,
+            "lfu_admitted": 34,
+            "forced_placements": 618,
+            "evictions": 646
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 4892,
+            "gpu_fills": 261,
+            "all_hit_calls": 177,
+            "lfu_admitted": 11,
+            "forced_placements": 250,
+            "evictions": 260
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 5345,
+            "gpu_fills": 374,
+            "all_hit_calls": 127,
+            "lfu_admitted": 27,
+            "forced_placements": 347,
+            "evictions": 368
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6484,
+            "gpu_fills": 660,
+            "all_hit_calls": 57,
+            "lfu_admitted": 43,
+            "forced_placements": 617,
+            "evictions": 653
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7623,
+            "gpu_fills": 915,
+            "all_hit_calls": 35,
+            "lfu_admitted": 52,
+            "forced_placements": 863,
+            "evictions": 917
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6324,
+            "gpu_fills": 732,
+            "all_hit_calls": 48,
+            "lfu_admitted": 39,
+            "forced_placements": 693,
+            "evictions": 722
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6634,
+            "gpu_fills": 698,
+            "all_hit_calls": 65,
+            "lfu_admitted": 42,
+            "forced_placements": 656,
+            "evictions": 687
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7084,
+            "gpu_fills": 862,
+            "all_hit_calls": 44,
+            "lfu_admitted": 43,
+            "forced_placements": 819,
+            "evictions": 857
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7955,
+            "gpu_fills": 942,
+            "all_hit_calls": 33,
+            "lfu_admitted": 46,
+            "forced_placements": 896,
+            "evictions": 947
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 5876,
+            "gpu_fills": 569,
+            "all_hit_calls": 96,
+            "lfu_admitted": 19,
+            "forced_placements": 550,
+            "evictions": 581
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6526,
+            "gpu_fills": 714,
+            "all_hit_calls": 51,
+            "lfu_admitted": 47,
+            "forced_placements": 667,
+            "evictions": 703
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6039,
+            "gpu_fills": 514,
+            "all_hit_calls": 83,
+            "lfu_admitted": 30,
+            "forced_placements": 484,
+            "evictions": 509
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6719,
+            "gpu_fills": 783,
+            "all_hit_calls": 52,
+            "lfu_admitted": 39,
+            "forced_placements": 744,
+            "evictions": 780
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6481,
+            "gpu_fills": 655,
+            "all_hit_calls": 58,
+            "lfu_admitted": 44,
+            "forced_placements": 611,
+            "evictions": 643
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7262,
+            "gpu_fills": 843,
+            "all_hit_calls": 39,
+            "lfu_admitted": 40,
+            "forced_placements": 803,
+            "evictions": 851
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6582,
+            "gpu_fills": 825,
+            "all_hit_calls": 38,
+            "lfu_admitted": 56,
+            "forced_placements": 769,
+            "evictions": 817
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6384,
+            "gpu_fills": 657,
+            "all_hit_calls": 63,
+            "lfu_admitted": 43,
+            "forced_placements": 614,
+            "evictions": 647
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 4832,
+            "gpu_fills": 267,
+            "all_hit_calls": 171,
+            "lfu_admitted": 10,
+            "forced_placements": 257,
+            "evictions": 267
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 5273,
+            "gpu_fills": 437,
+            "all_hit_calls": 115,
+            "lfu_admitted": 27,
+            "forced_placements": 410,
+            "evictions": 431
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6254,
+            "gpu_fills": 688,
+            "all_hit_calls": 57,
+            "lfu_admitted": 41,
+            "forced_placements": 647,
+            "evictions": 684
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7327,
+            "gpu_fills": 860,
+            "all_hit_calls": 47,
+            "lfu_admitted": 34,
+            "forced_placements": 826,
+            "evictions": 876
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6252,
+            "gpu_fills": 673,
+            "all_hit_calls": 64,
+            "lfu_admitted": 36,
+            "forced_placements": 637,
+            "evictions": 675
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6177,
+            "gpu_fills": 674,
+            "all_hit_calls": 65,
+            "lfu_admitted": 35,
+            "forced_placements": 639,
+            "evictions": 672
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6664,
+            "gpu_fills": 674,
+            "all_hit_calls": 66,
+            "lfu_admitted": 35,
+            "forced_placements": 639,
+            "evictions": 668
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7646,
+            "gpu_fills": 768,
+            "all_hit_calls": 63,
+            "lfu_admitted": 36,
+            "forced_placements": 732,
+            "evictions": 782
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 4940,
+            "gpu_fills": 436,
+            "all_hit_calls": 132,
+            "lfu_admitted": 19,
+            "forced_placements": 417,
+            "evictions": 430
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 5380,
+            "gpu_fills": 556,
+            "all_hit_calls": 94,
+            "lfu_admitted": 28,
+            "forced_placements": 528,
+            "evictions": 554
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 5907,
+            "gpu_fills": 712,
+            "all_hit_calls": 60,
+            "lfu_admitted": 36,
+            "forced_placements": 676,
+            "evictions": 704
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6566,
+            "gpu_fills": 618,
+            "all_hit_calls": 97,
+            "lfu_admitted": 27,
+            "forced_placements": 591,
+            "evictions": 618
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 5648,
+            "gpu_fills": 654,
+            "all_hit_calls": 93,
+            "lfu_admitted": 24,
+            "forced_placements": 630,
+            "evictions": 654
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 5976,
+            "gpu_fills": 630,
+            "all_hit_calls": 105,
+            "lfu_admitted": 19,
+            "forced_placements": 611,
+            "evictions": 649
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6160,
+            "gpu_fills": 874,
+            "all_hit_calls": 92,
+            "lfu_admitted": 33,
+            "forced_placements": 841,
+            "evictions": 881
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6623,
+            "gpu_fills": 919,
+            "all_hit_calls": 74,
+            "lfu_admitted": 41,
+            "forced_placements": 878,
+            "evictions": 922
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6918,
+            "gpu_fills": 927,
+            "all_hit_calls": 77,
+            "lfu_admitted": 37,
+            "forced_placements": 890,
+            "evictions": 933
+          }
+        ]
+      },
+      "global_warmup_occupancy": [
+        214,
+        196,
+        204,
+        116,
+        138,
+        158,
+        179,
+        194,
+        142,
+        96,
+        151,
+        130,
+        163,
+        165,
+        134,
+        60,
+        85,
+        122,
+        183,
+        145,
+        139,
+        153,
+        168,
+        106,
+        128,
+        103,
+        141,
+        127,
+        150,
+        150,
+        127,
+        67,
+        88,
+        129,
+        181,
+        141,
+        126,
+        145,
+        149,
+        80,
+        87,
+        116,
+        112,
+        99,
+        86,
+        112,
+        104,
+        98
+      ],
+      "global_final_occupancy": [
+        229,
+        229,
+        224,
+        139,
+        137,
+        157,
+        181,
+        185,
+        146,
+        101,
+        156,
+        134,
+        171,
+        151,
+        121,
+        55,
+        79,
+        126,
+        181,
+        120,
+        122,
+        155,
+        195,
+        80,
+        128,
+        94,
+        124,
+        112,
+        147,
+        137,
+        119,
+        53,
+        84,
+        120,
+        173,
+        123,
+        128,
+        138,
+        170,
+        80,
+        92,
+        108,
+        116,
+        95,
+        92,
+        118,
+        134,
+        128
+      ],
+      "case": "raft",
+      "budget": 6388,
+      "transfer_delta_fraction": -0.15181380714417914
+    },
+    {
+      "layout": [
+        134,
+        134,
+        134,
+        134,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133
+      ],
+      "global_reserved_slots": 1,
+      "scored_sweeps": 274,
+      "warmup_sweeps": 128,
+      "results": {
+        "per_layer_gpu": {
+          "calls": 13152,
+          "unique_accesses": 292511,
+          "gpu_fills": 40006,
+          "all_hit_calls": 3067,
+          "hit_fraction": 0.8632324938207452,
+          "expert_h2d_bytes": 110608588800
+        },
+        "global_gpu": {
+          "calls": 13152,
+          "unique_accesses": 292511,
+          "gpu_fills": 33667,
+          "all_hit_calls": 2704,
+          "lfu_admitted": 1500,
+          "forced_placements": 32167,
+          "evictions": 33850,
+          "hit_fraction": 0.8849034737155184,
+          "expert_h2d_bytes": 93082521600
+        }
+      },
+      "per_layer": {
+        "per_layer_gpu": [
+          {
+            "calls": 274,
+            "unique_accesses": 7905,
+            "gpu_fills": 2878,
+            "all_hit_calls": 2
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 7185,
+            "gpu_fills": 2000,
+            "all_hit_calls": 1
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 7230,
+            "gpu_fills": 2165,
+            "all_hit_calls": 0
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6538,
+            "gpu_fills": 925,
+            "all_hit_calls": 41
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6971,
+            "gpu_fills": 1265,
+            "all_hit_calls": 17
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6864,
+            "gpu_fills": 1479,
+            "all_hit_calls": 5
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6720,
+            "gpu_fills": 1602,
+            "all_hit_calls": 1
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6777,
+            "gpu_fills": 1601,
+            "all_hit_calls": 6
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5822,
+            "gpu_fills": 732,
+            "all_hit_calls": 46
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5680,
+            "gpu_fills": 554,
+            "all_hit_calls": 69
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5927,
+            "gpu_fills": 799,
+            "all_hit_calls": 32
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5604,
+            "gpu_fills": 492,
+            "all_hit_calls": 84
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6755,
+            "gpu_fills": 1164,
+            "all_hit_calls": 13
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6120,
+            "gpu_fills": 875,
+            "all_hit_calls": 27
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6128,
+            "gpu_fills": 638,
+            "all_hit_calls": 43
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 4774,
+            "gpu_fills": 163,
+            "all_hit_calls": 188
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 4623,
+            "gpu_fills": 195,
+            "all_hit_calls": 177
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5733,
+            "gpu_fills": 447,
+            "all_hit_calls": 98
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6589,
+            "gpu_fills": 1234,
+            "all_hit_calls": 9
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5866,
+            "gpu_fills": 466,
+            "all_hit_calls": 100
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6017,
+            "gpu_fills": 609,
+            "all_hit_calls": 66
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6308,
+            "gpu_fills": 1107,
+            "all_hit_calls": 30
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 7007,
+            "gpu_fills": 1764,
+            "all_hit_calls": 3
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5843,
+            "gpu_fills": 634,
+            "all_hit_calls": 71
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5839,
+            "gpu_fills": 617,
+            "all_hit_calls": 61
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5699,
+            "gpu_fills": 354,
+            "all_hit_calls": 112
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5907,
+            "gpu_fills": 716,
+            "all_hit_calls": 32
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5711,
+            "gpu_fills": 384,
+            "all_hit_calls": 105
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6345,
+            "gpu_fills": 867,
+            "all_hit_calls": 19
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6027,
+            "gpu_fills": 735,
+            "all_hit_calls": 44
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5780,
+            "gpu_fills": 390,
+            "all_hit_calls": 101
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5012,
+            "gpu_fills": 164,
+            "all_hit_calls": 180
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 4909,
+            "gpu_fills": 167,
+            "all_hit_calls": 175
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5692,
+            "gpu_fills": 434,
+            "all_hit_calls": 107
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6364,
+            "gpu_fills": 978,
+            "all_hit_calls": 27
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5704,
+            "gpu_fills": 431,
+            "all_hit_calls": 108
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5647,
+            "gpu_fills": 365,
+            "all_hit_calls": 96
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6074,
+            "gpu_fills": 644,
+            "all_hit_calls": 70
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6814,
+            "gpu_fills": 1399,
+            "all_hit_calls": 16
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5432,
+            "gpu_fills": 431,
+            "all_hit_calls": 113
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5478,
+            "gpu_fills": 396,
+            "all_hit_calls": 110
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5943,
+            "gpu_fills": 702,
+            "all_hit_calls": 53
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6424,
+            "gpu_fills": 667,
+            "all_hit_calls": 64
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5814,
+            "gpu_fills": 591,
+            "all_hit_calls": 78
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5844,
+            "gpu_fills": 588,
+            "all_hit_calls": 82
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6044,
+            "gpu_fills": 646,
+            "all_hit_calls": 71
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6173,
+            "gpu_fills": 656,
+            "all_hit_calls": 65
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6849,
+            "gpu_fills": 896,
+            "all_hit_calls": 49
+          }
+        ],
+        "global_gpu": [
+          {
+            "calls": 274,
+            "unique_accesses": 7905,
+            "gpu_fills": 1232,
+            "all_hit_calls": 34,
+            "lfu_admitted": 44,
+            "forced_placements": 1188,
+            "evictions": 1251
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 7185,
+            "gpu_fills": 1018,
+            "all_hit_calls": 18,
+            "lfu_admitted": 46,
+            "forced_placements": 972,
+            "evictions": 1021
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 7230,
+            "gpu_fills": 1007,
+            "all_hit_calls": 20,
+            "lfu_admitted": 46,
+            "forced_placements": 961,
+            "evictions": 1020
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6538,
+            "gpu_fills": 850,
+            "all_hit_calls": 44,
+            "lfu_admitted": 42,
+            "forced_placements": 808,
+            "evictions": 863
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6971,
+            "gpu_fills": 917,
+            "all_hit_calls": 29,
+            "lfu_admitted": 43,
+            "forced_placements": 874,
+            "evictions": 916
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6864,
+            "gpu_fills": 904,
+            "all_hit_calls": 22,
+            "lfu_admitted": 45,
+            "forced_placements": 859,
+            "evictions": 911
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6720,
+            "gpu_fills": 918,
+            "all_hit_calls": 34,
+            "lfu_admitted": 37,
+            "forced_placements": 881,
+            "evictions": 929
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6777,
+            "gpu_fills": 928,
+            "all_hit_calls": 27,
+            "lfu_admitted": 52,
+            "forced_placements": 876,
+            "evictions": 925
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5822,
+            "gpu_fills": 669,
+            "all_hit_calls": 51,
+            "lfu_admitted": 35,
+            "forced_placements": 634,
+            "evictions": 662
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5680,
+            "gpu_fills": 653,
+            "all_hit_calls": 54,
+            "lfu_admitted": 27,
+            "forced_placements": 626,
+            "evictions": 648
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5927,
+            "gpu_fills": 711,
+            "all_hit_calls": 41,
+            "lfu_admitted": 32,
+            "forced_placements": 679,
+            "evictions": 717
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5604,
+            "gpu_fills": 622,
+            "all_hit_calls": 56,
+            "lfu_admitted": 36,
+            "forced_placements": 586,
+            "evictions": 625
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6755,
+            "gpu_fills": 712,
+            "all_hit_calls": 50,
+            "lfu_admitted": 32,
+            "forced_placements": 680,
+            "evictions": 714
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6120,
+            "gpu_fills": 742,
+            "all_hit_calls": 42,
+            "lfu_admitted": 28,
+            "forced_placements": 714,
+            "evictions": 752
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6128,
+            "gpu_fills": 631,
+            "all_hit_calls": 41,
+            "lfu_admitted": 38,
+            "forced_placements": 593,
+            "evictions": 622
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 4774,
+            "gpu_fills": 351,
+            "all_hit_calls": 137,
+            "lfu_admitted": 21,
+            "forced_placements": 330,
+            "evictions": 343
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 4623,
+            "gpu_fills": 427,
+            "all_hit_calls": 106,
+            "lfu_admitted": 28,
+            "forced_placements": 399,
+            "evictions": 407
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5733,
+            "gpu_fills": 568,
+            "all_hit_calls": 61,
+            "lfu_admitted": 23,
+            "forced_placements": 545,
+            "evictions": 568
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6589,
+            "gpu_fills": 790,
+            "all_hit_calls": 41,
+            "lfu_admitted": 28,
+            "forced_placements": 762,
+            "evictions": 804
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5866,
+            "gpu_fills": 583,
+            "all_hit_calls": 69,
+            "lfu_admitted": 25,
+            "forced_placements": 558,
+            "evictions": 585
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6017,
+            "gpu_fills": 655,
+            "all_hit_calls": 54,
+            "lfu_admitted": 28,
+            "forced_placements": 627,
+            "evictions": 655
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6308,
+            "gpu_fills": 866,
+            "all_hit_calls": 43,
+            "lfu_admitted": 36,
+            "forced_placements": 830,
+            "evictions": 870
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 7007,
+            "gpu_fills": 963,
+            "all_hit_calls": 38,
+            "lfu_admitted": 34,
+            "forced_placements": 929,
+            "evictions": 981
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5843,
+            "gpu_fills": 753,
+            "all_hit_calls": 59,
+            "lfu_admitted": 31,
+            "forced_placements": 722,
+            "evictions": 754
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5839,
+            "gpu_fills": 626,
+            "all_hit_calls": 55,
+            "lfu_admitted": 19,
+            "forced_placements": 607,
+            "evictions": 636
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5699,
+            "gpu_fills": 522,
+            "all_hit_calls": 75,
+            "lfu_admitted": 16,
+            "forced_placements": 506,
+            "evictions": 533
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5907,
+            "gpu_fills": 713,
+            "all_hit_calls": 35,
+            "lfu_admitted": 33,
+            "forced_placements": 680,
+            "evictions": 716
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5711,
+            "gpu_fills": 549,
+            "all_hit_calls": 65,
+            "lfu_admitted": 27,
+            "forced_placements": 522,
+            "evictions": 554
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6345,
+            "gpu_fills": 709,
+            "all_hit_calls": 50,
+            "lfu_admitted": 38,
+            "forced_placements": 671,
+            "evictions": 705
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6027,
+            "gpu_fills": 706,
+            "all_hit_calls": 43,
+            "lfu_admitted": 32,
+            "forced_placements": 674,
+            "evictions": 713
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5780,
+            "gpu_fills": 554,
+            "all_hit_calls": 69,
+            "lfu_admitted": 19,
+            "forced_placements": 535,
+            "evictions": 556
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5012,
+            "gpu_fills": 391,
+            "all_hit_calls": 109,
+            "lfu_admitted": 22,
+            "forced_placements": 369,
+            "evictions": 378
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 4909,
+            "gpu_fills": 414,
+            "all_hit_calls": 96,
+            "lfu_admitted": 30,
+            "forced_placements": 384,
+            "evictions": 406
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5692,
+            "gpu_fills": 574,
+            "all_hit_calls": 67,
+            "lfu_admitted": 24,
+            "forced_placements": 550,
+            "evictions": 576
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6364,
+            "gpu_fills": 754,
+            "all_hit_calls": 49,
+            "lfu_admitted": 33,
+            "forced_placements": 721,
+            "evictions": 763
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5704,
+            "gpu_fills": 573,
+            "all_hit_calls": 77,
+            "lfu_admitted": 32,
+            "forced_placements": 541,
+            "evictions": 572
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5647,
+            "gpu_fills": 529,
+            "all_hit_calls": 67,
+            "lfu_admitted": 25,
+            "forced_placements": 504,
+            "evictions": 536
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6074,
+            "gpu_fills": 657,
+            "all_hit_calls": 64,
+            "lfu_admitted": 34,
+            "forced_placements": 623,
+            "evictions": 657
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6814,
+            "gpu_fills": 854,
+            "all_hit_calls": 41,
+            "lfu_admitted": 37,
+            "forced_placements": 817,
+            "evictions": 878
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5432,
+            "gpu_fills": 604,
+            "all_hit_calls": 86,
+            "lfu_admitted": 26,
+            "forced_placements": 578,
+            "evictions": 610
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5478,
+            "gpu_fills": 602,
+            "all_hit_calls": 67,
+            "lfu_admitted": 31,
+            "forced_placements": 571,
+            "evictions": 601
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5943,
+            "gpu_fills": 739,
+            "all_hit_calls": 48,
+            "lfu_admitted": 38,
+            "forced_placements": 701,
+            "evictions": 733
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6424,
+            "gpu_fills": 625,
+            "all_hit_calls": 65,
+            "lfu_admitted": 17,
+            "forced_placements": 608,
+            "evictions": 642
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5814,
+            "gpu_fills": 723,
+            "all_hit_calls": 50,
+            "lfu_admitted": 31,
+            "forced_placements": 692,
+            "evictions": 720
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5844,
+            "gpu_fills": 674,
+            "all_hit_calls": 65,
+            "lfu_admitted": 22,
+            "forced_placements": 652,
+            "evictions": 688
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6044,
+            "gpu_fills": 706,
+            "all_hit_calls": 63,
+            "lfu_admitted": 30,
+            "forced_placements": 676,
+            "evictions": 716
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6173,
+            "gpu_fills": 687,
+            "all_hit_calls": 60,
+            "lfu_admitted": 26,
+            "forced_placements": 661,
+            "evictions": 693
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6849,
+            "gpu_fills": 712,
+            "all_hit_calls": 67,
+            "lfu_admitted": 21,
+            "forced_placements": 691,
+            "evictions": 725
+          }
+        ]
+      },
+      "global_warmup_occupancy": [
+        206,
+        172,
+        183,
+        122,
+        141,
+        155,
+        160,
+        162,
+        139,
+        137,
+        137,
+        128,
+        163,
+        153,
+        136,
+        93,
+        94,
+        138,
+        164,
+        114,
+        122,
+        138,
+        156,
+        128,
+        142,
+        129,
+        132,
+        117,
+        140,
+        135,
+        106,
+        84,
+        88,
+        128,
+        148,
+        109,
+        115,
+        122,
+        157,
+        101,
+        110,
+        133,
+        137,
+        120,
+        119,
+        111,
+        126,
+        137
+      ],
+      "global_final_occupancy": [
+        214,
+        196,
+        191,
+        143,
+        152,
+        174,
+        181,
+        186,
+        138,
+        111,
+        131,
+        111,
+        176,
+        136,
+        128,
+        70,
+        77,
+        105,
+        161,
+        119,
+        113,
+        147,
+        177,
+        107,
+        122,
+        98,
+        135,
+        102,
+        155,
+        129,
+        103,
+        76,
+        81,
+        102,
+        147,
+        112,
+        103,
+        134,
+        164,
+        91,
+        91,
+        116,
+        124,
+        96,
+        101,
+        112,
+        132,
+        134
+      ],
+      "case": "long-0",
+      "budget": 6388,
+      "transfer_delta_fraction": -0.15845123231515268
+    },
+    {
+      "layout": [
+        134,
+        134,
+        134,
+        134,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133,
+        133
+      ],
+      "global_reserved_slots": 1,
+      "scored_sweeps": 312,
+      "warmup_sweeps": 128,
+      "results": {
+        "per_layer_gpu": {
+          "calls": 14976,
+          "unique_accesses": 332344,
+          "gpu_fills": 52181,
+          "all_hit_calls": 2630,
+          "hit_fraction": 0.8429909972799268,
+          "expert_h2d_bytes": 144270028800
+        },
+        "global_gpu": {
+          "calls": 14976,
+          "unique_accesses": 332344,
+          "gpu_fills": 46617,
+          "all_hit_calls": 2257,
+          "lfu_admitted": 339,
+          "forced_placements": 46278,
+          "evictions": 46617,
+          "hit_fraction": 0.8597326866138699,
+          "expert_h2d_bytes": 128886681600
+        }
+      },
+      "per_layer": {
+        "per_layer_gpu": [
+          {
+            "calls": 312,
+            "unique_accesses": 8902,
+            "gpu_fills": 3801,
+            "all_hit_calls": 0
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 8061,
+            "gpu_fills": 2580,
+            "all_hit_calls": 0
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 8074,
+            "gpu_fills": 2521,
+            "all_hit_calls": 0
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6985,
+            "gpu_fills": 943,
+            "all_hit_calls": 37
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7462,
+            "gpu_fills": 1247,
+            "all_hit_calls": 24
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7579,
+            "gpu_fills": 1748,
+            "all_hit_calls": 9
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7649,
+            "gpu_fills": 2091,
+            "all_hit_calls": 1
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7561,
+            "gpu_fills": 2062,
+            "all_hit_calls": 2
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6705,
+            "gpu_fills": 1154,
+            "all_hit_calls": 14
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6332,
+            "gpu_fills": 776,
+            "all_hit_calls": 61
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6898,
+            "gpu_fills": 1301,
+            "all_hit_calls": 21
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6601,
+            "gpu_fills": 783,
+            "all_hit_calls": 49
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7709,
+            "gpu_fills": 1672,
+            "all_hit_calls": 5
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6906,
+            "gpu_fills": 1236,
+            "all_hit_calls": 20
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6943,
+            "gpu_fills": 973,
+            "all_hit_calls": 34
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 5812,
+            "gpu_fills": 316,
+            "all_hit_calls": 172
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 5906,
+            "gpu_fills": 329,
+            "all_hit_calls": 155
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6792,
+            "gpu_fills": 762,
+            "all_hit_calls": 55
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7526,
+            "gpu_fills": 1532,
+            "all_hit_calls": 7
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6640,
+            "gpu_fills": 603,
+            "all_hit_calls": 78
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6816,
+            "gpu_fills": 689,
+            "all_hit_calls": 75
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7242,
+            "gpu_fills": 1315,
+            "all_hit_calls": 18
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 8117,
+            "gpu_fills": 1982,
+            "all_hit_calls": 3
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6382,
+            "gpu_fills": 726,
+            "all_hit_calls": 82
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6677,
+            "gpu_fills": 870,
+            "all_hit_calls": 30
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6358,
+            "gpu_fills": 566,
+            "all_hit_calls": 80
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6911,
+            "gpu_fills": 965,
+            "all_hit_calls": 32
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6613,
+            "gpu_fills": 652,
+            "all_hit_calls": 58
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7495,
+            "gpu_fills": 1310,
+            "all_hit_calls": 10
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6859,
+            "gpu_fills": 1017,
+            "all_hit_calls": 28
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6540,
+            "gpu_fills": 721,
+            "all_hit_calls": 64
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 5698,
+            "gpu_fills": 207,
+            "all_hit_calls": 187
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 5690,
+            "gpu_fills": 292,
+            "all_hit_calls": 159
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6568,
+            "gpu_fills": 783,
+            "all_hit_calls": 52
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7316,
+            "gpu_fills": 1297,
+            "all_hit_calls": 17
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6451,
+            "gpu_fills": 581,
+            "all_hit_calls": 88
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6440,
+            "gpu_fills": 594,
+            "all_hit_calls": 98
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7056,
+            "gpu_fills": 990,
+            "all_hit_calls": 43
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7998,
+            "gpu_fills": 1718,
+            "all_hit_calls": 6
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 5895,
+            "gpu_fills": 462,
+            "all_hit_calls": 142
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 5922,
+            "gpu_fills": 507,
+            "all_hit_calls": 127
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6490,
+            "gpu_fills": 704,
+            "all_hit_calls": 82
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7423,
+            "gpu_fills": 998,
+            "all_hit_calls": 51
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6397,
+            "gpu_fills": 523,
+            "all_hit_calls": 104
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6554,
+            "gpu_fills": 682,
+            "all_hit_calls": 65
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6739,
+            "gpu_fills": 777,
+            "all_hit_calls": 68
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7045,
+            "gpu_fills": 800,
+            "all_hit_calls": 70
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7609,
+            "gpu_fills": 1023,
+            "all_hit_calls": 47
+          }
+        ],
+        "global_gpu": [
+          {
+            "calls": 312,
+            "unique_accesses": 8902,
+            "gpu_fills": 1882,
+            "all_hit_calls": 8,
+            "lfu_admitted": 36,
+            "forced_placements": 1846,
+            "evictions": 1863
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 8061,
+            "gpu_fills": 1439,
+            "all_hit_calls": 15,
+            "lfu_admitted": 22,
+            "forced_placements": 1417,
+            "evictions": 1423
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 8074,
+            "gpu_fills": 1491,
+            "all_hit_calls": 14,
+            "lfu_admitted": 9,
+            "forced_placements": 1482,
+            "evictions": 1490
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6985,
+            "gpu_fills": 1041,
+            "all_hit_calls": 31,
+            "lfu_admitted": 7,
+            "forced_placements": 1034,
+            "evictions": 1043
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7462,
+            "gpu_fills": 1108,
+            "all_hit_calls": 29,
+            "lfu_admitted": 11,
+            "forced_placements": 1097,
+            "evictions": 1105
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7579,
+            "gpu_fills": 1264,
+            "all_hit_calls": 23,
+            "lfu_admitted": 6,
+            "forced_placements": 1258,
+            "evictions": 1266
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7649,
+            "gpu_fills": 1431,
+            "all_hit_calls": 12,
+            "lfu_admitted": 10,
+            "forced_placements": 1421,
+            "evictions": 1430
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7561,
+            "gpu_fills": 1321,
+            "all_hit_calls": 16,
+            "lfu_admitted": 12,
+            "forced_placements": 1309,
+            "evictions": 1317
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6705,
+            "gpu_fills": 1087,
+            "all_hit_calls": 23,
+            "lfu_admitted": 2,
+            "forced_placements": 1085,
+            "evictions": 1093
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6332,
+            "gpu_fills": 944,
+            "all_hit_calls": 41,
+            "lfu_admitted": 5,
+            "forced_placements": 939,
+            "evictions": 941
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6898,
+            "gpu_fills": 1132,
+            "all_hit_calls": 27,
+            "lfu_admitted": 9,
+            "forced_placements": 1123,
+            "evictions": 1134
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6601,
+            "gpu_fills": 887,
+            "all_hit_calls": 40,
+            "lfu_admitted": 8,
+            "forced_placements": 879,
+            "evictions": 887
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7709,
+            "gpu_fills": 1051,
+            "all_hit_calls": 27,
+            "lfu_admitted": 6,
+            "forced_placements": 1045,
+            "evictions": 1051
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6906,
+            "gpu_fills": 1068,
+            "all_hit_calls": 25,
+            "lfu_admitted": 9,
+            "forced_placements": 1059,
+            "evictions": 1065
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6943,
+            "gpu_fills": 963,
+            "all_hit_calls": 34,
+            "lfu_admitted": 2,
+            "forced_placements": 961,
+            "evictions": 966
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 5812,
+            "gpu_fills": 612,
+            "all_hit_calls": 102,
+            "lfu_admitted": 1,
+            "forced_placements": 611,
+            "evictions": 618
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 5906,
+            "gpu_fills": 676,
+            "all_hit_calls": 89,
+            "lfu_admitted": 3,
+            "forced_placements": 673,
+            "evictions": 681
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6792,
+            "gpu_fills": 835,
+            "all_hit_calls": 46,
+            "lfu_admitted": 10,
+            "forced_placements": 825,
+            "evictions": 838
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7526,
+            "gpu_fills": 1074,
+            "all_hit_calls": 28,
+            "lfu_admitted": 9,
+            "forced_placements": 1065,
+            "evictions": 1072
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6640,
+            "gpu_fills": 784,
+            "all_hit_calls": 55,
+            "lfu_admitted": 8,
+            "forced_placements": 776,
+            "evictions": 781
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6816,
+            "gpu_fills": 763,
+            "all_hit_calls": 63,
+            "lfu_admitted": 3,
+            "forced_placements": 760,
+            "evictions": 763
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7242,
+            "gpu_fills": 1028,
+            "all_hit_calls": 37,
+            "lfu_admitted": 7,
+            "forced_placements": 1021,
+            "evictions": 1027
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 8117,
+            "gpu_fills": 1202,
+            "all_hit_calls": 32,
+            "lfu_admitted": 7,
+            "forced_placements": 1195,
+            "evictions": 1203
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6382,
+            "gpu_fills": 953,
+            "all_hit_calls": 56,
+            "lfu_admitted": 5,
+            "forced_placements": 948,
+            "evictions": 952
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6677,
+            "gpu_fills": 932,
+            "all_hit_calls": 27,
+            "lfu_admitted": 3,
+            "forced_placements": 929,
+            "evictions": 938
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6358,
+            "gpu_fills": 795,
+            "all_hit_calls": 55,
+            "lfu_admitted": 4,
+            "forced_placements": 791,
+            "evictions": 800
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6911,
+            "gpu_fills": 951,
+            "all_hit_calls": 33,
+            "lfu_admitted": 9,
+            "forced_placements": 942,
+            "evictions": 948
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6613,
+            "gpu_fills": 834,
+            "all_hit_calls": 38,
+            "lfu_admitted": 4,
+            "forced_placements": 830,
+            "evictions": 834
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7495,
+            "gpu_fills": 1011,
+            "all_hit_calls": 27,
+            "lfu_admitted": 2,
+            "forced_placements": 1009,
+            "evictions": 1014
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6859,
+            "gpu_fills": 985,
+            "all_hit_calls": 28,
+            "lfu_admitted": 1,
+            "forced_placements": 984,
+            "evictions": 989
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6540,
+            "gpu_fills": 887,
+            "all_hit_calls": 49,
+            "lfu_admitted": 5,
+            "forced_placements": 882,
+            "evictions": 885
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 5698,
+            "gpu_fills": 510,
+            "all_hit_calls": 111,
+            "lfu_admitted": 1,
+            "forced_placements": 509,
+            "evictions": 513
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 5690,
+            "gpu_fills": 629,
+            "all_hit_calls": 84,
+            "lfu_admitted": 4,
+            "forced_placements": 625,
+            "evictions": 632
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6568,
+            "gpu_fills": 870,
+            "all_hit_calls": 46,
+            "lfu_admitted": 3,
+            "forced_placements": 867,
+            "evictions": 880
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7316,
+            "gpu_fills": 966,
+            "all_hit_calls": 42,
+            "lfu_admitted": 7,
+            "forced_placements": 959,
+            "evictions": 968
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6451,
+            "gpu_fills": 781,
+            "all_hit_calls": 59,
+            "lfu_admitted": 6,
+            "forced_placements": 775,
+            "evictions": 781
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6440,
+            "gpu_fills": 765,
+            "all_hit_calls": 75,
+            "lfu_admitted": 9,
+            "forced_placements": 756,
+            "evictions": 763
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7056,
+            "gpu_fills": 898,
+            "all_hit_calls": 51,
+            "lfu_admitted": 6,
+            "forced_placements": 892,
+            "evictions": 896
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7998,
+            "gpu_fills": 1059,
+            "all_hit_calls": 52,
+            "lfu_admitted": 10,
+            "forced_placements": 1049,
+            "evictions": 1061
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 5895,
+            "gpu_fills": 774,
+            "all_hit_calls": 106,
+            "lfu_admitted": 7,
+            "forced_placements": 767,
+            "evictions": 770
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 5922,
+            "gpu_fills": 792,
+            "all_hit_calls": 85,
+            "lfu_admitted": 4,
+            "forced_placements": 788,
+            "evictions": 796
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6490,
+            "gpu_fills": 900,
+            "all_hit_calls": 59,
+            "lfu_admitted": 4,
+            "forced_placements": 896,
+            "evictions": 901
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7423,
+            "gpu_fills": 923,
+            "all_hit_calls": 58,
+            "lfu_admitted": 8,
+            "forced_placements": 915,
+            "evictions": 923
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6397,
+            "gpu_fills": 802,
+            "all_hit_calls": 67,
+            "lfu_admitted": 8,
+            "forced_placements": 794,
+            "evictions": 806
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6554,
+            "gpu_fills": 833,
+            "all_hit_calls": 55,
+            "lfu_admitted": 6,
+            "forced_placements": 827,
+            "evictions": 831
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6739,
+            "gpu_fills": 915,
+            "all_hit_calls": 59,
+            "lfu_admitted": 10,
+            "forced_placements": 905,
+            "evictions": 910
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7045,
+            "gpu_fills": 843,
+            "all_hit_calls": 68,
+            "lfu_admitted": 5,
+            "forced_placements": 838,
+            "evictions": 843
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7609,
+            "gpu_fills": 926,
+            "all_hit_calls": 50,
+            "lfu_admitted": 6,
+            "forced_placements": 920,
+            "evictions": 926
+          }
+        ]
+      },
+      "global_warmup_occupancy": [
+        274,
+        218,
+        201,
+        139,
+        152,
+        168,
+        183,
+        176,
+        138,
+        97,
+        135,
+        121,
+        176,
+        146,
+        129,
+        65,
+        64,
+        126,
+        168,
+        106,
+        125,
+        151,
+        195,
+        101,
+        134,
+        95,
+        138,
+        121,
+        164,
+        130,
+        106,
+        65,
+        74,
+        112,
+        150,
+        99,
+        106,
+        132,
+        184,
+        69,
+        85,
+        114,
+        137,
+        105,
+        120,
+        122,
+        130,
+        141
+      ],
+      "global_final_occupancy": [
+        225,
+        207,
+        189,
+        136,
+        148,
+        160,
+        183,
+        175,
+        140,
+        108,
+        142,
+        122,
+        168,
+        126,
+        119,
+        69,
+        69,
+        119,
+        171,
+        111,
+        121,
+        163,
+        185,
+        91,
+        135,
+        96,
+        128,
+        113,
+        154,
+        133,
+        114,
+        71,
+        75,
+        114,
+        164,
+        115,
+        115,
+        150,
+        175,
+        98,
+        95,
+        123,
+        151,
+        102,
+        121,
+        121,
+        130,
+        147
+      ],
+      "case": "long-1",
+      "budget": 6388,
+      "transfer_delta_fraction": -0.10662884958126517
+    },
+    {
+      "layout": [
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        145,
+        145
+      ],
+      "global_reserved_slots": 1,
+      "scored_sweeps": 296,
+      "warmup_sweeps": 128,
+      "results": {
+        "per_layer_gpu": {
+          "calls": 14208,
+          "unique_accesses": 297728,
+          "gpu_fills": 35000,
+          "all_hit_calls": 3891,
+          "hit_fraction": 0.8824430352536543,
+          "expert_h2d_bytes": 96768000000
+        },
+        "global_gpu": {
+          "calls": 14208,
+          "unique_accesses": 297728,
+          "gpu_fills": 32142,
+          "all_hit_calls": 3190,
+          "lfu_admitted": 12306,
+          "forced_placements": 19836,
+          "evictions": 33434,
+          "hit_fraction": 0.8920424011177988,
+          "expert_h2d_bytes": 88866201600
+        }
+      },
+      "per_layer": {
+        "per_layer_gpu": [
+          {
+            "calls": 296,
+            "unique_accesses": 8268,
+            "gpu_fills": 2824,
+            "all_hit_calls": 15
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 7273,
+            "gpu_fills": 2007,
+            "all_hit_calls": 19
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 7161,
+            "gpu_fills": 1707,
+            "all_hit_calls": 23
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6260,
+            "gpu_fills": 450,
+            "all_hit_calls": 87
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6625,
+            "gpu_fills": 737,
+            "all_hit_calls": 54
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6805,
+            "gpu_fills": 914,
+            "all_hit_calls": 46
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6679,
+            "gpu_fills": 1187,
+            "all_hit_calls": 44
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6868,
+            "gpu_fills": 1333,
+            "all_hit_calls": 39
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5925,
+            "gpu_fills": 622,
+            "all_hit_calls": 59
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5657,
+            "gpu_fills": 383,
+            "all_hit_calls": 103
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6204,
+            "gpu_fills": 920,
+            "all_hit_calls": 42
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5857,
+            "gpu_fills": 530,
+            "all_hit_calls": 74
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6816,
+            "gpu_fills": 1019,
+            "all_hit_calls": 46
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6405,
+            "gpu_fills": 952,
+            "all_hit_calls": 20
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6420,
+            "gpu_fills": 636,
+            "all_hit_calls": 48
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 4810,
+            "gpu_fills": 112,
+            "all_hit_calls": 211
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5371,
+            "gpu_fills": 203,
+            "all_hit_calls": 172
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5938,
+            "gpu_fills": 382,
+            "all_hit_calls": 111
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6840,
+            "gpu_fills": 1137,
+            "all_hit_calls": 28
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5951,
+            "gpu_fills": 485,
+            "all_hit_calls": 86
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6044,
+            "gpu_fills": 517,
+            "all_hit_calls": 79
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6257,
+            "gpu_fills": 985,
+            "all_hit_calls": 50
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 7017,
+            "gpu_fills": 1459,
+            "all_hit_calls": 40
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5609,
+            "gpu_fills": 316,
+            "all_hit_calls": 137
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6034,
+            "gpu_fills": 532,
+            "all_hit_calls": 66
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5739,
+            "gpu_fills": 309,
+            "all_hit_calls": 128
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6324,
+            "gpu_fills": 707,
+            "all_hit_calls": 54
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6078,
+            "gpu_fills": 444,
+            "all_hit_calls": 90
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6701,
+            "gpu_fills": 792,
+            "all_hit_calls": 53
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6430,
+            "gpu_fills": 758,
+            "all_hit_calls": 47
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6271,
+            "gpu_fills": 609,
+            "all_hit_calls": 74
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 4883,
+            "gpu_fills": 79,
+            "all_hit_calls": 237
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5502,
+            "gpu_fills": 174,
+            "all_hit_calls": 183
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6047,
+            "gpu_fills": 471,
+            "all_hit_calls": 85
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6642,
+            "gpu_fills": 1060,
+            "all_hit_calls": 35
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5882,
+            "gpu_fills": 468,
+            "all_hit_calls": 88
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5806,
+            "gpu_fills": 454,
+            "all_hit_calls": 103
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6042,
+            "gpu_fills": 656,
+            "all_hit_calls": 83
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6807,
+            "gpu_fills": 1187,
+            "all_hit_calls": 41
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5147,
+            "gpu_fills": 251,
+            "all_hit_calls": 161
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5506,
+            "gpu_fills": 292,
+            "all_hit_calls": 133
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5566,
+            "gpu_fills": 363,
+            "all_hit_calls": 119
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6369,
+            "gpu_fills": 702,
+            "all_hit_calls": 62
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5616,
+            "gpu_fills": 370,
+            "all_hit_calls": 131
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5936,
+            "gpu_fills": 498,
+            "all_hit_calls": 92
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6225,
+            "gpu_fills": 529,
+            "all_hit_calls": 74
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6365,
+            "gpu_fills": 692,
+            "all_hit_calls": 60
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6750,
+            "gpu_fills": 786,
+            "all_hit_calls": 59
+          }
+        ],
+        "global_gpu": [
+          {
+            "calls": 296,
+            "unique_accesses": 8268,
+            "gpu_fills": 1201,
+            "all_hit_calls": 41,
+            "lfu_admitted": 364,
+            "forced_placements": 837,
+            "evictions": 1356
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 7273,
+            "gpu_fills": 1077,
+            "all_hit_calls": 37,
+            "lfu_admitted": 355,
+            "forced_placements": 722,
+            "evictions": 1210
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 7161,
+            "gpu_fills": 1020,
+            "all_hit_calls": 38,
+            "lfu_admitted": 346,
+            "forced_placements": 674,
+            "evictions": 1110
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6260,
+            "gpu_fills": 602,
+            "all_hit_calls": 66,
+            "lfu_admitted": 237,
+            "forced_placements": 365,
+            "evictions": 636
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6625,
+            "gpu_fills": 711,
+            "all_hit_calls": 55,
+            "lfu_admitted": 259,
+            "forced_placements": 452,
+            "evictions": 785
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6805,
+            "gpu_fills": 738,
+            "all_hit_calls": 57,
+            "lfu_admitted": 238,
+            "forced_placements": 500,
+            "evictions": 820
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6679,
+            "gpu_fills": 862,
+            "all_hit_calls": 57,
+            "lfu_admitted": 259,
+            "forced_placements": 603,
+            "evictions": 966
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6868,
+            "gpu_fills": 847,
+            "all_hit_calls": 50,
+            "lfu_admitted": 274,
+            "forced_placements": 573,
+            "evictions": 931
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5925,
+            "gpu_fills": 693,
+            "all_hit_calls": 48,
+            "lfu_admitted": 247,
+            "forced_placements": 446,
+            "evictions": 738
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5657,
+            "gpu_fills": 559,
+            "all_hit_calls": 66,
+            "lfu_admitted": 216,
+            "forced_placements": 343,
+            "evictions": 539
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6204,
+            "gpu_fills": 812,
+            "all_hit_calls": 46,
+            "lfu_admitted": 302,
+            "forced_placements": 510,
+            "evictions": 866
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5857,
+            "gpu_fills": 629,
+            "all_hit_calls": 61,
+            "lfu_admitted": 239,
+            "forced_placements": 390,
+            "evictions": 667
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6816,
+            "gpu_fills": 726,
+            "all_hit_calls": 60,
+            "lfu_admitted": 265,
+            "forced_placements": 461,
+            "evictions": 779
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6405,
+            "gpu_fills": 804,
+            "all_hit_calls": 34,
+            "lfu_admitted": 316,
+            "forced_placements": 488,
+            "evictions": 811
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6420,
+            "gpu_fills": 671,
+            "all_hit_calls": 44,
+            "lfu_admitted": 271,
+            "forced_placements": 400,
+            "evictions": 668
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 4810,
+            "gpu_fills": 341,
+            "all_hit_calls": 130,
+            "lfu_admitted": 162,
+            "forced_placements": 179,
+            "evictions": 288
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5371,
+            "gpu_fills": 402,
+            "all_hit_calls": 111,
+            "lfu_admitted": 180,
+            "forced_placements": 222,
+            "evictions": 371
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5938,
+            "gpu_fills": 521,
+            "all_hit_calls": 75,
+            "lfu_admitted": 228,
+            "forced_placements": 293,
+            "evictions": 500
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6840,
+            "gpu_fills": 743,
+            "all_hit_calls": 51,
+            "lfu_admitted": 267,
+            "forced_placements": 476,
+            "evictions": 811
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5951,
+            "gpu_fills": 609,
+            "all_hit_calls": 64,
+            "lfu_admitted": 280,
+            "forced_placements": 329,
+            "evictions": 574
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6044,
+            "gpu_fills": 594,
+            "all_hit_calls": 63,
+            "lfu_admitted": 229,
+            "forced_placements": 365,
+            "evictions": 604
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6257,
+            "gpu_fills": 803,
+            "all_hit_calls": 57,
+            "lfu_admitted": 318,
+            "forced_placements": 485,
+            "evictions": 854
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 7017,
+            "gpu_fills": 864,
+            "all_hit_calls": 57,
+            "lfu_admitted": 293,
+            "forced_placements": 571,
+            "evictions": 986
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5609,
+            "gpu_fills": 552,
+            "all_hit_calls": 84,
+            "lfu_admitted": 234,
+            "forced_placements": 318,
+            "evictions": 533
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6034,
+            "gpu_fills": 641,
+            "all_hit_calls": 46,
+            "lfu_admitted": 266,
+            "forced_placements": 375,
+            "evictions": 654
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5739,
+            "gpu_fills": 533,
+            "all_hit_calls": 75,
+            "lfu_admitted": 212,
+            "forced_placements": 321,
+            "evictions": 523
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6324,
+            "gpu_fills": 735,
+            "all_hit_calls": 48,
+            "lfu_admitted": 281,
+            "forced_placements": 454,
+            "evictions": 750
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6078,
+            "gpu_fills": 588,
+            "all_hit_calls": 65,
+            "lfu_admitted": 240,
+            "forced_placements": 348,
+            "evictions": 563
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6701,
+            "gpu_fills": 689,
+            "all_hit_calls": 62,
+            "lfu_admitted": 249,
+            "forced_placements": 440,
+            "evictions": 741
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6430,
+            "gpu_fills": 708,
+            "all_hit_calls": 53,
+            "lfu_admitted": 269,
+            "forced_placements": 439,
+            "evictions": 712
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6271,
+            "gpu_fills": 679,
+            "all_hit_calls": 64,
+            "lfu_admitted": 300,
+            "forced_placements": 379,
+            "evictions": 646
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 4883,
+            "gpu_fills": 326,
+            "all_hit_calls": 140,
+            "lfu_admitted": 129,
+            "forced_placements": 197,
+            "evictions": 317
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5502,
+            "gpu_fills": 420,
+            "all_hit_calls": 111,
+            "lfu_admitted": 187,
+            "forced_placements": 233,
+            "evictions": 398
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6047,
+            "gpu_fills": 579,
+            "all_hit_calls": 63,
+            "lfu_admitted": 266,
+            "forced_placements": 313,
+            "evictions": 560
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6642,
+            "gpu_fills": 778,
+            "all_hit_calls": 53,
+            "lfu_admitted": 295,
+            "forced_placements": 483,
+            "evictions": 828
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5882,
+            "gpu_fills": 609,
+            "all_hit_calls": 60,
+            "lfu_admitted": 247,
+            "forced_placements": 362,
+            "evictions": 616
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5806,
+            "gpu_fills": 594,
+            "all_hit_calls": 75,
+            "lfu_admitted": 241,
+            "forced_placements": 353,
+            "evictions": 592
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6042,
+            "gpu_fills": 637,
+            "all_hit_calls": 85,
+            "lfu_admitted": 248,
+            "forced_placements": 389,
+            "evictions": 683
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6807,
+            "gpu_fills": 713,
+            "all_hit_calls": 72,
+            "lfu_admitted": 261,
+            "forced_placements": 452,
+            "evictions": 799
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5147,
+            "gpu_fills": 521,
+            "all_hit_calls": 98,
+            "lfu_admitted": 242,
+            "forced_placements": 279,
+            "evictions": 481
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5506,
+            "gpu_fills": 517,
+            "all_hit_calls": 91,
+            "lfu_admitted": 210,
+            "forced_placements": 307,
+            "evictions": 494
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5566,
+            "gpu_fills": 574,
+            "all_hit_calls": 78,
+            "lfu_admitted": 229,
+            "forced_placements": 345,
+            "evictions": 566
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6369,
+            "gpu_fills": 689,
+            "all_hit_calls": 66,
+            "lfu_admitted": 296,
+            "forced_placements": 393,
+            "evictions": 693
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5616,
+            "gpu_fills": 579,
+            "all_hit_calls": 88,
+            "lfu_admitted": 237,
+            "forced_placements": 342,
+            "evictions": 594
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 5936,
+            "gpu_fills": 633,
+            "all_hit_calls": 64,
+            "lfu_admitted": 252,
+            "forced_placements": 381,
+            "evictions": 666
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6225,
+            "gpu_fills": 612,
+            "all_hit_calls": 63,
+            "lfu_admitted": 238,
+            "forced_placements": 374,
+            "evictions": 633
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6365,
+            "gpu_fills": 681,
+            "all_hit_calls": 60,
+            "lfu_admitted": 266,
+            "forced_placements": 415,
+            "evictions": 724
+          },
+          {
+            "calls": 296,
+            "unique_accesses": 6750,
+            "gpu_fills": 726,
+            "all_hit_calls": 58,
+            "lfu_admitted": 266,
+            "forced_placements": 460,
+            "evictions": 798
+          }
+        ]
+      },
+      "global_warmup_occupancy": [
+        273,
+        217,
+        211,
+        131,
+        152,
+        166,
+        190,
+        204,
+        141,
+        119,
+        165,
+        142,
+        175,
+        159,
+        132,
+        66,
+        95,
+        133,
+        188,
+        141,
+        147,
+        180,
+        200,
+        94,
+        142,
+        114,
+        158,
+        133,
+        170,
+        153,
+        146,
+        56,
+        94,
+        139,
+        199,
+        137,
+        137,
+        157,
+        183,
+        82,
+        90,
+        117,
+        146,
+        107,
+        129,
+        117,
+        132,
+        146
+      ],
+      "global_final_occupancy": [
+        190,
+        161,
+        141,
+        116,
+        118,
+        120,
+        122,
+        130,
+        103,
+        115,
+        132,
+        115,
+        125,
+        138,
+        139,
+        69,
+        84,
+        107,
+        129,
+        109,
+        105,
+        121,
+        129,
+        101,
+        119,
+        102,
+        132,
+        120,
+        126,
+        136,
+        135,
+        61,
+        87,
+        103,
+        136,
+        108,
+        117,
+        103,
+        123,
+        106,
+        111,
+        110,
+        140,
+        115,
+        128,
+        125,
+        123,
+        128
+      ],
+      "case": "short",
+      "budget": 7006,
+      "transfer_delta_fraction": -0.08165714285714287
+    },
+    {
+      "layout": [
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        145,
+        145
+      ],
+      "global_reserved_slots": 1,
+      "scored_sweeps": 314,
+      "warmup_sweeps": 128,
+      "results": {
+        "per_layer_gpu": {
+          "calls": 15072,
+          "unique_accesses": 318988,
+          "gpu_fills": 37413,
+          "all_hit_calls": 4310,
+          "hit_fraction": 0.8827134563055663,
+          "expert_h2d_bytes": 103439462400
+        },
+        "global_gpu": {
+          "calls": 15072,
+          "unique_accesses": 318988,
+          "gpu_fills": 32969,
+          "all_hit_calls": 3519,
+          "lfu_admitted": 22037,
+          "forced_placements": 10932,
+          "evictions": 33020,
+          "hit_fraction": 0.8966450148594931,
+          "expert_h2d_bytes": 91152691200
+        }
+      },
+      "per_layer": {
+        "per_layer_gpu": [
+          {
+            "calls": 314,
+            "unique_accesses": 8857,
+            "gpu_fills": 2739,
+            "all_hit_calls": 0
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 8338,
+            "gpu_fills": 2464,
+            "all_hit_calls": 1
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 8386,
+            "gpu_fills": 2556,
+            "all_hit_calls": 0
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7324,
+            "gpu_fills": 721,
+            "all_hit_calls": 57
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7441,
+            "gpu_fills": 709,
+            "all_hit_calls": 58
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7398,
+            "gpu_fills": 1007,
+            "all_hit_calls": 36
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7662,
+            "gpu_fills": 1602,
+            "all_hit_calls": 2
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7742,
+            "gpu_fills": 1696,
+            "all_hit_calls": 9
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6581,
+            "gpu_fills": 740,
+            "all_hit_calls": 54
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6073,
+            "gpu_fills": 317,
+            "all_hit_calls": 136
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6976,
+            "gpu_fills": 1089,
+            "all_hit_calls": 31
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6531,
+            "gpu_fills": 599,
+            "all_hit_calls": 79
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7637,
+            "gpu_fills": 1136,
+            "all_hit_calls": 14
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6742,
+            "gpu_fills": 1013,
+            "all_hit_calls": 30
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6547,
+            "gpu_fills": 501,
+            "all_hit_calls": 90
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 4892,
+            "gpu_fills": 40,
+            "all_hit_calls": 280
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 5345,
+            "gpu_fills": 78,
+            "all_hit_calls": 254
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6484,
+            "gpu_fills": 498,
+            "all_hit_calls": 89
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7623,
+            "gpu_fills": 1357,
+            "all_hit_calls": 11
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6324,
+            "gpu_fills": 550,
+            "all_hit_calls": 72
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6634,
+            "gpu_fills": 571,
+            "all_hit_calls": 82
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7084,
+            "gpu_fills": 1030,
+            "all_hit_calls": 30
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7955,
+            "gpu_fills": 1416,
+            "all_hit_calls": 8
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 5876,
+            "gpu_fills": 288,
+            "all_hit_calls": 172
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6526,
+            "gpu_fills": 600,
+            "all_hit_calls": 68
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6039,
+            "gpu_fills": 249,
+            "all_hit_calls": 162
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6719,
+            "gpu_fills": 688,
+            "all_hit_calls": 65
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6481,
+            "gpu_fills": 477,
+            "all_hit_calls": 93
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7262,
+            "gpu_fills": 942,
+            "all_hit_calls": 27
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6582,
+            "gpu_fills": 788,
+            "all_hit_calls": 41
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6384,
+            "gpu_fills": 470,
+            "all_hit_calls": 93
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 4832,
+            "gpu_fills": 50,
+            "all_hit_calls": 273
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 5273,
+            "gpu_fills": 133,
+            "all_hit_calls": 226
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6254,
+            "gpu_fills": 551,
+            "all_hit_calls": 74
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7327,
+            "gpu_fills": 1198,
+            "all_hit_calls": 17
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6252,
+            "gpu_fills": 504,
+            "all_hit_calls": 99
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6177,
+            "gpu_fills": 461,
+            "all_hit_calls": 102
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6664,
+            "gpu_fills": 602,
+            "all_hit_calls": 75
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7646,
+            "gpu_fills": 871,
+            "all_hit_calls": 45
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 4940,
+            "gpu_fills": 122,
+            "all_hit_calls": 229
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 5380,
+            "gpu_fills": 240,
+            "all_hit_calls": 181
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 5907,
+            "gpu_fills": 457,
+            "all_hit_calls": 107
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6566,
+            "gpu_fills": 412,
+            "all_hit_calls": 135
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 5648,
+            "gpu_fills": 376,
+            "all_hit_calls": 155
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 5976,
+            "gpu_fills": 304,
+            "all_hit_calls": 169
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6160,
+            "gpu_fills": 668,
+            "all_hit_calls": 113
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6623,
+            "gpu_fills": 773,
+            "all_hit_calls": 78
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6918,
+            "gpu_fills": 760,
+            "all_hit_calls": 88
+          }
+        ],
+        "global_gpu": [
+          {
+            "calls": 314,
+            "unique_accesses": 8857,
+            "gpu_fills": 1200,
+            "all_hit_calls": 34,
+            "lfu_admitted": 785,
+            "forced_placements": 415,
+            "evictions": 1184
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 8338,
+            "gpu_fills": 1222,
+            "all_hit_calls": 20,
+            "lfu_admitted": 802,
+            "forced_placements": 420,
+            "evictions": 1217
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 8386,
+            "gpu_fills": 1247,
+            "all_hit_calls": 20,
+            "lfu_admitted": 845,
+            "forced_placements": 402,
+            "evictions": 1229
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7324,
+            "gpu_fills": 722,
+            "all_hit_calls": 54,
+            "lfu_admitted": 505,
+            "forced_placements": 217,
+            "evictions": 700
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7441,
+            "gpu_fills": 694,
+            "all_hit_calls": 59,
+            "lfu_admitted": 493,
+            "forced_placements": 201,
+            "evictions": 664
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7398,
+            "gpu_fills": 780,
+            "all_hit_calls": 56,
+            "lfu_admitted": 514,
+            "forced_placements": 266,
+            "evictions": 789
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7662,
+            "gpu_fills": 1026,
+            "all_hit_calls": 17,
+            "lfu_admitted": 703,
+            "forced_placements": 323,
+            "evictions": 1029
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7742,
+            "gpu_fills": 917,
+            "all_hit_calls": 36,
+            "lfu_admitted": 621,
+            "forced_placements": 296,
+            "evictions": 892
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6581,
+            "gpu_fills": 714,
+            "all_hit_calls": 54,
+            "lfu_admitted": 461,
+            "forced_placements": 253,
+            "evictions": 744
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6073,
+            "gpu_fills": 529,
+            "all_hit_calls": 72,
+            "lfu_admitted": 351,
+            "forced_placements": 178,
+            "evictions": 529
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6976,
+            "gpu_fills": 886,
+            "all_hit_calls": 41,
+            "lfu_admitted": 606,
+            "forced_placements": 280,
+            "evictions": 888
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6531,
+            "gpu_fills": 663,
+            "all_hit_calls": 64,
+            "lfu_admitted": 451,
+            "forced_placements": 212,
+            "evictions": 645
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7637,
+            "gpu_fills": 749,
+            "all_hit_calls": 45,
+            "lfu_admitted": 487,
+            "forced_placements": 262,
+            "evictions": 760
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6742,
+            "gpu_fills": 820,
+            "all_hit_calls": 45,
+            "lfu_admitted": 543,
+            "forced_placements": 277,
+            "evictions": 839
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6547,
+            "gpu_fills": 602,
+            "all_hit_calls": 66,
+            "lfu_admitted": 413,
+            "forced_placements": 189,
+            "evictions": 604
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 4892,
+            "gpu_fills": 252,
+            "all_hit_calls": 179,
+            "lfu_admitted": 170,
+            "forced_placements": 82,
+            "evictions": 257
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 5345,
+            "gpu_fills": 342,
+            "all_hit_calls": 141,
+            "lfu_admitted": 245,
+            "forced_placements": 97,
+            "evictions": 330
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6484,
+            "gpu_fills": 592,
+            "all_hit_calls": 68,
+            "lfu_admitted": 399,
+            "forced_placements": 193,
+            "evictions": 585
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7623,
+            "gpu_fills": 799,
+            "all_hit_calls": 46,
+            "lfu_admitted": 519,
+            "forced_placements": 280,
+            "evictions": 834
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6324,
+            "gpu_fills": 661,
+            "all_hit_calls": 55,
+            "lfu_admitted": 435,
+            "forced_placements": 226,
+            "evictions": 668
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6634,
+            "gpu_fills": 625,
+            "all_hit_calls": 76,
+            "lfu_admitted": 425,
+            "forced_placements": 200,
+            "evictions": 635
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7084,
+            "gpu_fills": 773,
+            "all_hit_calls": 58,
+            "lfu_admitted": 514,
+            "forced_placements": 259,
+            "evictions": 786
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7955,
+            "gpu_fills": 830,
+            "all_hit_calls": 46,
+            "lfu_admitted": 560,
+            "forced_placements": 270,
+            "evictions": 801
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 5876,
+            "gpu_fills": 517,
+            "all_hit_calls": 105,
+            "lfu_admitted": 350,
+            "forced_placements": 167,
+            "evictions": 521
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6526,
+            "gpu_fills": 643,
+            "all_hit_calls": 59,
+            "lfu_admitted": 440,
+            "forced_placements": 203,
+            "evictions": 634
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6039,
+            "gpu_fills": 474,
+            "all_hit_calls": 92,
+            "lfu_admitted": 318,
+            "forced_placements": 156,
+            "evictions": 478
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6719,
+            "gpu_fills": 705,
+            "all_hit_calls": 66,
+            "lfu_admitted": 465,
+            "forced_placements": 240,
+            "evictions": 739
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6481,
+            "gpu_fills": 598,
+            "all_hit_calls": 65,
+            "lfu_admitted": 395,
+            "forced_placements": 203,
+            "evictions": 624
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7262,
+            "gpu_fills": 748,
+            "all_hit_calls": 48,
+            "lfu_admitted": 490,
+            "forced_placements": 258,
+            "evictions": 766
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6582,
+            "gpu_fills": 762,
+            "all_hit_calls": 46,
+            "lfu_admitted": 504,
+            "forced_placements": 258,
+            "evictions": 741
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6384,
+            "gpu_fills": 593,
+            "all_hit_calls": 71,
+            "lfu_admitted": 414,
+            "forced_placements": 179,
+            "evictions": 604
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 4832,
+            "gpu_fills": 248,
+            "all_hit_calls": 178,
+            "lfu_admitted": 175,
+            "forced_placements": 73,
+            "evictions": 245
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 5273,
+            "gpu_fills": 401,
+            "all_hit_calls": 130,
+            "lfu_admitted": 282,
+            "forced_placements": 119,
+            "evictions": 390
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6254,
+            "gpu_fills": 637,
+            "all_hit_calls": 60,
+            "lfu_admitted": 444,
+            "forced_placements": 193,
+            "evictions": 633
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7327,
+            "gpu_fills": 764,
+            "all_hit_calls": 59,
+            "lfu_admitted": 506,
+            "forced_placements": 258,
+            "evictions": 788
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6252,
+            "gpu_fills": 607,
+            "all_hit_calls": 76,
+            "lfu_admitted": 404,
+            "forced_placements": 203,
+            "evictions": 629
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6177,
+            "gpu_fills": 599,
+            "all_hit_calls": 75,
+            "lfu_admitted": 394,
+            "forced_placements": 205,
+            "evictions": 593
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6664,
+            "gpu_fills": 605,
+            "all_hit_calls": 72,
+            "lfu_admitted": 380,
+            "forced_placements": 225,
+            "evictions": 607
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 7646,
+            "gpu_fills": 683,
+            "all_hit_calls": 72,
+            "lfu_admitted": 421,
+            "forced_placements": 262,
+            "evictions": 710
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 4940,
+            "gpu_fills": 403,
+            "all_hit_calls": 141,
+            "lfu_admitted": 275,
+            "forced_placements": 128,
+            "evictions": 378
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 5380,
+            "gpu_fills": 507,
+            "all_hit_calls": 102,
+            "lfu_admitted": 361,
+            "forced_placements": 146,
+            "evictions": 485
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 5907,
+            "gpu_fills": 648,
+            "all_hit_calls": 68,
+            "lfu_admitted": 462,
+            "forced_placements": 186,
+            "evictions": 654
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6566,
+            "gpu_fills": 553,
+            "all_hit_calls": 104,
+            "lfu_admitted": 360,
+            "forced_placements": 193,
+            "evictions": 559
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 5648,
+            "gpu_fills": 603,
+            "all_hit_calls": 103,
+            "lfu_admitted": 415,
+            "forced_placements": 188,
+            "evictions": 565
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 5976,
+            "gpu_fills": 572,
+            "all_hit_calls": 113,
+            "lfu_admitted": 387,
+            "forced_placements": 185,
+            "evictions": 574
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6160,
+            "gpu_fills": 799,
+            "all_hit_calls": 98,
+            "lfu_admitted": 518,
+            "forced_placements": 281,
+            "evictions": 821
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6623,
+            "gpu_fills": 817,
+            "all_hit_calls": 80,
+            "lfu_admitted": 520,
+            "forced_placements": 297,
+            "evictions": 836
+          },
+          {
+            "calls": 314,
+            "unique_accesses": 6918,
+            "gpu_fills": 838,
+            "all_hit_calls": 84,
+            "lfu_admitted": 510,
+            "forced_placements": 328,
+            "evictions": 837
+          }
+        ]
+      },
+      "global_warmup_occupancy": [
+        231,
+        213,
+        230,
+        131,
+        152,
+        172,
+        196,
+        213,
+        156,
+        106,
+        172,
+        138,
+        175,
+        179,
+        141,
+        70,
+        91,
+        132,
+        195,
+        161,
+        150,
+        164,
+        176,
+        114,
+        144,
+        111,
+        148,
+        141,
+        167,
+        163,
+        141,
+        74,
+        101,
+        135,
+        195,
+        153,
+        132,
+        155,
+        160,
+        90,
+        95,
+        126,
+        115,
+        107,
+        102,
+        123,
+        113,
+        106
+      ],
+      "global_final_occupancy": [
+        253,
+        254,
+        250,
+        152,
+        151,
+        168,
+        197,
+        206,
+        155,
+        112,
+        165,
+        144,
+        179,
+        164,
+        135,
+        56,
+        83,
+        138,
+        198,
+        131,
+        130,
+        168,
+        204,
+        87,
+        141,
+        97,
+        136,
+        120,
+        159,
+        153,
+        123,
+        55,
+        90,
+        130,
+        187,
+        139,
+        136,
+        149,
+        177,
+        81,
+        96,
+        115,
+        122,
+        101,
+        104,
+        127,
+        139,
+        147
+      ],
+      "case": "raft",
+      "budget": 7006,
+      "transfer_delta_fraction": -0.11878224146686978
+    },
+    {
+      "layout": [
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        145,
+        145
+      ],
+      "global_reserved_slots": 1,
+      "scored_sweeps": 274,
+      "warmup_sweeps": 128,
+      "results": {
+        "per_layer_gpu": {
+          "calls": 13152,
+          "unique_accesses": 292511,
+          "gpu_fills": 34089,
+          "all_hit_calls": 3644,
+          "hit_fraction": 0.8834607929274455,
+          "expert_h2d_bytes": 94249267200
+        },
+        "global_gpu": {
+          "calls": 13152,
+          "unique_accesses": 292511,
+          "gpu_fills": 29591,
+          "all_hit_calls": 3210,
+          "lfu_admitted": 11646,
+          "forced_placements": 17945,
+          "evictions": 30392,
+          "hit_fraction": 0.8988379924173792,
+          "expert_h2d_bytes": 81813196800
+        }
+      },
+      "per_layer": {
+        "per_layer_gpu": [
+          {
+            "calls": 274,
+            "unique_accesses": 7905,
+            "gpu_fills": 2610,
+            "all_hit_calls": 4
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 7185,
+            "gpu_fills": 1762,
+            "all_hit_calls": 3
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 7230,
+            "gpu_fills": 1910,
+            "all_hit_calls": 2
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6538,
+            "gpu_fills": 820,
+            "all_hit_calls": 47
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6971,
+            "gpu_fills": 1095,
+            "all_hit_calls": 20
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6864,
+            "gpu_fills": 1236,
+            "all_hit_calls": 7
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6720,
+            "gpu_fills": 1372,
+            "all_hit_calls": 5
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6777,
+            "gpu_fills": 1354,
+            "all_hit_calls": 12
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5822,
+            "gpu_fills": 594,
+            "all_hit_calls": 61
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5680,
+            "gpu_fills": 450,
+            "all_hit_calls": 87
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5927,
+            "gpu_fills": 672,
+            "all_hit_calls": 44
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5604,
+            "gpu_fills": 423,
+            "all_hit_calls": 98
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6755,
+            "gpu_fills": 949,
+            "all_hit_calls": 28
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6120,
+            "gpu_fills": 752,
+            "all_hit_calls": 41
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6128,
+            "gpu_fills": 520,
+            "all_hit_calls": 63
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 4774,
+            "gpu_fills": 149,
+            "all_hit_calls": 194
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 4623,
+            "gpu_fills": 170,
+            "all_hit_calls": 187
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5733,
+            "gpu_fills": 367,
+            "all_hit_calls": 114
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6589,
+            "gpu_fills": 1000,
+            "all_hit_calls": 19
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5866,
+            "gpu_fills": 379,
+            "all_hit_calls": 123
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6017,
+            "gpu_fills": 495,
+            "all_hit_calls": 84
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6308,
+            "gpu_fills": 948,
+            "all_hit_calls": 37
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 7007,
+            "gpu_fills": 1533,
+            "all_hit_calls": 8
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5843,
+            "gpu_fills": 558,
+            "all_hit_calls": 80
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5839,
+            "gpu_fills": 497,
+            "all_hit_calls": 80
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5699,
+            "gpu_fills": 301,
+            "all_hit_calls": 127
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5907,
+            "gpu_fills": 611,
+            "all_hit_calls": 43
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5711,
+            "gpu_fills": 336,
+            "all_hit_calls": 118
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6345,
+            "gpu_fills": 694,
+            "all_hit_calls": 47
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6027,
+            "gpu_fills": 606,
+            "all_hit_calls": 63
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5780,
+            "gpu_fills": 333,
+            "all_hit_calls": 123
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5012,
+            "gpu_fills": 135,
+            "all_hit_calls": 190
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 4909,
+            "gpu_fills": 143,
+            "all_hit_calls": 182
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5692,
+            "gpu_fills": 367,
+            "all_hit_calls": 122
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6364,
+            "gpu_fills": 811,
+            "all_hit_calls": 43
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5704,
+            "gpu_fills": 363,
+            "all_hit_calls": 124
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5647,
+            "gpu_fills": 311,
+            "all_hit_calls": 115
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6074,
+            "gpu_fills": 540,
+            "all_hit_calls": 90
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6814,
+            "gpu_fills": 1189,
+            "all_hit_calls": 21
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5432,
+            "gpu_fills": 386,
+            "all_hit_calls": 120
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5478,
+            "gpu_fills": 343,
+            "all_hit_calls": 124
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5943,
+            "gpu_fills": 584,
+            "all_hit_calls": 68
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6424,
+            "gpu_fills": 539,
+            "all_hit_calls": 82
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5814,
+            "gpu_fills": 525,
+            "all_hit_calls": 83
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5844,
+            "gpu_fills": 511,
+            "all_hit_calls": 94
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6044,
+            "gpu_fills": 548,
+            "all_hit_calls": 79
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6173,
+            "gpu_fills": 564,
+            "all_hit_calls": 74
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6849,
+            "gpu_fills": 734,
+            "all_hit_calls": 64
+          }
+        ],
+        "global_gpu": [
+          {
+            "calls": 274,
+            "unique_accesses": 7905,
+            "gpu_fills": 1032,
+            "all_hit_calls": 43,
+            "lfu_admitted": 426,
+            "forced_placements": 606,
+            "evictions": 1056
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 7185,
+            "gpu_fills": 880,
+            "all_hit_calls": 24,
+            "lfu_admitted": 365,
+            "forced_placements": 515,
+            "evictions": 897
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 7230,
+            "gpu_fills": 842,
+            "all_hit_calls": 31,
+            "lfu_admitted": 331,
+            "forced_placements": 511,
+            "evictions": 877
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6538,
+            "gpu_fills": 757,
+            "all_hit_calls": 53,
+            "lfu_admitted": 285,
+            "forced_placements": 472,
+            "evictions": 795
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6971,
+            "gpu_fills": 790,
+            "all_hit_calls": 43,
+            "lfu_admitted": 326,
+            "forced_placements": 464,
+            "evictions": 779
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6864,
+            "gpu_fills": 790,
+            "all_hit_calls": 36,
+            "lfu_admitted": 309,
+            "forced_placements": 481,
+            "evictions": 793
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6720,
+            "gpu_fills": 812,
+            "all_hit_calls": 40,
+            "lfu_admitted": 323,
+            "forced_placements": 489,
+            "evictions": 814
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6777,
+            "gpu_fills": 815,
+            "all_hit_calls": 35,
+            "lfu_admitted": 334,
+            "forced_placements": 481,
+            "evictions": 836
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5822,
+            "gpu_fills": 590,
+            "all_hit_calls": 61,
+            "lfu_admitted": 252,
+            "forced_placements": 338,
+            "evictions": 585
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5680,
+            "gpu_fills": 582,
+            "all_hit_calls": 62,
+            "lfu_admitted": 268,
+            "forced_placements": 314,
+            "evictions": 569
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5927,
+            "gpu_fills": 641,
+            "all_hit_calls": 49,
+            "lfu_admitted": 274,
+            "forced_placements": 367,
+            "evictions": 626
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5604,
+            "gpu_fills": 557,
+            "all_hit_calls": 69,
+            "lfu_admitted": 243,
+            "forced_placements": 314,
+            "evictions": 557
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6755,
+            "gpu_fills": 618,
+            "all_hit_calls": 61,
+            "lfu_admitted": 248,
+            "forced_placements": 370,
+            "evictions": 606
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6120,
+            "gpu_fills": 648,
+            "all_hit_calls": 53,
+            "lfu_admitted": 250,
+            "forced_placements": 398,
+            "evictions": 668
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6128,
+            "gpu_fills": 550,
+            "all_hit_calls": 58,
+            "lfu_admitted": 244,
+            "forced_placements": 306,
+            "evictions": 550
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 4774,
+            "gpu_fills": 315,
+            "all_hit_calls": 150,
+            "lfu_admitted": 135,
+            "forced_placements": 180,
+            "evictions": 307
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 4623,
+            "gpu_fills": 383,
+            "all_hit_calls": 117,
+            "lfu_admitted": 176,
+            "forced_placements": 207,
+            "evictions": 366
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5733,
+            "gpu_fills": 509,
+            "all_hit_calls": 72,
+            "lfu_admitted": 227,
+            "forced_placements": 282,
+            "evictions": 526
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6589,
+            "gpu_fills": 696,
+            "all_hit_calls": 51,
+            "lfu_admitted": 298,
+            "forced_placements": 398,
+            "evictions": 693
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5866,
+            "gpu_fills": 527,
+            "all_hit_calls": 80,
+            "lfu_admitted": 189,
+            "forced_placements": 338,
+            "evictions": 546
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6017,
+            "gpu_fills": 573,
+            "all_hit_calls": 64,
+            "lfu_admitted": 244,
+            "forced_placements": 329,
+            "evictions": 578
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6308,
+            "gpu_fills": 765,
+            "all_hit_calls": 53,
+            "lfu_admitted": 281,
+            "forced_placements": 484,
+            "evictions": 795
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 7007,
+            "gpu_fills": 823,
+            "all_hit_calls": 47,
+            "lfu_admitted": 319,
+            "forced_placements": 504,
+            "evictions": 849
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5843,
+            "gpu_fills": 654,
+            "all_hit_calls": 67,
+            "lfu_admitted": 253,
+            "forced_placements": 401,
+            "evictions": 676
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5839,
+            "gpu_fills": 546,
+            "all_hit_calls": 65,
+            "lfu_admitted": 220,
+            "forced_placements": 326,
+            "evictions": 575
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5699,
+            "gpu_fills": 443,
+            "all_hit_calls": 89,
+            "lfu_admitted": 183,
+            "forced_placements": 260,
+            "evictions": 439
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5907,
+            "gpu_fills": 627,
+            "all_hit_calls": 41,
+            "lfu_admitted": 252,
+            "forced_placements": 375,
+            "evictions": 644
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5711,
+            "gpu_fills": 479,
+            "all_hit_calls": 76,
+            "lfu_admitted": 171,
+            "forced_placements": 308,
+            "evictions": 505
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6345,
+            "gpu_fills": 624,
+            "all_hit_calls": 63,
+            "lfu_admitted": 240,
+            "forced_placements": 384,
+            "evictions": 622
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6027,
+            "gpu_fills": 622,
+            "all_hit_calls": 49,
+            "lfu_admitted": 222,
+            "forced_placements": 400,
+            "evictions": 651
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5780,
+            "gpu_fills": 492,
+            "all_hit_calls": 80,
+            "lfu_admitted": 171,
+            "forced_placements": 321,
+            "evictions": 519
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5012,
+            "gpu_fills": 345,
+            "all_hit_calls": 124,
+            "lfu_admitted": 134,
+            "forced_placements": 211,
+            "evictions": 354
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 4909,
+            "gpu_fills": 380,
+            "all_hit_calls": 106,
+            "lfu_admitted": 140,
+            "forced_placements": 240,
+            "evictions": 400
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5692,
+            "gpu_fills": 509,
+            "all_hit_calls": 79,
+            "lfu_admitted": 167,
+            "forced_placements": 342,
+            "evictions": 548
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6364,
+            "gpu_fills": 648,
+            "all_hit_calls": 68,
+            "lfu_admitted": 249,
+            "forced_placements": 399,
+            "evictions": 677
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5704,
+            "gpu_fills": 503,
+            "all_hit_calls": 84,
+            "lfu_admitted": 183,
+            "forced_placements": 320,
+            "evictions": 521
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5647,
+            "gpu_fills": 477,
+            "all_hit_calls": 80,
+            "lfu_admitted": 195,
+            "forced_placements": 282,
+            "evictions": 510
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6074,
+            "gpu_fills": 576,
+            "all_hit_calls": 80,
+            "lfu_admitted": 199,
+            "forced_placements": 377,
+            "evictions": 590
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6814,
+            "gpu_fills": 747,
+            "all_hit_calls": 55,
+            "lfu_admitted": 251,
+            "forced_placements": 496,
+            "evictions": 815
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5432,
+            "gpu_fills": 554,
+            "all_hit_calls": 96,
+            "lfu_admitted": 222,
+            "forced_placements": 332,
+            "evictions": 570
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5478,
+            "gpu_fills": 543,
+            "all_hit_calls": 74,
+            "lfu_admitted": 231,
+            "forced_placements": 312,
+            "evictions": 547
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5943,
+            "gpu_fills": 651,
+            "all_hit_calls": 59,
+            "lfu_admitted": 246,
+            "forced_placements": 405,
+            "evictions": 674
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6424,
+            "gpu_fills": 550,
+            "all_hit_calls": 73,
+            "lfu_admitted": 205,
+            "forced_placements": 345,
+            "evictions": 582
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5814,
+            "gpu_fills": 651,
+            "all_hit_calls": 60,
+            "lfu_admitted": 250,
+            "forced_placements": 401,
+            "evictions": 678
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 5844,
+            "gpu_fills": 611,
+            "all_hit_calls": 74,
+            "lfu_admitted": 228,
+            "forced_placements": 383,
+            "evictions": 659
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6044,
+            "gpu_fills": 640,
+            "all_hit_calls": 73,
+            "lfu_admitted": 256,
+            "forced_placements": 384,
+            "evictions": 653
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6173,
+            "gpu_fills": 603,
+            "all_hit_calls": 68,
+            "lfu_admitted": 214,
+            "forced_placements": 389,
+            "evictions": 643
+          },
+          {
+            "calls": 274,
+            "unique_accesses": 6849,
+            "gpu_fills": 621,
+            "all_hit_calls": 75,
+            "lfu_admitted": 217,
+            "forced_placements": 404,
+            "evictions": 672
+          }
+        ]
+      },
+      "global_warmup_occupancy": [
+        242,
+        191,
+        196,
+        131,
+        154,
+        167,
+        179,
+        177,
+        153,
+        151,
+        149,
+        142,
+        172,
+        171,
+        151,
+        101,
+        107,
+        152,
+        176,
+        130,
+        140,
+        147,
+        171,
+        138,
+        150,
+        140,
+        145,
+        129,
+        154,
+        142,
+        118,
+        89,
+        96,
+        133,
+        169,
+        118,
+        126,
+        136,
+        171,
+        108,
+        118,
+        147,
+        150,
+        135,
+        137,
+        127,
+        134,
+        145
+      ],
+      "global_final_occupancy": [
+        214,
+        196,
+        191,
+        143,
+        152,
+        174,
+        181,
+        186,
+        138,
+        111,
+        131,
+        111,
+        176,
+        136,
+        128,
+        70,
+        77,
+        105,
+        161,
+        119,
+        113,
+        147,
+        177,
+        107,
+        122,
+        98,
+        135,
+        102,
+        155,
+        129,
+        103,
+        76,
+        81,
+        102,
+        147,
+        112,
+        103,
+        134,
+        164,
+        91,
+        91,
+        116,
+        124,
+        96,
+        101,
+        112,
+        132,
+        134
+      ],
+      "case": "long-0",
+      "budget": 7006,
+      "transfer_delta_fraction": -0.13194872246179123
+    },
+    {
+      "layout": [
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        146,
+        145,
+        145
+      ],
+      "global_reserved_slots": 1,
+      "scored_sweeps": 312,
+      "warmup_sweeps": 128,
+      "results": {
+        "per_layer_gpu": {
+          "calls": 14976,
+          "unique_accesses": 332344,
+          "gpu_fills": 45426,
+          "all_hit_calls": 3152,
+          "hit_fraction": 0.8633163228462075,
+          "expert_h2d_bytes": 125593804800
+        },
+        "global_gpu": {
+          "calls": 14976,
+          "unique_accesses": 332344,
+          "gpu_fills": 40492,
+          "all_hit_calls": 2727,
+          "lfu_admitted": 5953,
+          "forced_placements": 34539,
+          "evictions": 39888,
+          "hit_fraction": 0.8781623859615338,
+          "expert_h2d_bytes": 111952281600
+        }
+      },
+      "per_layer": {
+        "per_layer_gpu": [
+          {
+            "calls": 312,
+            "unique_accesses": 8902,
+            "gpu_fills": 3556,
+            "all_hit_calls": 0
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 8061,
+            "gpu_fills": 2346,
+            "all_hit_calls": 0
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 8074,
+            "gpu_fills": 2294,
+            "all_hit_calls": 0
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6985,
+            "gpu_fills": 818,
+            "all_hit_calls": 50
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7462,
+            "gpu_fills": 1077,
+            "all_hit_calls": 34
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7579,
+            "gpu_fills": 1539,
+            "all_hit_calls": 14
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7649,
+            "gpu_fills": 1912,
+            "all_hit_calls": 1
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7561,
+            "gpu_fills": 1846,
+            "all_hit_calls": 5
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6705,
+            "gpu_fills": 990,
+            "all_hit_calls": 26
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6332,
+            "gpu_fills": 669,
+            "all_hit_calls": 76
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6898,
+            "gpu_fills": 1128,
+            "all_hit_calls": 28
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6601,
+            "gpu_fills": 678,
+            "all_hit_calls": 64
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7709,
+            "gpu_fills": 1400,
+            "all_hit_calls": 9
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6906,
+            "gpu_fills": 1077,
+            "all_hit_calls": 27
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6943,
+            "gpu_fills": 820,
+            "all_hit_calls": 46
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 5812,
+            "gpu_fills": 281,
+            "all_hit_calls": 179
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 5906,
+            "gpu_fills": 271,
+            "all_hit_calls": 170
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6792,
+            "gpu_fills": 646,
+            "all_hit_calls": 71
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7526,
+            "gpu_fills": 1328,
+            "all_hit_calls": 11
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6640,
+            "gpu_fills": 510,
+            "all_hit_calls": 92
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6816,
+            "gpu_fills": 576,
+            "all_hit_calls": 93
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7242,
+            "gpu_fills": 1128,
+            "all_hit_calls": 28
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 8117,
+            "gpu_fills": 1730,
+            "all_hit_calls": 9
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6382,
+            "gpu_fills": 626,
+            "all_hit_calls": 96
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6677,
+            "gpu_fills": 748,
+            "all_hit_calls": 44
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6358,
+            "gpu_fills": 475,
+            "all_hit_calls": 98
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6911,
+            "gpu_fills": 827,
+            "all_hit_calls": 47
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6613,
+            "gpu_fills": 557,
+            "all_hit_calls": 70
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7495,
+            "gpu_fills": 1105,
+            "all_hit_calls": 15
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6859,
+            "gpu_fills": 881,
+            "all_hit_calls": 38
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6540,
+            "gpu_fills": 615,
+            "all_hit_calls": 76
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 5698,
+            "gpu_fills": 171,
+            "all_hit_calls": 197
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 5690,
+            "gpu_fills": 252,
+            "all_hit_calls": 170
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6568,
+            "gpu_fills": 659,
+            "all_hit_calls": 61
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7316,
+            "gpu_fills": 1097,
+            "all_hit_calls": 23
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6451,
+            "gpu_fills": 489,
+            "all_hit_calls": 105
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6440,
+            "gpu_fills": 501,
+            "all_hit_calls": 116
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7056,
+            "gpu_fills": 842,
+            "all_hit_calls": 55
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7998,
+            "gpu_fills": 1464,
+            "all_hit_calls": 16
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 5895,
+            "gpu_fills": 385,
+            "all_hit_calls": 158
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 5922,
+            "gpu_fills": 445,
+            "all_hit_calls": 138
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6490,
+            "gpu_fills": 605,
+            "all_hit_calls": 91
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7423,
+            "gpu_fills": 847,
+            "all_hit_calls": 65
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6397,
+            "gpu_fills": 435,
+            "all_hit_calls": 127
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6554,
+            "gpu_fills": 565,
+            "all_hit_calls": 89
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6739,
+            "gpu_fills": 687,
+            "all_hit_calls": 81
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7045,
+            "gpu_fills": 680,
+            "all_hit_calls": 85
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7609,
+            "gpu_fills": 848,
+            "all_hit_calls": 58
+          }
+        ],
+        "global_gpu": [
+          {
+            "calls": 312,
+            "unique_accesses": 8902,
+            "gpu_fills": 1545,
+            "all_hit_calls": 16,
+            "lfu_admitted": 228,
+            "forced_placements": 1317,
+            "evictions": 1554
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 8061,
+            "gpu_fills": 1208,
+            "all_hit_calls": 19,
+            "lfu_admitted": 166,
+            "forced_placements": 1042,
+            "evictions": 1213
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 8074,
+            "gpu_fills": 1267,
+            "all_hit_calls": 21,
+            "lfu_admitted": 167,
+            "forced_placements": 1100,
+            "evictions": 1250
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6985,
+            "gpu_fills": 885,
+            "all_hit_calls": 40,
+            "lfu_admitted": 123,
+            "forced_placements": 762,
+            "evictions": 887
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7462,
+            "gpu_fills": 937,
+            "all_hit_calls": 43,
+            "lfu_admitted": 129,
+            "forced_placements": 808,
+            "evictions": 927
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7579,
+            "gpu_fills": 1062,
+            "all_hit_calls": 30,
+            "lfu_admitted": 150,
+            "forced_placements": 912,
+            "evictions": 1042
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7649,
+            "gpu_fills": 1223,
+            "all_hit_calls": 19,
+            "lfu_admitted": 173,
+            "forced_placements": 1050,
+            "evictions": 1208
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7561,
+            "gpu_fills": 1153,
+            "all_hit_calls": 21,
+            "lfu_admitted": 161,
+            "forced_placements": 992,
+            "evictions": 1130
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6705,
+            "gpu_fills": 934,
+            "all_hit_calls": 29,
+            "lfu_admitted": 116,
+            "forced_placements": 818,
+            "evictions": 928
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6332,
+            "gpu_fills": 841,
+            "all_hit_calls": 49,
+            "lfu_admitted": 125,
+            "forced_placements": 716,
+            "evictions": 803
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6898,
+            "gpu_fills": 995,
+            "all_hit_calls": 31,
+            "lfu_admitted": 151,
+            "forced_placements": 844,
+            "evictions": 957
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6601,
+            "gpu_fills": 788,
+            "all_hit_calls": 52,
+            "lfu_admitted": 119,
+            "forced_placements": 669,
+            "evictions": 762
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7709,
+            "gpu_fills": 879,
+            "all_hit_calls": 40,
+            "lfu_admitted": 118,
+            "forced_placements": 761,
+            "evictions": 873
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6906,
+            "gpu_fills": 921,
+            "all_hit_calls": 36,
+            "lfu_admitted": 154,
+            "forced_placements": 767,
+            "evictions": 902
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6943,
+            "gpu_fills": 839,
+            "all_hit_calls": 47,
+            "lfu_admitted": 122,
+            "forced_placements": 717,
+            "evictions": 818
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 5812,
+            "gpu_fills": 550,
+            "all_hit_calls": 111,
+            "lfu_admitted": 71,
+            "forced_placements": 479,
+            "evictions": 551
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 5906,
+            "gpu_fills": 601,
+            "all_hit_calls": 104,
+            "lfu_admitted": 100,
+            "forced_placements": 501,
+            "evictions": 585
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6792,
+            "gpu_fills": 721,
+            "all_hit_calls": 61,
+            "lfu_admitted": 114,
+            "forced_placements": 607,
+            "evictions": 715
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7526,
+            "gpu_fills": 931,
+            "all_hit_calls": 37,
+            "lfu_admitted": 154,
+            "forced_placements": 777,
+            "evictions": 907
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6640,
+            "gpu_fills": 676,
+            "all_hit_calls": 68,
+            "lfu_admitted": 107,
+            "forced_placements": 569,
+            "evictions": 647
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6816,
+            "gpu_fills": 682,
+            "all_hit_calls": 75,
+            "lfu_admitted": 115,
+            "forced_placements": 567,
+            "evictions": 659
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7242,
+            "gpu_fills": 890,
+            "all_hit_calls": 50,
+            "lfu_admitted": 139,
+            "forced_placements": 751,
+            "evictions": 870
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 8117,
+            "gpu_fills": 1030,
+            "all_hit_calls": 38,
+            "lfu_admitted": 147,
+            "forced_placements": 883,
+            "evictions": 1024
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6382,
+            "gpu_fills": 854,
+            "all_hit_calls": 67,
+            "lfu_admitted": 129,
+            "forced_placements": 725,
+            "evictions": 835
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6677,
+            "gpu_fills": 823,
+            "all_hit_calls": 37,
+            "lfu_admitted": 128,
+            "forced_placements": 695,
+            "evictions": 806
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6358,
+            "gpu_fills": 694,
+            "all_hit_calls": 64,
+            "lfu_admitted": 109,
+            "forced_placements": 585,
+            "evictions": 675
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6911,
+            "gpu_fills": 837,
+            "all_hit_calls": 43,
+            "lfu_admitted": 126,
+            "forced_placements": 711,
+            "evictions": 830
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6613,
+            "gpu_fills": 740,
+            "all_hit_calls": 47,
+            "lfu_admitted": 108,
+            "forced_placements": 632,
+            "evictions": 737
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7495,
+            "gpu_fills": 854,
+            "all_hit_calls": 36,
+            "lfu_admitted": 118,
+            "forced_placements": 736,
+            "evictions": 846
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6859,
+            "gpu_fills": 874,
+            "all_hit_calls": 35,
+            "lfu_admitted": 124,
+            "forced_placements": 750,
+            "evictions": 864
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6540,
+            "gpu_fills": 779,
+            "all_hit_calls": 58,
+            "lfu_admitted": 114,
+            "forced_placements": 665,
+            "evictions": 755
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 5698,
+            "gpu_fills": 461,
+            "all_hit_calls": 121,
+            "lfu_admitted": 71,
+            "forced_placements": 390,
+            "evictions": 457
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 5690,
+            "gpu_fills": 551,
+            "all_hit_calls": 101,
+            "lfu_admitted": 94,
+            "forced_placements": 457,
+            "evictions": 546
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6568,
+            "gpu_fills": 760,
+            "all_hit_calls": 54,
+            "lfu_admitted": 109,
+            "forced_placements": 651,
+            "evictions": 751
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7316,
+            "gpu_fills": 844,
+            "all_hit_calls": 52,
+            "lfu_admitted": 129,
+            "forced_placements": 715,
+            "evictions": 829
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6451,
+            "gpu_fills": 691,
+            "all_hit_calls": 64,
+            "lfu_admitted": 105,
+            "forced_placements": 586,
+            "evictions": 684
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6440,
+            "gpu_fills": 669,
+            "all_hit_calls": 83,
+            "lfu_admitted": 101,
+            "forced_placements": 568,
+            "evictions": 643
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7056,
+            "gpu_fills": 783,
+            "all_hit_calls": 63,
+            "lfu_admitted": 115,
+            "forced_placements": 668,
+            "evictions": 761
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7998,
+            "gpu_fills": 902,
+            "all_hit_calls": 63,
+            "lfu_admitted": 130,
+            "forced_placements": 772,
+            "evictions": 899
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 5895,
+            "gpu_fills": 696,
+            "all_hit_calls": 114,
+            "lfu_admitted": 118,
+            "forced_placements": 578,
+            "evictions": 658
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 5922,
+            "gpu_fills": 729,
+            "all_hit_calls": 93,
+            "lfu_admitted": 112,
+            "forced_placements": 617,
+            "evictions": 722
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6490,
+            "gpu_fills": 810,
+            "all_hit_calls": 68,
+            "lfu_admitted": 127,
+            "forced_placements": 683,
+            "evictions": 796
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7423,
+            "gpu_fills": 813,
+            "all_hit_calls": 69,
+            "lfu_admitted": 124,
+            "forced_placements": 689,
+            "evictions": 806
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6397,
+            "gpu_fills": 709,
+            "all_hit_calls": 77,
+            "lfu_admitted": 112,
+            "forced_placements": 597,
+            "evictions": 713
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6554,
+            "gpu_fills": 731,
+            "all_hit_calls": 67,
+            "lfu_admitted": 103,
+            "forced_placements": 628,
+            "evictions": 719
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 6739,
+            "gpu_fills": 815,
+            "all_hit_calls": 64,
+            "lfu_admitted": 112,
+            "forced_placements": 703,
+            "evictions": 820
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7045,
+            "gpu_fills": 732,
+            "all_hit_calls": 81,
+            "lfu_admitted": 101,
+            "forced_placements": 631,
+            "evictions": 732
+          },
+          {
+            "calls": 312,
+            "unique_accesses": 7609,
+            "gpu_fills": 783,
+            "all_hit_calls": 69,
+            "lfu_admitted": 85,
+            "forced_placements": 698,
+            "evictions": 792
+          }
+        ]
+      },
+      "global_warmup_occupancy": [
+        276,
+        219,
+        202,
+        139,
+        152,
+        168,
+        183,
+        176,
+        139,
+        97,
+        135,
+        121,
+        176,
+        146,
+        130,
+        65,
+        64,
+        126,
+        169,
+        106,
+        125,
+        151,
+        195,
+        101,
+        134,
+        95,
+        139,
+        121,
+        164,
+        131,
+        106,
+        65,
+        74,
+        113,
+        150,
+        99,
+        106,
+        133,
+        184,
+        69,
+        85,
+        114,
+        137,
+        106,
+        120,
+        123,
+        130,
+        142
+      ],
+      "global_final_occupancy": [
+        249,
+        228,
+        207,
+        147,
+        161,
+        179,
+        201,
+        193,
+        150,
+        120,
+        154,
+        133,
+        184,
+        139,
+        136,
+        75,
+        77,
+        130,
+        190,
+        119,
+        132,
+        173,
+        203,
+        102,
+        142,
+        103,
+        144,
+        121,
+        168,
+        147,
+        126,
+        74,
+        84,
+        132,
+        177,
+        125,
+        133,
+        161,
+        190,
+        106,
+        103,
+        138,
+        162,
+        111,
+        137,
+        134,
+        143,
+        162
+      ],
+      "case": "long-1",
+      "budget": 7006,
+      "transfer_delta_fraction": -0.10861621098049579
+    }
+  ],
+  "provenance": {
+    "tools/qwen38_cache_tests/verify_reuse_diagnosis_20261018/service/verify-routes.jsonl.gz": "e8e0a5684acacaef00ff866798dea7fc0b28ee50c17377821bc1e082d55f73e7",
+    "tools/qwen38_cache_tests/cache_policy_experiments_20261018/live_fp4_results/pack-manifest.json": "bcea69fb3147f2f6916681cb1e4a3f7bf1915cb19d59c61d28fe1a36f2658d91",
+    "python/sglang/kernels/jit/csrc/moe/qwen38_expert_cache.cu": "55e7cbe564981871943b45b188efd733025dcd32bea6677ddee1b11ef82eddcc",
+    "python/sglang/kernels/jit/csrc/moe/qwen38_hybrid_plan.cuh": "05a92276497952f63c8dab69680cc6757ab12ad608b3174a88017cf4b3fdf496"
+  },
+  "limits": [
+    "Actual CUDA planner bodies executed serially on host; no CUDA execution or throughput prediction.",
+    "Baseline is non-global per-layer LFU, FP32 resident heat and LRU tie break; fixed balanced slot allocation.",
+    "New planner uses FP64 per-expert heat and forced global placement, empty calibration: all GPU, no CPU transfers.",
+    "Same total expert slot budget; global planner additionally reserves its existing B12X zero slot.",
+    "Each request starts from empty and replays its own prefix; synthetic setup and separate warmup case excluded.",
+    "Trace only contains target verify calls: prefill, draft, initial production cache, adaptive rebalance and resize are not recorded.",
+    "H2D payload covers expert weights and block scales; excludes metadata, shared scales, CPU activations and physical bus overhead."
+  ]
+}

@@ -329,44 +329,48 @@ class TestHybridPlan(CustomTestCase):
                 self.assertEqual(stats[5].item(), 1)
 
     def test_random_windows_match_global_lfu(self):
-        p = GlobalLfu(2, 16, [6, 6])
-        p.seed(0, {e: e for e in range(5)})
-        p.seed(1, {e: e for e in range(5, 10)})
-        state = self.tensors(p)
-        rng = random.Random(42)
-        for step in range(80):
-            layer = step % 2
-            rows = [
-                [rng.randrange(-1, 16) for _ in range(4)] for _ in range(1 + step % 3)
-            ]
-            requested = {e for row in rows for e in row if e >= 0}
-            epoch, _ = p.begin(layer)
-            p.release(layer, epoch)
-            evicted, fills = p.plan(layer, epoch, requested, safe_layers=range(2))
-            p.commit(layer, epoch, fills)
-            forced, forced_evictions = materialize_gpu(
-                p,
-                layer,
-                requested,
-                {e: sum(row.count(e) for row in rows) for e in requested},
-            )
-            routes, plans, stats = self.invoke(rows, state, layer=layer)
-            mapping = {
-                e: s for e, s in enumerate(state[0][layer].cpu().tolist()) if s >= 0
-            }
-            self.assertEqual(mapping, p.layers[layer].mapping)
-            self.assertEqual(plans[0][1].item(), len(fills) + len(forced))
-            self.assertEqual(stats[0].item(), len(evicted) + forced_evictions)
-            # Match host FP64 arithmetic and global ownership exactly.
-            torch.testing.assert_close(
-                state[1].cpu(),
-                torch.tensor(p.frequency, dtype=torch.float64),
-                rtol=0,
-                atol=0,
-            )
-            expected_owners = [-1 if o is None else o for o in p.owner]
-            self.assertEqual(state[2].cpu().tolist(), expected_owners)
-            self.assertTrue((routes[1] == -1).all())
+        for experts, slots, width in ((16, 6, 4), (512, 20, 10)):
+            p = GlobalLfu(2, experts, [slots, slots])
+            p.seed(0, {e: e for e in range(5)})
+            p.seed(1, {e: e for e in range(5, 10)})
+            state = self.tensors(p)
+            rng = random.Random(42)
+            for step in range(80):
+                layer = step % 2
+                rows = [
+                    [rng.randrange(-1, experts) for _ in range(width)]
+                    for _ in range(1 + step % 3)
+                ]
+                if experts == 512 and step % 11 == 0:
+                    rows = [[0, 31, 32, 63, 64, 127, 255, 256, 510, 511]] * 3
+                requested = {e for row in rows for e in row if e >= 0}
+                epoch, _ = p.begin(layer)
+                p.release(layer, epoch)
+                evicted, fills = p.plan(layer, epoch, requested, safe_layers=range(2))
+                p.commit(layer, epoch, fills)
+                forced, forced_evictions = materialize_gpu(
+                    p,
+                    layer,
+                    requested,
+                    {e: sum(row.count(e) for row in rows) for e in requested},
+                )
+                routes, plans, stats = self.invoke(rows, state, layer=layer)
+                mapping = {
+                    e: s for e, s in enumerate(state[0][layer].cpu().tolist()) if s >= 0
+                }
+                self.assertEqual(mapping, p.layers[layer].mapping)
+                self.assertEqual(plans[0][1].item(), len(fills) + len(forced))
+                self.assertEqual(stats[0].item(), len(evicted) + forced_evictions)
+                # Match host FP64 arithmetic and global ownership exactly.
+                torch.testing.assert_close(
+                    state[1].cpu(),
+                    torch.tensor(p.frequency, dtype=torch.float64),
+                    rtol=0,
+                    atol=0,
+                )
+                expected_owners = [-1 if o is None else o for o in p.owner]
+                self.assertEqual(state[2].cpu().tolist(), expected_owners)
+                self.assertTrue((routes[1] == -1).all())
 
     def test_colder_expert_in_other_layer_is_replaced(self):
         p = GlobalLfu(2, 16, [1, 1], admission=0)
@@ -390,16 +394,26 @@ class TestHybridPlan(CustomTestCase):
 
     def test_indexed_global_minima_follow_repeated_replacements(self):
         """Shared layer minima must follow empty/refilled layers and heat ties."""
-        for layers, experts in ((2, 16), (2, 512), (48, 512), (64, 16), (65, 16)):
+        for layers, experts, residents in (
+            (2, 16, 3),
+            (2, 512, 146),
+            (2, 512, 511),
+            (48, 512, 3),
+            (64, 16, 3),
+            (65, 16, 3),
+        ):
             with self.subTest(layers=layers, experts=experts):
-                policy = GlobalLfu(layers, experts, [8] * layers)
+                policy = GlobalLfu(layers, experts, [max(8, residents)] * layers)
                 for layer in range(layers):
+                    anchors = (0, experts // 2, experts - 1)
+                    seeded = sorted(
+                        (
+                            list(anchors)
+                            + [e for e in range(experts) if e not in anchors]
+                        )[:residents]
+                    )
                     policy.seed(
-                        layer,
-                        {
-                            e: 3 * layer + i
-                            for i, e in enumerate((0, experts // 2, experts - 1))
-                        },
+                        layer, {e: residents * layer + i for i, e in enumerate(seeded)}
                     )
                     policy.frequency[layer] = [2.0] * experts
                 state = self.tensors(policy)
@@ -415,7 +429,7 @@ class TestHybridPlan(CustomTestCase):
                 for step in range(80):
                     layer = step % layers
                     rows = [
-                        [rng.randrange(-1, experts) for _ in range(4)]
+                        [rng.randrange(-1, experts) for _ in range(10)]
                         for _ in range(1 + step % 3)
                     ]
                     if step % 17 == 0:

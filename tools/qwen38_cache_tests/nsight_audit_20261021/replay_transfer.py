@@ -34,6 +34,27 @@ def compile_planners(directory, global_source=None):
             'throw std::runtime_error("invalid route or insufficient capacity");',
         )
     )
+    # The host replay executes the CTA serially (blockDim=1). Materialize the
+    # two warp ballots from the same per-expert predicates; this preserves
+    # policy semantics but deliberately makes no CUDA timing prediction.
+    ballot_start = "  // Every warp compacts one expert word."
+    if ballot_start in body:
+        start = body.index(ballot_start)
+        end = body.index("  if (threadIdx.x == 0) {\n    int32_t count = 0;", start)
+        body = (
+            body[:start]
+            + """
+  for (int32_t word = 0; word < (experts + 31) / 32; ++word) {
+    route_mask[word] = cold_mask[word] = 0;
+    for (int32_t bit = 0; bit < 32 && word * 32 + bit < experts; ++bit) {
+      int32_t e = word * 32 + bit;
+      if (histogram[e]) route_mask[word] |= 1u << bit;
+      else if (layer_lookup[e] >= 0 && layer_frequency[e] < 0.5) cold_mask[word] |= 1u << bit;
+    }
+  }
+"""
+            + body[end:]
+        )
     helpers = global_source[
         global_source.index("struct HybridVictim") : global_source.index(
             "// Global planners and all preceding GPU readers"
@@ -54,6 +75,7 @@ def compile_planners(directory, global_source=None):
 #define __device__
 #define __forceinline__ inline
 struct Index { int x; }; Index threadIdx{0}, blockDim{1};
+int __popc(uint32_t mask) { return __builtin_popcount(mask); }
 void __syncthreads() {}
 void __threadfence_system() {}
 void atomicAdd(int32_t* p,int32_t n) { *p+=n; }

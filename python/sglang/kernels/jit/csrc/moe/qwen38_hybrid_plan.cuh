@@ -102,7 +102,8 @@ __global__ void hybrid_plan_kernel(
   const double* policy_costs = samples <= kCachedCostRows ? cached_costs : costs;
   __shared__ int32_t histogram[512];
   __shared__ int32_t requested[kRoutes], requested_count;
-  __shared__ uint32_t cold_mask[16];
+  __shared__ uint32_t cold_mask[16], route_mask[16];
+  __shared__ int32_t route_offset[16];
   __shared__ int32_t active[kRoutes], rejected[kRoutes], selected;
   __shared__ int32_t active_count, rejected_count;
   __shared__ bool layer_was_present;
@@ -145,41 +146,63 @@ __global__ void hybrid_plan_kernel(
     if (threadIdx.x == 0) asm volatile("trap;");
     return;
   }
-  // Routes are bounded by 32 even when a layer contains 512 experts. Keep
-  // expert order deterministic without serially scanning every inactive bin.
-  if (threadIdx.x == 0) {
-    requested_count = 0;
-    for (int32_t r = 0; r < routes; ++r) {
-      int32_t e = ids[r];
-      if (e < 0) continue;
-      int32_t pos = 0;
-      while (pos < requested_count && requested[pos] < e)
-        ++pos;
-      if (pos < requested_count && requested[pos] == e) continue;
-      for (int32_t i = requested_count; i > pos; --i)
-        requested[i] = requested[i - 1];
-      requested[pos] = e;
-      ++requested_count;
-    }
-  }
-  __syncthreads();
   for (int32_t e = threadIdx.x; e < experts; e += blockDim.x) {
-    layer_frequency[e] = __dmul_rn(layer_frequency[e], decay);
-    if (!Indexed) {
-      layer_frequency[e] = __dadd_rn(layer_frequency[e], histogram[e] > 0 ? 1.0 : 0.0);
-      global_layer_frequency[e] = layer_frequency[e];
+    layer_frequency[e] = __dadd_rn(__dmul_rn(layer_frequency[e], decay), histogram[e] > 0 ? 1.0 : 0.0);
+    if (!Indexed) global_layer_frequency[e] = layer_frequency[e];
+  }
+  __syncthreads();
+  // Every warp compacts one expert word. Prefixes preserve expert-id order,
+  // including duplicate and masked routes, without a serial insertion sort.
+  int32_t lane = threadIdx.x % 32;
+  for (int32_t word = threadIdx.x / 32; word < (experts + 31) / 32; word += blockDim.x / 32) {
+    int32_t e = word * 32 + lane;
+    bool active = e < experts && histogram[e] > 0;
+    bool cold = e < experts && layer_lookup[e] >= 0 && !active && layer_frequency[e] < 0.5;
+    uint32_t routes_in_word = __ballot_sync(0xffffffff, active);
+    uint32_t cold_in_word = __ballot_sync(0xffffffff, cold);
+    if (!lane) {
+      route_mask[word] = routes_in_word;
+      cold_mask[word] = cold_in_word;
     }
   }
   __syncthreads();
-  // Admission only adds active experts, so this inactive-cold set remains
-  // valid through admission. Build it cooperatively and reclaim in id order.
-  for (int32_t word = threadIdx.x; word < (experts + 31) / 32; word += blockDim.x) {
-    uint32_t mask = 0;
-    for (int32_t bit = 0; bit < 32 && word * 32 + bit < experts; ++bit) {
-      int32_t e = word * 32 + bit;
-      if (layer_lookup[e] >= 0 && !histogram[e] && layer_frequency[e] < 0.5) mask |= 1u << bit;
+  if (threadIdx.x == 0) {
+    int32_t count = 0;
+    for (int32_t word = 0; word < (experts + 31) / 32; ++word) {
+      route_offset[word] = count;
+      count += __popc(route_mask[word]);
     }
-    cold_mask[word] = mask;
+    requested_count = count;
+  }
+  __syncthreads();
+  for (int32_t e = threadIdx.x; e < experts; e += blockDim.x)
+    if (histogram[e]) requested[route_offset[e / 32] + __popc(route_mask[e / 32] & ((1u << (e % 32)) - 1))] = e;
+  // Updating every heat before heap repair is safe with bottom-up heapify.
+  // Nodes on the same level own disjoint subtrees; all lower levels finish
+  // before their parents. Heap shape may change, but the minimum tie-break
+  // and all LFU admission decisions remain identical.
+  if (Indexed) {
+    HybridHeapIndex index(
+        index_data,
+        frequency,
+        layers,
+        experts,
+        index_slots,
+        layer,
+        layer_heap,
+        layer_position,
+        &layer_heap_size,
+        layer_frequency,
+        local_top,
+        local_top_heat);
+    int32_t width = 1;
+    while (width * 2 <= layer_heap_size / 2)
+      width *= 2;
+    for (; width; width /= 2) {
+      for (int32_t i = width - 1 + threadIdx.x; i < 2 * width - 1 && i < layer_heap_size / 2; i += blockDim.x)
+        index.sift_expert(layer, i);
+      __syncthreads();
+    }
   }
   __syncthreads();
   if (threadIdx.x == 0) {
@@ -198,13 +221,6 @@ __global__ void hybrid_plan_kernel(
         local_top_heat);
     if (Indexed) {
       layer_was_present = index.size_for(layer) > 0;
-      // Update one key at a time: batching all increments before heap repair
-      // can hide a smaller grandchild behind another incremented child.
-      for (int32_t i = 0; i < requested_count; ++i) {
-        int32_t e = requested[i];
-        layer_frequency[e] = __dadd_rn(layer_frequency[e], 1.0);
-        if (layer_lookup[e] >= 0) index.fix_expert(layer, index.positions_for(layer)[e]);
-      }
       index.refresh_top(layer, layer_was_present);
     }
     int32_t initial_misses = 0, total_routes = 0;

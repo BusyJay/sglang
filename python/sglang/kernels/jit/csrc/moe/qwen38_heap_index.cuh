@@ -92,12 +92,16 @@ struct HybridHeapIndex {
   }
   __device__ void fix_expert(int32_t layer, int32_t i) {
     int32_t* h = heap_for(layer);
-    int32_t n = size_for(layer);
     while (i > 0 && less(layer, h[i], h[(i - 1) / 2])) {
       int32_t j = (i - 1) / 2;
       swap_expert(layer, i, j);
       i = j;
     }
+    sift_expert(layer, i);
+  }
+  __device__ void sift_expert(int32_t layer, int32_t i) {
+    int32_t* h = heap_for(layer);
+    int32_t n = size_for(layer);
     while (2 * i + 1 < n) {
       int32_t j = 2 * i + 1;
       if (j + 1 < n && less(layer, h[j + 1], h[j])) ++j;
