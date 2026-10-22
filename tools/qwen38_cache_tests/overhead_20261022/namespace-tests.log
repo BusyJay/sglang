@@ -1,0 +1,26 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.15, pytest-9.1.1, pluggy-1.7.0
+rootdir: /workspace/sglang/test
+configfile: pytest.ini
+plugins: anyio-4.15.1, ai-dynamo-1.6.0.dev20261016, jaxtyping-0.3.11, typeguard-2.13.3, platformdirs-4.13.4
+collected 70 items
+
+test/registered/unit/kernels/test_kernels_namespace.py ................. [ 24%]
+.....................................................                    [100%]
+
+=============================== warnings summary ===============================
+../../opt/sglang/lib/python3.12/site-packages/_pytest/config/__init__.py:1345
+  /opt/sglang/lib/python3.12/site-packages/_pytest/config/__init__.py:1345: PytestAssertRewriteWarning: Module already imported so cannot be rewritten; anyio
+    self._mark_plugins_for_rewrite(hook, disable_autoload)
+
+../../opt/sglang/lib/python3.12/site-packages/_pytest/config/__init__.py:1464
+  /opt/sglang/lib/python3.12/site-packages/_pytest/config/__init__.py:1464: PytestConfigWarning: Unknown config option: asyncio_mode
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+../../opt/sglang/lib/python3.12/site-packages/_pytest/cacheprovider.py:469
+  /opt/sglang/lib/python3.12/site-packages/_pytest/cacheprovider.py:469: PytestCacheWarning: cache could not write path /workspace/sglang/test/.pytest_cache/v/cache/nodeids: [Errno 30] Read-only file system: '/workspace/sglang/test/.pytest_cache/v/cache/nodeids'
+    config.cache.set("cache/nodeids", sorted(self.cached_nodeids))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================= 70 passed, 3 warnings in 17.39s ========================

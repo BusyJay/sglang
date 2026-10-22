@@ -316,7 +316,8 @@ class HybridCache:
         self._check()
         if self.pending is None:
             return
-        layer, epoch, requested, done = self.pending
+        layer, epoch, requested, done, *options = self.pending
+        prefill_arena = bool(options and options[0])
         self.pending = None
         if (layer, epoch) in getattr(self, "prepared_windows", ()):
             # Admission and observation already happened before this computation.
@@ -342,7 +343,9 @@ class HybridCache:
         self.readable[layer] = {}
         future = Future()
         self.active[layer] = future
-        self.jobs.put_nowait((layer, epoch, requested, done, future))
+        self.jobs.put_nowait(
+            (layer, epoch, requested, done, future, False, prefill_arena)
+        )
 
     def _wait_layer(self, layer):
         # Used by exclusive boundaries and admission preparation.
@@ -372,7 +375,8 @@ class HybridCache:
     def _cpu_work(self):
         with torch.cuda.device(self.runtime.device):
             while True:
-                if self.mapped_batch_pages:
+                polling = self.mapped_batch_pages and self.device_planner.valid
+                if polling:
                     request = self.device_planner.poll()
                     if request is not None:
                         self.device_planner.cpu_task(*request)
@@ -380,7 +384,7 @@ class HybridCache:
                 try:
                     job = self.cpu_jobs.get_nowait()
                 except queue.Empty:
-                    if not self.mapped_batch_pages:
+                    if not polling:
                         time.sleep(0.001)
                     continue
                 try:
@@ -481,6 +485,40 @@ class HybridCache:
         # plan, submit registered transfers and publish while this task waits.
         return _StagedCopy(self, layer, fills, done)
 
+    def _copy_prefill_admissions(self, fills, done):
+        """Publish prefill weights from the borrowed arena before it is reused.
+
+        The tail is reserved outside the cache pool during prefill. The next
+        borrower (or decode upload) drains admission before releasing that tail,
+        so both source and destination remain valid until this event completes.
+        """
+        from sglang.kernels.ops.moe.qwen38_expert_cache import packed_scatter
+
+        r = self.runtime
+        table = torch.empty(
+            (len(self.pool), len(fills), 3), dtype=torch.int64, pin_memory=True
+        )
+        experts, slots = zip(*fills)
+        for row, (name, tensor) in zip(table, self.pool.items()):
+            nbytes = tensor[0].numel() * tensor.element_size()
+            row[:, 0].numpy()[:] = [tensor.data_ptr() + s * nbytes for s in slots]
+            row[:, 1].numpy()[:] = [e * nbytes for e in experts]
+            row[:, 2].fill_(nbytes)
+        with torch.cuda.stream(self.fill_stream):
+            self.fill_stream.wait_event(done)
+            for row, name in zip(table, self.pool):
+                packed_scatter(
+                    r.arena[name].view(torch.uint8).reshape(-1),
+                    row.to(r.device, non_blocking=True),
+                )
+            copied = torch.cuda.Event()
+            copied.record(self.fill_stream)
+        self.stats["prefill_admission_d2d_bytes"] += len(fills) * sum(
+            t[0].numel() * t.element_size() for t in self.pool.values()
+        )
+        self.stats["insertions"] += len(fills)
+        return copied
+
     def _complete_copies(self, copies):
         remaining = []
         for entry in copies:
@@ -535,7 +573,12 @@ class HybridCache:
                 self.stats["evictions"] += len(evicted)
                 self.readable[layer] = dict(self.policy.layers[layer].mapping)
                 if fills:
-                    copied = self._copy(layer, fills, done)
+                    prefill_arena = len(options) > 1 and options[1]
+                    copied = (
+                        self._copy_prefill_admissions(fills, done)
+                        if prefill_arena
+                        else self._copy(layer, fills, done)
+                    )
                     copies.append((layer, epoch, fills, copied, future, prepare))
                     deferred = True
                 else:
@@ -930,10 +973,22 @@ class HybridCache:
         if r.arena is None:
             raise ValueError("global cache prefill requires an arena")
         compute = torch.cuda.current_stream(r.device)
-        host_ids = ids.cpu()
-        requested = {int(e) for row in host_ids.tolist() for e in row if e >= 0}
-        if bool(((host_ids < -1) | (host_ids >= r.manifest.num_experts)).any()):
-            raise ValueError("prefill route outside expert range")
+        if ids.is_cuda and ids.dtype == torch.int32:
+            from sglang.kernels.ops.moe.qwen38_expert_cache import cache_route_counts
+
+            # Prefill needs a set, not all M*top_k Python integers. Reuse the
+            # existing layer histogram after draining legacy/device readers.
+            counts = r.device_states[layer]["counts"]
+            cache_route_counts(ids, counts)
+            counts = counts.cpu().tolist()
+            if counts[-1]:
+                raise ValueError("prefill route outside expert range")
+            requested = {e for e, count in enumerate(counts[:-1]) if count}
+        else:
+            host_ids = ids.cpu()
+            requested = {int(e) for row in host_ids.tolist() for e in row if e >= 0}
+            if bool(((host_ids < -1) | (host_ids >= r.manifest.num_experts)).any()):
+                raise ValueError("prefill route outside expert range")
         # Prefill temporarily reserves the borrowed tail after retiring readers;
         # decode returns those slots to the global pool.
         limit = len(self.policy.keys)
@@ -975,7 +1030,13 @@ class HybridCache:
         done.record(compute)
         r.layer_computed[layer] = done
         r.arena_last_use = done
-        self.pending = (layer, epoch, tuple(sorted(requested)), done)
+        self.pending = (
+            layer,
+            epoch,
+            tuple(sorted(requested)),
+            done,
+            bool(r.borrowed_arena),
+        )
         self.stats["prefill_global_hits"] += len(hits)
         self.stats["prefill_gpu_misses"] += len(misses)
         r._record_invocation(bool(misses), ids, layer)

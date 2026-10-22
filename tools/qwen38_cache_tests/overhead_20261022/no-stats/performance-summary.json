@@ -1,0 +1,126 @@
+{
+  "status": "passed",
+  "modes": {
+    "default": {
+      "overrides": {
+        "SGLANG_ENABLE_QWEN38_CPU_HYBRID": "1",
+        "SGLANG_QWEN38_CPU_COST_CALIBRATION": "/workspace/sglang/tools/qwen38_cache_tests/migration_20261021/calibration-compact.json"
+      },
+      "startup_seconds": 40.00944783599698,
+      "short_aggregate": {
+        "ttft_seconds": {
+          "median": 0.9149944430100732,
+          "min": 0.8818459710164461,
+          "max": 0.9784991269989405
+        },
+        "e2e_seconds": {
+          "median": 6.996029815025395,
+          "min": 6.75846525200177,
+          "max": 7.307075149001321
+        },
+        "decode_tokens_per_second": {
+          "median": 84.03228430127626,
+          "min": 80.74601656173705,
+          "max": 86.95560859071992
+        },
+        "after_64_tokens_per_second": {
+          "median": 90.62858537794925,
+          "min": 85.746974269434,
+          "max": 90.98130928911151
+        }
+      },
+      "cases": [
+        {
+          "prompt_tokens": 1088,
+          "output_tokens": 128,
+          "ttft_seconds": 1.7458300099824555,
+          "e2e_seconds": 3.6447472239960916,
+          "decode_tokens_per_second": 66.88369269815537,
+          "after_64_tokens_per_second": 83.19308409834122,
+          "mean_time_per_output_token_ms": 14.951327590612825,
+          "name": "warmup",
+          "cached_tokens": 0,
+          "spec_accept_length": 2.206896551724138
+        },
+        {
+          "prompt_tokens": 1088,
+          "output_tokens": 512,
+          "ttft_seconds": 0.9784991269989405,
+          "e2e_seconds": 7.307075149001321,
+          "decode_tokens_per_second": 80.74601656173705,
+          "after_64_tokens_per_second": 85.746974269434,
+          "mean_time_per_output_token_ms": 12.384511863014527,
+          "name": "short_0",
+          "cached_tokens": 0,
+          "spec_accept_length": 2.2755555555555556
+        },
+        {
+          "prompt_tokens": 1088,
+          "output_tokens": 512,
+          "ttft_seconds": 0.9149944430100732,
+          "e2e_seconds": 6.996029815025395,
+          "decode_tokens_per_second": 84.03228430127626,
+          "after_64_tokens_per_second": 90.62858537794925,
+          "mean_time_per_output_token_ms": 11.900188223073357,
+          "name": "short_1",
+          "cached_tokens": 0,
+          "spec_accept_length": 2.4150943396226414
+        },
+        {
+          "prompt_tokens": 1088,
+          "output_tokens": 512,
+          "ttft_seconds": 0.8818459710164461,
+          "e2e_seconds": 6.75846525200177,
+          "decode_tokens_per_second": 86.95560859071992,
+          "after_64_tokens_per_second": 90.98130928911151,
+          "mean_time_per_output_token_ms": 11.500120765145471,
+          "name": "short_2",
+          "cached_tokens": 0,
+          "spec_accept_length": 2.4380952380952383
+        },
+        {
+          "prompt_tokens": 91,
+          "output_tokens": 512,
+          "ttft_seconds": 0.679902272997424,
+          "e2e_seconds": 6.98936612799298,
+          "decode_tokens_per_second": 80.9900037373409,
+          "after_64_tokens_per_second": 80.7097284907861,
+          "mean_time_per_output_token_ms": 12.347202788668898,
+          "name": "natural_chat",
+          "cached_tokens": 0,
+          "spec_accept_length": 2.089795918367347
+        },
+        {
+          "prompt_tokens": 170064,
+          "output_tokens": 8,
+          "ttft_seconds": 39.723171880992595,
+          "e2e_seconds": 39.89224820499658,
+          "decode_tokens_per_second": 41.41424585187519,
+          "after_64_tokens_per_second": 41.41424585187519,
+          "mean_time_per_output_token_ms": 24.146280571585518,
+          "name": "long_170k",
+          "cached_tokens": 0,
+          "spec_accept_length": 2.6666666666666665
+        },
+        {
+          "prompt_tokens": 1088,
+          "output_tokens": 512,
+          "ttft_seconds": 1.1651590119872708,
+          "e2e_seconds": 7.414570296998136,
+          "decode_tokens_per_second": 81.76844053091753,
+          "after_64_tokens_per_second": 85.48773492975808,
+          "mean_time_per_output_token_ms": 12.229657230920152,
+          "name": "post_resize_short",
+          "cached_tokens": 0,
+          "spec_accept_length": 2.4265402843601898
+        }
+      ],
+      "transitions": [],
+      "cpu_initialization": [
+        "[2026-10-22 00:56:02] Qwen38 CPU hybrid enabled: backend=b12x cores=[2, 3, 4, 5] library=/workspace/sglang/tools/qwen38_cache_tests/migration_20261021/cpu.so global_slots=6388 calibrated_workloads=16 uncalibrated_misses=gpu"
+      ],
+      "final_cpu_stats": null,
+      "final_kv_stage": null
+    }
+  }
+}

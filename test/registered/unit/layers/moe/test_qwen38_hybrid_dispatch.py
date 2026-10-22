@@ -289,6 +289,21 @@ class TestHybridDispatch(CustomTestCase):
 
         self.addCleanup(stop)
 
+    def test_prefill_worker_can_stop_with_a_retained_decode_mailbox(self):
+        """A retained decode page must not keep an inactive planner polling."""
+        subject = self.subject
+        subject.mapped_batch_pages = [object()]
+
+        def inactive_poll():
+            raise RuntimeError("inactive prefill mailbox was polled")
+
+        subject.device_planner = SimpleNamespace(valid=False, poll=inactive_poll)
+        subject.cpu_jobs.put(None)
+        subject._cpu_work()
+        self.assertEqual(subject.cpu_jobs.unfinished_tasks, 0)
+        self.assertIsNone(subject.failure)
+        self.assertIn(("release_worker",), self.operations)
+
     def start_manager(self):
         worker = threading.Thread(target=self.subject._work, daemon=True)
         worker.start()
@@ -348,6 +363,13 @@ class TestHybridDispatch(CustomTestCase):
         planner.device_stats = torch.zeros(7, dtype=torch.int64)
         planner.flag = torch.zeros(1, dtype=torch.int32)
         planner.heap_index = torch.empty(1, dtype=torch.int32)
+        planner.route_buffers = {
+            1: (
+                torch.empty((1, 2), dtype=torch.int32),
+                torch.empty((1, 2), dtype=torch.int32),
+                torch.empty(8, dtype=torch.int32),
+            )
+        }
         planner.layout = lambda layer: layer
         self.subject.device_planner = planner
         self.subject.runtime.miss_mailbox = SimpleNamespace(
@@ -636,6 +658,44 @@ class TestHybridDispatch(CustomTestCase):
         self.assertFalse(subject.policy.reserved)
         self.assertEqual(subject.policy.free_slots, set(range(4, 16)))
         self.assertTrue(subject.runtime.arena_last_use.synchronized)
+
+    def test_prefill_admission_retains_arena_until_reader_and_copy_finish(self):
+        """Arena admission cannot read early or publish an unfinished copy."""
+        subject = self.subject
+        subject.policy = self.hybrid.GlobalLfu(2, 12, [2, 1])
+        epoch, _ = subject.policy.begin(0)
+        reader = self.Event()
+        subject.pending = (0, epoch, (2,), reader, True)
+        subject.release_previous()
+        entry = subject.jobs.get_nowait()
+        copies = []
+        # The event has not completed, so policy and cache payload stay intact.
+        self.assertEqual(subject._submit_ready([entry], copies), [entry])
+        self.assertFalse(copies)
+        self.assertFalse(subject.policy.layers[0].mapping)
+        self.arena["value"][2] = 123
+        copied = self.Event()
+
+        def arena_copy(fills, done):
+            self.assertIs(done, reader)
+            for expert, slot in fills:
+                self.pool["value"][slot] = self.arena["value"][expert]
+            return copied
+
+        subject._copy_prefill_admissions = arena_copy
+        reader.synchronized = True
+        self.assertEqual(subject._submit_ready([entry], copies), [])
+        future = subject.active[0]
+        self.assertEqual(subject._complete_copies(copies), copies)
+        self.assertFalse(future.done())
+        self.assertFalse(subject.policy.layers[0].mapping)
+        copied.synchronized = True
+        self.assertEqual(subject._complete_copies(copies), [])
+        self.assertTrue(future.done())
+        slot = subject.policy.layers[0].mapping[2]
+        torch.testing.assert_close(
+            self.pool["value"][slot], torch.full_like(self.pool["value"][slot], 123)
+        )
 
     def test_hits_and_all_masked_never_allocate_or_submit_cpu(self):
         empty_like = torch.empty_like

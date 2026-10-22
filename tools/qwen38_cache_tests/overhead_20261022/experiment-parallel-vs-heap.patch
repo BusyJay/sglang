@@ -1,0 +1,1649 @@
+diff --git a/python/sglang/kernels/jit/csrc/moe/qwen38_heap_index.cuh b/python/sglang/kernels/jit/csrc/moe/qwen38_heap_index.cuh
+index 7236e3bb38..1f7b46b20e 100644
+--- a/python/sglang/kernels/jit/csrc/moe/qwen38_heap_index.cuh
++++ b/python/sglang/kernels/jit/csrc/moe/qwen38_heap_index.cuh
+@@ -11,6 +11,7 @@ struct HybridHeapIndex {
+   int32_t cached_layer;
+   int32_t *cached_heap, *cached_position, *cached_size;
+   const double* cached_frequency;
++  double* top_heat;
+ 
+   __device__ HybridHeapIndex(
+       int32_t* data,
+@@ -22,7 +23,9 @@ struct HybridHeapIndex {
+       int32_t* local_heap = nullptr,
+       int32_t* local_position = nullptr,
+       int32_t* local_size = nullptr,
+-      const double* local_frequency = nullptr)
++      const double* local_frequency = nullptr,
++      int32_t* local_top = nullptr,
++      double* local_top_heat = nullptr)
+       : frequency(heat),
+         layers(n_layers),
+         experts(n_experts),
+@@ -31,7 +34,8 @@ struct HybridHeapIndex {
+         cached_heap(local_heap),
+         cached_position(local_position),
+         cached_size(local_size),
+-        cached_frequency(local_frequency) {
++        cached_frequency(local_frequency),
++        top_heat(local_top_heat) {
+     heap = data;
+     if (!data) {
+       position = size = top = top_position = top_size = nullptr;
+@@ -47,6 +51,11 @@ struct HybridHeapIndex {
+     head = free + slots;
+     tail = head + 1;
+     free_size = tail + 1;
++    if (local_top) {
++      top = local_top;
++      top_position = top + layers;
++      top_size = top_position + layers;
++    }
+   }
+ 
+   __device__ int32_t* heap_for(int32_t layer) const {
+@@ -67,6 +76,7 @@ struct HybridHeapIndex {
+     return x < y || (x == y && a < b);
+   }
+   __device__ bool top_less(int32_t a, int32_t b) const {
++    if (top_heat) return top_heat[a] < top_heat[b] || (top_heat[a] == top_heat[b] && a < b);
+     int32_t ea = heap_for(a)[0], eb = heap_for(b)[0];
+     double x = heat_for(a)[ea], y = heat_for(b)[eb];
+     return x < y || (x == y && (a < b || (a == b && ea < eb)));
+@@ -119,6 +129,7 @@ struct HybridHeapIndex {
+   }
+   __device__ void refresh_top(int32_t layer, bool was_present) {
+     bool present = size_for(layer) > 0;
++    if (top_heat && present) top_heat[layer] = heat_for(layer)[heap_for(layer)[0]];
+     if (was_present && !present) {
+       int32_t i = top_position[layer], last = top[--*top_size];
+       top_position[layer] = -1;
+@@ -188,6 +199,16 @@ struct HybridHeapIndex {
+   }
+   __device__ HybridVictim minimum() const {
+     int32_t layer = top[0], expert = heap_for(layer)[0];
+-    return {heat_for(layer)[expert], layer, expert, -1};
++    return {top_heat ? top_heat[layer] : heat_for(layer)[expert], layer, expert, -1};
++  }
++  __device__ bool protect_minimum(int32_t layer, const int32_t* histogram) {
++    while (*top_size) {
++      int32_t first = top[0], expert = heap_for(first)[0];
++      if (first != layer || !histogram[expert]) return true;
++      // Active readers are ineligible victims, but normally never reach the
++      // cold root. Detach only those that actually obstruct a victim query.
++      detach(layer, expert);
++    }
++    return false;
+   }
+ };
+diff --git a/python/sglang/kernels/jit/csrc/moe/qwen38_hybrid_plan.cuh b/python/sglang/kernels/jit/csrc/moe/qwen38_hybrid_plan.cuh
+index 7a340c85dd..e2b93f0989 100644
+--- a/python/sglang/kernels/jit/csrc/moe/qwen38_hybrid_plan.cuh
++++ b/python/sglang/kernels/jit/csrc/moe/qwen38_hybrid_plan.cuh
+@@ -53,7 +53,7 @@ __device__ inline HybridVictim victim_pop_max(HybridVictim* heap, int32_t* size)
+ 
+ // Global planners and all preceding GPU readers run on one ordered stream.
+ // Ownership identifies payloads; it does not restrict cross-layer victims.
+-template <bool Indexed>
++template <bool Indexed, bool Parallel = false>
+ __global__ void hybrid_plan_kernel(
+     const int32_t* __restrict__ ids,
+     int32_t* lookup,
+@@ -83,7 +83,8 @@ __global__ void hybrid_plan_kernel(
+     int32_t sequence = 0,
+     int32_t* index_data = nullptr,
+     int32_t layers = 0,
+-    int32_t index_slots = 0) {
++    int32_t index_slots = 0,
++    const HybridVictim* candidates = nullptr) {
+   int32_t* global_layer_lookup = lookup + static_cast<int64_t>(layer) * experts;
+   double* global_layer_frequency = frequency + static_cast<int64_t>(layer) * experts;
+   // Serial policy scans must not issue a dependent global load per expert.
+@@ -91,11 +92,21 @@ __global__ void hybrid_plan_kernel(
+   __shared__ int32_t layer_lookup[512];
+   __shared__ double layer_frequency[512];
+   __shared__ int32_t layer_heap[512], layer_position[512], layer_heap_size;
+-  constexpr int kCachedCostRows = 64;
++  // Leave room for the global layer minima as well as the current layer.
++  constexpr int kCachedCostRows = 32;
+   __shared__ double cached_costs[kCachedCostRows * kCostColumns];
++  constexpr int kCachedLayers = 64;
++  __shared__ int32_t cached_top[2 * kCachedLayers + 1];
++  __shared__ double cached_top_heat[kCachedLayers];
++  int32_t* local_top = Indexed && layers <= kCachedLayers ? cached_top : nullptr;
++  double* local_top_heat = local_top ? cached_top_heat : nullptr;
+   const double* policy_costs = samples <= kCachedCostRows ? cached_costs : costs;
+   __shared__ int32_t histogram[512];
++  __shared__ int32_t requested[kRoutes], requested_count;
++  __shared__ uint32_t cold_mask[16];
+   __shared__ int32_t active[kRoutes], rejected[kRoutes], selected;
++  __shared__ HybridVictim parallel_coldest[kRoutes];
++  __shared__ int32_t parallel_free_slots[kRoutes];
+   __shared__ int32_t active_count, rejected_count;
+   __shared__ bool layer_was_present;
+   for (int32_t e = threadIdx.x; e < experts; e += blockDim.x) {
+@@ -110,6 +121,14 @@ __global__ void hybrid_plan_kernel(
+   if (samples <= kCachedCostRows)
+     for (int32_t i = threadIdx.x; i < samples * kCostColumns; i += blockDim.x)
+       cached_costs[i] = costs[i];
++  if (local_top) {
++    const int32_t* sizes = index_data + 2 * layers * experts;
++    for (int32_t i = threadIdx.x; i < 2 * layers + 1; i += blockDim.x)
++      local_top[i] = sizes[layers + i];
++    for (int32_t l = threadIdx.x; l < layers; l += blockDim.x) {
++      if (sizes[l] > 0) local_top_heat[l] = frequency[l * experts + index_data[l * experts]];
++    }
++  }
+   if (threadIdx.x == 0) {
+     cache_plan[0] = cache_plan[1] = cache_plan[2] = cache_plan[3] = 0;
+     active_count = rejected_count = selected = 0;
+@@ -129,31 +148,46 @@ __global__ void hybrid_plan_kernel(
+     if (threadIdx.x == 0) asm volatile("trap;");
+     return;
+   }
+-  // Remove active residents before changing their heat. The remaining
+-  // residents of this layer all receive the same scale, so their heap order
+-  // remains valid. Active residents are restored after all victim selection.
+-  if (Indexed && threadIdx.x == 0) {
+-    HybridHeapIndex index(
+-        index_data,
+-        frequency,
+-        layers,
+-        experts,
+-        index_slots,
+-        layer,
+-        layer_heap,
+-        layer_position,
+-        &layer_heap_size,
+-        layer_frequency);
+-    layer_was_present = index.size_for(layer) > 0;
+-    for (int32_t e = 0; e < experts; ++e)
+-      if (histogram[e] && layer_lookup[e] >= 0) index.detach(layer, e, false);
++  // Routes are bounded by 32 even when a layer contains 512 experts. Keep
++  // expert order deterministic without serially scanning every inactive bin.
++  if (threadIdx.x == 0) {
++    requested_count = 0;
++    for (int32_t r = 0; r < routes; ++r) {
++      int32_t e = ids[r];
++      if (e < 0) continue;
++      int32_t pos = 0;
++      while (pos < requested_count && requested[pos] < e)
++        ++pos;
++      if (pos < requested_count && requested[pos] == e) continue;
++      for (int32_t i = requested_count; i > pos; --i)
++        requested[i] = requested[i - 1];
++      requested[pos] = e;
++      ++requested_count;
++    }
+   }
+   __syncthreads();
+   for (int32_t e = threadIdx.x; e < experts; e += blockDim.x) {
+-    layer_frequency[e] = __dadd_rn(__dmul_rn(layer_frequency[e], decay), histogram[e] > 0 ? 1.0 : 0.0);
+-    global_layer_frequency[e] = layer_frequency[e];
++    layer_frequency[e] = __dmul_rn(layer_frequency[e], decay);
++    if (!Indexed) {
++      layer_frequency[e] = __dadd_rn(layer_frequency[e], histogram[e] > 0 ? 1.0 : 0.0);
++      global_layer_frequency[e] = layer_frequency[e];
++    }
+   }
+   __syncthreads();
++  // Admission only adds active experts, so this inactive-cold set remains
++  // valid through admission. Build it cooperatively and reclaim in id order.
++  for (int32_t word = threadIdx.x; word < (experts + 31) / 32; word += blockDim.x) {
++    uint32_t mask = 0;
++    for (int32_t bit = 0; bit < 32 && word * 32 + bit < experts; ++bit) {
++      int32_t e = word * 32 + bit;
++      if (layer_lookup[e] >= 0 && !histogram[e] && layer_frequency[e] < 0.5) mask |= 1u << bit;
++    }
++    cold_mask[word] = mask;
++  }
++  if (Parallel)
++    for (int32_t s = threadIdx.x; s < slots; s += blockDim.x)
++      if (owners[s] == layer && keys[s] < 0) owners[s] = -1;
++  __syncthreads();
+   if (threadIdx.x == 0) {
+     HybridHeapIndex index(
+         index_data,
+@@ -165,14 +199,24 @@ __global__ void hybrid_plan_kernel(
+         layer_heap,
+         layer_position,
+         &layer_heap_size,
+-        layer_frequency);
+-    // The remaining residents all received the same decay factor, so their
+-    // layer-local order is unchanged. Only this layer's top-level key moves.
+-    if (Indexed) index.refresh_top(layer, layer_was_present);
++        layer_frequency,
++        local_top,
++        local_top_heat);
++    if (Indexed) {
++      layer_was_present = index.size_for(layer) > 0;
++      // Update one key at a time: batching all increments before heap repair
++      // can hide a smaller grandchild behind another incremented child.
++      for (int32_t i = 0; i < requested_count; ++i) {
++        int32_t e = requested[i];
++        layer_frequency[e] = __dadd_rn(layer_frequency[e], 1.0);
++        if (layer_lookup[e] >= 0) index.fix_expert(layer, index.positions_for(layer)[e]);
++      }
++      index.refresh_top(layer, layer_was_present);
++    }
+     int32_t initial_misses = 0, total_routes = 0;
+-    for (int32_t e = 0; e < experts; ++e) {
++    for (int32_t i = 0; i < requested_count; ++i) {
++      int32_t e = requested[i];
+       total_routes += histogram[e];
+-      if (!histogram[e]) continue;
+       if (layer_lookup[e] >= 0) continue;
+       ++initial_misses;
+       int32_t pos = active_count;
+@@ -184,12 +228,13 @@ __global__ void hybrid_plan_kernel(
+       active[pos] = e;
+       ++active_count;
+     }
+-    int32_t free_slots[kRoutes], free_count = 0, next_free = 0;
++    int32_t local_free_slots[kRoutes], free_count = 0, next_free = 0;
++    int32_t* free_slots = Parallel ? parallel_free_slots : local_free_slots;
+     HybridVictim victims[kRoutes];
+     int32_t victim_count = 0;
+     // Gather free slots in ascending order and the globally coldest victims
+     // once. Active residents of this layer cannot be replaced in this window.
+-    for (int32_t s = 0; !Indexed && active_count && s < slots; ++s) {
++    for (int32_t s = 0; !Indexed && !Parallel && active_count && s < slots; ++s) {
+       int32_t old_layer = owners[s], old = keys[s];
+       if (old_layer == -2) continue;
+       if (old < 0) {
+@@ -205,17 +250,29 @@ __global__ void hybrid_plan_kernel(
+     }
+     // Heap extraction yields descending order; reverse to consume the coldest
+     // first while preserving the former (heat, layer, expert) tie break.
+-    HybridVictim coldest[kRoutes];
++    HybridVictim local_coldest[kRoutes];
++    HybridVictim* coldest = Parallel ? parallel_coldest : local_coldest;
+     int32_t victim_total = victim_count, next_victim = 0;
+     for (int32_t i = victim_total - 1; i >= 0; --i)
+       coldest[i] = victim_pop_max(victims, &victim_count);
++    if (Parallel) {
++      for (int32_t i = 0; i < initial_misses; ++i) {
++        HybridVictim candidate = candidates[i];
++        if (candidate.slot < 0) break;
++        if (candidate.layer < 0)
++          free_slots[free_count++] = candidate.slot;
++        else
++          coldest[victim_total++] = candidate;
++      }
++    }
+     for (int32_t i = 0; i < active_count; ++i) {
+       int32_t e = active[i], slot = -1;
+       if (Indexed)
+         slot = index.pop_free();
+       else if (next_free < free_count)
+         slot = free_slots[next_free++];
+-      if (slot < 0 && layer_frequency[e] >= admission && (Indexed ? *index.top_size > 0 : next_victim < victim_total)) {
++      if (slot < 0 && layer_frequency[e] >= admission &&
++          (Indexed ? index.protect_minimum(layer, histogram) : next_victim < victim_total)) {
+         HybridVictim victim = Indexed ? index.minimum() : coldest[next_victim];
+         if (layer_frequency[e] > victim.heat) {
+           if (Indexed) {
+@@ -243,35 +300,41 @@ __global__ void hybrid_plan_kernel(
+       cache_plan[5 + 2 * n] = slot;
+     }
+     // Match GlobalLfu's post-plan cold reclaim and unused ownership release.
+-    for (int32_t e = 0; e < experts; ++e) {
+-      int32_t slot = layer_lookup[e];
+-      if (slot >= 0 && !histogram[e] && layer_frequency[e] < 0.5f) {
+-        if (Indexed) index.erase(layer, e);
+-        layer_lookup[e] = keys[slot] = -1;
+-        owners[slot] = -1;
+-        ++stats[0];
+-        if (Indexed) {
+-          index.push_free(slot);
+-          continue;
+-        }
+-        // Cold reclaim becomes available to the forced-placement phase in
+-        // this same call. Keep the remaining free prefix sorted by slot id.
+-        int32_t pos = next_free;
+-        while (pos < free_count && free_slots[pos] < slot)
+-          ++pos;
+-        if (pos < kRoutes) {
+-          if (free_count < kRoutes) ++free_count;
+-          for (int32_t j = free_count - 1; j > pos; --j)
+-            free_slots[j] = free_slots[j - 1];
+-          free_slots[pos] = slot;
++    for (int32_t word = 0; word < (experts + 31) / 32; ++word) {
++      uint32_t mask = cold_mask[word];
++      for (int32_t bit = 0; mask; ++bit, mask >>= 1) {
++        if (!(mask & 1)) continue;
++        int32_t e = word * 32 + bit;
++        int32_t slot = layer_lookup[e];
++        if (slot >= 0 && !histogram[e] && layer_frequency[e] < 0.5f) {
++          if (Indexed) index.erase(layer, e);
++          layer_lookup[e] = keys[slot] = -1;
++          owners[slot] = -1;
++          ++stats[0];
++          if (Indexed) {
++            index.push_free(slot);
++            continue;
++          }
++          // Cold reclaim becomes available to the forced-placement phase in
++          // this same call. Keep the remaining free prefix sorted by slot id.
++          int32_t pos = next_free;
++          while (pos < free_count && free_slots[pos] < slot)
++            ++pos;
++          if (pos < kRoutes) {
++            if (free_count < kRoutes) ++free_count;
++            for (int32_t j = free_count - 1; j > pos; --j)
++              free_slots[j] = free_slots[j - 1];
++            free_slots[pos] = slot;
++          }
+         }
+       }
+     }
+-    if (!Indexed)
++    if (!Indexed && !Parallel)
+       for (int32_t s = 0; s < slots; ++s)
+         if (owners[s] == layer && keys[s] < 0) owners[s] = -1;
+-    for (int32_t e = 0; e < experts; ++e) {
+-      if (!histogram[e] || layer_lookup[e] >= 0) continue;
++    for (int32_t i = 0; i < requested_count; ++i) {
++      int32_t e = requested[i];
++      if (layer_lookup[e] >= 0) continue;
+       int32_t pos = rejected_count;
+       while (pos && histogram[rejected[pos - 1]] > histogram[e]) {
+         rejected[pos] = rejected[pos - 1];
+@@ -311,7 +374,23 @@ __global__ void hybrid_plan_kernel(
+     // victims. Free slots alone do not require a second pool scan.
+     victim_total = 0;
+     next_victim = 0;
+-    if (!Indexed && rejected_count - selected > free_count - next_free) {
++    if (Parallel) {
++      // The second list predicts cold reclamation. Earlier admissions can
++      // consume its entries, so discard those whose payload changed. At most
++      // initial_misses entries are ever consumed across admission and force.
++      free_count = next_free = 0;
++      for (int32_t i = 0; i < initial_misses; ++i) {
++        HybridVictim candidate = candidates[kRoutes + i];
++        int32_t slot = candidate.slot;
++        if (slot < 0) break;
++        if (candidate.layer < 0) {
++          if (keys[slot] < 0) free_slots[free_count++] = slot;
++        } else if (keys[slot] == candidate.expert && owners[slot] == candidate.layer) {
++          coldest[victim_total++] = candidate;
++        }
++      }
++    }
++    if (!Indexed && !Parallel && rejected_count - selected > free_count - next_free) {
+       victim_count = 0;
+       for (int32_t s = 0; s < slots; ++s) {
+         int32_t old_layer = owners[s], old = keys[s];
+@@ -339,7 +418,7 @@ __global__ void hybrid_plan_kernel(
+         if (!Indexed)
+           while (next_victim < victim_total && keys[coldest[next_victim].slot] < 0)
+             ++next_victim;
+-        if (Indexed ? *index.top_size == 0 : next_victim == victim_total) {
++        if (Indexed ? !index.protect_minimum(layer, histogram) : next_victim == victim_total) {
+           cache_plan[0] = 2;
+           asm volatile("trap;");
+           return;
+@@ -366,8 +445,10 @@ __global__ void hybrid_plan_kernel(
+       // Hits and newly placed experts were excluded from victim selection.
+       // No victim query occurs within this batch, so repair the layer top once.
+       bool was_present = index.size_for(layer) > 0;
+-      for (int32_t e = 0; e < experts; ++e)
+-        if (histogram[e] && layer_lookup[e] >= 0 && index.positions_for(layer)[e] < 0) index.insert(layer, e, false);
++      for (int32_t i = 0; i < requested_count; ++i) {
++        int32_t e = requested[i];
++        if (layer_lookup[e] >= 0 && index.positions_for(layer)[e] < 0) index.insert(layer, e, false);
++      }
+       index.refresh_top(layer, was_present);
+     }
+     stats[1] += active_count ? 0 : 1;  // Calls without an initial miss.
+@@ -380,12 +461,16 @@ __global__ void hybrid_plan_kernel(
+   __syncthreads();
+   for (int32_t e = threadIdx.x; e < experts; e += blockDim.x) {
+     global_layer_lookup[e] = layer_lookup[e];
++    global_layer_frequency[e] = layer_frequency[e];
+     if (Indexed) {
+       index_data[layer * experts + e] = layer_heap[e];
+       index_data[layers * experts + layer * experts + e] = layer_position[e];
+     }
+   }
+   if (Indexed && threadIdx.x == 0) index_data[2 * layers * experts + layer] = layer_heap_size;
++  if (local_top)
++    for (int32_t i = threadIdx.x; i < 2 * layers + 1; i += blockDim.x)
++      index_data[2 * layers * experts + layers + i] = local_top[i];
+   for (int32_t route = threadIdx.x; route < routes; route += blockDim.x) {
+     int32_t e = ids[route];
+     if (e < 0) continue;
+@@ -501,11 +586,8 @@ __global__ void hybrid_merge_kernel(
+     int32_t elements,
+     int32_t routes,
+     int32_t sequence) {
+-  __shared__ bool selected;
++  bool selected = __syncthreads_or(threadIdx.x < routes && cpu_ids[threadIdx.x] >= 0);
+   if (threadIdx.x == 0) {
+-    selected = false;
+-    for (int32_t i = 0; i < routes; ++i)
+-      selected |= cpu_ids[i] >= 0;
+     if (selected) {
+       while (*completed < sequence) {
+         if (failed && *failed) {
+@@ -521,7 +603,7 @@ __global__ void hybrid_merge_kernel(
+     }
+   }
+   __syncthreads();
+-  for (int32_t i = threadIdx.x; i < elements; i += blockDim.x) {
++  for (int32_t i = blockIdx.x * blockDim.x + threadIdx.x; i < elements; i += blockDim.x * gridDim.x) {
+     float value = gpu[i];
+     if (selected) {
+       float contribution;
+@@ -533,8 +615,10 @@ __global__ void hybrid_merge_kernel(
+ }
+ }  // namespace details
+ 
++#include "qwen38_parallel_candidates.cuh"
++
+ /// Perform device LFU admission and exact calibrated CPU subset selection.
+-template <bool Indexed>
++template <bool Indexed, bool Parallel = false>
+ inline void qwen38_hybrid_plan_impl(
+     tvm::ffi::TensorView ids,
+     tvm::ffi::TensorView lookup,
+@@ -556,7 +640,8 @@ inline void qwen38_hybrid_plan_impl(
+     int64_t host_weights,
+     int64_t host_head,
+     int64_t sequence,
+-    tvm::ffi::TensorView* heap_index = nullptr) {
++    tvm::ffi::TensorView* heap_index = nullptr,
++    tvm::ffi::TensorView* candidate_scratch = nullptr) {
+   using namespace host;
+   using sglang::details::kCostColumns;
+   SymbolicSize tokens("tokens"), topk("topk"), layers("layers"), experts("experts"), slots("slots"), samples("samples"),
+@@ -595,8 +680,34 @@ inline void qwen38_hybrid_plan_impl(
+     CHECK_HOST(sequence > 0 && sequence < std::numeric_limits<int32_t>::max());
+     hidden = static_cast<int32_t>(width.unwrap());
+   }
++  sglang::details::HybridVictim* candidate_data = nullptr;
++  if (Parallel) {
++    CHECK_HOST(candidate_scratch != nullptr);
++    static_assert(sizeof(sglang::details::HybridVictim) == 3 * sizeof(int64_t));
++    TensorMatcher({2, sglang::details::kRoutes, 3})
++        .with_dtype<int64_t>()
++        .with_device<kDLCUDA>(device)
++        .verify(*candidate_scratch);
++    candidate_data = reinterpret_cast<sglang::details::HybridVictim*>(candidate_scratch->data_ptr());
++    auto kernel = slots.unwrap() <= 8192 ? sglang::details::register_candidates_kernel
++                                         : sglang::details::parallel_candidates_kernel<false>;
++    size_t shared_bytes = 0;
++    LaunchKernel(1, 256, device.unwrap(), shared_bytes)(
++        kernel,
++        static_cast<const int32_t*>(ids.data_ptr()),
++        static_cast<const int32_t*>(lookup.data_ptr()),
++        static_cast<const double*>(frequency.data_ptr()),
++        static_cast<const int32_t*>(owners.data_ptr()),
++        static_cast<const int32_t*>(keys.data_ptr()),
++        candidate_data,
++        static_cast<int32_t>(n),
++        static_cast<int32_t>(experts.unwrap()),
++        static_cast<int32_t>(slots.unwrap()),
++        static_cast<int32_t>(layer),
++        decay);
++  }
+   LaunchKernel(1, 128, device.unwrap())(
+-      sglang::details::hybrid_plan_kernel<Indexed>,
++      sglang::details::hybrid_plan_kernel<Indexed, Parallel>,
+       static_cast<const int32_t*>(ids.data_ptr()),
+       static_cast<int32_t*>(lookup.data_ptr()),
+       static_cast<double*>(frequency.data_ptr()),
+@@ -625,7 +736,8 @@ inline void qwen38_hybrid_plan_impl(
+       static_cast<int32_t>(sequence),
+       heap_index ? static_cast<int32_t*>(heap_index->data_ptr()) : nullptr,
+       static_cast<int32_t>(layers.unwrap()),
+-      index_slots);
++      index_slots,
++      candidate_data);
+ }
+ 
+ inline void qwen38_hybrid_plan(
+@@ -748,6 +860,46 @@ inline void qwen38_hybrid_plan_indexed(
+       &heap_index);
+ }
+ 
++inline void qwen38_hybrid_plan_parallel(
++    tvm::ffi::TensorView ids,
++    tvm::ffi::TensorView lookup,
++    tvm::ffi::TensorView frequency,
++    tvm::ffi::TensorView owners,
++    tvm::ffi::TensorView keys,
++    tvm::ffi::TensorView costs,
++    tvm::ffi::TensorView cache_ids,
++    tvm::ffi::TensorView cpu_ids,
++    tvm::ffi::TensorView cache_plan,
++    tvm::ffi::TensorView stats,
++    int64_t layer,
++    double decay,
++    double admission,
++    tvm::ffi::TensorView candidate_scratch) {
++  qwen38_hybrid_plan_impl<false, true>(
++      ids,
++      lookup,
++      frequency,
++      owners,
++      keys,
++      costs,
++      cache_ids,
++      cpu_ids,
++      cache_plan,
++      stats,
++      layer,
++      decay,
++      admission,
++      nullptr,
++      nullptr,
++      0,
++      0,
++      0,
++      0,
++      0,
++      nullptr,
++      &candidate_scratch);
++}
++
+ inline void qwen38_hybrid_plan_stage_indexed(
+     tvm::ffi::TensorView ids,
+     tvm::ffi::TensorView lookup,
+@@ -793,6 +945,53 @@ inline void qwen38_hybrid_plan_stage_indexed(
+       sequence,
+       &heap_index);
+ }
++
++inline void qwen38_hybrid_plan_stage_parallel(
++    tvm::ffi::TensorView ids,
++    tvm::ffi::TensorView lookup,
++    tvm::ffi::TensorView frequency,
++    tvm::ffi::TensorView owners,
++    tvm::ffi::TensorView keys,
++    tvm::ffi::TensorView costs,
++    tvm::ffi::TensorView cache_ids,
++    tvm::ffi::TensorView cpu_ids,
++    tvm::ffi::TensorView cache_plan,
++    tvm::ffi::TensorView stats,
++    int64_t layer,
++    double decay,
++    double admission,
++    tvm::ffi::TensorView x,
++    tvm::ffi::TensorView weights,
++    int64_t host_x,
++    int64_t host_ids,
++    int64_t host_weights,
++    int64_t host_head,
++    int64_t sequence,
++    tvm::ffi::TensorView candidate_scratch) {
++  qwen38_hybrid_plan_impl<false, true>(
++      ids,
++      lookup,
++      frequency,
++      owners,
++      keys,
++      costs,
++      cache_ids,
++      cpu_ids,
++      cache_plan,
++      stats,
++      layer,
++      decay,
++      admission,
++      &x,
++      &weights,
++      host_x,
++      host_ids,
++      host_weights,
++      host_head,
++      sequence,
++      nullptr,
++      &candidate_scratch);
++}
+ }  // namespace sglang
+ 
+ namespace sglang {
+@@ -891,7 +1090,7 @@ inline void qwen38_hybrid_merge(
+   CHECK_HOST(tokens.unwrap() * topk.unwrap() <= sglang::details::kRoutes);
+   CHECK_HOST(host_result > 0 && sequence > 0 && sequence < std::numeric_limits<int32_t>::max());
+   CHECK_HOST(completed_address >= 0);
+-  LaunchKernel(1, 256, device.unwrap())(
++  LaunchKernel((tokens.unwrap() * hidden.unwrap() + 1023) / 1024, 256, device.unwrap())(
+       sglang::details::hybrid_merge_kernel,
+       static_cast<const int32_t*>(cpu_ids.data_ptr()),
+       static_cast<const float*>(gpu.data_ptr()),
+diff --git a/python/sglang/kernels/ops/moe/__init__.py b/python/sglang/kernels/ops/moe/__init__.py
+index d59fa1a17f..0ec0772f5e 100644
+--- a/python/sglang/kernels/ops/moe/__init__.py
++++ b/python/sglang/kernels/ops/moe/__init__.py
+@@ -425,3 +425,23 @@ register_kernel(
+         description="B12X SM12x W4A4 SwiGLU with inline slot-strided CSF scales.",
+     )
+ )
++
++register_kernel(
++    KernelSpec(
++        op="moe.qwen38_hybrid_plan_parallel",
++        backend=KernelBackend.JIT,
++        target="sglang.kernels.ops.moe.qwen38_hybrid_plan:hybrid_plan_parallel",
++        capabilities=_CUDA,
++        description="Heapless parallel partition scans with deterministic LFU victim ordering.",
++    )
++)
++
++register_kernel(
++    KernelSpec(
++        op="moe.qwen38_hybrid_plan_stage_parallel",
++        backend=KernelBackend.JIT,
++        target="sglang.kernels.ops.moe.qwen38_hybrid_plan:hybrid_plan_stage_parallel",
++        capabilities=_CUDA,
++        description="Heapless parallel partition scans with deterministic LFU victim ordering.",
++    )
++)
+diff --git a/python/sglang/kernels/ops/moe/qwen38_hybrid_plan.py b/python/sglang/kernels/ops/moe/qwen38_hybrid_plan.py
+index 6d8af4de1d..d9003fadad 100644
+--- a/python/sglang/kernels/ops/moe/qwen38_hybrid_plan.py
++++ b/python/sglang/kernels/ops/moe/qwen38_hybrid_plan.py
+@@ -23,6 +23,8 @@ def _module():
+         cuda_wrappers=[
+             ("plan", "qwen38_hybrid_plan"),
+             ("plan_indexed", "qwen38_hybrid_plan_indexed"),
++            ("plan_parallel", "qwen38_hybrid_plan_parallel"),
++            ("plan_stage_parallel", "qwen38_hybrid_plan_stage_parallel"),
+             ("plan_stage", "qwen38_hybrid_plan_stage"),
+             ("plan_stage_indexed", "qwen38_hybrid_plan_stage_indexed"),
+             ("wait", "qwen38_hybrid_wait"),
+@@ -169,3 +171,13 @@ def hybrid_merge(
+         failed_address,
+         completed_address,
+     )
++
++
++def hybrid_plan_parallel(*args):
++    """Heapless partition scans; final argument is int64[2,32,3] scratch."""
++    _module().plan_parallel(*args)
++
++
++def hybrid_plan_stage_parallel(*args):
++    """Heapless planning plus conditional publication, with candidate scratch."""
++    _module().plan_stage_parallel(*args)
+diff --git a/python/sglang/srt/layers/moe/qwen38_hybrid.py b/python/sglang/srt/layers/moe/qwen38_hybrid.py
+index 48cc40e97a..5111b66c59 100644
+--- a/python/sglang/srt/layers/moe/qwen38_hybrid.py
++++ b/python/sglang/srt/layers/moe/qwen38_hybrid.py
+@@ -316,7 +316,8 @@ class HybridCache:
+         self._check()
+         if self.pending is None:
+             return
+-        layer, epoch, requested, done = self.pending
++        layer, epoch, requested, done, *options = self.pending
++        prefill_arena = bool(options and options[0])
+         self.pending = None
+         if (layer, epoch) in getattr(self, "prepared_windows", ()):
+             # Admission and observation already happened before this computation.
+@@ -342,7 +343,9 @@ class HybridCache:
+         self.readable[layer] = {}
+         future = Future()
+         self.active[layer] = future
+-        self.jobs.put_nowait((layer, epoch, requested, done, future))
++        self.jobs.put_nowait(
++            (layer, epoch, requested, done, future, False, prefill_arena)
++        )
+ 
+     def _wait_layer(self, layer):
+         # Used by exclusive boundaries and admission preparation.
+@@ -372,7 +375,8 @@ class HybridCache:
+     def _cpu_work(self):
+         with torch.cuda.device(self.runtime.device):
+             while True:
+-                if self.mapped_batch_pages:
++                polling = self.mapped_batch_pages and self.device_planner.valid
++                if polling:
+                     request = self.device_planner.poll()
+                     if request is not None:
+                         self.device_planner.cpu_task(*request)
+@@ -380,7 +384,7 @@ class HybridCache:
+                 try:
+                     job = self.cpu_jobs.get_nowait()
+                 except queue.Empty:
+-                    if not self.mapped_batch_pages:
++                    if not polling:
+                         time.sleep(0.001)
+                     continue
+                 try:
+@@ -481,6 +485,40 @@ class HybridCache:
+         # plan, submit registered transfers and publish while this task waits.
+         return _StagedCopy(self, layer, fills, done)
+ 
++    def _copy_prefill_admissions(self, fills, done):
++        """Publish prefill weights from the borrowed arena before it is reused.
++
++        The tail is reserved outside the cache pool during prefill. The next
++        borrower (or decode upload) drains admission before releasing that tail,
++        so both source and destination remain valid until this event completes.
++        """
++        from sglang.kernels.ops.moe.qwen38_expert_cache import packed_scatter
++
++        r = self.runtime
++        table = torch.empty(
++            (len(self.pool), len(fills), 3), dtype=torch.int64, pin_memory=True
++        )
++        experts, slots = zip(*fills)
++        for row, (name, tensor) in zip(table, self.pool.items()):
++            nbytes = tensor[0].numel() * tensor.element_size()
++            row[:, 0].numpy()[:] = [tensor.data_ptr() + s * nbytes for s in slots]
++            row[:, 1].numpy()[:] = [e * nbytes for e in experts]
++            row[:, 2].fill_(nbytes)
++        with torch.cuda.stream(self.fill_stream):
++            self.fill_stream.wait_event(done)
++            for row, name in zip(table, self.pool):
++                packed_scatter(
++                    r.arena[name].view(torch.uint8).reshape(-1),
++                    row.to(r.device, non_blocking=True),
++                )
++            copied = torch.cuda.Event()
++            copied.record(self.fill_stream)
++        self.stats["prefill_admission_d2d_bytes"] += len(fills) * sum(
++            t[0].numel() * t.element_size() for t in self.pool.values()
++        )
++        self.stats["insertions"] += len(fills)
++        return copied
++
+     def _complete_copies(self, copies):
+         remaining = []
+         for entry in copies:
+@@ -535,7 +573,12 @@ class HybridCache:
+                 self.stats["evictions"] += len(evicted)
+                 self.readable[layer] = dict(self.policy.layers[layer].mapping)
+                 if fills:
+-                    copied = self._copy(layer, fills, done)
++                    prefill_arena = len(options) > 1 and options[1]
++                    copied = (
++                        self._copy_prefill_admissions(fills, done)
++                        if prefill_arena
++                        else self._copy(layer, fills, done)
++                    )
+                     copies.append((layer, epoch, fills, copied, future, prepare))
+                     deferred = True
+                 else:
+@@ -975,7 +1018,13 @@ class HybridCache:
+         done.record(compute)
+         r.layer_computed[layer] = done
+         r.arena_last_use = done
+-        self.pending = (layer, epoch, tuple(sorted(requested)), done)
++        self.pending = (
++            layer,
++            epoch,
++            tuple(sorted(requested)),
++            done,
++            bool(r.borrowed_arena),
++        )
+         self.stats["prefill_global_hits"] += len(hits)
+         self.stats["prefill_gpu_misses"] += len(misses)
+         r._record_invocation(bool(misses), ids, layer)
+diff --git a/python/sglang/srt/layers/moe/qwen38_hybrid_device.py b/python/sglang/srt/layers/moe/qwen38_hybrid_device.py
+index 4eb2e272ae..4656a06aff 100644
+--- a/python/sglang/srt/layers/moe/qwen38_hybrid_device.py
++++ b/python/sglang/srt/layers/moe/qwen38_hybrid_device.py
+@@ -147,12 +147,33 @@ class DeviceHybridPlanner:
+         self.observed = [0] * 7
+         self.has_cpu_samples = bool(rows)
+         self.compute_stream = None
++        self.fill_ready = torch.cuda.Event()
++        self.fill_done = torch.cuda.Event()
++        # The ordered compute/fill join retires every reader before reuse,
++        # including when graph warmup switches compute streams.
++        top_k = cache.runtime.manifest.top_k
++        self.route_buffers = {}
++        for tokens in (1, 2, 3):
++            self.route_buffers[tokens] = (
++                torch.empty(
++                    (tokens, top_k), dtype=torch.int32, device=cache.runtime.device
++                ),
++                torch.empty(
++                    (tokens, top_k), dtype=torch.int32, device=cache.runtime.device
++                ),
++                torch.empty(
++                    4 + 2 * tokens * top_k,
++                    dtype=torch.int32,
++                    device=cache.runtime.device,
++                ),
++            )
+         # Compile at load time, before any serving invocation.
+         _module()
+ 
+     @property
+     def device_bytes(self):
+         tensors = [self.costs, self.device_stats, self.flag, self.heap_index]
++        tensors += [t for buffers in self.route_buffers.values() for t in buffers]
+         tensors += list(self.layouts.values())
+         for name in ("lookup", "frequency", "owners", "keys"):
+             tensor = getattr(self, name, None)
+@@ -344,8 +365,7 @@ class DeviceHybridPlanner:
+             self.compute_stream = compute.cuda_stream
+         # Every decode planner, fill and preceding cache reader runs on this
+         # same stream. Its ordering already permits cross-layer slot reuse.
+-        cache_ids, cpu_ids = (torch.empty_like(ids) for _ in range(2))
+-        plan = torch.empty(4 + 2 * ids.numel(), dtype=torch.int32, device=r.device)
++        cache_ids, cpu_ids, plan = self.route_buffers[x.shape[0]]
+         batch = None
+         if self.has_cpu_samples:
+             if not c.mapped_batch_pages:
+@@ -398,44 +418,53 @@ class DeviceHybridPlanner:
+             )
+         self.dirty = True
+         mailbox = r.miss_mailbox
++
+         # One fill reads its device count; an empty plan copies nothing.
+-        fill_module().mailbox_fill_grid(
+-            plan,
+-            self.layout(layer),
+-            ids.numel(),
+-            mailbox.failed_address,
+-            mailbox.fill_cta,
+-        )
+-        if shared is not None:
+-            shared()
++        def submit_fill():
++            fill_module().mailbox_fill_grid(
++                plan,
++                self.layout(layer),
++                ids.numel(),
++                mailbox.failed_address,
++                mailbox.fill_cta,
++            )
++
++        if shared is None:
++            submit_fill()
++        else:
++            from sglang.srt.layers.moe.qwen38_cache_overlap import fill_with_overlap
++
++            fill_with_overlap(
++                compute,
++                c.fill_stream,
++                self.fill_ready,
++                self.fill_done,
++                submit_fill,
++                shared,
++            )
++            c.stats["shared_fill_overlap_calls"] += 1
+         try:
+             gpu = c._gpu(x, cache_ids, weights, layer)
++            # Keep both contributions in FP32 until the sole BF16 conversion.
++            if batch is not None:
++                output = torch.empty_like(x)
++                hybrid_merge(
++                    cpu_ids,
++                    gpu,
++                    self.flag,
++                    output,
++                    batch.device_addresses[3],
++                    sequence,
++                    mailbox.failed_address,
++                    completed_address=(
++                        batch.device_addresses[5] if c.gpu_backend == "b12x" else 0
++                    ),
++                )
+         finally:
+             done = torch.cuda.Event()
+             done.record(compute)
+-            r.arena_last_use = done
+-            r.layer_computed[layer] = done
+-        # A single CTA waits and coalesces mapped result reads. Polling from
+-        # every B12X FC2 writer serializes PCIe reads and costs milliseconds.
+-        # Keep both contributions in FP32 until this sole BF16 conversion.
+-        if batch is not None:
+-            output = torch.empty_like(x)
+-            hybrid_merge(
+-                cpu_ids,
+-                gpu,
+-                self.flag,
+-                output,
+-                batch.device_addresses[3],
+-                sequence,
+-                mailbox.failed_address,
+-                completed_address=(
+-                    batch.device_addresses[5] if c.gpu_backend == "b12x" else 0
+-                ),
+-            )
+-        done = torch.cuda.Event()
+-        done.record(compute)
+-        self.last_compute_done = done
+-        r.layer_computed[layer] = r.arena_last_use = done
++            self.last_compute_done = done
++            r.layer_computed[layer] = r.arena_last_use = done
+         with mailbox.lock:
+             mailbox.native_active = True
+             mailbox.pending.append((done, time.monotonic() + c.timeout, layer))
+diff --git a/test/manual/kernels/moe/bench_qwen38_hybrid_planner.py b/test/manual/kernels/moe/bench_qwen38_hybrid_planner.py
+index bbd09074b8..5bd1c89603 100644
+--- a/test/manual/kernels/moe/bench_qwen38_hybrid_planner.py
++++ b/test/manual/kernels/moe/bench_qwen38_hybrid_planner.py
+@@ -11,7 +11,11 @@ import statistics
+ 
+ import torch
+ 
+-from sglang.kernels.ops.moe.qwen38_hybrid_plan import hybrid_plan, hybrid_plan_indexed
++from sglang.kernels.ops.moe.qwen38_hybrid_plan import (
++    hybrid_plan,
++    hybrid_plan_indexed,
++    hybrid_plan_parallel,
++)
+ from sglang.srt.layers.moe.qwen38_heap_index import build_heap_index
+ 
+ 
+@@ -48,6 +52,8 @@ def main():
+     parser.add_argument("--experts", type=int, default=512)
+     parser.add_argument("--slots", type=int, default=6388)
+     parser.add_argument("--max-slots", type=int, default=7006)
++    parser.add_argument("--tokens", type=int, default=1)
++    parser.add_argument("--top-k", type=int, default=3)
+     parser.add_argument("--samples", type=int, default=100)
+     parser.add_argument("--warmup", type=int, default=20)
+     args = parser.parse_args()
+@@ -55,6 +61,10 @@ def main():
+         parser.error("CUDA GPU required")
+     if not (1 < args.slots <= args.max_slots <= args.layers * args.experts):
+         parser.error("invalid slot capacity")
++    if not (
++        1 <= args.tokens <= 3 and 1 <= args.top_k and args.tokens * args.top_k <= 32
++    ):
++        parser.error("invalid route shape")
+     if args.samples < 1 or args.warmup < 0:
+         parser.error("invalid sample count")
+     rng = random.Random(617)
+@@ -62,14 +72,11 @@ def main():
+         source, source_index, first_unused = state_for_case(
+             args.layers, args.experts, args.slots, args.max_slots, free_slots
+         )
+-        if first_unused + 3 >= args.experts:
++        if first_unused + args.top_k + args.tokens >= args.experts:
+             parser.error("too few unused experts for miss case")
++        base = 0 if case == "all_hit" else first_unused
+         ids = torch.tensor(
+-            (
+-                [[0, 1, 2]]
+-                if case == "all_hit"
+-                else [[first_unused, first_unused + 1, first_unused + 2]]
+-            ),
++            [[base + r + t for r in range(args.top_k)] for t in range(args.tokens)],
+             dtype=torch.int32,
+             device="cuda",
+         )
+@@ -79,24 +86,33 @@ def main():
+         gpu, cpu = torch.empty_like(ids), torch.empty_like(ids)
+         plan = torch.empty(4 + 2 * ids.numel(), dtype=torch.int32, device="cuda")
+         stats = torch.empty(7, dtype=torch.int64, device="cuda")
+-        timings = {False: [], True: []}
++        scratch = torch.empty((2, 32, 3), dtype=torch.int64, device="cuda")
++        functions = {
++            "scan": hybrid_plan,
++            "indexed": hybrid_plan_indexed,
++            "parallel": hybrid_plan_parallel,
++        }
++        timings = {name: [] for name in functions}
+         outcomes = {}
+         for sample in range(args.samples + args.warmup):
+-            order = [False, True]
++            order = list(functions)
+             rng.shuffle(order)
+-            for indexed in order:
++            for mode in order:
+                 for target, original in zip(state, source):
+                     target.copy_(original)
+                 index.copy_(source_index)
+                 stats.zero_()
+-                begin, end = torch.cuda.Event(enable_timing=True), torch.cuda.Event(
+-                    enable_timing=True
++                begin, end = (
++                    torch.cuda.Event(enable_timing=True),
++                    torch.cuda.Event(enable_timing=True),
+                 )
+                 begin.record()
+-                call = hybrid_plan_indexed if indexed else hybrid_plan
++                call = functions[mode]
+                 arguments = (ids, *state, costs, gpu, cpu, plan, stats, 0, 0.95, 1.9)
+-                if indexed:
++                if mode == "indexed":
+                     arguments += (index,)
++                elif mode == "parallel":
++                    arguments += (scratch,)
+                 call(*arguments)
+                 end.record()
+                 end.synchronize()
+@@ -104,7 +120,7 @@ def main():
+                     owner_values, key_values = (
+                         tensor.tolist() for tensor in state[2:4]
+                     )
+-                    outcomes[indexed] = (
++                    outcomes[mode] = (
+                         tuple(
+                             sorted(
+                                 (owner, key)
+@@ -117,18 +133,15 @@ def main():
+                         tuple(sorted(plan[4 : 4 + 2 * plan[1].item() : 2].tolist())),
+                     )
+                 if sample >= args.warmup:
+-                    timings[indexed].append(begin.elapsed_time(end) * 1000)
+-        if outcomes[False] != outcomes[True]:
+-            raise AssertionError(f"scan and indexed planner differ for {case}")
+-        scan, indexed = (statistics.median(timings[key]) for key in (False, True))
++                    timings[mode].append(begin.elapsed_time(end) * 1000)
++        if not all(value == outcomes["scan"] for value in outcomes.values()):
++            raise AssertionError(f"planner decisions differ for {case}")
+         print(
+             case,
+-            "scan_us",
+-            round(scan, 3),
+-            "indexed_us",
+-            round(indexed, 3),
+-            "ratio",
+-            round(indexed / scan, 3),
++            {
++                name + "_us": round(statistics.median(values), 3)
++                for name, values in timings.items()
++            },
+             flush=True,
+         )
+ 
+diff --git a/test/registered/kernels/ops/moe/test_qwen38_hybrid_plan.py b/test/registered/kernels/ops/moe/test_qwen38_hybrid_plan.py
+index 3a4a84f04c..829d3b91a0 100644
+--- a/test/registered/kernels/ops/moe/test_qwen38_hybrid_plan.py
++++ b/test/registered/kernels/ops/moe/test_qwen38_hybrid_plan.py
+@@ -10,6 +10,8 @@ from sglang.kernels.ops.moe.qwen38_hybrid_plan import (
+     COST_COLUMNS,
+     hybrid_merge,
+     hybrid_plan,
++    hybrid_plan_indexed,
++    hybrid_plan_parallel,
+     hybrid_plan_stage_indexed,
+     hybrid_result,
+     hybrid_stage,
+@@ -260,7 +262,7 @@ class TestHybridPlan(CustomTestCase):
+             ),
+         )
+ 
+-    def invoke(self, ids, state, costs=None, layer=0):
++    def invoke(self, ids, state, costs=None, layer=0, index=None, parallel=False):
+         ids = torch.tensor(ids, dtype=torch.int32, device="cuda")
+         routes = [torch.empty_like(ids) for _ in range(2)]
+         plans = [
+@@ -270,7 +272,14 @@ class TestHybridPlan(CustomTestCase):
+         stats = torch.zeros(7, dtype=torch.int64, device="cuda")
+         if costs is None:
+             costs = torch.empty((0, COST_COLUMNS), dtype=torch.float64, device="cuda")
+-        hybrid_plan(ids, *state, costs, *routes, *plans, stats, layer, 0.95, 1.9)
++        arguments = (ids, *state, costs, *routes, *plans, stats, layer, 0.95, 1.9)
++        if parallel:
++            scratch = torch.empty((2, 32, 3), dtype=torch.int64, device="cuda")
++            hybrid_plan_parallel(*arguments, scratch)
++        elif index is None:
++            hybrid_plan(*arguments)
++        else:
++            hybrid_plan_indexed(*arguments, index)
+         torch.cuda.synchronize()
+         return routes, plans, stats
+ 
+@@ -284,7 +293,7 @@ class TestHybridPlan(CustomTestCase):
+         row = [1, 9, 1, 1, 5, 10] + [1] + [0] * 31 + [1] * 5 + [0] * 27
+         # Exercise both shared-table capacity and the global-memory fallback.
+         # Only the final row matches, so truncating a large table loses CPU work.
+-        for count in (1, 64, 65):
++        for count in (1, 32, 33, 64, 65):
+             with self.subTest(cost_rows=count):
+                 costs = torch.zeros(
+                     (count, COST_COLUMNS), dtype=torch.float64, device="cuda"
+@@ -362,6 +371,82 @@ class TestHybridPlan(CustomTestCase):
+         self.assertEqual(state[2].tolist(), [0, 0])
+         self.assertEqual(plans[0][1].item(), 1)
+ 
++    def test_parallel_candidates_preserve_exact_slots_through_cold_reclaim(self):
++        """Two candidate lists must survive earlier admission and new free slots."""
++        policy = GlobalLfu(2, 512, [32, 32])
++        for layer in range(2):
++            policy.seed(layer, {e: layer * 32 + e for e in range(1, 32)})
++            policy.frequency[layer] = [0.4 if e % 2 else 10.0 for e in range(512)]
++        reference = self.tensors(policy)
++        reference[2][0] = -2
++        actual = tuple(t.clone() for t in reference)
++        rng = random.Random(37)
++        for step in range(100):
++            rows = [
++                [rng.randrange(-1, 512) for _ in range(10)] for _ in range(1 + step % 3)
++            ]
++            if step % 19 == 0:
++                rows = [[-1] * 10]
++            expected = self.invoke(rows, reference, layer=step % 2)
++            observed = self.invoke(rows, actual, layer=step % 2, parallel=True)
++            for a, b in zip(actual, reference):
++                torch.testing.assert_close(a, b, rtol=0, atol=0)
++            for a, b in zip(
++                observed[0] + observed[1] + [observed[2]],
++                expected[0] + expected[1] + [expected[2]],
++            ):
++                if a is observed[1][0]:
++                    # Unused descriptor capacity is intentionally uninitialized.
++                    n = 4 + 2 * a[1].item()
++                    a, b = a[:n], b[:n]
++                torch.testing.assert_close(a, b, rtol=0, atol=0)
++
++    def test_indexed_global_minima_follow_repeated_replacements(self):
++        """Shared layer minima must follow empty/refilled layers and heat ties."""
++        for layers, experts in ((2, 16), (2, 512), (48, 512), (64, 16), (65, 16)):
++            with self.subTest(layers=layers, experts=experts):
++                policy = GlobalLfu(layers, experts, [8] * layers)
++                for layer in range(layers):
++                    policy.seed(
++                        layer,
++                        {
++                            e: 3 * layer + i
++                            for i, e in enumerate((0, experts // 2, experts - 1))
++                        },
++                    )
++                    policy.frequency[layer] = [2.0] * experts
++                state = self.tensors(policy)
++                reference = tuple(t.clone() for t in state)
++                index = build_heap_index(
++                    policy.frequency,
++                    state[2].tolist(),
++                    state[3].tolist(),
++                    experts,
++                    len(policy.keys) + 7,
++                ).to("cuda")
++                rng = random.Random(51)
++                for step in range(80):
++                    layer = step % layers
++                    rows = [
++                        [rng.randrange(-1, experts) for _ in range(4)]
++                        for _ in range(1 + step % 3)
++                    ]
++                    if step % 17 == 0:
++                        rows = [[-1] * 4]
++                    actual = self.invoke(rows, state, layer=layer, index=index)
++                    expected = self.invoke(rows, reference, layer=layer)
++                    # Free-slot order may differ; resident experts, heat and
++                    # eviction counts must match the independent scan policy.
++                    torch.testing.assert_close(state[1], reference[1], rtol=0, atol=0)
++                    self.assertEqual(
++                        (state[0] >= 0).tolist(), (reference[0] >= 0).tolist()
++                    )
++                    torch.testing.assert_close(actual[2], expected[2], rtol=0, atol=0)
++                    self.assertEqual(actual[1][0][1].item(), expected[1][0][1].item())
++                    torch.testing.assert_close(
++                        actual[0][1], expected[0][1], rtol=0, atol=0
++                    )
++
+     def test_forced_global_replacement_protects_active_hits(self):
+         p = GlobalLfu(2, 16, [1, 1])
+         p.seed(0, {0: 0})
+@@ -432,30 +517,46 @@ class TestHybridPlan(CustomTestCase):
+             torch.testing.assert_close(subject.pool[name], source[name], rtol=0, atol=0)
+         self.assertEqual(subject.runtime.prefill_reused_experts, 2)
+         self.assertEqual(subject.runtime.prefill_reuse_d2d_bytes, 2 * (32 * 4 + 8 * 4))
++        # Admission reads the computed arena, with destinations scattered into
++        # the global cache; it must preserve all unselected cache rows.
++        subject.fill_stream = torch.cuda.Stream()
++        done = torch.cuda.Event()
++        done.record()
++        copied = subject._copy_prefill_admissions([(5, 7), (2, 59)], done)
++        copied.synchronize()
++        for name, tensor in subject.pool.items():
++            expected = source[name].clone()
++            expected[7], expected[59] = arena[name][5], arena[name][2]
++            torch.testing.assert_close(tensor, expected, rtol=0, atol=0)
++        self.assertEqual(
++            subject.stats["prefill_admission_d2d_bytes"], 2 * (32 * 4 + 8 * 4)
++        )
+ 
+     def test_merge_reads_selected_result_and_skips_gpu_only_mmap(self):
+         from sglang.kernels.ops.moe.qwen38_expert_cache import _module as mailbox_module
+ 
+-        mapping = mmap.mmap(-1, 4096, flags=mmap.MAP_SHARED)
++        # Cross CTA boundaries and leave a partial final tile.
++        width = 2051
++        mapping = mmap.mmap(-1, 32768, flags=mmap.MAP_SHARED)
+         host = torch.frombuffer(mapping, dtype=torch.uint8)
+-        result = torch.frombuffer(mapping, dtype=torch.float32, count=24)
++        result = torch.frombuffer(mapping, dtype=torch.float32, count=3 * width)
+         host_completed = torch.frombuffer(
+-            mapping, dtype=torch.int32, count=1, offset=128
++            mapping, dtype=torch.int32, count=1, offset=32764
+         )
+-        result.copy_(torch.arange(24, dtype=torch.float32).reshape(3, 8).flatten())
++        result.copy_(torch.arange(3 * width, dtype=torch.float32))
+         module = mailbox_module()
+         address = module.mailbox_register(host)
+         try:
+-            gpu = torch.full((3, 8), 0.5, device="cuda", dtype=torch.float32)
++            gpu = torch.full((3, width), 0.5, device="cuda", dtype=torch.float32)
+             ids = torch.full((3, 2), -1, device="cuda", dtype=torch.int32)
+             completed = torch.zeros(1, device="cuda", dtype=torch.int32)
+-            output = torch.empty((3, 8), device="cuda", dtype=torch.bfloat16)
++            output = torch.empty((3, width), device="cuda", dtype=torch.bfloat16)
+             hybrid_merge(ids, gpu, completed, output, address, 1)
+             torch.testing.assert_close(output, gpu.to(torch.bfloat16), rtol=0, atol=0)
+-            ids[0, 0] = 2
++            ids[-1, -1] = 2
+             completed.fill_(1)
+             hybrid_merge(ids, gpu, completed, output, address, 1)
+-            expected = (gpu.cpu() + result.reshape(3, 8)).to(torch.bfloat16)
++            expected = (gpu.cpu() + result.reshape(3, width)).to(torch.bfloat16)
+             torch.testing.assert_close(output.cpu(), expected, rtol=0, atol=0)
+             # B12X publishes directly into registered host memory. The CUDA
+             # flag deliberately stays stale: waiting on it would hang forever.
+@@ -469,9 +570,9 @@ class TestHybridPlan(CustomTestCase):
+                 output,
+                 address,
+                 2,
+-                completed_address=address + 128,
++                completed_address=address + 32764,
+             )
+-            expected = (gpu.cpu() + result.reshape(3, 8)).to(torch.bfloat16)
++            expected = (gpu.cpu() + result.reshape(3, width)).to(torch.bfloat16)
+             torch.testing.assert_close(output.cpu(), expected, rtol=0, atol=0)
+         finally:
+             torch.cuda.synchronize()
+diff --git a/test/registered/unit/layers/moe/test_qwen38_hybrid_dispatch.py b/test/registered/unit/layers/moe/test_qwen38_hybrid_dispatch.py
+index ce6cf2c3de..1ea575acd8 100644
+--- a/test/registered/unit/layers/moe/test_qwen38_hybrid_dispatch.py
++++ b/test/registered/unit/layers/moe/test_qwen38_hybrid_dispatch.py
+@@ -289,6 +289,21 @@ class TestHybridDispatch(CustomTestCase):
+ 
+         self.addCleanup(stop)
+ 
++    def test_prefill_worker_can_stop_with_a_retained_decode_mailbox(self):
++        """A retained decode page must not keep an inactive planner polling."""
++        subject = self.subject
++        subject.mapped_batch_pages = [object()]
++
++        def inactive_poll():
++            raise RuntimeError("inactive prefill mailbox was polled")
++
++        subject.device_planner = SimpleNamespace(valid=False, poll=inactive_poll)
++        subject.cpu_jobs.put(None)
++        subject._cpu_work()
++        self.assertEqual(subject.cpu_jobs.unfinished_tasks, 0)
++        self.assertIsNone(subject.failure)
++        self.assertIn(("release_worker",), self.operations)
++
+     def start_manager(self):
+         worker = threading.Thread(target=self.subject._work, daemon=True)
+         worker.start()
+@@ -348,6 +363,13 @@ class TestHybridDispatch(CustomTestCase):
+         planner.device_stats = torch.zeros(7, dtype=torch.int64)
+         planner.flag = torch.zeros(1, dtype=torch.int32)
+         planner.heap_index = torch.empty(1, dtype=torch.int32)
++        planner.route_buffers = {
++            1: (
++                torch.empty((1, 2), dtype=torch.int32),
++                torch.empty((1, 2), dtype=torch.int32),
++                torch.empty(8, dtype=torch.int32),
++            )
++        }
+         planner.layout = lambda layer: layer
+         self.subject.device_planner = planner
+         self.subject.runtime.miss_mailbox = SimpleNamespace(
+@@ -637,6 +659,44 @@ class TestHybridDispatch(CustomTestCase):
+         self.assertEqual(subject.policy.free_slots, set(range(4, 16)))
+         self.assertTrue(subject.runtime.arena_last_use.synchronized)
+ 
++    def test_prefill_admission_retains_arena_until_reader_and_copy_finish(self):
++        """Arena admission cannot read early or publish an unfinished copy."""
++        subject = self.subject
++        subject.policy = self.hybrid.GlobalLfu(2, 12, [2, 1])
++        epoch, _ = subject.policy.begin(0)
++        reader = self.Event()
++        subject.pending = (0, epoch, (2,), reader, True)
++        subject.release_previous()
++        entry = subject.jobs.get_nowait()
++        copies = []
++        # The event has not completed, so policy and cache payload stay intact.
++        self.assertEqual(subject._submit_ready([entry], copies), [entry])
++        self.assertFalse(copies)
++        self.assertFalse(subject.policy.layers[0].mapping)
++        self.arena["value"][2] = 123
++        copied = self.Event()
++
++        def arena_copy(fills, done):
++            self.assertIs(done, reader)
++            for expert, slot in fills:
++                self.pool["value"][slot] = self.arena["value"][expert]
++            return copied
++
++        subject._copy_prefill_admissions = arena_copy
++        reader.synchronized = True
++        self.assertEqual(subject._submit_ready([entry], copies), [])
++        future = subject.active[0]
++        self.assertEqual(subject._complete_copies(copies), copies)
++        self.assertFalse(future.done())
++        self.assertFalse(subject.policy.layers[0].mapping)
++        copied.synchronized = True
++        self.assertEqual(subject._complete_copies(copies), [])
++        self.assertTrue(future.done())
++        slot = subject.policy.layers[0].mapping[2]
++        torch.testing.assert_close(
++            self.pool["value"][slot], torch.full_like(self.pool["value"][slot], 123)
++        )
++
+     def test_hits_and_all_masked_never_allocate_or_submit_cpu(self):
+         empty_like = torch.empty_like
+ 
+diff --git a/tools/qwen38_cache_tests/nsight_audit_20261021/replay_transfer.py b/tools/qwen38_cache_tests/nsight_audit_20261021/replay_transfer.py
+index 1b18bb5ae8..6ac2dac643 100644
+--- a/tools/qwen38_cache_tests/nsight_audit_20261021/replay_transfer.py
++++ b/tools/qwen38_cache_tests/nsight_audit_20261021/replay_transfer.py
+@@ -28,6 +28,7 @@ def compile_planners(directory, global_source=None):
+             ) : global_source.index("// Only a selected CPU contribution")
+         ]
+         .replace("Indexed", "(index_data != nullptr)")
++        .replace("Parallel", "false")
+         .replace("void hybrid_plan_kernel(", "void hybrid_plan_impl_replay(")
+         .replace(
+             'asm volatile("trap;");',
+diff --git a/python/sglang/kernels/jit/csrc/moe/qwen38_parallel_candidates.cuh b/python/sglang/kernels/jit/csrc/moe/qwen38_parallel_candidates.cuh
+new file mode 100644
+index 0000000000..e3e7137e81
+--- /dev/null
++++ b/python/sglang/kernels/jit/csrc/moe/qwen38_parallel_candidates.cuh
+@@ -0,0 +1,161 @@
++// SPDX-License-Identifier: Apache-2.0
++// Included inside namespace sglang, after the serial policy kernel.
++namespace details {
++
++__device__ inline uint64_t candidate_heat_key(double value) {
++  uint64_t bits = static_cast<uint64_t>(__double_as_longlong(value));
++  if ((bits << 1) == 0) bits = 0;  // Canonicalize signed zero.
++  return bits & (uint64_t{1} << 63) ? ~bits : bits ^ (uint64_t{1} << 63);
++}
++
++__device__ inline bool parallel_victim_less(const HybridVictim& a, const HybridVictim& b) {
++  uint64_t x = candidate_heat_key(a.heat), y = candidate_heat_key(b.heat);
++  if (x != y) return x < y;
++  if (a.layer != b.layer) return a.layer < b.layer;
++  return a.expert < b.expert;
++}
++
++__device__ inline HybridVictim scan_partition(
++    const double* frequency,
++    const int32_t* owners,
++    const int32_t* keys,
++    const int32_t* histogram,
++    int32_t slots,
++    int32_t experts,
++    int32_t layer,
++    double decay,
++    bool after_cold_reclaim,
++    HybridVictim previous,
++    bool skip_previous) {
++  HybridVictim best{std::numeric_limits<double>::infinity(), INT32_MAX, INT32_MAX, -1};
++  for (int32_t s = threadIdx.x; s < slots; s += blockDim.x) {
++    int32_t owner = owners[s], expert = keys[s];
++    if (owner == -2) continue;
++    if (expert >= 0 && owner == layer && histogram[expert]) continue;
++    double heat = expert < 0 ? -1.0 : frequency[static_cast<int64_t>(owner) * experts + expert];
++    if (expert >= 0 && owner == layer) heat = __dmul_rn(heat, decay);
++    bool free =
++        expert < 0 || (after_cold_reclaim && owner == layer && candidate_heat_key(heat) < candidate_heat_key(0.5));
++    HybridVictim candidate = free ? HybridVictim{-1.0, -1, s, s} : HybridVictim{heat, owner, expert, s};
++    if ((!skip_previous || parallel_victim_less(previous, candidate)) && parallel_victim_less(candidate, best))
++      best = candidate;
++  }
++  return best;
++}
++
++// One minimum per thread, then a CTA reduction. Only the winning partition
++// is rescanned for its successor; no per-slot heap or persistent index exists.
++template <bool Cached>
++__global__ void parallel_candidates_kernel(
++    const int32_t* ids,
++    const int32_t* lookup,
++    const double* frequency,
++    const int32_t* owners,
++    const int32_t* keys,
++    HybridVictim* output,
++    int32_t routes,
++    int32_t experts,
++    int32_t slots,
++    int32_t layer,
++    double decay) {
++  __shared__ int32_t histogram[512], misses, invalid;
++  __shared__ HybridVictim warp_candidates[8 * kRoutes];
++  extern __shared__ double cached_heat[];
++  auto* cached_keys = reinterpret_cast<uint32_t*>(cached_heat + slots);
++  for (int32_t e = threadIdx.x; e < experts; e += blockDim.x)
++    histogram[e] = 0;
++  if (threadIdx.x == 0) invalid = 0;
++  __syncthreads();
++  for (int32_t r = threadIdx.x; r < routes; r += blockDim.x) {
++    int32_t e = ids[r];
++    if (e >= 0 && e < experts)
++      atomicAdd(histogram + e, 1);
++    else if (e != -1)
++      atomicExch(&invalid, 1);
++  }
++  __syncthreads();
++  if (invalid) {
++    if (threadIdx.x == 0) asm volatile("trap;");
++    return;
++  }
++  if (threadIdx.x == 0) {
++    misses = 0;
++    for (int32_t e = 0; e < experts; ++e)
++      misses += histogram[e] && lookup[layer * experts + e] < 0;
++  }
++  __syncthreads();
++  if (!misses) return;
++  if (Cached) {
++    for (int32_t s = threadIdx.x; s < slots; s += blockDim.x) {
++      int32_t owner = owners[s], e = keys[s];
++      cached_heat[s] = std::numeric_limits<double>::infinity();
++      cached_keys[s] = UINT32_MAX - 1;
++      if (owner == -2 || (e >= 0 && owner == layer && histogram[e])) continue;
++      cached_keys[s] = e < 0 ? UINT32_MAX : owner * experts + e;
++      double heat = e < 0 ? -1.0 : frequency[static_cast<int64_t>(owner) * experts + e];
++      cached_heat[s] = owner == layer && e >= 0 ? __dmul_rn(heat, decay) : heat;
++    }
++  }
++  __syncthreads();
++  auto scan = [&](bool phase, HybridVictim previous, bool skip_previous) {
++    if (!Cached)
++      return scan_partition(
++          frequency, owners, keys, histogram, slots, experts, layer, decay, phase, previous, skip_previous);
++    HybridVictim best{std::numeric_limits<double>::infinity(), INT32_MAX, INT32_MAX, -1};
++    for (int32_t s = threadIdx.x; s < slots; s += blockDim.x) {
++      uint32_t key = cached_keys[s];
++      if (key == UINT32_MAX - 1) continue;
++      double heat = cached_heat[s];
++      bool free = key == UINT32_MAX || (phase && key >= layer * experts && key < (layer + 1) * experts &&
++                                        candidate_heat_key(heat) < candidate_heat_key(0.5));
++      HybridVictim candidate =
++          free ? HybridVictim{-1.0, -1, s, s} : HybridVictim{heat, static_cast<int32_t>(key), 0, s};
++      if ((!skip_previous || parallel_victim_less(previous, candidate)) && parallel_victim_less(candidate, best))
++        best = candidate;
++    }
++    return best;
++  };
++  for (int phase = 0; phase < 2; ++phase) {
++    HybridVictim local = scan(phase, {}, false);
++    int32_t lane = threadIdx.x % 32, warp = threadIdx.x / 32;
++    for (int32_t i = 0; i < misses; ++i) {
++      HybridVictim reduced = local;
++      for (int32_t delta = 16; delta; delta /= 2) {
++        HybridVictim other;
++        other.heat = __shfl_down_sync(0xffffffff, reduced.heat, delta);
++        other.layer = __shfl_down_sync(0xffffffff, reduced.layer, delta);
++        other.expert = __shfl_down_sync(0xffffffff, reduced.expert, delta);
++        other.slot = __shfl_down_sync(0xffffffff, reduced.slot, delta);
++        if (lane + delta < 32 && parallel_victim_less(other, reduced)) reduced = other;
++      }
++      int32_t slot = __shfl_sync(0xffffffff, reduced.slot, 0);
++      if (lane == 0) warp_candidates[warp * kRoutes + i] = reduced;
++      if (i + 1 < misses && slot >= 0 && slot % blockDim.x == threadIdx.x) local = scan(phase, local, true);
++    }
++    __syncthreads();
++    if (threadIdx.x == 0) {
++      int32_t positions[8] = {};
++      for (int32_t i = 0; i < misses; ++i) {
++        HybridVictim best{std::numeric_limits<double>::infinity(), INT32_MAX, INT32_MAX, -1};
++        int32_t winner = -1;
++        for (int32_t w = 0; w < 8; ++w) {
++          if (positions[w] == misses) continue;
++          HybridVictim candidate = warp_candidates[w * kRoutes + positions[w]];
++          if (parallel_victim_less(candidate, best)) {
++            best = candidate;
++            winner = w;
++          }
++        }
++        if (winner >= 0) ++positions[winner];
++        if (Cached && best.slot >= 0 && best.layer >= 0) {
++          best.expert = best.layer % experts;
++          best.layer /= experts;
++        }
++        output[phase * kRoutes + i] = best;
++      }
++    }
++    __syncthreads();
++  }
++}
++#include "qwen38_register_candidates.cuh"
++}  // namespace details
+diff --git a/python/sglang/kernels/jit/csrc/moe/qwen38_register_candidates.cuh b/python/sglang/kernels/jit/csrc/moe/qwen38_register_candidates.cuh
+new file mode 100644
+index 0000000000..3c89db6566
+--- /dev/null
++++ b/python/sglang/kernels/jit/csrc/moe/qwen38_register_candidates.cuh
+@@ -0,0 +1,132 @@
++// SPDX-License-Identifier: Apache-2.0
++// Included inside sglang::details. The serving pool fits 256 x 32 leaves.
++__global__ void register_candidates_kernel(
++    const int32_t* ids,
++    const int32_t* lookup,
++    const double* frequency,
++    const int32_t* owners,
++    const int32_t* keys,
++    HybridVictim* output,
++    int32_t routes,
++    int32_t experts,
++    int32_t slots,
++    int32_t layer,
++    double decay) {
++  __shared__ int32_t histogram[512], misses, invalid;
++  __shared__ HybridVictim warp_candidates[8 * kRoutes];
++  for (int32_t e = threadIdx.x; e < experts; e += blockDim.x)
++    histogram[e] = 0;
++  if (threadIdx.x == 0) invalid = 0;
++  __syncthreads();
++  for (int32_t r = threadIdx.x; r < routes; r += blockDim.x) {
++    int32_t e = ids[r];
++    if (e >= 0 && e < experts)
++      atomicAdd(histogram + e, 1);
++    else if (e != -1)
++      atomicExch(&invalid, 1);
++  }
++  __syncthreads();
++  if (invalid) {
++    if (threadIdx.x == 0) asm volatile("trap;");
++    return;
++  }
++  if (threadIdx.x == 0) {
++    misses = 0;
++    for (int32_t e = 0; e < experts; ++e)
++      misses += histogram[e] && lookup[layer * experts + e] < 0;
++  }
++  __syncthreads();
++  if (!misses) return;
++  uint64_t heat_keys[32];
++  uint32_t expert_keys[32];
++#pragma unroll
++  for (int32_t j = 0; j < 32; ++j) {
++    int32_t s = threadIdx.x + 256 * j;
++    heat_keys[j] = UINT64_MAX;
++    expert_keys[j] = UINT32_MAX - 1;
++    if (s >= slots) continue;
++    int32_t owner = owners[s], e = keys[s];
++    if (owner == -2 || (e >= 0 && owner == layer && histogram[e])) continue;
++    expert_keys[j] = e < 0 ? UINT32_MAX : owner * experts + e;
++    double heat = e < 0 ? -1.0 : frequency[static_cast<int64_t>(owner) * experts + e];
++    if (owner == layer && e >= 0) heat = __dmul_rn(heat, decay);
++    heat_keys[j] = candidate_heat_key(heat);
++  }
++  int32_t lane = threadIdx.x % 32, warp = threadIdx.x / 32;
++  for (int32_t phase = 0; phase < 2; ++phase) {
++    uint64_t local_heat = UINT64_MAX, previous_heat = 0;
++    uint32_t local_key = UINT32_MAX, previous_key = 0;
++    int32_t local_slot = -1, winner_slot = -1;
++    for (int32_t i = 0; i < misses; ++i) {
++      if (i == 0 || (winner_slot >= 0 && winner_slot % 256 == threadIdx.x)) {
++        if (i) {
++          previous_heat = local_heat;
++          previous_key = local_key;
++        }
++        local_heat = UINT64_MAX;
++        local_key = UINT32_MAX;
++        local_slot = -1;
++#pragma unroll
++        for (int32_t j = 0; j < 32; ++j) {
++          uint32_t key = expert_keys[j];
++          if (key == UINT32_MAX - 1) continue;
++          int32_t s = threadIdx.x + 256 * j;
++          bool free = key == UINT32_MAX || (phase && key >= layer * experts && key < (layer + 1) * experts &&
++                                            heat_keys[j] < candidate_heat_key(0.5));
++          uint64_t heat = free ? candidate_heat_key(-1.0) : heat_keys[j];
++          uint32_t order = free ? s : key;
++          bool after = !i || heat > previous_heat || (heat == previous_heat && order > previous_key);
++          if (after && (heat < local_heat || (heat == local_heat && order < local_key))) {
++            local_heat = heat;
++            local_key = order;
++            local_slot = s;
++          }
++        }
++      }
++      uint64_t heat = local_heat;
++      uint32_t key = local_key;
++      int32_t slot = local_slot;
++      for (int32_t delta = 16; delta; delta /= 2) {
++        uint64_t other_heat = __shfl_down_sync(0xffffffff, heat, delta);
++        uint32_t other_key = __shfl_down_sync(0xffffffff, key, delta);
++        int32_t other_slot = __shfl_down_sync(0xffffffff, slot, delta);
++        if (lane + delta < 32 && (other_heat < heat || (other_heat == heat && other_key < key))) {
++          heat = other_heat;
++          key = other_key;
++          slot = other_slot;
++        }
++      }
++      winner_slot = __shfl_sync(0xffffffff, slot, 0);
++      if (lane == 0) {
++        bool free = heat == candidate_heat_key(-1.0);
++        uint64_t bits = heat & (uint64_t{1} << 63) ? heat ^ (uint64_t{1} << 63) : ~heat;
++        double value = slot < 0 ? std::numeric_limits<double>::infinity() : __longlong_as_double(bits);
++        warp_candidates[warp * kRoutes + i] = {
++            value, slot < 0 ? INT32_MAX : (free ? -1 : static_cast<int32_t>(key)), free ? slot : 0, slot};
++      }
++    }
++    __syncthreads();
++    if (threadIdx.x == 0) {
++      int32_t positions[8] = {};
++      for (int32_t i = 0; i < misses; ++i) {
++        HybridVictim best{std::numeric_limits<double>::infinity(), INT32_MAX, INT32_MAX, -1};
++        int32_t winner = -1;
++        for (int32_t w = 0; w < 8; ++w) {
++          if (positions[w] == misses) continue;
++          HybridVictim candidate = warp_candidates[w * kRoutes + positions[w]];
++          if (parallel_victim_less(candidate, best)) {
++            best = candidate;
++            winner = w;
++          }
++        }
++        if (winner >= 0) ++positions[winner];
++        if (best.slot >= 0 && best.layer >= 0) {
++          best.expert = best.layer % experts;
++          best.layer /= experts;
++        }
++        output[phase * kRoutes + i] = best;
++      }
++    }
++    __syncthreads();
++  }
++}

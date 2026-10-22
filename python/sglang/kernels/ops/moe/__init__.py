@@ -425,3 +425,13 @@ register_kernel(
         description="B12X SM12x W4A4 SwiGLU with inline slot-strided CSF scales.",
     )
 )
+
+register_kernel(
+    KernelSpec(
+        op="moe.qwen38_route_counts",
+        backend=KernelBackend.JIT,
+        target="sglang.kernels.ops.moe.qwen38_expert_cache:cache_route_counts",
+        capabilities=_CUDA,
+        description="Expert histogram plus invalid-route count, without remapping output.",
+    )
+)

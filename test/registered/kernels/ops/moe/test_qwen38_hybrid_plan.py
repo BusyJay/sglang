@@ -10,6 +10,7 @@ from sglang.kernels.ops.moe.qwen38_hybrid_plan import (
     COST_COLUMNS,
     hybrid_merge,
     hybrid_plan,
+    hybrid_plan_indexed,
     hybrid_plan_stage_indexed,
     hybrid_result,
     hybrid_stage,
@@ -57,6 +58,27 @@ def materialize_gpu(policy, layer, requested, counts):
 
 
 class TestHybridPlan(CustomTestCase):
+    def test_prefill_histogram_preserves_ids_and_counts_invalid_routes(self):
+        from sglang.kernels.ops.moe.qwen38_expert_cache import cache_route_counts
+
+        ids = torch.randint(-1, 512, (8192, 10), dtype=torch.int32, device="cuda")
+        ids[0, 0], ids[1, 1] = -2, 512
+        original = ids.clone()
+        counts = torch.empty(513, dtype=torch.int32, device="cuda")
+        cache_route_counts(ids, counts)
+        host = original.cpu().flatten()
+        expected = torch.zeros(513, dtype=torch.int32)
+        expected[:512] = torch.bincount(
+            host[(host >= 0) & (host < 512)].long(), minlength=512
+        ).to(torch.int32)
+        expected[-1] = ((host < -1) | (host >= 512)).sum()
+        torch.testing.assert_close(counts.cpu(), expected, rtol=0, atol=0)
+        torch.testing.assert_close(ids, original, rtol=0, atol=0)
+        cache_route_counts(ids[:0], counts)
+        torch.testing.assert_close(
+            counts.cpu(), torch.zeros_like(expected), rtol=0, atol=0
+        )
+
     def test_plan_stage_publishes_only_selected_cpu_work(self):
         from sglang.kernels.ops.moe.qwen38_expert_cache import _module as mailbox_module
 
@@ -260,7 +282,7 @@ class TestHybridPlan(CustomTestCase):
             ),
         )
 
-    def invoke(self, ids, state, costs=None, layer=0):
+    def invoke(self, ids, state, costs=None, layer=0, index=None):
         ids = torch.tensor(ids, dtype=torch.int32, device="cuda")
         routes = [torch.empty_like(ids) for _ in range(2)]
         plans = [
@@ -270,7 +292,11 @@ class TestHybridPlan(CustomTestCase):
         stats = torch.zeros(7, dtype=torch.int64, device="cuda")
         if costs is None:
             costs = torch.empty((0, COST_COLUMNS), dtype=torch.float64, device="cuda")
-        hybrid_plan(ids, *state, costs, *routes, *plans, stats, layer, 0.95, 1.9)
+        arguments = (ids, *state, costs, *routes, *plans, stats, layer, 0.95, 1.9)
+        if index is None:
+            hybrid_plan(*arguments)
+        else:
+            hybrid_plan_indexed(*arguments, index)
         torch.cuda.synchronize()
         return routes, plans, stats
 
@@ -284,7 +310,7 @@ class TestHybridPlan(CustomTestCase):
         row = [1, 9, 1, 1, 5, 10] + [1] + [0] * 31 + [1] * 5 + [0] * 27
         # Exercise both shared-table capacity and the global-memory fallback.
         # Only the final row matches, so truncating a large table loses CPU work.
-        for count in (1, 64, 65):
+        for count in (1, 32, 33, 64, 65):
             with self.subTest(cost_rows=count):
                 costs = torch.zeros(
                     (count, COST_COLUMNS), dtype=torch.float64, device="cuda"
@@ -362,6 +388,52 @@ class TestHybridPlan(CustomTestCase):
         self.assertEqual(state[2].tolist(), [0, 0])
         self.assertEqual(plans[0][1].item(), 1)
 
+    def test_indexed_global_minima_follow_repeated_replacements(self):
+        """Shared layer minima must follow empty/refilled layers and heat ties."""
+        for layers, experts in ((2, 16), (2, 512), (48, 512), (64, 16), (65, 16)):
+            with self.subTest(layers=layers, experts=experts):
+                policy = GlobalLfu(layers, experts, [8] * layers)
+                for layer in range(layers):
+                    policy.seed(
+                        layer,
+                        {
+                            e: 3 * layer + i
+                            for i, e in enumerate((0, experts // 2, experts - 1))
+                        },
+                    )
+                    policy.frequency[layer] = [2.0] * experts
+                state = self.tensors(policy)
+                reference = tuple(t.clone() for t in state)
+                index = build_heap_index(
+                    policy.frequency,
+                    state[2].tolist(),
+                    state[3].tolist(),
+                    experts,
+                    len(policy.keys) + 7,
+                ).to("cuda")
+                rng = random.Random(51)
+                for step in range(80):
+                    layer = step % layers
+                    rows = [
+                        [rng.randrange(-1, experts) for _ in range(4)]
+                        for _ in range(1 + step % 3)
+                    ]
+                    if step % 17 == 0:
+                        rows = [[-1] * 4]
+                    actual = self.invoke(rows, state, layer=layer, index=index)
+                    expected = self.invoke(rows, reference, layer=layer)
+                    # Free-slot order may differ; resident experts, heat and
+                    # eviction counts must match the independent scan policy.
+                    torch.testing.assert_close(state[1], reference[1], rtol=0, atol=0)
+                    self.assertEqual(
+                        (state[0] >= 0).tolist(), (reference[0] >= 0).tolist()
+                    )
+                    torch.testing.assert_close(actual[2], expected[2], rtol=0, atol=0)
+                    self.assertEqual(actual[1][0][1].item(), expected[1][0][1].item())
+                    torch.testing.assert_close(
+                        actual[0][1], expected[0][1], rtol=0, atol=0
+                    )
+
     def test_forced_global_replacement_protects_active_hits(self):
         p = GlobalLfu(2, 16, [1, 1])
         p.seed(0, {0: 0})
@@ -432,30 +504,46 @@ class TestHybridPlan(CustomTestCase):
             torch.testing.assert_close(subject.pool[name], source[name], rtol=0, atol=0)
         self.assertEqual(subject.runtime.prefill_reused_experts, 2)
         self.assertEqual(subject.runtime.prefill_reuse_d2d_bytes, 2 * (32 * 4 + 8 * 4))
+        # Admission reads the computed arena, with destinations scattered into
+        # the global cache; it must preserve all unselected cache rows.
+        subject.fill_stream = torch.cuda.Stream()
+        done = torch.cuda.Event()
+        done.record()
+        copied = subject._copy_prefill_admissions([(5, 7), (2, 59)], done)
+        copied.synchronize()
+        for name, tensor in subject.pool.items():
+            expected = source[name].clone()
+            expected[7], expected[59] = arena[name][5], arena[name][2]
+            torch.testing.assert_close(tensor, expected, rtol=0, atol=0)
+        self.assertEqual(
+            subject.stats["prefill_admission_d2d_bytes"], 2 * (32 * 4 + 8 * 4)
+        )
 
     def test_merge_reads_selected_result_and_skips_gpu_only_mmap(self):
         from sglang.kernels.ops.moe.qwen38_expert_cache import _module as mailbox_module
 
-        mapping = mmap.mmap(-1, 4096, flags=mmap.MAP_SHARED)
+        # Cross CTA boundaries and leave a partial final tile.
+        width = 2051
+        mapping = mmap.mmap(-1, 32768, flags=mmap.MAP_SHARED)
         host = torch.frombuffer(mapping, dtype=torch.uint8)
-        result = torch.frombuffer(mapping, dtype=torch.float32, count=24)
+        result = torch.frombuffer(mapping, dtype=torch.float32, count=3 * width)
         host_completed = torch.frombuffer(
-            mapping, dtype=torch.int32, count=1, offset=128
+            mapping, dtype=torch.int32, count=1, offset=32764
         )
-        result.copy_(torch.arange(24, dtype=torch.float32).reshape(3, 8).flatten())
+        result.copy_(torch.arange(3 * width, dtype=torch.float32))
         module = mailbox_module()
         address = module.mailbox_register(host)
         try:
-            gpu = torch.full((3, 8), 0.5, device="cuda", dtype=torch.float32)
+            gpu = torch.full((3, width), 0.5, device="cuda", dtype=torch.float32)
             ids = torch.full((3, 2), -1, device="cuda", dtype=torch.int32)
             completed = torch.zeros(1, device="cuda", dtype=torch.int32)
-            output = torch.empty((3, 8), device="cuda", dtype=torch.bfloat16)
+            output = torch.empty((3, width), device="cuda", dtype=torch.bfloat16)
             hybrid_merge(ids, gpu, completed, output, address, 1)
             torch.testing.assert_close(output, gpu.to(torch.bfloat16), rtol=0, atol=0)
-            ids[0, 0] = 2
+            ids[-1, -1] = 2
             completed.fill_(1)
             hybrid_merge(ids, gpu, completed, output, address, 1)
-            expected = (gpu.cpu() + result.reshape(3, 8)).to(torch.bfloat16)
+            expected = (gpu.cpu() + result.reshape(3, width)).to(torch.bfloat16)
             torch.testing.assert_close(output.cpu(), expected, rtol=0, atol=0)
             # B12X publishes directly into registered host memory. The CUDA
             # flag deliberately stays stale: waiting on it would hang forever.
@@ -469,9 +557,9 @@ class TestHybridPlan(CustomTestCase):
                 output,
                 address,
                 2,
-                completed_address=address + 128,
+                completed_address=address + 32764,
             )
-            expected = (gpu.cpu() + result.reshape(3, 8)).to(torch.bfloat16)
+            expected = (gpu.cpu() + result.reshape(3, width)).to(torch.bfloat16)
             torch.testing.assert_close(output.cpu(), expected, rtol=0, atol=0)
         finally:
             torch.cuda.synchronize()

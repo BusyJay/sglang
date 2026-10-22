@@ -1,0 +1,53 @@
+/workspace/sglang/python/sglang/srt/layers/quantization/awq/awq.py:53: UserWarning: Only CUDA, HIP and XPU support AWQ currently.
+  warnings.warn(f"Only CUDA, HIP and XPU support AWQ currently.")
+/workspace/sglang/python/sglang/srt/layers/quantization/gguf.py:69: UserWarning: Only CUDA, MUSA and NPU support GGUF quantization currently.
+  warnings.warn(f"Only CUDA, MUSA and NPU support GGUF quantization currently.")
+.........................[CI Test Method] TestHybridCostModel.test_calibration_is_not_mutated_or_retained_by_reference
+[CI Test Method] TestHybridCostModel.test_calibration_profile_is_required_sorted_and_consistent
+.[CI Test Method] TestHybridCostModel.test_custom_margin_boundaries
+..[CI Test Method] TestHybridCostModel.test_duplicate_workloads_rejected_even_with_different_timings
+.[CI Test Method] TestHybridCostModel.test_exact_metadata_is_required
+.[CI Test Method] TestHybridCostModel.test_full_branch_cost_and_strict_default_margin
+.[CI Test Method] TestHybridCostModel.test_full_rejected_profile_prevents_reusing_gpu_transfer_costs
+.[CI Test Method] TestHybridCostModel.test_invalid_runtime_metadata_is_rejected_even_if_table_matches
+.[CI Test Method] TestHybridCostModel.test_invalid_schema_and_container_shapes
+.[CI Test Method] TestHybridCostModel.test_margin_rejects_nonfinite_out_of_range_and_nonnumeric
+.[CI Test Method] TestHybridCostModel.test_missing_or_invalid_runtime_profile_defaults_to_gpu
+[CI Test Method] TestHybridCostModel.test_no_calibration_and_empty_table_default_to_gpu
+..[CI Test Method] TestHybridCostModel.test_rejected_profile_validation_and_multiset_subset
+.[CI Test Method] TestHybridCostModel.test_route_counts_reject_invalid_types_and_ranges
+.[CI Test Method] TestHybridCostModel.test_same_route_totals_require_matching_expert_distribution
+.[CI Test Method] TestHybridCostModel.test_sample_timings_must_be_positive_finite_numbers
+.[CI Test Method] TestHybridCostModel.test_select_cpu_admission_examples_and_no_benefit
+.[CI Test Method] TestHybridCostModel.test_select_cpu_counts_duplicate_routes_and_deduplicates_rejected
+.[CI Test Method] TestHybridCostModel.test_select_cpu_minimizes_full_branch_time_over_all_prefixes
+.[CI Test Method] TestHybridCostModel.test_select_cpu_unmeasured_prefixes_and_no_calibration
+.[CI Test Method] TestHybridCostModel.test_select_cpu_validates_rows_mapping_and_rejected
+.[CI Test Method] TestHybridCostModel.test_transport_and_runtime_version_match_when_supplied
+.[CI Test Method] TestHybridCostModel.test_unmeasured_geometry_defaults_to_gpu_without_interpolation
+.[CI Test Method] TestHybridCostModel.test_valid_route_boundaries_and_json_integer_timings
+.[CI Test Method] TestHybridCostModel.test_zero_hits_can_use_measured_cpu
+.[CI Test Method] TestHybridPolicy.test_b12x_zero_slot_is_not_admitted_or_resize_destination
+.[CI Test Method] TestHybridPolicy.test_cold_eviction_releases_global_slot
+.[CI Test Method] TestHybridPolicy.test_commit_rejects_wrong_reservation
+.[CI Test Method] TestHybridPolicy.test_cpu_misses_drive_lfu_and_admission
+.[CI Test Method] TestHybridPolicy.test_deterministic_pressure_preserves_ownership
+.[CI Test Method] TestHybridPolicy.test_eviction_precedes_invisible_fill
+.[CI Test Method] TestHybridPolicy.test_first_touch_uses_empty_slot_without_probation
+.[CI Test Method] TestHybridPolicy.test_global_replacement_rejects_unretired_other_layer
+.[CI Test Method] TestHybridPolicy.test_global_replacement_uses_colder_other_layer_after_reader_retirement
+.[CI Test Method] TestHybridPolicy.test_growth_preserves_payload_addresses_and_creates_unowned_slots
+.[CI Test Method] TestHybridPolicy.test_locked_layer_cannot_be_stolen
+.[CI Test Method] TestHybridPolicy.test_new_arena_reservation_relocates_residents_even_inside_prefix
+.[CI Test Method] TestHybridPolicy.test_only_released_empty_ownership_can_move
+.[CI Test Method] TestHybridPolicy.test_resize_moves_keep_all_weight_bytes_through_stage_cycles
+.[CI Test Method] TestHybridPolicy.test_resize_preserves_surviving_prefix_without_moves
+.[CI Test Method] TestHybridPolicy.test_resize_rejects_computing_managing_and_stale_plan
+.[CI Test Method] TestHybridPolicy.test_resize_selects_global_heat_across_layer_boundaries
+.[CI Test Method] TestHybridPolicy.test_stale_epoch_and_noop_clean
+.[CI Test Method] TestHybridPolicy.test_ten_global_candidates_replace_ten_colder_other_layer_experts
+................
+----------------------------------------------------------------------
+Ran 84 tests in 0.251s
+
+OK
