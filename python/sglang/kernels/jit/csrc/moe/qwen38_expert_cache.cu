@@ -581,6 +581,8 @@ __global__ void decode_plan_kernel(
   __shared__ int32_t original_active_ids[32];
   __shared__ int safe_slot;
   __shared__ int cpu_count;
+  __shared__ float victim_heat[4];
+  __shared__ int resident_count[4];
   for (int e = threadIdx.x; e <= experts; e += blockDim.x)
     histogram[e] = 0;
   __syncthreads();
@@ -616,14 +618,33 @@ __global__ void decode_plan_kernel(
   }
   __syncthreads();
   if (hybrid && hybrid->expert_frequency && !histogram[experts] && original_active <= slots) {
-    // Slot restoration can follow a prefill or resize. Seed residents, retaining
-    // the nonresident history, then update heat in parallel for the full union.
-    for (int s = threadIdx.x; s < slots; s += blockDim.x)
-      if (keys[s] >= 0) hybrid->expert_frequency[keys[s]] = frequency[s];
-    __syncthreads();
+    // Read resident heat through the lookup in the same pass as nonresident
+    // history. This preserves prefill/resize restoration without a seed pass.
+    float victim = __int_as_float(0x7f800000);
+    int residents = 0;
     for (int e = threadIdx.x; e < experts; e += blockDim.x) {
-      hybrid->expert_frequency[e] *= decay;
-      if (histogram[e]) hybrid->expert_frequency[e] += 1.0f;
+      int slot = lookup[e];
+      float heat = slot >= 0 ? frequency[slot] : hybrid->expert_frequency[e];
+      heat *= decay;
+      if (histogram[e]) heat += 1.0f;
+      hybrid->expert_frequency[e] = heat;
+      if (slot >= 0) {
+        ++residents;
+        if (!histogram[e] && heat < victim) victim = heat;
+      }
+    }
+    // The launch has four full warps. Reduce admission metadata alongside
+    // heat, avoiding thread 0's serial scan over all resident slots.
+    if (original_misses && hybrid->max_cpu_experts) {
+      for (int delta = 16; delta; delta >>= 1) {
+        float other = __shfl_down_sync(0xffffffff, victim, delta);
+        if (other < victim) victim = other;
+        residents += __shfl_down_sync(0xffffffff, residents, delta);
+      }
+      if ((threadIdx.x & 31) == 0) {
+        victim_heat[threadIdx.x >> 5] = victim;
+        resident_count[threadIdx.x >> 5] = residents;
+      }
     }
     __syncthreads();
   }
@@ -632,8 +653,15 @@ __global__ void decode_plan_kernel(
     cpu_count = 0;
     if (hybrid && !histogram[experts] && active <= slots) {
       if (hybrid->expert_frequency) {
-        if (original_misses) {
-          cpu_count = sglang::layered_lfu_select(ids, lookup, keys, histogram, experts, slots, *hybrid, filtered_ids);
+        if (original_misses && hybrid->max_cpu_experts) {
+          float victim = victim_heat[0];
+          int residents = resident_count[0];
+          for (int warp = 1; warp < 4; ++warp) {
+            if (victim_heat[warp] < victim) victim = victim_heat[warp];
+            residents += resident_count[warp];
+          }
+          cpu_count = sglang::layered_lfu_select(ids, lookup, active_ids, active,
+              original_misses, slots - residents, victim, *hybrid, filtered_ids);
         } else {
           for (int j = 0; j < route_count; ++j) filtered_ids[j] = ids[j];
         }
