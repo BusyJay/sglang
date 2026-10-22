@@ -91,10 +91,18 @@ __global__ void hybrid_plan_kernel(
   __shared__ int32_t layer_lookup[512];
   __shared__ double layer_frequency[512];
   __shared__ int32_t layer_heap[512], layer_position[512], layer_heap_size;
-  constexpr int kCachedCostRows = 64;
+  // Leave room for the global layer minima as well as the current layer.
+  constexpr int kCachedCostRows = 32;
   __shared__ double cached_costs[kCachedCostRows * kCostColumns];
+  constexpr int kCachedLayers = 64;
+  __shared__ int32_t cached_top[2 * kCachedLayers + 1];
+  __shared__ double cached_top_heat[kCachedLayers];
+  int32_t* local_top = Indexed && layers <= kCachedLayers ? cached_top : nullptr;
+  double* local_top_heat = local_top ? cached_top_heat : nullptr;
   const double* policy_costs = samples <= kCachedCostRows ? cached_costs : costs;
   __shared__ int32_t histogram[512];
+  __shared__ int32_t requested[kRoutes], requested_count;
+  __shared__ uint32_t cold_mask[16];
   __shared__ int32_t active[kRoutes], rejected[kRoutes], selected;
   __shared__ int32_t active_count, rejected_count;
   __shared__ bool layer_was_present;
@@ -110,6 +118,14 @@ __global__ void hybrid_plan_kernel(
   if (samples <= kCachedCostRows)
     for (int32_t i = threadIdx.x; i < samples * kCostColumns; i += blockDim.x)
       cached_costs[i] = costs[i];
+  if (local_top) {
+    const int32_t* sizes = index_data + 2 * layers * experts;
+    for (int32_t i = threadIdx.x; i < 2 * layers + 1; i += blockDim.x)
+      local_top[i] = sizes[layers + i];
+    for (int32_t l = threadIdx.x; l < layers; l += blockDim.x) {
+      if (sizes[l] > 0) local_top_heat[l] = frequency[l * experts + index_data[l * experts]];
+    }
+  }
   if (threadIdx.x == 0) {
     cache_plan[0] = cache_plan[1] = cache_plan[2] = cache_plan[3] = 0;
     active_count = rejected_count = selected = 0;
@@ -129,29 +145,41 @@ __global__ void hybrid_plan_kernel(
     if (threadIdx.x == 0) asm volatile("trap;");
     return;
   }
-  // Remove active residents before changing their heat. The remaining
-  // residents of this layer all receive the same scale, so their heap order
-  // remains valid. Active residents are restored after all victim selection.
-  if (Indexed && threadIdx.x == 0) {
-    HybridHeapIndex index(
-        index_data,
-        frequency,
-        layers,
-        experts,
-        index_slots,
-        layer,
-        layer_heap,
-        layer_position,
-        &layer_heap_size,
-        layer_frequency);
-    layer_was_present = index.size_for(layer) > 0;
-    for (int32_t e = 0; e < experts; ++e)
-      if (histogram[e] && layer_lookup[e] >= 0) index.detach(layer, e, false);
+  // Routes are bounded by 32 even when a layer contains 512 experts. Keep
+  // expert order deterministic without serially scanning every inactive bin.
+  if (threadIdx.x == 0) {
+    requested_count = 0;
+    for (int32_t r = 0; r < routes; ++r) {
+      int32_t e = ids[r];
+      if (e < 0) continue;
+      int32_t pos = 0;
+      while (pos < requested_count && requested[pos] < e)
+        ++pos;
+      if (pos < requested_count && requested[pos] == e) continue;
+      for (int32_t i = requested_count; i > pos; --i)
+        requested[i] = requested[i - 1];
+      requested[pos] = e;
+      ++requested_count;
+    }
   }
   __syncthreads();
   for (int32_t e = threadIdx.x; e < experts; e += blockDim.x) {
-    layer_frequency[e] = __dadd_rn(__dmul_rn(layer_frequency[e], decay), histogram[e] > 0 ? 1.0 : 0.0);
-    global_layer_frequency[e] = layer_frequency[e];
+    layer_frequency[e] = __dmul_rn(layer_frequency[e], decay);
+    if (!Indexed) {
+      layer_frequency[e] = __dadd_rn(layer_frequency[e], histogram[e] > 0 ? 1.0 : 0.0);
+      global_layer_frequency[e] = layer_frequency[e];
+    }
+  }
+  __syncthreads();
+  // Admission only adds active experts, so this inactive-cold set remains
+  // valid through admission. Build it cooperatively and reclaim in id order.
+  for (int32_t word = threadIdx.x; word < (experts + 31) / 32; word += blockDim.x) {
+    uint32_t mask = 0;
+    for (int32_t bit = 0; bit < 32 && word * 32 + bit < experts; ++bit) {
+      int32_t e = word * 32 + bit;
+      if (layer_lookup[e] >= 0 && !histogram[e] && layer_frequency[e] < 0.5) mask |= 1u << bit;
+    }
+    cold_mask[word] = mask;
   }
   __syncthreads();
   if (threadIdx.x == 0) {
@@ -165,14 +193,24 @@ __global__ void hybrid_plan_kernel(
         layer_heap,
         layer_position,
         &layer_heap_size,
-        layer_frequency);
-    // The remaining residents all received the same decay factor, so their
-    // layer-local order is unchanged. Only this layer's top-level key moves.
-    if (Indexed) index.refresh_top(layer, layer_was_present);
+        layer_frequency,
+        local_top,
+        local_top_heat);
+    if (Indexed) {
+      layer_was_present = index.size_for(layer) > 0;
+      // Update one key at a time: batching all increments before heap repair
+      // can hide a smaller grandchild behind another incremented child.
+      for (int32_t i = 0; i < requested_count; ++i) {
+        int32_t e = requested[i];
+        layer_frequency[e] = __dadd_rn(layer_frequency[e], 1.0);
+        if (layer_lookup[e] >= 0) index.fix_expert(layer, index.positions_for(layer)[e]);
+      }
+      index.refresh_top(layer, layer_was_present);
+    }
     int32_t initial_misses = 0, total_routes = 0;
-    for (int32_t e = 0; e < experts; ++e) {
+    for (int32_t i = 0; i < requested_count; ++i) {
+      int32_t e = requested[i];
       total_routes += histogram[e];
-      if (!histogram[e]) continue;
       if (layer_lookup[e] >= 0) continue;
       ++initial_misses;
       int32_t pos = active_count;
@@ -209,13 +247,15 @@ __global__ void hybrid_plan_kernel(
     int32_t victim_total = victim_count, next_victim = 0;
     for (int32_t i = victim_total - 1; i >= 0; --i)
       coldest[i] = victim_pop_max(victims, &victim_count);
+
     for (int32_t i = 0; i < active_count; ++i) {
       int32_t e = active[i], slot = -1;
       if (Indexed)
         slot = index.pop_free();
       else if (next_free < free_count)
         slot = free_slots[next_free++];
-      if (slot < 0 && layer_frequency[e] >= admission && (Indexed ? *index.top_size > 0 : next_victim < victim_total)) {
+      if (slot < 0 && layer_frequency[e] >= admission &&
+          (Indexed ? index.protect_minimum(layer, histogram) : next_victim < victim_total)) {
         HybridVictim victim = Indexed ? index.minimum() : coldest[next_victim];
         if (layer_frequency[e] > victim.heat) {
           if (Indexed) {
@@ -243,35 +283,41 @@ __global__ void hybrid_plan_kernel(
       cache_plan[5 + 2 * n] = slot;
     }
     // Match GlobalLfu's post-plan cold reclaim and unused ownership release.
-    for (int32_t e = 0; e < experts; ++e) {
-      int32_t slot = layer_lookup[e];
-      if (slot >= 0 && !histogram[e] && layer_frequency[e] < 0.5f) {
-        if (Indexed) index.erase(layer, e);
-        layer_lookup[e] = keys[slot] = -1;
-        owners[slot] = -1;
-        ++stats[0];
-        if (Indexed) {
-          index.push_free(slot);
-          continue;
-        }
-        // Cold reclaim becomes available to the forced-placement phase in
-        // this same call. Keep the remaining free prefix sorted by slot id.
-        int32_t pos = next_free;
-        while (pos < free_count && free_slots[pos] < slot)
-          ++pos;
-        if (pos < kRoutes) {
-          if (free_count < kRoutes) ++free_count;
-          for (int32_t j = free_count - 1; j > pos; --j)
-            free_slots[j] = free_slots[j - 1];
-          free_slots[pos] = slot;
+    for (int32_t word = 0; word < (experts + 31) / 32; ++word) {
+      uint32_t mask = cold_mask[word];
+      for (int32_t bit = 0; mask; ++bit, mask >>= 1) {
+        if (!(mask & 1)) continue;
+        int32_t e = word * 32 + bit;
+        int32_t slot = layer_lookup[e];
+        if (slot >= 0 && !histogram[e] && layer_frequency[e] < 0.5f) {
+          if (Indexed) index.erase(layer, e);
+          layer_lookup[e] = keys[slot] = -1;
+          owners[slot] = -1;
+          ++stats[0];
+          if (Indexed) {
+            index.push_free(slot);
+            continue;
+          }
+          // Cold reclaim becomes available to the forced-placement phase in
+          // this same call. Keep the remaining free prefix sorted by slot id.
+          int32_t pos = next_free;
+          while (pos < free_count && free_slots[pos] < slot)
+            ++pos;
+          if (pos < kRoutes) {
+            if (free_count < kRoutes) ++free_count;
+            for (int32_t j = free_count - 1; j > pos; --j)
+              free_slots[j] = free_slots[j - 1];
+            free_slots[pos] = slot;
+          }
         }
       }
     }
     if (!Indexed)
       for (int32_t s = 0; s < slots; ++s)
         if (owners[s] == layer && keys[s] < 0) owners[s] = -1;
-    for (int32_t e = 0; e < experts; ++e) {
-      if (!histogram[e] || layer_lookup[e] >= 0) continue;
+    for (int32_t i = 0; i < requested_count; ++i) {
+      int32_t e = requested[i];
+      if (layer_lookup[e] >= 0) continue;
       int32_t pos = rejected_count;
       while (pos && histogram[rejected[pos - 1]] > histogram[e]) {
         rejected[pos] = rejected[pos - 1];
@@ -311,6 +357,7 @@ __global__ void hybrid_plan_kernel(
     // victims. Free slots alone do not require a second pool scan.
     victim_total = 0;
     next_victim = 0;
+
     if (!Indexed && rejected_count - selected > free_count - next_free) {
       victim_count = 0;
       for (int32_t s = 0; s < slots; ++s) {
@@ -339,7 +386,7 @@ __global__ void hybrid_plan_kernel(
         if (!Indexed)
           while (next_victim < victim_total && keys[coldest[next_victim].slot] < 0)
             ++next_victim;
-        if (Indexed ? *index.top_size == 0 : next_victim == victim_total) {
+        if (Indexed ? !index.protect_minimum(layer, histogram) : next_victim == victim_total) {
           cache_plan[0] = 2;
           asm volatile("trap;");
           return;
@@ -366,8 +413,10 @@ __global__ void hybrid_plan_kernel(
       // Hits and newly placed experts were excluded from victim selection.
       // No victim query occurs within this batch, so repair the layer top once.
       bool was_present = index.size_for(layer) > 0;
-      for (int32_t e = 0; e < experts; ++e)
-        if (histogram[e] && layer_lookup[e] >= 0 && index.positions_for(layer)[e] < 0) index.insert(layer, e, false);
+      for (int32_t i = 0; i < requested_count; ++i) {
+        int32_t e = requested[i];
+        if (layer_lookup[e] >= 0 && index.positions_for(layer)[e] < 0) index.insert(layer, e, false);
+      }
       index.refresh_top(layer, was_present);
     }
     stats[1] += active_count ? 0 : 1;  // Calls without an initial miss.
@@ -380,12 +429,16 @@ __global__ void hybrid_plan_kernel(
   __syncthreads();
   for (int32_t e = threadIdx.x; e < experts; e += blockDim.x) {
     global_layer_lookup[e] = layer_lookup[e];
+    global_layer_frequency[e] = layer_frequency[e];
     if (Indexed) {
       index_data[layer * experts + e] = layer_heap[e];
       index_data[layers * experts + layer * experts + e] = layer_position[e];
     }
   }
   if (Indexed && threadIdx.x == 0) index_data[2 * layers * experts + layer] = layer_heap_size;
+  if (local_top)
+    for (int32_t i = threadIdx.x; i < 2 * layers + 1; i += blockDim.x)
+      index_data[2 * layers * experts + layers + i] = local_top[i];
   for (int32_t route = threadIdx.x; route < routes; route += blockDim.x) {
     int32_t e = ids[route];
     if (e < 0) continue;
@@ -501,11 +554,8 @@ __global__ void hybrid_merge_kernel(
     int32_t elements,
     int32_t routes,
     int32_t sequence) {
-  __shared__ bool selected;
+  bool selected = __syncthreads_or(threadIdx.x < routes && cpu_ids[threadIdx.x] >= 0);
   if (threadIdx.x == 0) {
-    selected = false;
-    for (int32_t i = 0; i < routes; ++i)
-      selected |= cpu_ids[i] >= 0;
     if (selected) {
       while (*completed < sequence) {
         if (failed && *failed) {
@@ -521,7 +571,7 @@ __global__ void hybrid_merge_kernel(
     }
   }
   __syncthreads();
-  for (int32_t i = threadIdx.x; i < elements; i += blockDim.x) {
+  for (int32_t i = blockIdx.x * blockDim.x + threadIdx.x; i < elements; i += blockDim.x * gridDim.x) {
     float value = gpu[i];
     if (selected) {
       float contribution;
@@ -793,6 +843,7 @@ inline void qwen38_hybrid_plan_stage_indexed(
       sequence,
       &heap_index);
 }
+
 }  // namespace sglang
 
 namespace sglang {
@@ -891,7 +942,7 @@ inline void qwen38_hybrid_merge(
   CHECK_HOST(tokens.unwrap() * topk.unwrap() <= sglang::details::kRoutes);
   CHECK_HOST(host_result > 0 && sequence > 0 && sequence < std::numeric_limits<int32_t>::max());
   CHECK_HOST(completed_address >= 0);
-  LaunchKernel(1, 256, device.unwrap())(
+  LaunchKernel((tokens.unwrap() * hidden.unwrap() + 1023) / 1024, 256, device.unwrap())(
       sglang::details::hybrid_merge_kernel,
       static_cast<const int32_t*>(cpu_ids.data_ptr()),
       static_cast<const float*>(gpu.data_ptr()),

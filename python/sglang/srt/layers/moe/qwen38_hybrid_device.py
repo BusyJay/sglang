@@ -147,12 +147,33 @@ class DeviceHybridPlanner:
         self.observed = [0] * 7
         self.has_cpu_samples = bool(rows)
         self.compute_stream = None
+        self.fill_ready = torch.cuda.Event()
+        self.fill_done = torch.cuda.Event()
+        # The ordered compute/fill join retires every reader before reuse,
+        # including when graph warmup switches compute streams.
+        top_k = cache.runtime.manifest.top_k
+        self.route_buffers = {}
+        for tokens in (1, 2, 3):
+            self.route_buffers[tokens] = (
+                torch.empty(
+                    (tokens, top_k), dtype=torch.int32, device=cache.runtime.device
+                ),
+                torch.empty(
+                    (tokens, top_k), dtype=torch.int32, device=cache.runtime.device
+                ),
+                torch.empty(
+                    4 + 2 * tokens * top_k,
+                    dtype=torch.int32,
+                    device=cache.runtime.device,
+                ),
+            )
         # Compile at load time, before any serving invocation.
         _module()
 
     @property
     def device_bytes(self):
         tensors = [self.costs, self.device_stats, self.flag, self.heap_index]
+        tensors += [t for buffers in self.route_buffers.values() for t in buffers]
         tensors += list(self.layouts.values())
         for name in ("lookup", "frequency", "owners", "keys"):
             tensor = getattr(self, name, None)
@@ -344,8 +365,7 @@ class DeviceHybridPlanner:
             self.compute_stream = compute.cuda_stream
         # Every decode planner, fill and preceding cache reader runs on this
         # same stream. Its ordering already permits cross-layer slot reuse.
-        cache_ids, cpu_ids = (torch.empty_like(ids) for _ in range(2))
-        plan = torch.empty(4 + 2 * ids.numel(), dtype=torch.int32, device=r.device)
+        cache_ids, cpu_ids, plan = self.route_buffers[x.shape[0]]
         batch = None
         if self.has_cpu_samples:
             if not c.mapped_batch_pages:
@@ -398,44 +418,53 @@ class DeviceHybridPlanner:
             )
         self.dirty = True
         mailbox = r.miss_mailbox
+
         # One fill reads its device count; an empty plan copies nothing.
-        fill_module().mailbox_fill_grid(
-            plan,
-            self.layout(layer),
-            ids.numel(),
-            mailbox.failed_address,
-            mailbox.fill_cta,
-        )
-        if shared is not None:
-            shared()
+        def submit_fill():
+            fill_module().mailbox_fill_grid(
+                plan,
+                self.layout(layer),
+                ids.numel(),
+                mailbox.failed_address,
+                mailbox.fill_cta,
+            )
+
+        if shared is None:
+            submit_fill()
+        else:
+            from sglang.srt.layers.moe.qwen38_cache_overlap import fill_with_overlap
+
+            fill_with_overlap(
+                compute,
+                c.fill_stream,
+                self.fill_ready,
+                self.fill_done,
+                submit_fill,
+                shared,
+            )
+            c.stats["shared_fill_overlap_calls"] += 1
         try:
             gpu = c._gpu(x, cache_ids, weights, layer)
+            # Keep both contributions in FP32 until the sole BF16 conversion.
+            if batch is not None:
+                output = torch.empty_like(x)
+                hybrid_merge(
+                    cpu_ids,
+                    gpu,
+                    self.flag,
+                    output,
+                    batch.device_addresses[3],
+                    sequence,
+                    mailbox.failed_address,
+                    completed_address=(
+                        batch.device_addresses[5] if c.gpu_backend == "b12x" else 0
+                    ),
+                )
         finally:
             done = torch.cuda.Event()
             done.record(compute)
-            r.arena_last_use = done
-            r.layer_computed[layer] = done
-        # A single CTA waits and coalesces mapped result reads. Polling from
-        # every B12X FC2 writer serializes PCIe reads and costs milliseconds.
-        # Keep both contributions in FP32 until this sole BF16 conversion.
-        if batch is not None:
-            output = torch.empty_like(x)
-            hybrid_merge(
-                cpu_ids,
-                gpu,
-                self.flag,
-                output,
-                batch.device_addresses[3],
-                sequence,
-                mailbox.failed_address,
-                completed_address=(
-                    batch.device_addresses[5] if c.gpu_backend == "b12x" else 0
-                ),
-            )
-        done = torch.cuda.Event()
-        done.record(compute)
-        self.last_compute_done = done
-        r.layer_computed[layer] = r.arena_last_use = done
+            self.last_compute_done = done
+            r.layer_computed[layer] = r.arena_last_use = done
         with mailbox.lock:
             mailbox.native_active = True
             mailbox.pending.append((done, time.monotonic() + c.timeout, layer))

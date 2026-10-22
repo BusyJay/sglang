@@ -243,17 +243,18 @@ struct Qwen38CacheScatter {
 };
 
 namespace {
+template <bool WriteOutput = true>
 __global__ void route_kernel(
     const int32_t* ids, const int32_t* lookup, int32_t* output, int32_t* counts, int64_t size, int32_t experts) {
   for (int64_t i = blockIdx.x * blockDim.x + threadIdx.x; i < size; i += blockDim.x * gridDim.x) {
     int32_t expert = ids[i];
     if (expert == -1) {
-      output[i] = -1;
+      if (WriteOutput) output[i] = -1;
     } else if (expert < 0 || expert >= experts) {
-      output[i] = -1;
+      if (WriteOutput) output[i] = -1;
       atomicAdd(counts + experts, 1);  // invalid-route counter
     } else {
-      output[i] = lookup[expert];
+      if (WriteOutput) output[i] = lookup[expert];
       atomicAdd(counts + expert, 1);
     }
   }
@@ -261,6 +262,31 @@ __global__ void route_kernel(
 }  // namespace
 
 struct Qwen38CacheRoute {
+  static void run_counts(TensorView ids, TensorView counts) {
+    CHECK_INPUT_AND_TYPE(ids, dl_int32);
+    CHECK_INPUT_AND_TYPE(counts, dl_int32);
+    CHECK_DIM(2, ids);
+    CHECK_DIM(1, counts);
+    CHECK_DEVICE(ids, counts);
+    TVM_FFI_ICHECK_GT(counts.size(0), 1);
+    auto stream = get_stream(ids.device());
+    auto status = cudaMemsetAsync(counts.data_ptr(), 0, counts.size(0) * sizeof(int32_t), stream);
+    TVM_FFI_ICHECK_EQ(status, cudaSuccess) << cudaGetErrorString(status);
+    auto size = ids.size(0) * ids.size(1);
+    if (size) {
+      int blocks = static_cast<int>(std::min<int64_t>((size + 255) / 256, 65535));
+      route_kernel<false><<<blocks, 256, 0, stream>>>(
+          static_cast<const int32_t*>(ids.data_ptr()),
+          nullptr,
+          nullptr,
+          static_cast<int32_t*>(counts.data_ptr()),
+          size,
+          counts.size(0) - 1);
+      status = cudaGetLastError();
+      TVM_FFI_ICHECK_EQ(status, cudaSuccess) << cudaGetErrorString(status);
+    }
+  }
+
   static void run(TensorView ids, TensorView lookup, TensorView output, TensorView counts) {
     CHECK_INPUT_AND_TYPE(ids, dl_int32);
     CHECK_INPUT_AND_TYPE(lookup, dl_int32);

@@ -1,0 +1,130 @@
+{
+  "before": {
+    "decode": {
+      "span_ms": 3430.690255,
+      "gpu_busy_pct": 91.92514624145221,
+      "gpu_idle_ms": 277.023221
+    },
+    "kernels": {
+      "mailbox_fill_kernel": {
+        "name": "mailbox_fill_kernel",
+        "calls": 5232,
+        "ms": 1000.420674,
+        "share_pct": 30.17004381581757,
+        "mean_us": 191.2119025229358,
+        "p50_us": 132.095,
+        "p95_us": 541.179,
+        "overlap_other_kernels_ms": 0.0
+      },
+      "hybrid_plan_kernel": {
+        "name": "hybrid_plan_kernel",
+        "calls": 5232,
+        "ms": 719.376679,
+        "share_pct": 21.69449961357689,
+        "mean_us": 137.49554262232417,
+        "p50_us": 132.798,
+        "p95_us": 176.19,
+        "overlap_other_kernels_ms": 0.0
+      },
+      "hybrid_merge_kernel": {
+        "name": "hybrid_merge_kernel",
+        "calls": 5232,
+        "ms": 95.285447,
+        "share_pct": 2.873557280164487,
+        "mean_us": 18.212050267584097,
+        "p50_us": 5.28,
+        "p95_us": 5.952,
+        "overlap_other_kernels_ms": 0.0
+      }
+    },
+    "prefill": {
+      "span_ms": 4585.687158,
+      "gpu_busy_pct": 78.6621632857581,
+      "gpu_idle_ms": 978.486438
+    },
+    "prefill_copies": [
+      {
+        "kind": 1,
+        "calls": 86658,
+        "bytes": 86715106227,
+        "ms": 1751.593699
+      },
+      {
+        "kind": 2,
+        "calls": 282,
+        "bytes": 37176406,
+        "ms": 1.776626
+      },
+      {
+        "kind": 8,
+        "calls": 863,
+        "bytes": 6454878707,
+        "ms": 6.074317
+      }
+    ]
+  },
+  "final": {
+    "decode": {
+      "span_ms": 2842.020893,
+      "gpu_busy_pct": 96.84768710811866,
+      "gpu_idle_ms": 89.589391
+    },
+    "kernels": {
+      "mailbox_fill_kernel": {
+        "name": "mailbox_fill_kernel",
+        "calls": 5184,
+        "ms": 1074.012666,
+        "share_pct": 35.29737233263204,
+        "mean_us": 207.17836921296296,
+        "p50_us": 132.445,
+        "p95_us": 607.921,
+        "overlap_other_kernels_ms": 99.920767
+      },
+      "hybrid_plan_kernel": {
+        "name": "hybrid_plan_kernel",
+        "calls": 5184,
+        "ms": 253.982613,
+        "share_pct": 8.347125821582992,
+        "mean_us": 48.99355960648148,
+        "p50_us": 44.383,
+        "p95_us": 85.31,
+        "overlap_other_kernels_ms": 0.0
+      },
+      "hybrid_merge_kernel": {
+        "name": "hybrid_merge_kernel",
+        "calls": 5184,
+        "ms": 157.163921,
+        "share_pct": 5.1651843711062595,
+        "mean_us": 30.3171143904321,
+        "p50_us": 1.44,
+        "p95_us": 247.226,
+        "overlap_other_kernels_ms": 0.0
+      }
+    },
+    "prefill": {
+      "span_ms": 3868.226129,
+      "gpu_busy_pct": 83.7726983876645,
+      "gpu_idle_ms": 627.708721
+    },
+    "prefill_copies": [
+      {
+        "kind": 1,
+        "calls": 86816,
+        "bytes": 86862640099,
+        "ms": 1753.793453
+      },
+      {
+        "kind": 2,
+        "calls": 281,
+        "bytes": 5890198,
+        "ms": 0.380664
+      },
+      {
+        "kind": 8,
+        "calls": 863,
+        "bytes": 6454878707,
+        "ms": 3.733051
+      }
+    ]
+  }
+}

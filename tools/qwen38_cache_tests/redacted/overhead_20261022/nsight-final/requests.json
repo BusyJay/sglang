@@ -1,0 +1,658 @@
+{
+  "default": {
+    "cases": [
+      {
+        "prompt_tokens": 16448,
+        "output_tokens": 8,
+        "ttft_seconds": 3.887707154994132,
+        "e2e_seconds": 4.018908387981355,
+        "decode_tokens_per_second": 53.378396900977414,
+        "after_64_tokens_per_second": 53.378396900977414,
+        "mean_time_per_output_token_ms": 18.734170714326734,
+        "stream_events": [
+          [
+            3.887707154994132,
+            1
+          ],
+          [
+            3.923796015995322,
+            4
+          ],
+          [
+            3.9725075509923045,
+            7
+          ],
+          [
+            4.018846349994419,
+            8
+          ]
+        ],
+        "meta_info": {
+          "id": "[REDACTED REQUEST ID]",
+          "finish_reason": {
+            "type": "length",
+            "length": 8
+          },
+          "prompt_tokens": 16448,
+          "weight_version": "default",
+          "num_retractions": 0,
+          "reasoning_tokens": 0,
+          "completion_tokens": 8,
+          "cached_tokens": 0,
+          "weight_versions": [
+            {
+              "version": "default",
+              "start": 0,
+              "end": 8
+            }
+          ],
+          "cached_tokens_details": null,
+          "dp_rank": null,
+          "e2e_latency": 4.0165082220046315,
+          "spec_accept_rate": 1.0,
+          "spec_accept_length": 2.6666666666666665,
+          "spec_num_correct_drafts": 6,
+          "spec_num_proposed_drafts": 6,
+          "spec_verify_ct": 3,
+          "spec_correct_drafts_histogram": [
+            0,
+            0,
+            3
+          ]
+        },
+        "response_text": "[REDACTED]",
+        "name": "prefill"
+      },
+      {
+        "prompt_tokens": 1088,
+        "output_tokens": 256,
+        "ttft_seconds": 0.8938005080271978,
+        "e2e_seconds": 3.6996472350147087,
+        "decode_tokens_per_second": 90.88393375034927,
+        "after_64_tokens_per_second": 97.53625433120563,
+        "mean_time_per_output_token_ms": 11.003044858807698,
+        "stream_events": [
+          [
+            0.8938005080271978,
+            1
+          ],
+          [
+            0.9234143320063595,
+            4
+          ],
+          [
+            0.9644735120236874,
+            7
+          ],
+          [
+            1.008993660012493,
+            10
+          ],
+          [
+            1.0430568160081748,
+            11
+          ],
+          [
+            1.0742647280276287,
+            14
+          ],
+          [
+            1.1101616450177971,
+            17
+          ],
+          [
+            1.1430103230231907,
+            20
+          ],
+          [
+            1.1753940330236219,
+            21
+          ],
+          [
+            1.2023586780123878,
+            22
+          ],
+          [
+            1.22687202700763,
+            25
+          ],
+          [
+            1.2508808090060484,
+            28
+          ],
+          [
+            1.2750822470115963,
+            31
+          ],
+          [
+            1.2954051480046473,
+            32
+          ],
+          [
+            1.3160453500167932,
+            33
+          ],
+          [
+            1.3357962050067727,
+            36
+          ],
+          [
+            1.3640474360145163,
+            39
+          ],
+          [
+            1.3849973489996046,
+            42
+          ],
+          [
+            1.4019201300106943,
+            43
+          ],
+          [
+            1.4202960719994735,
+            44
+          ],
+          [
+            1.4426096900133416,
+            47
+          ],
+          [
+            1.469331021013204,
+            49
+          ],
+          [
+            1.5151110160222743,
+            52
+          ],
+          [
+            1.560459742002422,
+            54
+          ],
+          [
+            1.5936118220270146,
+            57
+          ],
+          [
+            1.635088971001096,
+            60
+          ],
+          [
+            1.667155230010394,
+            61
+          ],
+          [
+            1.706823027023347,
+            62
+          ],
+          [
+            1.73107814299874,
+            64
+          ],
+          [
+            1.7745088020164985,
+            67
+          ],
+          [
+            1.8062772000266705,
+            70
+          ],
+          [
+            1.8298776440205984,
+            71
+          ],
+          [
+            1.8575370410108007,
+            72
+          ],
+          [
+            1.881683111016173,
+            75
+          ],
+          [
+            1.9206754870247096,
+            78
+          ],
+          [
+            1.9571176710014697,
+            81
+          ],
+          [
+            1.995466225023847,
+            82
+          ],
+          [
+            2.025238876027288,
+            85
+          ],
+          [
+            2.059059489023639,
+            86
+          ],
+          [
+            2.0831847400113475,
+            89
+          ],
+          [
+            2.109471133007901,
+            90
+          ],
+          [
+            2.1318037710152566,
+            91
+          ],
+          [
+            2.157815291022416,
+            92
+          ],
+          [
+            2.190163424005732,
+            95
+          ],
+          [
+            2.225775020022411,
+            96
+          ],
+          [
+            2.2558232330193277,
+            99
+          ],
+          [
+            2.2792970510199666,
+            102
+          ],
+          [
+            2.3082728730223607,
+            105
+          ],
+          [
+            2.336747118009953,
+            108
+          ],
+          [
+            2.371088978019543,
+            111
+          ],
+          [
+            2.3930193060077727,
+            114
+          ],
+          [
+            2.4220327970106155,
+            116
+          ],
+          [
+            2.4465860160125885,
+            119
+          ],
+          [
+            2.4745998340076767,
+            121
+          ],
+          [
+            2.5028387950151227,
+            122
+          ],
+          [
+            2.532323063001968,
+            125
+          ],
+          [
+            2.5551037900149822,
+            127
+          ],
+          [
+            2.5763090070104226,
+            130
+          ],
+          [
+            2.603119947016239,
+            133
+          ],
+          [
+            2.62819070200203,
+            135
+          ],
+          [
+            2.6510212370194495,
+            138
+          ],
+          [
+            2.675331083009951,
+            141
+          ],
+          [
+            2.702819904021453,
+            144
+          ],
+          [
+            2.7268548170104623,
+            147
+          ],
+          [
+            2.752016951009864,
+            150
+          ],
+          [
+            2.77311641201959,
+            153
+          ],
+          [
+            2.7958087920269463,
+            156
+          ],
+          [
+            2.8236275050148834,
+            159
+          ],
+          [
+            2.847819385002367,
+            162
+          ],
+          [
+            2.876047328027198,
+            165
+          ],
+          [
+            2.9107933880004566,
+            168
+          ],
+          [
+            2.9330237790127285,
+            171
+          ],
+          [
+            2.9577099560119677,
+            172
+          ],
+          [
+            2.9823771430237684,
+            175
+          ],
+          [
+            3.005590288026724,
+            178
+          ],
+          [
+            3.0263527990027796,
+            181
+          ],
+          [
+            3.046717029006686,
+            184
+          ],
+          [
+            3.0691243860055692,
+            185
+          ],
+          [
+            3.090895890025422,
+            186
+          ],
+          [
+            3.1135626600007527,
+            189
+          ],
+          [
+            3.1310450570017565,
+            192
+          ],
+          [
+            3.1538239140063524,
+            195
+          ],
+          [
+            3.173987680027494,
+            198
+          ],
+          [
+            3.1988360730174463,
+            201
+          ],
+          [
+            3.2168175570259336,
+            204
+          ],
+          [
+            3.2362705120176543,
+            207
+          ],
+          [
+            3.2576839450048283,
+            209
+          ],
+          [
+            3.276346441009082,
+            210
+          ],
+          [
+            3.294184389000293,
+            213
+          ],
+          [
+            3.315136554010678,
+            216
+          ],
+          [
+            3.3384734660212416,
+            219
+          ],
+          [
+            3.361372110026423,
+            221
+          ],
+          [
+            3.3835422130068764,
+            223
+          ],
+          [
+            3.404817560018273,
+            224
+          ],
+          [
+            3.425063544011209,
+            225
+          ],
+          [
+            3.4455480120086577,
+            228
+          ],
+          [
+            3.4644330220180564,
+            229
+          ],
+          [
+            3.4832840530143585,
+            230
+          ],
+          [
+            3.500272143020993,
+            232
+          ],
+          [
+            3.517099737015087,
+            233
+          ],
+          [
+            3.541390294005396,
+            236
+          ],
+          [
+            3.5793334600166418,
+            239
+          ],
+          [
+            3.599692161020357,
+            242
+          ],
+          [
+            3.6187651860236656,
+            245
+          ],
+          [
+            3.643939200002933,
+            248
+          ],
+          [
+            3.662992835015757,
+            251
+          ],
+          [
+            3.6801457410037983,
+            254
+          ],
+          [
+            3.6995769470231608,
+            256
+          ]
+        ],
+        "meta_info": {
+          "id": "[REDACTED REQUEST ID]",
+          "finish_reason": {
+            "type": "length",
+            "length": 256
+          },
+          "prompt_tokens": 1088,
+          "weight_version": "default",
+          "num_retractions": 0,
+          "reasoning_tokens": 0,
+          "completion_tokens": 256,
+          "cached_tokens": 0,
+          "weight_versions": [
+            {
+              "version": "default",
+              "start": 0,
+              "end": 256
+            }
+          ],
+          "cached_tokens_details": null,
+          "dp_rank": null,
+          "e2e_latency": 3.6984786259999964,
+          "spec_accept_rate": 0.6962616822429907,
+          "spec_accept_length": 2.392523364485981,
+          "spec_num_correct_drafts": 149,
+          "spec_num_proposed_drafts": 214,
+          "spec_verify_ct": 107,
+          "spec_correct_drafts_histogram": [
+            27,
+            11,
+            69
+          ]
+        },
+        "response_text": "[REDACTED]",
+        "name": "decode"
+      }
+    ],
+    "command": [
+      "/usr/local/bin/nsys",
+      "profile",
+      "--trace=cuda,nvtx,osrt",
+      "--sample=none",
+      "--cpuctxsw=none",
+      "--python-sampling=true",
+      "--python-sampling-frequency=100",
+      "--cuda-graph-trace=node",
+      "--capture-range=cudaProfilerApi",
+      "--capture-range-end=stop",
+      "--wait=all",
+      "--force-overwrite=true",
+      "--output",
+      "/results/default",
+      "/opt/sglang/bin/python3",
+      "-m",
+      "sglang.launch_server",
+      "--model-path",
+      "/hf-cache/models--nvidia--Qwen3.8-Flash-Next-FP4-Local/snapshots/b9ce18a6887e18c089fdea8509a33e63429a3300",
+      "--served-model-name",
+      "/hf-cache/models--nvidia--Qwen3.8-Flash-Next-FP4-Local/snapshots/b9ce18a6887e18c089fdea8509a33e63429a3300",
+      "--reasoning-parser",
+      "qwen3",
+      "--load-format",
+      "qwen38_nvfp4_cache",
+      "--model-loader-extra-config",
+      "{\"manifest_path\": \"/root/.cache/sglang/qwen38-fp4-local/b9ce18a6887e18c089fdea8509a33e63429a3300/manifest.json\", \"prefill_arena\": true, \"runtime_mode\": \"threaded\", \"cache_slots_total\": 6388, \"stats_log_interval\": 0, \"staging_buffers\": 4, \"staging_buffer_bytes\": 67108864, \"adaptive_cache\": true, \"adaptive_cache_window\": 512, \"adaptive_cache_interval\": 4096, \"adaptive_cache_mode\": \"rebalance\", \"cache_policy\": \"lfu\", \"cache_protected_fraction\": 0.7, \"prefill_reuse_cache\": true, \"prefill_seed_cache\": true, \"kv_cache_stages\": [80000, 160000, 220000], \"preallocate_gdn_proj\": true, \"async_pack_prefetch\": true, \"prefill_direct_cache\": false}",
+      "--ple-offload-embedding",
+      "--cuda-graph-backend-prefill=disabled",
+      "--cuda-graph-backend-decode=breakable",
+      "--disable-shared-experts-fusion",
+      "--moe-runner-backend",
+      "flashinfer_cutlass",
+      "--max-running-requests",
+      "1",
+      "--kv-cache-dtype",
+      "fp8_e4m3",
+      "--context-length",
+      "220000",
+      "--chunked-prefill-size",
+      "8192",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "30938",
+      "--language-model-only",
+      "--revision",
+      "b9ce18a6887e18c089fdea8509a33e63429a3300",
+      "--speculative-algorithm",
+      "NEXTN",
+      "--speculative-draft-load-format",
+      "qwen38_mtp",
+      "--speculative-num-steps",
+      "2",
+      "--speculative-eagle-topk",
+      "1",
+      "--speculative-num-draft-tokens",
+      "3",
+      "--download-dir",
+      "/hf-cache",
+      "--mem-fraction-static",
+      "0.9",
+      "--max-mamba-cache-size",
+      "10",
+      "--mamba-ssm-dtype",
+      "bfloat16",
+      "--mamba-full-memory-ratio",
+      "0.22",
+      "--ple-offload-backend",
+      "pinned",
+      "--random-seed",
+      "42"
+    ],
+    "sanity": {
+      "text": "[REDACTED]",
+      "output_ids": "[REDACTED OUTPUT_IDS: 37 ITEMS]",
+      "meta_info": {
+        "id": "[REDACTED REQUEST ID]",
+        "finish_reason": {
+          "type": "stop",
+          "matched": 248044
+        },
+        "prompt_tokens": 16,
+        "weight_version": "default",
+        "num_retractions": 0,
+        "reasoning_tokens": 0,
+        "completion_tokens": 37,
+        "cached_tokens": 0,
+        "weight_versions": [
+          {
+            "version": "default",
+            "start": 0,
+            "end": 37
+          }
+        ],
+        "cached_tokens_details": null,
+        "dp_rank": null,
+        "e2e_latency": 0.7460818719991948,
+        "spec_accept_rate": 0.7857142857142857,
+        "spec_accept_length": 2.642857142857143,
+        "spec_num_correct_drafts": 22,
+        "spec_num_proposed_drafts": 28,
+        "spec_verify_ct": 14,
+        "spec_correct_drafts_histogram": [
+          2,
+          2,
+          10
+        ],
+        "response_sent_to_client_ts": 1792634242.87415
+      }
+    }
+  }
+}

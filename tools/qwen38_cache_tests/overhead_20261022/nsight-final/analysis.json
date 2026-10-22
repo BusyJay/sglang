@@ -1,0 +1,4508 @@
+{
+  "stage_method": "Prefill proxies end at the next hybrid planner. Sustained decode starts at the first planner after the final packed_scatter; excludes decode request prefill.",
+  "windows": {
+    "all": {
+      "start_s": 0.035649217,
+      "end_s": 7.772237659,
+      "span_ms": 7736.588442,
+      "kernel_sum_ms": 4839.601825,
+      "kernel_union_ms": 4494.111206,
+      "gpu_busy_pct": 89.0309178863259,
+      "gpu_idle_ms": 848.632739,
+      "copy_kernel_overlap_ms": 1.143811,
+      "kernel_concurrency_ms": 345.490619,
+      "kernels": [
+        {
+          "name": "mailbox_fill_kernel",
+          "calls": 5328,
+          "ms": 1169.471822,
+          "share_pct": 24.16462891552034,
+          "mean_us": 219.4954620870871,
+          "p50_us": 134.909,
+          "p95_us": 730.19,
+          "overlap_other_kernels_ms": 111.431251
+        },
+        {
+          "name": "Dense MXFP8 GEMM",
+          "calls": 27600,
+          "ms": 786.351624,
+          "share_pct": 16.248271085813965,
+          "mean_us": 28.49100086956522,
+          "p50_us": 15.936,
+          "p95_us": 30.912,
+          "overlap_other_kernels_ms": 107.132267
+        },
+        {
+          "name": "Grouped FP4 GEMM",
+          "calls": 1680,
+          "ms": 343.652432,
+          "share_pct": 7.100841028383569,
+          "mean_us": 204.55501904761906,
+          "p50_us": 171.004,
+          "p95_us": 514.995,
+          "overlap_other_kernels_ms": 2.358345
+        },
+        {
+          "name": "B12X FP32 routed MoE",
+          "calls": 5328,
+          "ms": 327.477903,
+          "share_pct": 6.7666290501078565,
+          "mean_us": 61.463570382882885,
+          "p50_us": 61.342,
+          "p95_us": 66.398,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "BF16 WMMA GEMM",
+          "calls": 7692,
+          "ms": 273.433356,
+          "share_pct": 5.6499143088078325,
+          "mean_us": 35.54775819032761,
+          "p50_us": 3.968,
+          "p95_us": 238.298,
+          "overlap_other_kernels_ms": 2.795392
+        },
+        {
+          "name": "hybrid_plan_kernel",
+          "calls": 5328,
+          "ms": 263.220564,
+          "share_pct": 5.438888849084191,
+          "mean_us": 49.403259009009005,
+          "p50_us": 44.703,
+          "p95_us": 86.846,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "GEMV",
+          "calls": 896,
+          "ms": 194.784884,
+          "share_pct": 4.024812185866137,
+          "mean_us": 217.39384375,
+          "p50_us": 22.72,
+          "p95_us": 804.364,
+          "overlap_other_kernels_ms": 0.69218
+        },
+        {
+          "name": "hybrid_merge_kernel",
+          "calls": 5328,
+          "ms": 161.037324,
+          "share_pct": 3.327491182603643,
+          "mean_us": 30.224722972972973,
+          "p50_us": 1.44,
+          "p95_us": 244.474,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_hc_mix_persistent_kernel",
+          "calls": 11433,
+          "ms": 153.275269,
+          "share_pct": 3.1671049508292968,
+          "mean_us": 13.406391060963877,
+          "p50_us": 13.376,
+          "p95_us": 14.368,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "packed_scatter_kernel",
+          "calls": 2304,
+          "ms": 100.24476,
+          "share_pct": 2.071343131622197,
+          "mean_us": 43.50901041666666,
+          "p50_us": 11.712,
+          "p95_us": 191.483,
+          "overlap_other_kernels_ms": 20.507581
+        },
+        {
+          "name": "triton_poi_fused_mean_mul_sigm_2...",
+          "calls": 612,
+          "ms": 95.631316,
+          "share_pct": 1.9760161983987186,
+          "mean_us": 156.26032026143793,
+          "p50_us": 214.489,
+          "p95_us": 239.482,
+          "overlap_other_kernels_ms": 3.537572
+        },
+        {
+          "name": "_sparse_gqa_chunk_prefill",
+          "calls": 26,
+          "ms": 78.736372,
+          "share_pct": 1.6269183880638776,
+          "mean_us": 3028.322,
+          "p50_us": 5974.473,
+          "p95_us": 5994.184,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_sparse_gqa_prefill",
+          "calls": 26,
+          "ms": 71.67062,
+          "share_pct": 1.4809197655429018,
+          "mean_us": 2756.5623076923075,
+          "p50_us": 5234.49,
+          "p95_us": 5252.41,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "hc_combine_kernel",
+          "calls": 392,
+          "ms": 69.553961,
+          "share_pct": 1.4371835435036022,
+          "mean_us": 177.43357397959184,
+          "p50_us": 310.712,
+          "p95_us": 339.351,
+          "overlap_other_kernels_ms": 0.183069
+        },
+        {
+          "name": "vectorized_elementwise_kernel",
+          "calls": 18137,
+          "ms": 67.952361,
+          "share_pct": 1.4040899118803023,
+          "mean_us": 3.7466152616198927,
+          "p50_us": 0.64,
+          "p95_us": 45.407,
+          "overlap_other_kernels_ms": 0.516179
+        },
+        {
+          "name": "_norm",
+          "calls": 11500,
+          "ms": 67.581964,
+          "share_pct": 1.3964364516702776,
+          "mean_us": 5.876692521739131,
+          "p50_us": 2.144,
+          "p95_us": 2.432,
+          "overlap_other_kernels_ms": 0.281112
+        },
+        {
+          "name": "kernel_cutlass_kernel_flashinf_3...",
+          "calls": 16560,
+          "ms": 51.759701,
+          "share_pct": 1.0695032953459969,
+          "mean_us": 3.125585809178744,
+          "p50_us": 1.184,
+          "p95_us": 7.392,
+          "overlap_other_kernels_ms": 40.08738
+        },
+        {
+          "name": "_layer_norm_fwd_1pass_kernel",
+          "calls": 4140,
+          "ms": 38.490912,
+          "share_pct": 0.7953322069011328,
+          "mean_us": 9.297321739130435,
+          "p50_us": 6.463,
+          "p95_us": 6.815,
+          "overlap_other_kernels_ms": 21.948095
+        },
+        {
+          "name": "fused_sigmoid_gating_delta_rul_22...",
+          "calls": 3996,
+          "ms": 31.256102,
+          "share_pct": 0.6458403631170628,
+          "mean_us": 7.821847347347347,
+          "p50_us": 7.776,
+          "p95_us": 8.128,
+          "overlap_other_kernels_ms": 29.89019
+        },
+        {
+          "name": "elementwise_kernel",
+          "calls": 7210,
+          "ms": 28.588342,
+          "share_pct": 0.5907168199730977,
+          "mean_us": 3.965095977808599,
+          "p50_us": 1.312,
+          "p95_us": 3.616,
+          "overlap_other_kernels_ms": 2.588866
+        },
+        {
+          "name": "finalizeMoeRoutingKernel",
+          "calls": 840,
+          "ms": 28.266595,
+          "share_pct": 0.5840686077516305,
+          "mean_us": 33.650708333333334,
+          "p50_us": 34.271,
+          "p95_us": 63.934,
+          "overlap_other_kernels_ms": 1.287646
+        },
+        {
+          "name": "chunk_gated_delta_rule_fwd_ker_6...",
+          "calls": 144,
+          "ms": 28.036064,
+          "share_pct": 0.579305178685852,
+          "mean_us": 194.69488888888887,
+          "p50_us": 358.583,
+          "p95_us": 370.55,
+          "overlap_other_kernels_ms": 0.01504
+        },
+        {
+          "name": "kernel_mha",
+          "calls": 1554,
+          "ms": 24.130241,
+          "share_pct": 0.4985997169302249,
+          "mean_us": 15.527825611325612,
+          "p50_us": 15.52,
+          "p95_us": 16.191,
+          "overlap_other_kernels_ms": 0.000288
+        },
+        {
+          "name": "expandInputRowsKernel",
+          "calls": 840,
+          "ms": 24.026912,
+          "share_pct": 0.4964646445888139,
+          "mean_us": 28.603466666666666,
+          "p50_us": 32.096,
+          "p95_us": 54.303,
+          "overlap_other_kernels_ms": 1.914876
+        },
+        {
+          "name": "chunk_fwd_kernel_o",
+          "calls": 144,
+          "ms": 23.490442,
+          "share_pct": 0.4853796417435643,
+          "mean_us": 163.12806944444444,
+          "p50_us": 307.0,
+          "p95_us": 311.256,
+          "overlap_other_kernels_ms": 0.012703
+        },
+        {
+          "name": "_router_triton_kernel",
+          "calls": 5746,
+          "ms": 22.339583,
+          "share_pct": 0.46159960690567764,
+          "mean_us": 3.887849460494257,
+          "p50_us": 3.679,
+          "p95_us": 3.712,
+          "overlap_other_kernels_ms": 3.069363
+        },
+        {
+          "name": "doActivationKernel",
+          "calls": 840,
+          "ms": 20.961764,
+          "share_pct": 0.4331299300640296,
+          "mean_us": 24.95448095238095,
+          "p50_us": 25.44,
+          "p95_us": 49.823,
+          "overlap_other_kernels_ms": 1.801173
+        },
+        {
+          "name": "recompute_w_u_fwd_kernel",
+          "calls": 144,
+          "ms": 19.901033,
+          "share_pct": 0.41121219719351604,
+          "mean_us": 138.20161805555557,
+          "p50_us": 264.345,
+          "p95_us": 267.769,
+          "overlap_other_kernels_ms": 0.037023
+        },
+        {
+          "name": "kernel_cutlass_kernel_flashinf_8...",
+          "calls": 5520,
+          "ms": 18.086501,
+          "share_pct": 0.37371878212315535,
+          "mean_us": 3.2765400362318844,
+          "p50_us": 1.248,
+          "p95_us": 4.256,
+          "overlap_other_kernels_ms": 17.025057
+        },
+        {
+          "name": "_gather_ple_embedding_from_pin_1...",
+          "calls": 456,
+          "ms": 17.699254,
+          "share_pct": 0.3657171527742368,
+          "mean_us": 38.81415350877193,
+          "p50_us": 4.224,
+          "p95_us": 13.855,
+          "overlap_other_kernels_ms": 0.561298
+        },
+        {
+          "name": "_causal_conv1d_fwd_kernel",
+          "calls": 144,
+          "ms": 16.777852,
+          "share_pct": 0.3466783550938098,
+          "mean_us": 116.5128611111111,
+          "p50_us": 221.466,
+          "p95_us": 226.874,
+          "overlap_other_kernels_ms": 0.270139
+        },
+        {
+          "name": "_fused_gate_sigmoid_mul_add_ke_9...",
+          "calls": 5746,
+          "ms": 16.22945,
+          "share_pct": 0.3353468030399381,
+          "mean_us": 2.824477897667943,
+          "p50_us": 1.248,
+          "p95_us": 4.128,
+          "overlap_other_kernels_ms": 5.161824
+        },
+        {
+          "name": "hc_combine_gate_kernel",
+          "calls": 11100,
+          "ms": 15.787216,
+          "share_pct": 0.3262089851782383,
+          "mean_us": 1.4222717117117119,
+          "p50_us": 1.472,
+          "p95_us": 1.76,
+          "overlap_other_kernels_ms": 3.757669
+        },
+        {
+          "name": "act_and_mul_kernel",
+          "calls": 5746,
+          "ms": 15.673722,
+          "share_pct": 0.3238638748963609,
+          "mean_us": 2.727762269404803,
+          "p50_us": 0.896,
+          "p95_us": 6.335,
+          "overlap_other_kernels_ms": 14.257421
+        },
+        {
+          "name": "kernel_cutlass_kernel_flashinf_7...",
+          "calls": 5520,
+          "ms": 15.109993,
+          "share_pct": 0.3122156232346656,
+          "mean_us": 2.737317572463768,
+          "p50_us": 1.248,
+          "p95_us": 1.376,
+          "overlap_other_kernels_ms": 2.133925
+        },
+        {
+          "name": "qwen38_route_alphas_kernel",
+          "calls": 5328,
+          "ms": 11.779885,
+          "share_pct": 0.2434060781436291,
+          "mean_us": 2.210939376876877,
+          "p50_us": 2.208,
+          "p95_us": 2.528,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_fused_qk_rmsnorm_rope_gate_ke_10...",
+          "calls": 1606,
+          "ms": 11.244616,
+          "share_pct": 0.23234589138952563,
+          "mean_us": 7.0016288916562885,
+          "p50_us": 1.663,
+          "p95_us": 1.887,
+          "overlap_other_kernels_ms": 1.260579
+        },
+        {
+          "name": "_causal_conv1d_update_kernel",
+          "calls": 3996,
+          "ms": 9.782759,
+          "share_pct": 0.20213974937907211,
+          "mean_us": 2.4481378878878877,
+          "p50_us": 2.432,
+          "p95_us": 2.624,
+          "overlap_other_kernels_ms": 7.943759
+        },
+        {
+          "name": "index_elementwise_kernel",
+          "calls": 2497,
+          "ms": 9.491164,
+          "share_pct": 0.1961145636190845,
+          "mean_us": 3.8010268321986382,
+          "p50_us": 2.015,
+          "p95_us": 5.76,
+          "overlap_other_kernels_ms": 0.150175
+        },
+        {
+          "name": "fused_qkvzba_split_reshape_cat_21...",
+          "calls": 3996,
+          "ms": 8.781634,
+          "share_pct": 0.1814536467573962,
+          "mean_us": 2.197606106106106,
+          "p50_us": 2.208,
+          "p95_us": 2.272,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "hc_combine_apply_kernel",
+          "calls": 11100,
+          "ms": 8.642454,
+          "share_pct": 0.17857779033298882,
+          "mean_us": 0.7785994594594595,
+          "p50_us": 0.768,
+          "p95_us": 1.12,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "chunk_gated_delta_rule_fwd_kkt_5...",
+          "calls": 144,
+          "ms": 7.754547,
+          "share_pct": 0.16023109504468377,
+          "mean_us": 53.85102083333334,
+          "p50_us": 89.853,
+          "p95_us": 91.965,
+          "overlap_other_kernels_ms": 0.031392
+        },
+        {
+          "name": "kernel_kernel",
+          "calls": 1547,
+          "ms": 7.298245,
+          "share_pct": 0.15080259211200706,
+          "mean_us": 4.71767614738203,
+          "p50_us": 0.8,
+          "p95_us": 10.816,
+          "overlap_other_kernels_ms": 0.047455
+        },
+        {
+          "name": "fast_topk_kernel",
+          "calls": 1495,
+          "ms": 6.574713,
+          "share_pct": 0.13585235392789777,
+          "mean_us": 4.397801337792642,
+          "p50_us": 0.576,
+          "p95_us": 5.408,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_fused_mamba_state_scatter_wit_18...",
+          "calls": 666,
+          "ms": 6.198304,
+          "share_pct": 0.12807466862214434,
+          "mean_us": 9.306762762762762,
+          "p50_us": 1.504,
+          "p95_us": 38.4,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_qsa_fused_kv_prepare",
+          "calls": 1443,
+          "ms": 6.188389,
+          "share_pct": 0.12786979639590496,
+          "mean_us": 4.288557865557865,
+          "p50_us": 4.319,
+          "p95_us": 4.64,
+          "overlap_other_kernels_ms": 0.000288
+        },
+        {
+          "name": "blockExpertPrefixSumKernel",
+          "calls": 840,
+          "ms": 5.799834,
+          "share_pct": 0.11984114003015114,
+          "mean_us": 6.904564285714286,
+          "p50_us": 9.728,
+          "p95_us": 11.648,
+          "overlap_other_kernels_ms": 0.44392
+        },
+        {
+          "name": "_fused_sigmoid_mul_kernel",
+          "calls": 1606,
+          "ms": 5.558701,
+          "share_pct": 0.11485864335543762,
+          "mean_us": 3.4612085927770857,
+          "p50_us": 0.64,
+          "p95_us": 0.704,
+          "overlap_other_kernels_ms": 0.000832
+        },
+        {
+          "name": "splitKreduce_kernel",
+          "calls": 5802,
+          "ms": 5.323337,
+          "share_pct": 0.10999535070222435,
+          "mean_us": 0.9175003447087212,
+          "p50_us": 0.864,
+          "p95_us": 1.152,
+          "overlap_other_kernels_ms": 2.422632
+        },
+        {
+          "name": "l2norm_fwd_kernel",
+          "calls": 288,
+          "ms": 5.261694,
+          "share_pct": 0.10872163021386579,
+          "mean_us": 18.269770833333332,
+          "p50_us": 25.408,
+          "p95_us": 43.071,
+          "overlap_other_kernels_ms": 0.02208
+        },
+        {
+          "name": "qsa_index_k_compress_kernel",
+          "calls": 1495,
+          "ms": 4.872659,
+          "share_pct": 0.10068305567679631,
+          "mean_us": 3.259303678929766,
+          "p50_us": 3.135,
+          "p95_us": 3.488,
+          "overlap_other_kernels_ms": 0.210267
+        },
+        {
+          "name": "qsa_index_q_prep_kernel",
+          "calls": 1495,
+          "ms": 4.726436,
+          "share_pct": 0.0976616707511883,
+          "mean_us": 3.161495652173913,
+          "p50_us": 2.752,
+          "p95_us": 2.944,
+          "overlap_other_kernels_ms": 0.056576
+        },
+        {
+          "name": "unrolled_elementwise_kernel",
+          "calls": 2933,
+          "ms": 3.279887,
+          "share_pct": 0.06777183575427716,
+          "mean_us": 1.1182703716331401,
+          "p50_us": 0.896,
+          "p95_us": 2.592,
+          "overlap_other_kernels_ms": 0.237851
+        },
+        {
+          "name": "computeStridesTmaWarpSpecializedKernel",
+          "calls": 840,
+          "ms": 3.019493,
+          "share_pct": 0.0623913517926653,
+          "mean_us": 3.594634523809524,
+          "p50_us": 3.744,
+          "p95_us": 6.015,
+          "overlap_other_kernels_ms": 1.610163
+        },
+        {
+          "name": "mergeExpertPrefixSumKernel",
+          "calls": 840,
+          "ms": 2.150659,
+          "share_pct": 0.04443875917415995,
+          "mean_us": 2.5603083333333334,
+          "p50_us": 3.328,
+          "p95_us": 4.032,
+          "overlap_other_kernels_ms": 0.338135
+        },
+        {
+          "name": "CatArrayBatchedCopy",
+          "calls": 12,
+          "ms": 2.010701,
+          "share_pct": 0.041546827047078405,
+          "mean_us": 167.55841666666666,
+          "p50_us": 1.536,
+          "p95_us": 953.991,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "grouped_gemma_rmsnorm_kernel",
+          "calls": 678,
+          "ms": 1.921806,
+          "share_pct": 0.03971000238227243,
+          "mean_us": 2.834522123893805,
+          "p50_us": 0.96,
+          "p95_us": 1.088,
+          "overlap_other_kernels_ms": 0.00192
+        },
+        {
+          "name": "fused_gdn_gating_kernel",
+          "calls": 144,
+          "ms": 1.904939,
+          "share_pct": 0.03936148197481101,
+          "mean_us": 13.228743055555555,
+          "p50_us": 23.2,
+          "p95_us": 23.839,
+          "overlap_other_kernels_ms": 0.023776
+        },
+        {
+          "name": "triton_poi_fused_div_silu_0",
+          "calls": 612,
+          "ms": 1.751849,
+          "share_pct": 0.036198205210818145,
+          "mean_us": 2.862498366013072,
+          "p50_us": 3.36,
+          "p95_us": 4.448,
+          "overlap_other_kernels_ms": 0.019871
+        },
+        {
+          "name": "conv_depthwise2d_forward_kernel_generic",
+          "calls": 115,
+          "ms": 1.71218,
+          "share_pct": 0.03537853034014839,
+          "mean_us": 14.888521739130434,
+          "p50_us": 1.984,
+          "p95_us": 2.335,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "reduce_kernel",
+          "calls": 423,
+          "ms": 1.674257,
+          "share_pct": 0.034594932817639396,
+          "mean_us": 3.958054373522459,
+          "p50_us": 4.8,
+          "p95_us": 5.056,
+          "overlap_other_kernels_ms": 0.024126
+        },
+        {
+          "name": "route_kernel",
+          "calls": 192,
+          "ms": 1.023815,
+          "share_pct": 0.021154942844910592,
+          "mean_us": 5.332369791666667,
+          "p50_us": 6.88,
+          "p95_us": 10.464,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "globalExpertPrefixSumKernel",
+          "calls": 840,
+          "ms": 0.984289,
+          "share_pct": 0.02033822276277863,
+          "mean_us": 1.171772619047619,
+          "p50_us": 1.247,
+          "p95_us": 1.312,
+          "overlap_other_kernels_ms": 0.172336
+        },
+        {
+          "name": "chunk_local_cumsum_scalar_kern_4...",
+          "calls": 144,
+          "ms": 0.874698,
+          "share_pct": 0.018073759611411833,
+          "mean_us": 6.074291666666667,
+          "p50_us": 9.28,
+          "p95_us": 10.304,
+          "overlap_other_kernels_ms": 0.027582
+        },
+        {
+          "name": "_expand_qsa_block_indices_kern_11...",
+          "calls": 163,
+          "ms": 0.8661,
+          "share_pct": 0.017896100367719818,
+          "mean_us": 5.313496932515337,
+          "p50_us": 1.248,
+          "p95_us": 25.792,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "kernel_cutlass_kernel_flashinf_13...",
+          "calls": 226,
+          "ms": 0.82414,
+          "share_pct": 0.01702908689187462,
+          "mean_us": 3.646637168141593,
+          "p50_us": 1.824,
+          "p95_us": 1.888,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "CatArrayBatchedCopy_vectorized",
+          "calls": 127,
+          "ms": 0.757196,
+          "share_pct": 0.01564583259904858,
+          "mean_us": 5.962173228346457,
+          "p50_us": 0.96,
+          "p95_us": 1.12,
+          "overlap_other_kernels_ms": 0.385783
+        },
+        {
+          "name": "_fused_conv_window_scatter_mul_19...",
+          "calls": 111,
+          "ms": 0.651954,
+          "share_pct": 0.013471232212373174,
+          "mean_us": 5.873459459459459,
+          "p50_us": 5.824,
+          "p95_us": 6.239,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_scatter_gather_elementwise_kernel",
+          "calls": 311,
+          "ms": 0.637742,
+          "share_pct": 0.013177571690001584,
+          "mean_us": 2.050617363344051,
+          "p50_us": 1.6,
+          "p95_us": 3.04,
+          "overlap_other_kernels_ms": 0.041344
+        },
+        {
+          "name": "_compact_kv",
+          "calls": 111,
+          "ms": 0.606927,
+          "share_pct": 0.012540845754392202,
+          "mean_us": 5.4678108108108106,
+          "p50_us": 5.408,
+          "p95_us": 5.76,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_prepare_mtp_routes_kernel",
+          "calls": 360,
+          "ms": 0.519263,
+          "share_pct": 0.010729457066439551,
+          "mean_us": 1.442397222222222,
+          "p50_us": 1.312,
+          "p95_us": 2.368,
+          "overlap_other_kernels_ms": 0.288721
+        },
+        {
+          "name": "_pack_qsa_prefill_kv",
+          "calls": 26,
+          "ms": 0.497237,
+          "share_pct": 0.010274336980191546,
+          "mean_us": 19.1245,
+          "p50_us": 20.448,
+          "p95_us": 23.616,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "indexSelectSmallIndex",
+          "calls": 464,
+          "ms": 0.474964,
+          "share_pct": 0.009814113168287352,
+          "mean_us": 1.0236293103448275,
+          "p50_us": 0.992,
+          "p95_us": 1.152,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_small_copy_kernel",
+          "calls": 452,
+          "ms": 0.465275,
+          "share_pct": 0.009613910747709084,
+          "mean_us": 1.0293694690265487,
+          "p50_us": 1.088,
+          "p95_us": 1.184,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "vectorized_gather_kernel",
+          "calls": 196,
+          "ms": 0.428276,
+          "share_pct": 0.008849405704982764,
+          "mean_us": 2.1850816326530613,
+          "p50_us": 1.6,
+          "p95_us": 4.063,
+          "overlap_other_kernels_ms": 0.167034
+        },
+        {
+          "name": "_qsa_graph_row_metadata_kernel",
+          "calls": 222,
+          "ms": 0.39561,
+          "share_pct": 0.008174432821237313,
+          "mean_us": 1.782027027027027,
+          "p50_us": 1.792,
+          "p95_us": 2.208,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "elementwise_kernel_with_index",
+          "calls": 869,
+          "ms": 0.360796,
+          "share_pct": 0.00745507612085422,
+          "mean_us": 0.41518527042577674,
+          "p50_us": 0.384,
+          "p95_us": 0.544,
+          "overlap_other_kernels_ms": 0.0072
+        },
+        {
+          "name": "DeviceScanKernel",
+          "calls": 285,
+          "ms": 0.305497,
+          "share_pct": 0.006312440796717817,
+          "mean_us": 1.071919298245614,
+          "p50_us": 1.056,
+          "p95_us": 1.344,
+          "overlap_other_kernels_ms": 0.007424
+        },
+        {
+          "name": "kernel_cutlass_kernel_flashinf_12...",
+          "calls": 226,
+          "ms": 0.302135,
+          "share_pct": 0.006242972271794281,
+          "mean_us": 1.3368805309734515,
+          "p50_us": 1.216,
+          "p95_us": 1.312,
+          "overlap_other_kernels_ms": 0.000608
+        },
+        {
+          "name": "store_kvcache_kernel",
+          "calls": 163,
+          "ms": 0.29929,
+          "share_pct": 0.006184186443892003,
+          "mean_us": 1.8361349693251534,
+          "p50_us": 1.152,
+          "p95_us": 4.32,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_gather_rows_kernel",
+          "calls": 111,
+          "ms": 0.204027,
+          "share_pct": 0.004215780706298085,
+          "mean_us": 1.838081081081081,
+          "p50_us": 1.824,
+          "p95_us": 1.984,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_verify_commit_outputs_kernel",
+          "calls": 111,
+          "ms": 0.200189,
+          "share_pct": 0.004136476661486505,
+          "mean_us": 1.8035045045045044,
+          "p50_us": 1.888,
+          "p95_us": 2.048,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "cunn_SoftMaxForward",
+          "calls": 4,
+          "ms": 0.190364,
+          "share_pct": 0.003933464092368797,
+          "mean_us": 47.591,
+          "p50_us": 47.743,
+          "p95_us": 47.935,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_qwen4_verify_conv_prepare_ker_23...",
+          "calls": 111,
+          "ms": 0.187612,
+          "share_pct": 0.0038765999101589314,
+          "mean_us": 1.6901981981981982,
+          "p50_us": 1.664,
+          "p95_us": 1.856,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "VerifyTreeGreedy",
+          "calls": 111,
+          "ms": 0.18697,
+          "share_pct": 0.003863334356024217,
+          "mean_us": 1.6844144144144144,
+          "p50_us": 1.664,
+          "p95_us": 1.984,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_build_chain_tree_kernel",
+          "calls": 111,
+          "ms": 0.178396,
+          "share_pct": 0.0036861710208979845,
+          "mean_us": 1.6071711711711711,
+          "p50_us": 1.6,
+          "p95_us": 1.76,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "tensor_kernel_scan_innermost_dim_with_indices",
+          "calls": 8,
+          "ms": 0.175547,
+          "share_pct": 0.003627302541568076,
+          "mean_us": 21.943375,
+          "p50_us": 42.335,
+          "p95_us": 42.622,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_qsa_draft_graph_metadata_kern_15...",
+          "calls": 111,
+          "ms": 0.150427,
+          "share_pct": 0.003108251576047788,
+          "mean_us": 1.3551981981981982,
+          "p50_us": 1.312,
+          "p95_us": 1.536,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_draft_topk1_partial_argmax_ke_25...",
+          "calls": 111,
+          "ms": 0.143262,
+          "share_pct": 0.0029602022063044413,
+          "mean_us": 1.2906486486486488,
+          "p50_us": 1.28,
+          "p95_us": 1.312,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "DeviceScanInitKernel",
+          "calls": 285,
+          "ms": 0.13929,
+          "share_pct": 0.0028781293386672363,
+          "mean_us": 0.4887368421052632,
+          "p50_us": 0.416,
+          "p95_us": 0.64,
+          "overlap_other_kernels_ms": 0.01088
+        },
+        {
+          "name": "_qwen4_gate_reduce_kernel",
+          "calls": 111,
+          "ms": 0.129883,
+          "share_pct": 0.0026837538437369276,
+          "mean_us": 1.170117117117117,
+          "p50_us": 1.152,
+          "p95_us": 1.248,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "assign_draft_cache_locs_contig_14...",
+          "calls": 111,
+          "ms": 0.128441,
+          "share_pct": 0.0026539580040760894,
+          "mean_us": 1.157126126126126,
+          "p50_us": 1.152,
+          "p95_us": 1.28,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_qsa_graph_layout_kernel",
+          "calls": 111,
+          "ms": 0.128286,
+          "share_pct": 0.002650755261255403,
+          "mean_us": 1.1557297297297298,
+          "p50_us": 1.152,
+          "p95_us": 1.28,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_qwen4_ngram_hash_kernel",
+          "calls": 111,
+          "ms": 0.109952,
+          "share_pct": 0.00227192244271046,
+          "mean_us": 0.9905585585585585,
+          "p50_us": 0.96,
+          "p95_us": 1.088,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_fused_replay_state_indices_ke_16...",
+          "calls": 111,
+          "ms": 0.109369,
+          "share_pct": 0.002259875997133297,
+          "mean_us": 0.9853063063063063,
+          "p50_us": 0.96,
+          "p95_us": 1.056,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_draft_topk1_finalize_kernel",
+          "calls": 111,
+          "ms": 0.107165,
+          "share_pct": 0.0022143350605088262,
+          "mean_us": 0.9654504504504505,
+          "p50_us": 0.96,
+          "p95_us": 1.056,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_prepare_draft_extend_lengths__20...",
+          "calls": 111,
+          "ms": 0.098557,
+          "share_pct": 0.0020364691882477338,
+          "mean_us": 0.8879009009009009,
+          "p50_us": 0.896,
+          "p95_us": 0.992,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "CatArrayBatchedCopy_alignedK_contig",
+          "calls": 123,
+          "ms": 0.086815,
+          "share_pct": 0.001793845922438051,
+          "mean_us": 0.7058130081300814,
+          "p50_us": 0.672,
+          "p95_us": 0.896,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_fa2_valid_counts",
+          "calls": 111,
+          "ms": 0.080671,
+          "share_pct": 0.00166689332959742,
+          "mean_us": 0.7267657657657658,
+          "p50_us": 0.672,
+          "p95_us": 0.832,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_qwen4_verify_conv_finish_kern_24...",
+          "calls": 111,
+          "ms": 0.06768,
+          "share_pct": 0.0013984621555100764,
+          "mean_us": 0.6097297297297297,
+          "p50_us": 0.608,
+          "p95_us": 0.672,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_assert_async_cuda_kernel",
+          "calls": 16,
+          "ms": 0.021536,
+          "share_pct": 0.00044499528636325364,
+          "mean_us": 1.346,
+          "p50_us": 1.408,
+          "p95_us": 1.6,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "alloc_extend_kernel",
+          "calls": 10,
+          "ms": 0.016863,
+          "share_pct": 0.0003484377560337828,
+          "mean_us": 1.6863,
+          "p50_us": 1.568,
+          "p95_us": 2.528,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "write_req_to_token_pool_triton",
+          "calls": 4,
+          "ms": 0.016608,
+          "share_pct": 0.0003431687275223308,
+          "mean_us": 4.152,
+          "p50_us": 5.952,
+          "p95_us": 6.272,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "searchsorted_cuda_kernel",
+          "calls": 12,
+          "ms": 0.011807,
+          "share_pct": 0.00024396635150868016,
+          "mean_us": 0.9839166666666667,
+          "p50_us": 1.024,
+          "p95_us": 1.152,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "compute_cuda_kernel",
+          "calls": 8,
+          "ms": 0.011167,
+          "share_pct": 0.00023074212308778108,
+          "mean_us": 1.395875,
+          "p50_us": 1.728,
+          "p95_us": 1.823,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "DeviceSelectSweepKernel",
+          "calls": 4,
+          "ms": 0.010496,
+          "share_pct": 0.00021687734610274472,
+          "mean_us": 2.624,
+          "p50_us": 3.68,
+          "p95_us": 3.968,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "compute_position_kernel",
+          "calls": 8,
+          "ms": 0.009696,
+          "share_pct": 0.0002003470605766209,
+          "mean_us": 1.212,
+          "p50_us": 1.536,
+          "p95_us": 1.568,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "get_last_loc_kernel",
+          "calls": 6,
+          "ms": 0.006624,
+          "share_pct": 0.00013687076415630535,
+          "mean_us": 1.104,
+          "p50_us": 1.12,
+          "p95_us": 1.184,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "assign_req_to_token_pool",
+          "calls": 6,
+          "ms": 0.006304,
+          "share_pct": 0.00013025864994585583,
+          "mean_us": 1.0506666666666666,
+          "p50_us": 1.056,
+          "p95_us": 1.088,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "CatArrayBatchedCopy_contig",
+          "calls": 6,
+          "ms": 0.006112,
+          "share_pct": 0.0001262913814195861,
+          "mean_us": 1.0186666666666666,
+          "p50_us": 1.12,
+          "p95_us": 1.152,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_fused_slot_clear_kernel",
+          "calls": 2,
+          "ms": 0.004608,
+          "share_pct": 9.52144446304733e-05,
+          "mean_us": 2.304,
+          "p50_us": 2.304,
+          "p95_us": 2.304,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "DeviceReduceSingleTileKernel",
+          "calls": 4,
+          "ms": 0.004448,
+          "share_pct": 9.190838752524853e-05,
+          "mean_us": 1.112,
+          "p50_us": 1.248,
+          "p95_us": 1.312,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "DeviceReduceKernel",
+          "calls": 2,
+          "ms": 0.00208,
+          "share_pct": 4.297874236792197e-05,
+          "mean_us": 1.04,
+          "p50_us": 1.056,
+          "p95_us": 1.056,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "DeviceCompactInitKernel",
+          "calls": 4,
+          "ms": 0.002016,
+          "share_pct": 4.1656319525832065e-05,
+          "mean_us": 0.504,
+          "p50_us": 0.512,
+          "p95_us": 0.512,
+          "overlap_other_kernels_ms": 0.0
+        }
+      ],
+      "copies": [
+        {
+          "kind": 1,
+          "calls": 123707,
+          "bytes": 117918679020,
+          "ms": 2385.054482
+        },
+        {
+          "kind": 2,
+          "calls": 591,
+          "bytes": 6341688,
+          "ms": 0.698287
+        },
+        {
+          "kind": 8,
+          "calls": 8385,
+          "bytes": 7453779728,
+          "ms": 9.264657
+        }
+      ],
+      "top_gpu_idle_gaps_ms_start_s_end_s": [
+        [
+          236.037914,
+          0.044201831,
+          0.280239745
+        ],
+        [
+          101.35239,
+          0.407002111,
+          0.508354501
+        ],
+        [
+          16.214885,
+          3.864140385,
+          3.88035527
+        ],
+        [
+          12.162476,
+          3.890873659,
+          3.903036135
+        ],
+        [
+          12.068848,
+          4.917354946,
+          4.929423794
+        ],
+        [
+          4.215957,
+          3.437768403,
+          3.44198436
+        ],
+        [
+          2.820249,
+          3.413011846,
+          3.415832095
+        ],
+        [
+          2.573663,
+          2.077539953,
+          2.080113616
+        ]
+      ],
+      "cuda_api_inclusive_ms": [
+        {
+          "name": "cudaEventSynchronize_v3020",
+          "calls": 9619,
+          "ms": 1291.488184
+        },
+        {
+          "name": "cudaMemcpyAsync_v3020",
+          "calls": 131240,
+          "ms": 915.022212
+        },
+        {
+          "name": "cudaStreamSynchronize_v3020",
+          "calls": 530,
+          "ms": 499.81126
+        },
+        {
+          "name": "cudaGraphLaunch_v10000",
+          "calls": 16317,
+          "ms": 222.87284
+        },
+        {
+          "name": "cudaLaunchKernelExC_v11060",
+          "calls": 29973,
+          "ms": 101.111113
+        },
+        {
+          "name": "cudaDeviceSynchronize_v3020",
+          "calls": 16,
+          "ms": 91.026056
+        },
+        {
+          "name": "cudaLaunchKernel_v7000",
+          "calls": 22462,
+          "ms": 89.094894
+        },
+        {
+          "name": "cudaEventQuery_v3020",
+          "calls": 61943,
+          "ms": 41.039074
+        }
+      ]
+    },
+    "long_prefill_proxy": {
+      "start_s": 0.035649217,
+      "end_s": 3.903875346,
+      "span_ms": 3868.226129,
+      "kernel_sum_ms": 1508.384371,
+      "kernel_union_ms": 1483.579333,
+      "gpu_busy_pct": 83.7726983876645,
+      "gpu_idle_ms": 627.708721,
+      "copy_kernel_overlap_ms": 0.968741,
+      "kernel_concurrency_ms": 24.805038,
+      "kernels": [
+        {
+          "name": "Grouped FP4 GEMM",
+          "calls": 1124,
+          "ms": 300.262807,
+          "share_pct": 19.906252860531662,
+          "mean_us": 267.13772864768686,
+          "p50_us": 268.633,
+          "p95_us": 542.515,
+          "overlap_other_kernels_ms": 1.752919
+        },
+        {
+          "name": "Dense MXFP8 GEMM",
+          "calls": 723,
+          "ms": 294.639377,
+          "share_pct": 19.533441387003073,
+          "mean_us": 407.5233430152144,
+          "p50_us": 84.381,
+          "p95_us": 2070.091,
+          "overlap_other_kernels_ms": 3.350636
+        },
+        {
+          "name": "BF16 WMMA GEMM",
+          "calls": 776,
+          "ms": 133.953549,
+          "share_pct": 8.88059778232746,
+          "mean_us": 172.62055283505154,
+          "p50_us": 236.858,
+          "p95_us": 276.185,
+          "overlap_other_kernels_ms": 0.717332
+        },
+        {
+          "name": "triton_poi_fused_mean_mul_sigm_2...",
+          "calls": 512,
+          "ms": 94.849189,
+          "share_pct": 6.288131249803303,
+          "mean_us": 185.252322265625,
+          "p50_us": 227.322,
+          "p95_us": 239.834,
+          "overlap_other_kernels_ms": 3.537572
+        },
+        {
+          "name": "_sparse_gqa_chunk_prefill",
+          "calls": 26,
+          "ms": 78.736372,
+          "share_pct": 5.219914334421329,
+          "mean_us": 3028.322,
+          "p50_us": 5974.473,
+          "p95_us": 5994.184,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "packed_scatter_kernel",
+          "calls": 1728,
+          "ms": 73.536105,
+          "share_pct": 4.875156917148938,
+          "mean_us": 42.55561631944445,
+          "p50_us": 10.816,
+          "p95_us": 186.331,
+          "overlap_other_kernels_ms": 19.674771
+        },
+        {
+          "name": "_sparse_gqa_prefill",
+          "calls": 13,
+          "ms": 68.166931,
+          "share_pct": 4.519201624636828,
+          "mean_us": 5243.610076923077,
+          "p50_us": 5243.226,
+          "p95_us": 5253.242,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "hc_combine_kernel",
+          "calls": 294,
+          "ms": 66.354106,
+          "share_pct": 4.399018398474244,
+          "mean_us": 225.69423809523812,
+          "p50_us": 333.591,
+          "p95_us": 339.768,
+          "overlap_other_kernels_ms": 0.153086
+        },
+        {
+          "name": "vectorized_elementwise_kernel",
+          "calls": 2173,
+          "ms": 56.174143,
+          "share_pct": 3.7241265608419645,
+          "mean_us": 25.850963184537505,
+          "p50_us": 2.944,
+          "p95_us": 59.55,
+          "overlap_other_kernels_ms": 0.38316
+        },
+        {
+          "name": "_norm",
+          "calls": 302,
+          "ms": 42.692667,
+          "share_pct": 2.8303572896142133,
+          "mean_us": 141.36644701986754,
+          "p50_us": 210.746,
+          "p95_us": 214.523,
+          "overlap_other_kernels_ms": 0.281112
+        },
+        {
+          "name": "chunk_gated_delta_rule_fwd_ker_6...",
+          "calls": 108,
+          "ms": 26.730113,
+          "share_pct": 1.7721022249971323,
+          "mean_us": 247.5010462962963,
+          "p50_us": 367.479,
+          "p95_us": 370.806,
+          "overlap_other_kernels_ms": 0.01504
+        },
+        {
+          "name": "finalizeMoeRoutingKernel",
+          "calls": 562,
+          "ms": 24.890234,
+          "share_pct": 1.6501254241648464,
+          "mean_us": 44.28867259786477,
+          "p50_us": 58.27,
+          "p95_us": 64.415,
+          "overlap_other_kernels_ms": 0.264824
+        },
+        {
+          "name": "chunk_fwd_kernel_o",
+          "calls": 108,
+          "ms": 22.477571,
+          "share_pct": 1.4901752784072038,
+          "mean_us": 208.1256574074074,
+          "p50_us": 309.336,
+          "p95_us": 311.736,
+          "overlap_other_kernels_ms": 0.012703
+        },
+        {
+          "name": "expandInputRowsKernel",
+          "calls": 562,
+          "ms": 21.702812,
+          "share_pct": 1.438811778831405,
+          "mean_us": 38.61710320284698,
+          "p50_us": 53.471,
+          "p95_us": 54.431,
+          "overlap_other_kernels_ms": 1.383509
+        },
+        {
+          "name": "elementwise_kernel",
+          "calls": 745,
+          "ms": 19.418098,
+          "share_pct": 1.2873441526795029,
+          "mean_us": 26.0645610738255,
+          "p50_us": 2.432,
+          "p95_us": 133.82,
+          "overlap_other_kernels_ms": 0.305883
+        },
+        {
+          "name": "recompute_w_u_fwd_kernel",
+          "calls": 108,
+          "ms": 19.382196,
+          "share_pct": 1.284963990123443,
+          "mean_us": 179.46477777777778,
+          "p50_us": 266.009,
+          "p95_us": 268.409,
+          "overlap_other_kernels_ms": 0.037023
+        },
+        {
+          "name": "doActivationKernel",
+          "calls": 562,
+          "ms": 19.023927,
+          "share_pct": 1.2612121529333984,
+          "mean_us": 33.85040391459074,
+          "p50_us": 46.463,
+          "p95_us": 50.142,
+          "overlap_other_kernels_ms": 1.723447
+        },
+        {
+          "name": "_causal_conv1d_fwd_kernel",
+          "calls": 108,
+          "ms": 16.2778,
+          "share_pct": 1.0791546447281506,
+          "mean_us": 150.72037037037038,
+          "p50_us": 222.619,
+          "p95_us": 227.066,
+          "overlap_other_kernels_ms": 0.270139
+        },
+        {
+          "name": "_gather_ple_embedding_from_pin_1...",
+          "calls": 12,
+          "ms": 13.354605,
+          "share_pct": 0.8853582188170259,
+          "mean_us": 1112.88375,
+          "p50_us": 2037.292,
+          "p95_us": 2345.637,
+          "overlap_other_kernels_ms": 0.478196
+        },
+        {
+          "name": "kernel_cutlass_kernel_flashinf_3...",
+          "calls": 434,
+          "ms": 12.765263,
+          "share_pct": 0.8462871430799253,
+          "mean_us": 29.413048387096772,
+          "p50_us": 11.615,
+          "p95_us": 91.294,
+          "overlap_other_kernels_ms": 10.215476
+        },
+        {
+          "name": "_layer_norm_fwd_1pass_kernel",
+          "calls": 109,
+          "ms": 12.11956,
+          "share_pct": 0.8034795528917609,
+          "mean_us": 111.18862385321101,
+          "p50_us": 166.458,
+          "p95_us": 168.923,
+          "overlap_other_kernels_ms": 0.007072
+        },
+        {
+          "name": "_fused_qk_rmsnorm_rope_gate_ke_10...",
+          "calls": 40,
+          "ms": 8.255568,
+          "share_pct": 0.5473119556739294,
+          "mean_us": 206.38920000000002,
+          "p50_us": 302.52,
+          "p95_us": 339.096,
+          "overlap_other_kernels_ms": 1.260579
+        },
+        {
+          "name": "kernel_cutlass_kernel_flashinf_7...",
+          "calls": 145,
+          "ms": 8.220272,
+          "share_pct": 0.5449719685540284,
+          "mean_us": 56.69153103448276,
+          "p50_us": 83.582,
+          "p95_us": 87.646,
+          "overlap_other_kernels_ms": 0.28857
+        },
+        {
+          "name": "_fused_gate_sigmoid_mul_add_ke_9...",
+          "calls": 148,
+          "ms": 7.968625,
+          "share_pct": 0.5282887540605524,
+          "mean_us": 53.842060810810814,
+          "p50_us": 76.478,
+          "p95_us": 80.894,
+          "overlap_other_kernels_ms": 0.370646
+        },
+        {
+          "name": "chunk_gated_delta_rule_fwd_kkt_5...",
+          "calls": 108,
+          "ms": 7.107749,
+          "share_pct": 0.47121603330375533,
+          "mean_us": 65.81249074074074,
+          "p50_us": 91.038,
+          "p95_us": 92.125,
+          "overlap_other_kernels_ms": 0.031392
+        },
+        {
+          "name": "GEMV",
+          "calls": 13,
+          "ms": 5.776594,
+          "share_pct": 0.3829656492774679,
+          "mean_us": 444.35338461538464,
+          "p50_us": 799.852,
+          "p95_us": 820.844,
+          "overlap_other_kernels_ms": 0.00752
+        },
+        {
+          "name": "kernel_kernel",
+          "calls": 78,
+          "ms": 5.774893,
+          "share_pct": 0.3828528796126064,
+          "mean_us": 74.03708974358975,
+          "p50_us": 80.286,
+          "p95_us": 201.819,
+          "overlap_other_kernels_ms": 0.045408
+        },
+        {
+          "name": "fast_topk_kernel",
+          "calls": 39,
+          "ms": 5.506131,
+          "share_pct": 0.3650350073800917,
+          "mean_us": 141.18284615384616,
+          "p50_us": 147.58,
+          "p95_us": 274.521,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "l2norm_fwd_kernel",
+          "calls": 216,
+          "ms": 5.109825,
+          "share_pct": 0.3387614654620417,
+          "mean_us": 23.656597222222224,
+          "p50_us": 27.839,
+          "p95_us": 43.135,
+          "overlap_other_kernels_ms": 0.02208
+        },
+        {
+          "name": "blockExpertPrefixSumKernel",
+          "calls": 562,
+          "ms": 4.783806,
+          "share_pct": 0.3171476774735158,
+          "mean_us": 8.512110320284696,
+          "p50_us": 11.104,
+          "p95_us": 11.68,
+          "overlap_other_kernels_ms": 0.016991
+        },
+        {
+          "name": "index_elementwise_kernel",
+          "calls": 463,
+          "ms": 4.436891,
+          "share_pct": 0.2941485661946043,
+          "mean_us": 9.582917926565875,
+          "p50_us": 5.152,
+          "p95_us": 7.84,
+          "overlap_other_kernels_ms": 0.150175
+        },
+        {
+          "name": "_fused_sigmoid_mul_kernel",
+          "calls": 40,
+          "ms": 4.42381,
+          "share_pct": 0.2932813469200285,
+          "mean_us": 110.59525,
+          "p50_us": 168.283,
+          "p95_us": 170.683,
+          "overlap_other_kernels_ms": 0.000832
+        },
+        {
+          "name": "computeStridesTmaWarpSpecializedKernel",
+          "calls": 562,
+          "ms": 2.381504,
+          "share_pct": 0.1578844256004294,
+          "mean_us": 4.237551601423487,
+          "p50_us": 4.608,
+          "p95_us": 6.08,
+          "overlap_other_kernels_ms": 1.256793
+        },
+        {
+          "name": "CatArrayBatchedCopy",
+          "calls": 9,
+          "ms": 1.88024,
+          "share_pct": 0.1246525776949992,
+          "mean_us": 208.91555555555556,
+          "p50_us": 1.536,
+          "p95_us": 953.991,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_router_triton_kernel",
+          "calls": 149,
+          "ms": 1.778994,
+          "share_pct": 0.1179403628281163,
+          "mean_us": 11.939557046979866,
+          "p50_us": 15.648,
+          "p95_us": 15.904,
+          "overlap_other_kernels_ms": 0.032832
+        },
+        {
+          "name": "fused_gdn_gating_kernel",
+          "calls": 108,
+          "ms": 1.744848,
+          "share_pct": 0.11567661622237797,
+          "mean_us": 16.156,
+          "p50_us": 23.36,
+          "p95_us": 23.903,
+          "overlap_other_kernels_ms": 0.023776
+        },
+        {
+          "name": "mergeExpertPrefixSumKernel",
+          "calls": 562,
+          "ms": 1.678225,
+          "share_pct": 0.11125977120058611,
+          "mean_us": 2.986165480427046,
+          "p50_us": 3.552,
+          "p95_us": 4.064,
+          "overlap_other_kernels_ms": 0.132476
+        },
+        {
+          "name": "triton_poi_fused_div_silu_0",
+          "calls": 512,
+          "ms": 1.647789,
+          "share_pct": 0.10924198312314654,
+          "mean_us": 3.218337890625,
+          "p50_us": 3.392,
+          "p95_us": 4.512,
+          "overlap_other_kernels_ms": 0.019871
+        },
+        {
+          "name": "conv_depthwise2d_forward_kernel_generic",
+          "calls": 3,
+          "ms": 1.405244,
+          "share_pct": 0.0931621957252433,
+          "mean_us": 468.4146666666667,
+          "p50_us": 698.574,
+          "p95_us": 700.302,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "grouped_gemma_rmsnorm_kernel",
+          "calls": 12,
+          "ms": 1.25568,
+          "share_pct": 0.0832466859337407,
+          "mean_us": 104.64,
+          "p50_us": 200.795,
+          "p95_us": 214.043,
+          "overlap_other_kernels_ms": 0.000672
+        },
+        {
+          "name": "route_kernel",
+          "calls": 144,
+          "ms": 0.930856,
+          "share_pct": 0.061712121783844706,
+          "mean_us": 6.464277777777777,
+          "p50_us": 8.544,
+          "p95_us": 10.527,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "chunk_local_cumsum_scalar_kern_4...",
+          "calls": 108,
+          "ms": 0.795693,
+          "share_pct": 0.05275134211795675,
+          "mean_us": 7.367527777777777,
+          "p50_us": 9.792,
+          "p95_us": 10.56,
+          "overlap_other_kernels_ms": 0.027582
+        },
+        {
+          "name": "unrolled_elementwise_kernel",
+          "calls": 546,
+          "ms": 0.708367,
+          "share_pct": 0.04696196895293872,
+          "mean_us": 1.297375457875458,
+          "p50_us": 1.12,
+          "p95_us": 2.528,
+          "overlap_other_kernels_ms": 0.098461
+        },
+        {
+          "name": "act_and_mul_kernel",
+          "calls": 148,
+          "ms": 0.686322,
+          "share_pct": 0.04550047144448966,
+          "mean_us": 4.637310810810811,
+          "p50_us": 6.144,
+          "p95_us": 6.528,
+          "overlap_other_kernels_ms": 0.035007
+        },
+        {
+          "name": "globalExpertPrefixSumKernel",
+          "calls": 562,
+          "ms": 0.679467,
+          "share_pct": 0.04504601168398078,
+          "mean_us": 1.2090160142348754,
+          "p50_us": 1.279,
+          "p95_us": 1.343,
+          "overlap_other_kernels_ms": 0.017695
+        },
+        {
+          "name": "_expand_qsa_block_indices_kern_11...",
+          "calls": 39,
+          "ms": 0.668949,
+          "share_pct": 0.04434870931183892,
+          "mean_us": 17.152538461538462,
+          "p50_us": 24.16,
+          "p95_us": 26.271,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "qsa_index_q_prep_kernel",
+          "calls": 39,
+          "ms": 0.649266,
+          "share_pct": 0.0430438031898701,
+          "mean_us": 16.647846153846153,
+          "p50_us": 19.551,
+          "p95_us": 29.375,
+          "overlap_other_kernels_ms": 0.011072
+        },
+        {
+          "name": "CatArrayBatchedCopy_vectorized",
+          "calls": 11,
+          "ms": 0.563154,
+          "share_pct": 0.037334913489368154,
+          "mean_us": 51.19581818181818,
+          "p50_us": 0.928,
+          "p95_us": 302.296,
+          "overlap_other_kernels_ms": 0.302873
+        },
+        {
+          "name": "_pack_qsa_prefill_kv",
+          "calls": 26,
+          "ms": 0.497237,
+          "share_pct": 0.03296487351366226,
+          "mean_us": 19.1245,
+          "p50_us": 20.448,
+          "p95_us": 23.616,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "kernel_cutlass_kernel_flashinf_8...",
+          "calls": 144,
+          "ms": 0.463923,
+          "share_pct": 0.030756285262518144,
+          "mean_us": 3.2216875,
+          "p50_us": 3.839,
+          "p95_us": 4.256,
+          "overlap_other_kernels_ms": 0.056447
+        },
+        {
+          "name": "kernel_cutlass_kernel_flashinf_13...",
+          "calls": 4,
+          "ms": 0.406582,
+          "share_pct": 0.026954800634168066,
+          "mean_us": 101.6455,
+          "p50_us": 201.083,
+          "p95_us": 201.467,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "reduce_kernel",
+          "calls": 75,
+          "ms": 0.381168,
+          "share_pct": 0.025269951567271975,
+          "mean_us": 5.08224,
+          "p50_us": 1.824,
+          "p95_us": 5.504,
+          "overlap_other_kernels_ms": 0.024126
+        },
+        {
+          "name": "_scatter_gather_elementwise_kernel",
+          "calls": 151,
+          "ms": 0.349434,
+          "share_pct": 0.023166111152977467,
+          "mean_us": 2.3141324503311256,
+          "p50_us": 2.4,
+          "p95_us": 3.104,
+          "overlap_other_kernels_ms": 0.033408
+        },
+        {
+          "name": "vectorized_gather_kernel",
+          "calls": 147,
+          "ms": 0.337622,
+          "share_pct": 0.02238302162837777,
+          "mean_us": 2.2967482993197277,
+          "p50_us": 1.664,
+          "p95_us": 4.032,
+          "overlap_other_kernels_ms": 0.128316
+        },
+        {
+          "name": "splitKreduce_kernel",
+          "calls": 153,
+          "ms": 0.257276,
+          "share_pct": 0.01705639523627761,
+          "mean_us": 1.6815424836601307,
+          "p50_us": 1.664,
+          "p95_us": 1.792,
+          "overlap_other_kernels_ms": 0.044096
+        },
+        {
+          "name": "_prepare_mtp_routes_kernel",
+          "calls": 130,
+          "ms": 0.200074,
+          "share_pct": 0.013264125765726328,
+          "mean_us": 1.5390307692307692,
+          "p50_us": 1.536,
+          "p95_us": 1.663,
+          "overlap_other_kernels_ms": 0.001184
+        },
+        {
+          "name": "tensor_kernel_scan_innermost_dim_with_indices",
+          "calls": 6,
+          "ms": 0.172539,
+          "share_pct": 0.011438662672274533,
+          "mean_us": 28.7565,
+          "p50_us": 42.335,
+          "p95_us": 42.622,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "store_kvcache_kernel",
+          "calls": 39,
+          "ms": 0.153053,
+          "share_pct": 0.010146816881862268,
+          "mean_us": 3.9244358974358975,
+          "p50_us": 4.064,
+          "p95_us": 18.527,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "qsa_index_k_compress_kernel",
+          "calls": 39,
+          "ms": 0.152829,
+          "share_pct": 0.010131966555625363,
+          "mean_us": 3.9186923076923077,
+          "p50_us": 3.456,
+          "p95_us": 10.048,
+          "overlap_other_kernels_ms": 0.037567
+        },
+        {
+          "name": "DeviceScanKernel",
+          "calls": 137,
+          "ms": 0.149564,
+          "share_pct": 0.009915509791502606,
+          "mean_us": 1.0917080291970804,
+          "p50_us": 1.152,
+          "p95_us": 1.344,
+          "overlap_other_kernels_ms": 0.00176
+        },
+        {
+          "name": "cunn_SoftMaxForward",
+          "calls": 3,
+          "ms": 0.143389,
+          "share_pct": 0.009506131378498617,
+          "mean_us": 47.79633333333334,
+          "p50_us": 47.743,
+          "p95_us": 47.935,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "DeviceScanInitKernel",
+          "calls": 137,
+          "ms": 0.075582,
+          "share_pct": 0.005010791775168824,
+          "mean_us": 0.5516934306569343,
+          "p50_us": 0.544,
+          "p95_us": 0.704,
+          "overlap_other_kernels_ms": 0.007456
+        },
+        {
+          "name": "_hc_mix_persistent_kernel",
+          "calls": 5,
+          "ms": 0.061566,
+          "share_pct": 0.004081585647773859,
+          "mean_us": 12.3132,
+          "p50_us": 12.863,
+          "p95_us": 13.088,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "elementwise_kernel_with_index",
+          "calls": 70,
+          "ms": 0.042847,
+          "share_pct": 0.002840588965503144,
+          "mean_us": 0.6121,
+          "p50_us": 0.512,
+          "p95_us": 0.64,
+          "overlap_other_kernels_ms": 0.0072
+        },
+        {
+          "name": "kernel_cutlass_kernel_flashinf_12...",
+          "calls": 4,
+          "ms": 0.036607,
+          "share_pct": 0.002426901306046481,
+          "mean_us": 9.15175,
+          "p50_us": 16.703,
+          "p95_us": 16.864,
+          "overlap_other_kernels_ms": 0.000416
+        },
+        {
+          "name": "indexSelectSmallIndex",
+          "calls": 17,
+          "ms": 0.021024,
+          "share_pct": 0.0013938091910924474,
+          "mean_us": 1.2367058823529413,
+          "p50_us": 0.928,
+          "p95_us": 3.328,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "kernel_mha",
+          "calls": 1,
+          "ms": 0.016671,
+          "share_pct": 0.0011052222709618622,
+          "mean_us": 16.671,
+          "p50_us": 16.671,
+          "p95_us": 16.671,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_assert_async_cuda_kernel",
+          "calls": 12,
+          "ms": 0.016032,
+          "share_pct": 0.0010628590635271174,
+          "mean_us": 1.336,
+          "p50_us": 1.408,
+          "p95_us": 1.6,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "write_req_to_token_pool_triton",
+          "calls": 3,
+          "ms": 0.015392,
+          "share_pct": 0.0010204295599931007,
+          "mean_us": 5.130666666666667,
+          "p50_us": 5.952,
+          "p95_us": 6.272,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_small_copy_kernel",
+          "calls": 9,
+          "ms": 0.009568,
+          "share_pct": 0.0006343210778335491,
+          "mean_us": 1.0631111111111111,
+          "p50_us": 1.088,
+          "p95_us": 1.344,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "DeviceSelectSweepKernel",
+          "calls": 3,
+          "ms": 0.009056,
+          "share_pct": 0.0006003774750063357,
+          "mean_us": 3.0186666666666664,
+          "p50_us": 3.68,
+          "p95_us": 3.968,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "compute_cuda_kernel",
+          "calls": 6,
+          "ms": 0.008991,
+          "share_pct": 0.0005960682285536622,
+          "mean_us": 1.4985,
+          "p50_us": 1.76,
+          "p95_us": 1.823,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "searchsorted_cuda_kernel",
+          "calls": 9,
+          "ms": 0.008991,
+          "share_pct": 0.0005960682285536622,
+          "mean_us": 0.999,
+          "p50_us": 1.024,
+          "p95_us": 1.152,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "fused_sigmoid_gating_delta_rul_22...",
+          "calls": 1,
+          "ms": 0.007968,
+          "share_pct": 0.0005282473189985074,
+          "mean_us": 7.968,
+          "p50_us": 7.968,
+          "p95_us": 7.968,
+          "overlap_other_kernels_ms": 0.007616
+        },
+        {
+          "name": "compute_position_kernel",
+          "calls": 6,
+          "ms": 0.007776,
+          "share_pct": 0.0005155184679383024,
+          "mean_us": 1.296,
+          "p50_us": 1.536,
+          "p95_us": 1.568,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "alloc_extend_kernel",
+          "calls": 4,
+          "ms": 0.007679,
+          "share_pct": 0.000509087746308928,
+          "mean_us": 1.91975,
+          "p50_us": 2.111,
+          "p95_us": 2.528,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "CatArrayBatchedCopy_alignedK_contig",
+          "calls": 7,
+          "ms": 0.006368,
+          "share_pct": 0.00042217356016346577,
+          "mean_us": 0.9097142857142857,
+          "p50_us": 0.896,
+          "p95_us": 1.056,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_qsa_fused_kv_prepare",
+          "calls": 1,
+          "ms": 0.004512,
+          "share_pct": 0.00029912799991481745,
+          "mean_us": 4.512,
+          "p50_us": 4.512,
+          "p95_us": 4.512,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "CatArrayBatchedCopy_contig",
+          "calls": 4,
+          "ms": 0.004064,
+          "share_pct": 0.0002694273474410058,
+          "mean_us": 1.016,
+          "p50_us": 1.12,
+          "p95_us": 1.152,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "hc_combine_gate_kernel",
+          "calls": 3,
+          "ms": 0.003584,
+          "share_pct": 0.0002376052197904933,
+          "mean_us": 1.1946666666666668,
+          "p50_us": 1.12,
+          "p95_us": 1.376,
+          "overlap_other_kernels_ms": 0.000448
+        },
+        {
+          "name": "DeviceReduceSingleTileKernel",
+          "calls": 3,
+          "ms": 0.003136,
+          "share_pct": 0.00020790456731668164,
+          "mean_us": 1.0453333333333332,
+          "p50_us": 1.088,
+          "p95_us": 1.248,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_causal_conv1d_update_kernel",
+          "calls": 1,
+          "ms": 0.002432,
+          "share_pct": 0.00016123211342926333,
+          "mean_us": 2.432,
+          "p50_us": 2.432,
+          "p95_us": 2.432,
+          "overlap_other_kernels_ms": 0.00192
+        },
+        {
+          "name": "_fused_slot_clear_kernel",
+          "calls": 1,
+          "ms": 0.002304,
+          "share_pct": 0.00015274621272245997,
+          "mean_us": 2.304,
+          "p50_us": 2.304,
+          "p95_us": 2.304,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "fused_qkvzba_split_reshape_cat_21...",
+          "calls": 1,
+          "ms": 0.002208,
+          "share_pct": 0.00014638178719235748,
+          "mean_us": 2.208,
+          "p50_us": 2.208,
+          "p95_us": 2.208,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "hc_combine_apply_kernel",
+          "calls": 3,
+          "ms": 0.002144,
+          "share_pct": 0.0001421388368389558,
+          "mean_us": 0.7146666666666667,
+          "p50_us": 0.736,
+          "p95_us": 0.8,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "DeviceReduceKernel",
+          "calls": 2,
+          "ms": 0.00208,
+          "share_pct": 0.00013789588648555415,
+          "mean_us": 1.04,
+          "p50_us": 1.056,
+          "p95_us": 1.056,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_gather_rows_kernel",
+          "calls": 1,
+          "ms": 0.001792,
+          "share_pct": 0.00011880260989524666,
+          "mean_us": 1.792,
+          "p50_us": 1.792,
+          "p95_us": 1.792,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_build_chain_tree_kernel",
+          "calls": 1,
+          "ms": 0.0016,
+          "share_pct": 0.00010607375883504165,
+          "mean_us": 1.6,
+          "p50_us": 1.6,
+          "p95_us": 1.6,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_qsa_graph_row_metadata_kernel",
+          "calls": 1,
+          "ms": 0.0016,
+          "share_pct": 0.00010607375883504165,
+          "mean_us": 1.6,
+          "p50_us": 1.6,
+          "p95_us": 1.6,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "DeviceCompactInitKernel",
+          "calls": 3,
+          "ms": 0.001504,
+          "share_pct": 9.970933330493915e-05,
+          "mean_us": 0.5013333333333333,
+          "p50_us": 0.512,
+          "p95_us": 0.512,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_qsa_draft_graph_metadata_kern_15...",
+          "calls": 1,
+          "ms": 0.00128,
+          "share_pct": 8.485900706803333e-05,
+          "mean_us": 1.28,
+          "p50_us": 1.28,
+          "p95_us": 1.28,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_draft_topk1_partial_argmax_ke_25...",
+          "calls": 1,
+          "ms": 0.00128,
+          "share_pct": 8.485900706803333e-05,
+          "mean_us": 1.28,
+          "p50_us": 1.28,
+          "p95_us": 1.28,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "get_last_loc_kernel",
+          "calls": 1,
+          "ms": 0.00112,
+          "share_pct": 7.425163118452915e-05,
+          "mean_us": 1.12,
+          "p50_us": 1.12,
+          "p95_us": 1.12,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_fused_replay_state_indices_ke_16...",
+          "calls": 1,
+          "ms": 0.001024,
+          "share_pct": 6.788720565442666e-05,
+          "mean_us": 1.024,
+          "p50_us": 1.024,
+          "p95_us": 1.024,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "assign_req_to_token_pool",
+          "calls": 1,
+          "ms": 0.000992,
+          "share_pct": 6.576573047772582e-05,
+          "mean_us": 0.992,
+          "p50_us": 0.992,
+          "p95_us": 0.992,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "assign_draft_cache_locs_contig_14...",
+          "calls": 1,
+          "ms": 0.00096,
+          "share_pct": 6.364425530102499e-05,
+          "mean_us": 0.96,
+          "p50_us": 0.96,
+          "p95_us": 0.96,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_qwen4_ngram_hash_kernel",
+          "calls": 1,
+          "ms": 0.00096,
+          "share_pct": 6.364425530102499e-05,
+          "mean_us": 0.96,
+          "p50_us": 0.96,
+          "p95_us": 0.96,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_draft_topk1_finalize_kernel",
+          "calls": 1,
+          "ms": 0.0008,
+          "share_pct": 5.3036879417520825e-05,
+          "mean_us": 0.8,
+          "p50_us": 0.8,
+          "p95_us": 0.8,
+          "overlap_other_kernels_ms": 0.0
+        }
+      ],
+      "copies": [
+        {
+          "kind": 1,
+          "calls": 86816,
+          "bytes": 86862640099,
+          "ms": 1753.793453
+        },
+        {
+          "kind": 2,
+          "calls": 281,
+          "bytes": 5890198,
+          "ms": 0.380664
+        },
+        {
+          "kind": 8,
+          "calls": 863,
+          "bytes": 6454878707,
+          "ms": 3.733051
+        }
+      ],
+      "top_gpu_idle_gaps_ms_start_s_end_s": [
+        [
+          236.037914,
+          0.044201831,
+          0.280239745
+        ],
+        [
+          101.35239,
+          0.407002111,
+          0.508354501
+        ],
+        [
+          16.214885,
+          3.864140385,
+          3.88035527
+        ],
+        [
+          12.162476,
+          3.890873659,
+          3.903036135
+        ],
+        [
+          4.215957,
+          3.437768403,
+          3.44198436
+        ],
+        [
+          2.820249,
+          3.413011846,
+          3.415832095
+        ],
+        [
+          2.573663,
+          2.077539953,
+          2.080113616
+        ],
+        [
+          2.313317,
+          0.510197462,
+          0.512510779
+        ]
+      ],
+      "cuda_api_inclusive_ms": [
+        {
+          "name": "cudaMemcpyAsync_v3020",
+          "calls": 87954,
+          "ms": 750.300998
+        },
+        {
+          "name": "cudaStreamSynchronize_v3020",
+          "calls": 380,
+          "ms": 413.045787
+        },
+        {
+          "name": "cudaDeviceSynchronize_v3020",
+          "calls": 16,
+          "ms": 91.026056
+        },
+        {
+          "name": "cudaLaunchKernelExC_v11060",
+          "calls": 7254,
+          "ms": 28.906236
+        },
+        {
+          "name": "cudaLaunchKernel_v7000",
+          "calls": 6583,
+          "ms": 21.366689
+        },
+        {
+          "name": "cudaEventQuery_v3020",
+          "calls": 18369,
+          "ms": 12.446038
+        },
+        {
+          "name": "cuLibraryLoadData",
+          "calls": 1,
+          "ms": 11.540883
+        },
+        {
+          "name": "cudaFree_v3020",
+          "calls": 12,
+          "ms": 10.363505
+        }
+      ]
+    },
+    "short_prefill_proxy": {
+      "start_s": 4.047545888,
+      "end_s": 4.930216766,
+      "span_ms": 882.670878,
+      "kernel_sum_ms": 124.779359,
+      "kernel_union_ms": 123.096654,
+      "gpu_busy_pct": 85.46866944442229,
+      "gpu_idle_ms": 128.263823,
+      "copy_kernel_overlap_ms": 0.061119,
+      "kernel_concurrency_ms": 1.682705,
+      "kernels": [
+        {
+          "name": "Grouped FP4 GEMM",
+          "calls": 118,
+          "ms": 33.939629,
+          "share_pct": 27.199714177085973,
+          "mean_us": 287.6239745762712,
+          "p50_us": 278.041,
+          "p95_us": 478.228,
+          "overlap_other_kernels_ms": 0.048223
+        },
+        {
+          "name": "packed_scatter_kernel",
+          "calls": 576,
+          "ms": 26.708655,
+          "share_pct": 21.404706045973516,
+          "mean_us": 46.36919270833334,
+          "p50_us": 12.447,
+          "p95_us": 199.995,
+          "overlap_other_kernels_ms": 0.83281
+        },
+        {
+          "name": "Dense MXFP8 GEMM",
+          "calls": 245,
+          "ms": 21.304708,
+          "share_pct": 17.073904026065723,
+          "mean_us": 86.95799183673469,
+          "p50_us": 27.262,
+          "p95_us": 290.84,
+          "overlap_other_kernels_ms": 0.112445
+        },
+        {
+          "name": "BF16 WMMA GEMM",
+          "calls": 269,
+          "ms": 10.497017,
+          "share_pct": 8.412462673413797,
+          "mean_us": 39.02236802973978,
+          "p50_us": 36.927,
+          "p95_us": 39.423,
+          "overlap_other_kernels_ms": 0.018143
+        },
+        {
+          "name": "_sparse_gqa_prefill",
+          "calls": 13,
+          "ms": 3.503689,
+          "share_pct": 2.8079075161782168,
+          "mean_us": 269.51453846153845,
+          "p50_us": 269.53,
+          "p95_us": 272.505,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "GEMV",
+          "calls": 10,
+          "ms": 3.323211,
+          "share_pct": 2.6632698121169223,
+          "mean_us": 332.3211,
+          "p50_us": 42.91,
+          "p95_us": 815.148,
+          "overlap_other_kernels_ms": 0.007648
+        },
+        {
+          "name": "hc_combine_kernel",
+          "calls": 98,
+          "ms": 3.199855,
+          "share_pct": 2.564410512799637,
+          "mean_us": 32.65158163265306,
+          "p50_us": 32.607,
+          "p95_us": 33.631,
+          "overlap_other_kernels_ms": 0.029983
+        },
+        {
+          "name": "_gather_ple_embedding_from_pin_1...",
+          "calls": 7,
+          "ms": 1.839315,
+          "share_pct": 1.474053893801458,
+          "mean_us": 262.75928571428574,
+          "p50_us": 4.896,
+          "p95_us": 649.488,
+          "overlap_other_kernels_ms": 0.083102
+        },
+        {
+          "name": "finalizeMoeRoutingKernel",
+          "calls": 59,
+          "ms": 1.762805,
+          "share_pct": 1.4127376628052721,
+          "mean_us": 29.878050847457626,
+          "p50_us": 34.463,
+          "p95_us": 36.287,
+          "overlap_other_kernels_ms": 0.326998
+        },
+        {
+          "name": "expandInputRowsKernel",
+          "calls": 59,
+          "ms": 1.610199,
+          "share_pct": 1.2904369864570309,
+          "mean_us": 27.291508474576272,
+          "p50_us": 32.287,
+          "p95_us": 33.247,
+          "overlap_other_kernels_ms": 0.136219
+        },
+        {
+          "name": "chunk_gated_delta_rule_fwd_ker_6...",
+          "calls": 36,
+          "ms": 1.305951,
+          "share_pct": 1.0466081974343209,
+          "mean_us": 36.27641666666666,
+          "p50_us": 36.287,
+          "p95_us": 36.735,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "doActivationKernel",
+          "calls": 59,
+          "ms": 1.304889,
+          "share_pct": 1.0457570951298123,
+          "mean_us": 22.116762711864403,
+          "p50_us": 25.887,
+          "p95_us": 28.544,
+          "overlap_other_kernels_ms": 0.037663
+        },
+        {
+          "name": "_norm",
+          "calls": 103,
+          "ms": 1.240061,
+          "share_pct": 0.9938029894832205,
+          "mean_us": 12.03942718446602,
+          "p50_us": 12.288,
+          "p95_us": 13.024,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "elementwise_kernel",
+          "calls": 263,
+          "ms": 1.190333,
+          "share_pct": 0.9539502442867974,
+          "mean_us": 4.525980988593156,
+          "p50_us": 3.328,
+          "p95_us": 15.775,
+          "overlap_other_kernels_ms": 0.364311
+        },
+        {
+          "name": "chunk_fwd_kernel_o",
+          "calls": 36,
+          "ms": 1.012871,
+          "share_pct": 0.8117296066571396,
+          "mean_us": 28.135305555555554,
+          "p50_us": 28.159,
+          "p95_us": 28.447,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "index_elementwise_kernel",
+          "calls": 171,
+          "ms": 0.929701,
+          "share_pct": 0.7450759544292899,
+          "mean_us": 5.4368479532163745,
+          "p50_us": 5.216,
+          "p95_us": 5.791,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "triton_poi_fused_mean_mul_sigm_2...",
+          "calls": 100,
+          "ms": 0.782127,
+          "share_pct": 0.6268079963449724,
+          "mean_us": 7.82127,
+          "p50_us": 7.838,
+          "p95_us": 8.063,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "vectorized_elementwise_kernel",
+          "calls": 469,
+          "ms": 0.753007,
+          "share_pct": 0.6034708032119319,
+          "mean_us": 1.6055586353944564,
+          "p50_us": 0.896,
+          "p95_us": 4.32,
+          "overlap_other_kernels_ms": 0.133019
+        },
+        {
+          "name": "_fused_gate_sigmoid_mul_add_ke_9...",
+          "calls": 52,
+          "ms": 0.706794,
+          "share_pct": 0.5664350303322202,
+          "mean_us": 13.592192307692308,
+          "p50_us": 14.24,
+          "p95_us": 14.752,
+          "overlap_other_kernels_ms": 0.352629
+        },
+        {
+          "name": "chunk_gated_delta_rule_fwd_kkt_5...",
+          "calls": 36,
+          "ms": 0.646798,
+          "share_pct": 0.5183533600296825,
+          "mean_us": 17.96661111111111,
+          "p50_us": 17.952,
+          "p95_us": 18.176,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "recompute_w_u_fwd_kernel",
+          "calls": 36,
+          "ms": 0.518837,
+          "share_pct": 0.41580354648239537,
+          "mean_us": 14.412138888888888,
+          "p50_us": 14.56,
+          "p95_us": 15.008,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_causal_conv1d_fwd_kernel",
+          "calls": 36,
+          "ms": 0.500052,
+          "share_pct": 0.4007489732336259,
+          "mean_us": 13.890333333333334,
+          "p50_us": 13.919,
+          "p95_us": 14.528,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "blockExpertPrefixSumKernel",
+          "calls": 59,
+          "ms": 0.497391,
+          "share_pct": 0.3986164089847585,
+          "mean_us": 8.43035593220339,
+          "p50_us": 9.76,
+          "p95_us": 9.984,
+          "overlap_other_kernels_ms": 0.006592
+        },
+        {
+          "name": "_layer_norm_fwd_1pass_kernel",
+          "calls": 37,
+          "ms": 0.481637,
+          "share_pct": 0.38599092338661556,
+          "mean_us": 13.017216216216216,
+          "p50_us": 13.183,
+          "p95_us": 13.407,
+          "overlap_other_kernels_ms": 0.005856
+        },
+        {
+          "name": "kernel_cutlass_kernel_flashinf_3...",
+          "calls": 147,
+          "ms": 0.430095,
+          "share_pct": 0.34468441210697354,
+          "mean_us": 2.925816326530612,
+          "p50_us": 2.88,
+          "p95_us": 3.232,
+          "overlap_other_kernels_ms": 0.063263
+        },
+        {
+          "name": "_fused_qk_rmsnorm_rope_gate_ke_10...",
+          "calls": 15,
+          "ms": 0.38671,
+          "share_pct": 0.3099150397142207,
+          "mean_us": 25.78066666666667,
+          "p50_us": 29.503,
+          "p95_us": 29.727,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "unrolled_elementwise_kernel",
+          "calls": 183,
+          "ms": 0.339897,
+          "share_pct": 0.27239841807489973,
+          "mean_us": 1.857360655737705,
+          "p50_us": 1.152,
+          "p95_us": 6.752,
+          "overlap_other_kernels_ms": 0.13939
+        },
+        {
+          "name": "splitKreduce_kernel",
+          "calls": 103,
+          "ms": 0.274491,
+          "share_pct": 0.21998109478988429,
+          "mean_us": 2.6649611650485436,
+          "p50_us": 2.688,
+          "p95_us": 2.784,
+          "overlap_other_kernels_ms": 0.001952
+        },
+        {
+          "name": "kernel_cutlass_kernel_flashinf_7...",
+          "calls": 49,
+          "ms": 0.236118,
+          "share_pct": 0.18922841236906818,
+          "mean_us": 4.818734693877551,
+          "p50_us": 4.96,
+          "p95_us": 5.12,
+          "overlap_other_kernels_ms": 0.031967
+        },
+        {
+          "name": "mailbox_fill_kernel",
+          "calls": 1,
+          "ms": 0.234874,
+          "share_pct": 0.18823145260747814,
+          "mean_us": 234.874,
+          "p50_us": 234.874,
+          "p95_us": 234.874,
+          "overlap_other_kernels_ms": 0.021119
+        },
+        {
+          "name": "_router_triton_kernel",
+          "calls": 52,
+          "ms": 0.231676,
+          "share_pct": 0.1856685287187603,
+          "mean_us": 4.455307692307692,
+          "p50_us": 4.512,
+          "p95_us": 4.576,
+          "overlap_other_kernels_ms": 0.008352
+        },
+        {
+          "name": "computeStridesTmaWarpSpecializedKernel",
+          "calls": 59,
+          "ms": 0.210217,
+          "share_pct": 0.16847097283133183,
+          "mean_us": 3.563,
+          "p50_us": 3.968,
+          "p95_us": 4.416,
+          "overlap_other_kernels_ms": 0.112154
+        },
+        {
+          "name": "kernel_kernel",
+          "calls": 27,
+          "ms": 0.195931,
+          "share_pct": 0.15702196386503317,
+          "mean_us": 7.256703703703703,
+          "p50_us": 5.376,
+          "p95_us": 12.095,
+          "overlap_other_kernels_ms": 0.002047
+        },
+        {
+          "name": "mergeExpertPrefixSumKernel",
+          "calls": 59,
+          "ms": 0.194364,
+          "share_pct": 0.1557661471878534,
+          "mean_us": 3.2943050847457624,
+          "p50_us": 3.712,
+          "p95_us": 3.936,
+          "overlap_other_kernels_ms": 0.026112
+        },
+        {
+          "name": "qsa_index_k_compress_kernel",
+          "calls": 14,
+          "ms": 0.183772,
+          "share_pct": 0.14727756375154966,
+          "mean_us": 13.12657142857143,
+          "p50_us": 11.903,
+          "p95_us": 28.896,
+          "overlap_other_kernels_ms": 0.1727
+        },
+        {
+          "name": "fused_gdn_gating_kernel",
+          "calls": 36,
+          "ms": 0.160091,
+          "share_pct": 0.1282992646243679,
+          "mean_us": 4.4469722222222225,
+          "p50_us": 4.383,
+          "p95_us": 4.863,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "l2norm_fwd_kernel",
+          "calls": 72,
+          "ms": 0.151869,
+          "share_pct": 0.12171003378852106,
+          "mean_us": 2.1092916666666666,
+          "p50_us": 2.08,
+          "p95_us": 2.4,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_scatter_gather_elementwise_kernel",
+          "calls": 51,
+          "ms": 0.131098,
+          "share_pct": 0.10506385114544466,
+          "mean_us": 2.570549019607843,
+          "p50_us": 2.304,
+          "p95_us": 3.36,
+          "overlap_other_kernels_ms": 0.007936
+        },
+        {
+          "name": "CatArrayBatchedCopy",
+          "calls": 3,
+          "ms": 0.130461,
+          "share_pct": 0.1045533500456594,
+          "mean_us": 43.487,
+          "p50_us": 1.408,
+          "p95_us": 127.709,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_fused_sigmoid_mul_kernel",
+          "calls": 15,
+          "ms": 0.126959,
+          "share_pct": 0.10174679611873948,
+          "mean_us": 8.463933333333333,
+          "p50_us": 9.886,
+          "p95_us": 10.015,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_hc_mix_persistent_kernel",
+          "calls": 9,
+          "ms": 0.120989,
+          "share_pct": 0.09696235096062643,
+          "mean_us": 13.443222222222223,
+          "p50_us": 13.408,
+          "p95_us": 14.176,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "triton_poi_fused_div_silu_0",
+          "calls": 100,
+          "ms": 0.10406,
+          "share_pct": 0.08339520320824857,
+          "mean_us": 1.0406,
+          "p50_us": 1.024,
+          "p95_us": 1.152,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "route_kernel",
+          "calls": 48,
+          "ms": 0.092959,
+          "share_pct": 0.07449869974087621,
+          "mean_us": 1.9366458333333332,
+          "p50_us": 1.952,
+          "p95_us": 2.272,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "vectorized_gather_kernel",
+          "calls": 49,
+          "ms": 0.090654,
+          "share_pct": 0.07265143908937695,
+          "mean_us": 1.8500816326530611,
+          "p50_us": 1.216,
+          "p95_us": 7.04,
+          "overlap_other_kernels_ms": 0.038718
+        },
+        {
+          "name": "conv_depthwise2d_forward_kernel_generic",
+          "calls": 1,
+          "ms": 0.086941,
+          "share_pct": 0.06967578668199441,
+          "mean_us": 86.941,
+          "p50_us": 86.941,
+          "p95_us": 86.941,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "CatArrayBatchedCopy_vectorized",
+          "calls": 5,
+          "ms": 0.08643,
+          "share_pct": 0.06926626382172711,
+          "mean_us": 17.286,
+          "p50_us": 0.928,
+          "p95_us": 82.91,
+          "overlap_other_kernels_ms": 0.08291
+        },
+        {
+          "name": "chunk_local_cumsum_scalar_kern_4...",
+          "calls": 36,
+          "ms": 0.079005,
+          "share_pct": 0.0633157604215614,
+          "mean_us": 2.1945833333333336,
+          "p50_us": 2.208,
+          "p95_us": 2.336,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "globalExpertPrefixSumKernel",
+          "calls": 59,
+          "ms": 0.073662,
+          "share_pct": 0.05903380221724011,
+          "mean_us": 1.2485084745762713,
+          "p50_us": 1.279,
+          "p95_us": 1.344,
+          "overlap_other_kernels_ms": 0.004224
+        },
+        {
+          "name": "act_and_mul_kernel",
+          "calls": 52,
+          "ms": 0.072733,
+          "share_pct": 0.058289288054444964,
+          "mean_us": 1.3987115384615385,
+          "p50_us": 1.44,
+          "p95_us": 1.504,
+          "overlap_other_kernels_ms": 0.002656
+        },
+        {
+          "name": "qsa_index_q_prep_kernel",
+          "calls": 14,
+          "ms": 0.072477,
+          "share_pct": 0.05808412591701164,
+          "mean_us": 5.176928571428571,
+          "p50_us": 5.407,
+          "p95_us": 5.951,
+          "overlap_other_kernels_ms": 0.000416
+        },
+        {
+          "name": "kernel_cutlass_kernel_flashinf_8...",
+          "calls": 49,
+          "ms": 0.071199,
+          "share_pct": 0.05705991805904372,
+          "mean_us": 1.4530408163265307,
+          "p50_us": 1.471,
+          "p95_us": 1.568,
+          "overlap_other_kernels_ms": 0.007072
+        },
+        {
+          "name": "_expand_qsa_block_indices_kern_11...",
+          "calls": 14,
+          "ms": 0.06176,
+          "share_pct": 0.04949536565578927,
+          "mean_us": 4.411428571428572,
+          "p50_us": 4.64,
+          "p95_us": 4.768,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "B12X FP32 routed MoE",
+          "calls": 1,
+          "ms": 0.060798,
+          "share_pct": 0.048724404811215614,
+          "mean_us": 60.798,
+          "p50_us": 60.798,
+          "p95_us": 60.798,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_fused_mamba_state_scatter_wit_18...",
+          "calls": 6,
+          "ms": 0.055742,
+          "share_pct": 0.044672452596907476,
+          "mean_us": 9.290333333333335,
+          "p50_us": 1.536,
+          "p95_us": 38.719,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "reduce_kernel",
+          "calls": 19,
+          "ms": 0.04963,
+          "share_pct": 0.03977420656568688,
+          "mean_us": 2.6121052631578947,
+          "p50_us": 1.792,
+          "p95_us": 5.279,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "fast_topk_kernel",
+          "calls": 14,
+          "ms": 0.048704,
+          "share_pct": 0.03903209664668978,
+          "mean_us": 3.4788571428571426,
+          "p50_us": 3.232,
+          "p95_us": 6.336,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "cunn_SoftMaxForward",
+          "calls": 1,
+          "ms": 0.046975,
+          "share_pct": 0.0376464508044155,
+          "mean_us": 46.975,
+          "p50_us": 46.975,
+          "p95_us": 46.975,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "DeviceScanKernel",
+          "calls": 38,
+          "ms": 0.041279,
+          "share_pct": 0.03308159324652405,
+          "mean_us": 1.0862894736842106,
+          "p50_us": 0.96,
+          "p95_us": 1.792,
+          "overlap_other_kernels_ms": 0.005664
+        },
+        {
+          "name": "grouped_gemma_rmsnorm_kernel",
+          "calls": 9,
+          "ms": 0.033919,
+          "share_pct": 0.027183181795316,
+          "mean_us": 3.768777777777778,
+          "p50_us": 1.056,
+          "p95_us": 9.631,
+          "overlap_other_kernels_ms": 0.001248
+        },
+        {
+          "name": "kernel_mha",
+          "calls": 2,
+          "ms": 0.031936,
+          "share_pct": 0.025593976644807094,
+          "mean_us": 15.968,
+          "p50_us": 16.256,
+          "p95_us": 16.256,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "kernel_cutlass_kernel_flashinf_13...",
+          "calls": 3,
+          "ms": 0.024159,
+          "share_pct": 0.019361375305670548,
+          "mean_us": 8.053,
+          "p50_us": 1.856,
+          "p95_us": 20.511,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "DeviceScanInitKernel",
+          "calls": 38,
+          "ms": 0.021437,
+          "share_pct": 0.017179924766242787,
+          "mean_us": 0.5641315789473684,
+          "p50_us": 0.448,
+          "p95_us": 1.664,
+          "overlap_other_kernels_ms": 0.003424
+        },
+        {
+          "name": "store_kvcache_kernel",
+          "calls": 14,
+          "ms": 0.021408,
+          "share_pct": 0.01715668374286167,
+          "mean_us": 1.5291428571428571,
+          "p50_us": 1.568,
+          "p95_us": 1.952,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_prepare_mtp_routes_kernel",
+          "calls": 11,
+          "ms": 0.017407,
+          "share_pct": 0.013950223930866644,
+          "mean_us": 1.5824545454545456,
+          "p50_us": 1.535,
+          "p95_us": 2.592,
+          "overlap_other_kernels_ms": 0.003616
+        },
+        {
+          "name": "elementwise_kernel_with_index",
+          "calls": 30,
+          "ms": 0.01424,
+          "share_pct": 0.011412143894728614,
+          "mean_us": 0.4746666666666667,
+          "p50_us": 0.48,
+          "p95_us": 0.64,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "indexSelectSmallIndex",
+          "calls": 9,
+          "ms": 0.010367,
+          "share_pct": 0.008308265151450249,
+          "mean_us": 1.151888888888889,
+          "p50_us": 1.023,
+          "p95_us": 2.496,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "hc_combine_gate_kernel",
+          "calls": 6,
+          "ms": 0.008287,
+          "share_pct": 0.006641322784804496,
+          "mean_us": 1.3811666666666667,
+          "p50_us": 1.407,
+          "p95_us": 1.952,
+          "overlap_other_kernels_ms": 0.001696
+        },
+        {
+          "name": "fused_sigmoid_gating_delta_rul_22...",
+          "calls": 1,
+          "ms": 0.008032,
+          "share_pct": 0.006436962061970522,
+          "mean_us": 8.032,
+          "p50_us": 8.032,
+          "p95_us": 8.032,
+          "overlap_other_kernels_ms": 0.007712
+        },
+        {
+          "name": "_compact_kv",
+          "calls": 1,
+          "ms": 0.006912,
+          "share_pct": 0.005539377710699732,
+          "mean_us": 6.912,
+          "p50_us": 6.912,
+          "p95_us": 6.912,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "kernel_cutlass_kernel_flashinf_12...",
+          "calls": 3,
+          "ms": 0.006335,
+          "share_pct": 0.005076961486875405,
+          "mean_us": 2.1116666666666664,
+          "p50_us": 1.248,
+          "p95_us": 3.999,
+          "overlap_other_kernels_ms": 0.000192
+        },
+        {
+          "name": "_small_copy_kernel",
+          "calls": 6,
+          "ms": 0.006304,
+          "share_pct": 0.005052117634295589,
+          "mean_us": 1.0506666666666666,
+          "p50_us": 1.12,
+          "p95_us": 1.28,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_fused_conv_window_scatter_mul_19...",
+          "calls": 1,
+          "ms": 0.005664,
+          "share_pct": 0.004539212290712281,
+          "mean_us": 5.664,
+          "p50_us": 5.664,
+          "p95_us": 5.664,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_assert_async_cuda_kernel",
+          "calls": 4,
+          "ms": 0.005504,
+          "share_pct": 0.004410985954816453,
+          "mean_us": 1.376,
+          "p50_us": 1.408,
+          "p95_us": 1.504,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "hc_combine_apply_kernel",
+          "calls": 6,
+          "ms": 0.005184,
+          "share_pct": 0.004154533283024799,
+          "mean_us": 0.864,
+          "p50_us": 0.896,
+          "p95_us": 1.024,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_qsa_graph_row_metadata_kernel",
+          "calls": 2,
+          "ms": 0.00352,
+          "share_pct": 0.0028209793897081966,
+          "mean_us": 1.76,
+          "p50_us": 1.984,
+          "p95_us": 1.984,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "CatArrayBatchedCopy_alignedK_contig",
+          "calls": 4,
+          "ms": 0.003488,
+          "share_pct": 0.0027953341225290316,
+          "mean_us": 0.872,
+          "p50_us": 0.896,
+          "p95_us": 1.248,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_qsa_fused_kv_prepare",
+          "calls": 1,
+          "ms": 0.003392,
+          "share_pct": 0.0027183983209915353,
+          "mean_us": 3.392,
+          "p50_us": 3.392,
+          "p95_us": 3.392,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "tensor_kernel_scan_innermost_dim_with_indices",
+          "calls": 2,
+          "ms": 0.003008,
+          "share_pct": 0.00241065511484155,
+          "mean_us": 1.504,
+          "p50_us": 1.568,
+          "p95_us": 1.568,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "alloc_extend_kernel",
+          "calls": 2,
+          "ms": 0.002912,
+          "share_pct": 0.002333719313304054,
+          "mean_us": 1.456,
+          "p50_us": 1.568,
+          "p95_us": 1.568,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "searchsorted_cuda_kernel",
+          "calls": 3,
+          "ms": 0.002816,
+          "share_pct": 0.0022567835117665576,
+          "mean_us": 0.9386666666666666,
+          "p50_us": 0.928,
+          "p95_us": 0.992,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_causal_conv1d_update_kernel",
+          "calls": 1,
+          "ms": 0.00256,
+          "share_pct": 0.002051621374333234,
+          "mean_us": 2.56,
+          "p50_us": 2.56,
+          "p95_us": 2.56,
+          "overlap_other_kernels_ms": 0.002144
+        },
+        {
+          "name": "_fused_slot_clear_kernel",
+          "calls": 1,
+          "ms": 0.002304,
+          "share_pct": 0.0018464592368999107,
+          "mean_us": 2.304,
+          "p50_us": 2.304,
+          "p95_us": 2.304,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "fused_qkvzba_split_reshape_cat_21...",
+          "calls": 1,
+          "ms": 0.002208,
+          "share_pct": 0.0017695234353624144,
+          "mean_us": 2.208,
+          "p50_us": 2.208,
+          "p95_us": 2.208,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "compute_cuda_kernel",
+          "calls": 2,
+          "ms": 0.002176,
+          "share_pct": 0.001743878168183249,
+          "mean_us": 1.088,
+          "p50_us": 1.088,
+          "p95_us": 1.088,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "qwen38_route_alphas_kernel",
+          "calls": 1,
+          "ms": 0.00208,
+          "share_pct": 0.0016669423666457526,
+          "mean_us": 2.08,
+          "p50_us": 2.08,
+          "p95_us": 2.08,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "CatArrayBatchedCopy_contig",
+          "calls": 2,
+          "ms": 0.002048,
+          "share_pct": 0.0016412970994665872,
+          "mean_us": 1.024,
+          "p50_us": 1.152,
+          "p95_us": 1.152,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "compute_position_kernel",
+          "calls": 2,
+          "ms": 0.00192,
+          "share_pct": 0.0015387160307499255,
+          "mean_us": 0.96,
+          "p50_us": 0.992,
+          "p95_us": 0.992,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_gather_rows_kernel",
+          "calls": 1,
+          "ms": 0.001792,
+          "share_pct": 0.0014361349620332638,
+          "mean_us": 1.792,
+          "p50_us": 1.792,
+          "p95_us": 1.792,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "VerifyTreeGreedy",
+          "calls": 1,
+          "ms": 0.001728,
+          "share_pct": 0.001384844427674933,
+          "mean_us": 1.728,
+          "p50_us": 1.728,
+          "p95_us": 1.728,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_verify_commit_outputs_kernel",
+          "calls": 1,
+          "ms": 0.0016,
+          "share_pct": 0.0012822633589582714,
+          "mean_us": 1.6,
+          "p50_us": 1.6,
+          "p95_us": 1.6,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_qsa_draft_graph_metadata_kern_15...",
+          "calls": 1,
+          "ms": 0.001472,
+          "share_pct": 0.0011796822902416096,
+          "mean_us": 1.472,
+          "p50_us": 1.472,
+          "p95_us": 1.472,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "DeviceSelectSweepKernel",
+          "calls": 1,
+          "ms": 0.00144,
+          "share_pct": 0.0011540370230624442,
+          "mean_us": 1.44,
+          "p50_us": 1.44,
+          "p95_us": 1.44,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "hybrid_merge_kernel",
+          "calls": 1,
+          "ms": 0.001408,
+          "share_pct": 0.0011283917558832788,
+          "mean_us": 1.408,
+          "p50_us": 1.408,
+          "p95_us": 1.408,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_build_chain_tree_kernel",
+          "calls": 1,
+          "ms": 0.001408,
+          "share_pct": 0.0011283917558832788,
+          "mean_us": 1.408,
+          "p50_us": 1.408,
+          "p95_us": 1.408,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "DeviceReduceSingleTileKernel",
+          "calls": 1,
+          "ms": 0.001312,
+          "share_pct": 0.0010514559543457825,
+          "mean_us": 1.312,
+          "p50_us": 1.312,
+          "p95_us": 1.312,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_draft_topk1_partial_argmax_ke_25...",
+          "calls": 1,
+          "ms": 0.001312,
+          "share_pct": 0.0010514559543457825,
+          "mean_us": 1.312,
+          "p50_us": 1.312,
+          "p95_us": 1.312,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "write_req_to_token_pool_triton",
+          "calls": 1,
+          "ms": 0.001216,
+          "share_pct": 0.0009745201528082862,
+          "mean_us": 1.216,
+          "p50_us": 1.216,
+          "p95_us": 1.216,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "get_last_loc_kernel",
+          "calls": 1,
+          "ms": 0.001184,
+          "share_pct": 0.0009488748856291208,
+          "mean_us": 1.184,
+          "p50_us": 1.184,
+          "p95_us": 1.184,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_qsa_graph_layout_kernel",
+          "calls": 1,
+          "ms": 0.001088,
+          "share_pct": 0.0008719390840916245,
+          "mean_us": 1.088,
+          "p50_us": 1.088,
+          "p95_us": 1.088,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "assign_req_to_token_pool",
+          "calls": 1,
+          "ms": 0.001056,
+          "share_pct": 0.000846293816912459,
+          "mean_us": 1.056,
+          "p50_us": 1.056,
+          "p95_us": 1.056,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_fused_replay_state_indices_ke_16...",
+          "calls": 1,
+          "ms": 0.00096,
+          "share_pct": 0.0007693580153749627,
+          "mean_us": 0.96,
+          "p50_us": 0.96,
+          "p95_us": 0.96,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_qwen4_ngram_hash_kernel",
+          "calls": 1,
+          "ms": 0.00096,
+          "share_pct": 0.0007693580153749627,
+          "mean_us": 0.96,
+          "p50_us": 0.96,
+          "p95_us": 0.96,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_prepare_draft_extend_lengths__20...",
+          "calls": 1,
+          "ms": 0.000928,
+          "share_pct": 0.0007437127481957973,
+          "mean_us": 0.928,
+          "p50_us": 0.928,
+          "p95_us": 0.928,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "assign_draft_cache_locs_contig_14...",
+          "calls": 1,
+          "ms": 0.000832,
+          "share_pct": 0.0006667769466583011,
+          "mean_us": 0.832,
+          "p50_us": 0.832,
+          "p95_us": 0.832,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_draft_topk1_finalize_kernel",
+          "calls": 1,
+          "ms": 0.0008,
+          "share_pct": 0.0006411316794791357,
+          "mean_us": 0.8,
+          "p50_us": 0.8,
+          "p95_us": 0.8,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_fa2_valid_counts",
+          "calls": 1,
+          "ms": 0.000672,
+          "share_pct": 0.000538550610762474,
+          "mean_us": 0.672,
+          "p50_us": 0.672,
+          "p95_us": 0.672,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "DeviceCompactInitKernel",
+          "calls": 1,
+          "ms": 0.000512,
+          "share_pct": 0.0004103242748666468,
+          "mean_us": 0.512,
+          "p50_us": 0.512,
+          "p95_us": 0.512,
+          "overlap_other_kernels_ms": 0.0
+        }
+      ],
+      "copies": [
+        {
+          "kind": 1,
+          "calls": 36564,
+          "bytes": 31056037177,
+          "ms": 631.130376
+        },
+        {
+          "kind": 2,
+          "calls": 90,
+          "bytes": 449730,
+          "ms": 0.105373
+        },
+        {
+          "kind": 8,
+          "calls": 101,
+          "bytes": 129704337,
+          "ms": 0.135931
+        }
+      ],
+      "top_gpu_idle_gaps_ms_start_s_end_s": [
+        [
+          12.068848,
+          4.917354946,
+          4.929423794
+        ],
+        [
+          2.375268,
+          4.050526965,
+          4.052902233
+        ],
+        [
+          2.318373,
+          4.061088075,
+          4.063406448
+        ],
+        [
+          2.177258,
+          4.222580485,
+          4.224757743
+        ],
+        [
+          1.870961,
+          4.244094887,
+          4.245965848
+        ],
+        [
+          1.692181,
+          4.437069257,
+          4.438761438
+        ],
+        [
+          1.43462,
+          4.890170671,
+          4.891605291
+        ],
+        [
+          1.333343,
+          4.593370726,
+          4.594704069
+        ]
+      ],
+      "cuda_api_inclusive_ms": [
+        {
+          "name": "cudaMemcpyAsync_v3020",
+          "calls": 36737,
+          "ms": 125.462827
+        },
+        {
+          "name": "cudaStreamSynchronize_v3020",
+          "calls": 150,
+          "ms": 86.765473
+        },
+        {
+          "name": "cudaLaunchKernel_v7000",
+          "calls": 1882,
+          "ms": 7.290742
+        },
+        {
+          "name": "cudaLaunchKernelExC_v11060",
+          "calls": 1298,
+          "ms": 6.493662
+        },
+        {
+          "name": "cudaEventSynchronize_v3020",
+          "calls": 2401,
+          "ms": 4.084649
+        },
+        {
+          "name": "cudaEventQuery_v3020",
+          "calls": 4881,
+          "ms": 3.793429
+        },
+        {
+          "name": "cuLaunchKernelEx",
+          "calls": 640,
+          "ms": 3.081136
+        },
+        {
+          "name": "cuLaunchKernel",
+          "calls": 484,
+          "ms": 2.159245
+        }
+      ]
+    },
+    "sustained_decode": {
+      "start_s": 4.930216766,
+      "end_s": 7.772237659,
+      "span_ms": 2842.020893,
+      "kernel_sum_ms": 3042.755296,
+      "kernel_union_ms": 2746.97132,
+      "gpu_busy_pct": 96.84768710811866,
+      "gpu_idle_ms": 89.589391,
+      "copy_kernel_overlap_ms": 0.111967,
+      "kernel_concurrency_ms": 295.783976,
+      "kernels": [
+        {
+          "name": "mailbox_fill_kernel",
+          "calls": 5184,
+          "ms": 1074.012666,
+          "share_pct": 35.29737233263204,
+          "mean_us": 207.17836921296296,
+          "p50_us": 132.445,
+          "p95_us": 607.921,
+          "overlap_other_kernels_ms": 99.920767
+        },
+        {
+          "name": "Dense MXFP8 GEMM",
+          "calls": 25917,
+          "ms": 450.479834,
+          "share_pct": 14.804997121924325,
+          "mean_us": 17.38163498861751,
+          "p50_us": 15.776,
+          "p95_us": 30.591,
+          "overlap_other_kernels_ms": 93.73282
+        },
+        {
+          "name": "B12X FP32 routed MoE",
+          "calls": 5184,
+          "ms": 319.051729,
+          "share_pct": 10.485619051240327,
+          "mean_us": 61.545472415123456,
+          "p50_us": 61.407,
+          "p95_us": 66.43,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "hybrid_plan_kernel",
+          "calls": 5184,
+          "ms": 253.982613,
+          "share_pct": 8.347125821582992,
+          "mean_us": 48.99355960648148,
+          "p50_us": 44.383,
+          "p95_us": 85.31,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "GEMV",
+          "calls": 857,
+          "ms": 182.292017,
+          "share_pct": 5.991017984247393,
+          "mean_us": 212.709471411902,
+          "p50_us": 22.623,
+          "p95_us": 804.268,
+          "overlap_other_kernels_ms": 0.664437
+        },
+        {
+          "name": "hybrid_merge_kernel",
+          "calls": 5184,
+          "ms": 157.163921,
+          "share_pct": 5.1651843711062595,
+          "mean_us": 30.3171143904321,
+          "p50_us": 1.44,
+          "p95_us": 247.226,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_hc_mix_persistent_kernel",
+          "calls": 11119,
+          "ms": 148.956478,
+          "share_pct": 4.8954471690779044,
+          "mean_us": 13.39657145426747,
+          "p50_us": 13.376,
+          "p95_us": 14.336,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "BF16 WMMA GEMM",
+          "calls": 6478,
+          "ms": 126.372231,
+          "share_pct": 4.153217025573127,
+          "mean_us": 19.507908459401047,
+          "p50_us": 3.904,
+          "p95_us": 39.935,
+          "overlap_other_kernels_ms": 2.024978
+        },
+        {
+          "name": "kernel_cutlass_kernel_flashinf_3...",
+          "calls": 15550,
+          "ms": 34.887815,
+          "share_pct": 1.1465862879562958,
+          "mean_us": 2.2435893890675245,
+          "p50_us": 1.184,
+          "p95_us": 6.464,
+          "overlap_other_kernels_ms": 26.36557
+        },
+        {
+          "name": "fused_sigmoid_gating_delta_rul_22...",
+          "calls": 3887,
+          "ms": 30.385444,
+          "share_pct": 0.9986160911442548,
+          "mean_us": 7.817196809879084,
+          "p50_us": 7.776,
+          "p95_us": 8.128,
+          "overlap_other_kernels_ms": 29.05662
+        },
+        {
+          "name": "_layer_norm_fwd_1pass_kernel",
+          "calls": 3887,
+          "ms": 25.186236,
+          "share_pct": 0.8277443813214219,
+          "mean_us": 6.479607923848726,
+          "p50_us": 6.463,
+          "p95_us": 6.751,
+          "overlap_other_kernels_ms": 21.336851
+        },
+        {
+          "name": "kernel_mha",
+          "calls": 1511,
+          "ms": 23.45669,
+          "share_pct": 0.7709029388868739,
+          "mean_us": 15.523951025810723,
+          "p50_us": 15.52,
+          "p95_us": 16.16,
+          "overlap_other_kernels_ms": 9.6e-05
+        },
+        {
+          "name": "_norm",
+          "calls": 10798,
+          "ms": 23.013979,
+          "share_pct": 0.7563532641042193,
+          "mean_us": 2.131318670124097,
+          "p50_us": 2.112,
+          "p95_us": 2.368,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_router_triton_kernel",
+          "calls": 5398,
+          "ms": 19.790365,
+          "share_pct": 0.6504093518797379,
+          "mean_us": 3.6662402741756206,
+          "p50_us": 3.679,
+          "p95_us": 3.68,
+          "overlap_other_kernels_ms": 2.954548
+        },
+        {
+          "name": "hc_combine_gate_kernel",
+          "calls": 10797,
+          "ms": 15.345906,
+          "share_pct": 0.5043424300394349,
+          "mean_us": 1.4213120311197553,
+          "p50_us": 1.472,
+          "p95_us": 1.76,
+          "overlap_other_kernels_ms": 3.655081
+        },
+        {
+          "name": "kernel_cutlass_kernel_flashinf_8...",
+          "calls": 5184,
+          "ms": 14.468671,
+          "share_pct": 0.4755121458179856,
+          "mean_us": 2.7910244984567902,
+          "p50_us": 1.248,
+          "p95_us": 1.536,
+          "overlap_other_kernels_ms": 13.88027
+        },
+        {
+          "name": "act_and_mul_kernel",
+          "calls": 5399,
+          "ms": 12.310569,
+          "share_pct": 0.40458623196493815,
+          "mean_us": 2.280157251342841,
+          "p50_us": 0.895,
+          "p95_us": 1.312,
+          "overlap_other_kernels_ms": 11.617515
+        },
+        {
+          "name": "qwen38_route_alphas_kernel",
+          "calls": 5184,
+          "ms": 11.451157,
+          "share_pct": 0.376341699743442,
+          "mean_us": 2.208942322530864,
+          "p50_us": 2.208,
+          "p95_us": 2.528,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "vectorized_elementwise_kernel",
+          "calls": 15107,
+          "ms": 10.750367,
+          "share_pct": 0.3533102715861644,
+          "mean_us": 0.711614946713444,
+          "p50_us": 0.64,
+          "p95_us": 0.992,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_causal_conv1d_update_kernel",
+          "calls": 3887,
+          "ms": 9.508274,
+          "share_pct": 0.31248894751738854,
+          "mean_us": 2.446172883972215,
+          "p50_us": 2.432,
+          "p95_us": 2.624,
+          "overlap_other_kernels_ms": 7.719769
+        },
+        {
+          "name": "Grouped FP4 GEMM",
+          "calls": 430,
+          "ms": 9.283313,
+          "share_pct": 0.30509561554962455,
+          "mean_us": 21.5891,
+          "p50_us": 18.623,
+          "p95_us": 39.967,
+          "overlap_other_kernels_ms": 0.549364
+        },
+        {
+          "name": "fused_qkvzba_split_reshape_cat_21...",
+          "calls": 3887,
+          "ms": 8.542439,
+          "share_pct": 0.280746828745311,
+          "mean_us": 2.19769462310265,
+          "p50_us": 2.208,
+          "p95_us": 2.272,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "hc_combine_apply_kernel",
+          "calls": 10797,
+          "ms": 8.396192,
+          "share_pct": 0.2759404284346368,
+          "mean_us": 0.7776411966286931,
+          "p50_us": 0.768,
+          "p95_us": 1.12,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "elementwise_kernel",
+          "calls": 6042,
+          "ms": 7.75541,
+          "share_pct": 0.25488116018383883,
+          "mean_us": 1.2835832505792784,
+          "p50_us": 1.216,
+          "p95_us": 1.568,
+          "overlap_other_kernels_ms": 1.858356
+        },
+        {
+          "name": "_fused_gate_sigmoid_mul_add_ke_9...",
+          "calls": 5399,
+          "ms": 7.358612,
+          "share_pct": 0.2418404138404957,
+          "mean_us": 1.3629583256158548,
+          "p50_us": 1.248,
+          "p95_us": 1.44,
+          "overlap_other_kernels_ms": 4.325529
+        },
+        {
+          "name": "kernel_cutlass_kernel_flashinf_7...",
+          "calls": 5183,
+          "ms": 6.473931,
+          "share_pct": 0.21276541720297446,
+          "mean_us": 1.2490702295967588,
+          "p50_us": 1.248,
+          "p95_us": 1.344,
+          "overlap_other_kernels_ms": 1.764751
+        },
+        {
+          "name": "_fused_mamba_state_scatter_wit_18...",
+          "calls": 648,
+          "ms": 6.03127,
+          "share_pct": 0.1982173856678089,
+          "mean_us": 9.307515432098766,
+          "p50_us": 1.504,
+          "p95_us": 38.399,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_qsa_fused_kv_prepare",
+          "calls": 1403,
+          "ms": 5.931145,
+          "share_pct": 0.19492678257095045,
+          "mean_us": 4.227473271560941,
+          "p50_us": 4.288,
+          "p95_us": 4.576,
+          "overlap_other_kernels_ms": 9.6e-05
+        },
+        {
+          "name": "splitKreduce_kernel",
+          "calls": 5399,
+          "ms": 4.664949,
+          "share_pct": 0.15331331461759454,
+          "mean_us": 0.8640394517503242,
+          "p50_us": 0.864,
+          "p95_us": 0.928,
+          "overlap_other_kernels_ms": 2.314537
+        },
+        {
+          "name": "qsa_index_k_compress_kernel",
+          "calls": 1404,
+          "ms": 4.416642,
+          "share_pct": 0.14515271753223496,
+          "mean_us": 3.14575641025641,
+          "p50_us": 3.104,
+          "p95_us": 3.36,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "index_elementwise_kernel",
+          "calls": 1829,
+          "ms": 4.050016,
+          "share_pct": 0.13310357245369495,
+          "mean_us": 2.2143335155822856,
+          "p50_us": 1.824,
+          "p95_us": 5.312,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "qsa_index_q_prep_kernel",
+          "calls": 1404,
+          "ms": 3.898263,
+          "share_pct": 0.12811621772952458,
+          "mean_us": 2.776540598290598,
+          "p50_us": 2.752,
+          "p95_us": 2.912,
+          "overlap_other_kernels_ms": 0.044256
+        },
+        {
+          "name": "_fused_qk_rmsnorm_rope_gate_ke_10...",
+          "calls": 1511,
+          "ms": 2.533983,
+          "share_pct": 0.08327922404181398,
+          "mean_us": 1.6770238252812708,
+          "p50_us": 1.663,
+          "p95_us": 1.792,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_gather_ple_embedding_from_pin_1...",
+          "calls": 429,
+          "ms": 2.455447,
+          "share_pct": 0.08069814234578528,
+          "mean_us": 5.72365268065268,
+          "p50_us": 4.032,
+          "p95_us": 11.328,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "unrolled_elementwise_kernel",
+          "calls": 2162,
+          "ms": 2.188871,
+          "share_pct": 0.07193713549287008,
+          "mean_us": 1.0124287696577243,
+          "p50_us": 0.832,
+          "p95_us": 2.4,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "finalizeMoeRoutingKernel",
+          "calls": 215,
+          "ms": 1.584085,
+          "share_pct": 0.052060873974401914,
+          "mean_us": 7.367837209302325,
+          "p50_us": 7.328,
+          "p95_us": 7.84,
+          "overlap_other_kernels_ms": 0.683024
+        },
+        {
+          "name": "reduce_kernel",
+          "calls": 323,
+          "ms": 1.220771,
+          "share_pct": 0.040120577609537744,
+          "mean_us": 3.7794767801857585,
+          "p50_us": 4.832,
+          "p95_us": 5.024,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "kernel_kernel",
+          "calls": 1404,
+          "ms": 1.11933,
+          "share_pct": 0.03678672423876705,
+          "mean_us": 0.7972435897435898,
+          "p50_us": 0.8,
+          "p95_us": 0.864,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_fused_sigmoid_mul_kernel",
+          "calls": 1511,
+          "ms": 0.982071,
+          "share_pct": 0.03227571409672768,
+          "mean_us": 0.6499477167438782,
+          "p50_us": 0.64,
+          "p95_us": 0.671,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "fast_topk_kernel",
+          "calls": 1404,
+          "ms": 0.798764,
+          "share_pct": 0.026251338747156353,
+          "mean_us": 0.5689202279202279,
+          "p50_us": 0.576,
+          "p95_us": 0.608,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "expandInputRowsKernel",
+          "calls": 215,
+          "ms": 0.701197,
+          "share_pct": 0.023044804191838634,
+          "mean_us": 3.261381395348837,
+          "p50_us": 3.264,
+          "p95_us": 3.584,
+          "overlap_other_kernels_ms": 0.388492
+        },
+        {
+          "name": "_fused_conv_window_scatter_mul_19...",
+          "calls": 108,
+          "ms": 0.634482,
+          "share_pct": 0.020852219067175357,
+          "mean_us": 5.874833333333333,
+          "p50_us": 5.824,
+          "p95_us": 6.239,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "doActivationKernel",
+          "calls": 215,
+          "ms": 0.621492,
+          "share_pct": 0.02042530336951552,
+          "mean_us": 2.8906604651162793,
+          "p50_us": 2.88,
+          "p95_us": 3.104,
+          "overlap_other_kernels_ms": 0.039327
+        },
+        {
+          "name": "grouped_gemma_rmsnorm_kernel",
+          "calls": 645,
+          "ms": 0.620655,
+          "share_pct": 0.020397795406548527,
+          "mean_us": 0.9622558139534885,
+          "p50_us": 0.96,
+          "p95_us": 1.056,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_compact_kv",
+          "calls": 108,
+          "ms": 0.585423,
+          "share_pct": 0.019239897495851734,
+          "mean_us": 5.420583333333333,
+          "p50_us": 5.408,
+          "p95_us": 5.696,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "blockExpertPrefixSumKernel",
+          "calls": 215,
+          "ms": 0.509071,
+          "share_pct": 0.016730592850145515,
+          "mean_us": 2.3677720930232558,
+          "p50_us": 2.431,
+          "p95_us": 2.686,
+          "overlap_other_kernels_ms": 0.41237
+        },
+        {
+          "name": "_small_copy_kernel",
+          "calls": 429,
+          "ms": 0.441211,
+          "share_pct": 0.014500377357982586,
+          "mean_us": 1.0284638694638695,
+          "p50_us": 1.088,
+          "p95_us": 1.184,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "indexSelectSmallIndex",
+          "calls": 430,
+          "ms": 0.435349,
+          "share_pct": 0.014307723022364266,
+          "mean_us": 1.012439534883721,
+          "p50_us": 0.992,
+          "p95_us": 1.152,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "computeStridesTmaWarpSpecializedKernel",
+          "calls": 215,
+          "ms": 0.420063,
+          "share_pct": 0.013805349400006434,
+          "mean_us": 1.9537813953488372,
+          "p50_us": 1.919,
+          "p95_us": 2.111,
+          "overlap_other_kernels_ms": 0.236706
+        },
+        {
+          "name": "kernel_cutlass_kernel_flashinf_13...",
+          "calls": 215,
+          "ms": 0.386263,
+          "share_pct": 0.012694514097396546,
+          "mean_us": 1.7965720930232558,
+          "p50_us": 1.824,
+          "p95_us": 1.888,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_qsa_graph_row_metadata_kernel",
+          "calls": 215,
+          "ms": 0.383674,
+          "share_pct": 0.01260942674241261,
+          "mean_us": 1.7845302325581394,
+          "p50_us": 1.888,
+          "p95_us": 2.239,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "elementwise_kernel_with_index",
+          "calls": 755,
+          "ms": 0.298269,
+          "share_pct": 0.009802595706335761,
+          "mean_us": 0.39505827814569533,
+          "p50_us": 0.384,
+          "p95_us": 0.544,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_prepare_mtp_routes_kernel",
+          "calls": 215,
+          "ms": 0.295382,
+          "share_pct": 0.009707714596316983,
+          "mean_us": 1.3738697674418605,
+          "p50_us": 1.248,
+          "p95_us": 2.432,
+          "overlap_other_kernels_ms": 0.277842
+        },
+        {
+          "name": "mergeExpertPrefixSumKernel",
+          "calls": 215,
+          "ms": 0.273239,
+          "share_pct": 0.00897998601330838,
+          "mean_us": 1.270879069767442,
+          "p50_us": 1.248,
+          "p95_us": 1.504,
+          "overlap_other_kernels_ms": 0.176859
+        },
+        {
+          "name": "kernel_cutlass_kernel_flashinf_12...",
+          "calls": 215,
+          "ms": 0.254425,
+          "share_pct": 0.008361664848121918,
+          "mean_us": 1.1833720930232556,
+          "p50_us": 1.216,
+          "p95_us": 1.28,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "globalExpertPrefixSumKernel",
+          "calls": 215,
+          "ms": 0.226906,
+          "share_pct": 0.007457254295088736,
+          "mean_us": 1.0553767441860467,
+          "p50_us": 1.055,
+          "p95_us": 1.184,
+          "overlap_other_kernels_ms": 0.148242
+        },
+        {
+          "name": "conv_depthwise2d_forward_kernel_generic",
+          "calls": 108,
+          "ms": 0.213371,
+          "share_pct": 0.007012427199798061,
+          "mean_us": 1.9756574074074074,
+          "p50_us": 1.952,
+          "p95_us": 2.176,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_gather_rows_kernel",
+          "calls": 107,
+          "ms": 0.196795,
+          "share_pct": 0.006467657792222276,
+          "mean_us": 1.8392056074766356,
+          "p50_us": 1.824,
+          "p95_us": 1.984,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_verify_commit_outputs_kernel",
+          "calls": 108,
+          "ms": 0.195293,
+          "share_pct": 0.006418294637650678,
+          "mean_us": 1.8082685185185186,
+          "p50_us": 1.919,
+          "p95_us": 2.048,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_qwen4_verify_conv_prepare_ker_23...",
+          "calls": 108,
+          "ms": 0.182524,
+          "share_pct": 0.005998642093892522,
+          "mean_us": 1.690037037037037,
+          "p50_us": 1.664,
+          "p95_us": 1.856,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "VerifyTreeGreedy",
+          "calls": 108,
+          "ms": 0.181978,
+          "share_pct": 0.0059806978313119005,
+          "mean_us": 1.6849814814814814,
+          "p50_us": 1.664,
+          "p95_us": 1.984,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_build_chain_tree_kernel",
+          "calls": 107,
+          "ms": 0.172348,
+          "share_pct": 0.005664208364917427,
+          "mean_us": 1.610728971962617,
+          "p50_us": 1.6,
+          "p95_us": 1.76,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_scatter_gather_elementwise_kernel",
+          "calls": 107,
+          "ms": 0.154298,
+          "share_pct": 0.005070996021363921,
+          "mean_us": 1.4420373831775701,
+          "p50_us": 1.44,
+          "p95_us": 1.536,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_qsa_draft_graph_metadata_kern_15...",
+          "calls": 107,
+          "ms": 0.145115,
+          "share_pct": 0.004769197187521714,
+          "mean_us": 1.356214953271028,
+          "p50_us": 1.312,
+          "p95_us": 1.536,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_draft_topk1_partial_argmax_ke_25...",
+          "calls": 107,
+          "ms": 0.13811,
+          "share_pct": 0.004538978214303303,
+          "mean_us": 1.290747663551402,
+          "p50_us": 1.28,
+          "p95_us": 1.312,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_expand_qsa_block_indices_kern_11...",
+          "calls": 108,
+          "ms": 0.132959,
+          "share_pct": 0.00436969085797953,
+          "mean_us": 1.231101851851852,
+          "p50_us": 1.216,
+          "p95_us": 1.312,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_qwen4_gate_reduce_kernel",
+          "calls": 108,
+          "ms": 0.126363,
+          "share_pct": 0.004152913649221696,
+          "mean_us": 1.1700277777777779,
+          "p50_us": 1.152,
+          "p95_us": 1.248,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_qsa_graph_layout_kernel",
+          "calls": 108,
+          "ms": 0.124958,
+          "share_pct": 0.004106738394778888,
+          "mean_us": 1.1570185185185184,
+          "p50_us": 1.152,
+          "p95_us": 1.28,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "assign_draft_cache_locs_contig_14...",
+          "calls": 107,
+          "ms": 0.124313,
+          "share_pct": 0.004085540502169912,
+          "mean_us": 1.161803738317757,
+          "p50_us": 1.152,
+          "p95_us": 1.28,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "store_kvcache_kernel",
+          "calls": 108,
+          "ms": 0.122525,
+          "share_pct": 0.004026777971960845,
+          "mean_us": 1.1344907407407407,
+          "p50_us": 1.152,
+          "p95_us": 1.28,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "DeviceScanKernel",
+          "calls": 108,
+          "ms": 0.11299,
+          "share_pct": 0.0037134106757955995,
+          "mean_us": 1.0462037037037037,
+          "p50_us": 1.056,
+          "p95_us": 1.152,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_qwen4_ngram_hash_kernel",
+          "calls": 107,
+          "ms": 0.106016,
+          "share_pct": 0.0034842105160204115,
+          "mean_us": 0.990803738317757,
+          "p50_us": 0.96,
+          "p95_us": 1.088,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_fused_replay_state_indices_ke_16...",
+          "calls": 107,
+          "ms": 0.105433,
+          "share_pct": 0.00346505025029788,
+          "mean_us": 0.9853551401869158,
+          "p50_us": 0.96,
+          "p95_us": 1.056,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "CatArrayBatchedCopy_vectorized",
+          "calls": 108,
+          "ms": 0.104508,
+          "share_pct": 0.003434650171750124,
+          "mean_us": 0.9676666666666667,
+          "p50_us": 0.96,
+          "p95_us": 0.992,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_draft_topk1_finalize_kernel",
+          "calls": 107,
+          "ms": 0.103549,
+          "share_pct": 0.003403132684909802,
+          "mean_us": 0.9677476635514018,
+          "p50_us": 0.96,
+          "p95_us": 1.056,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_prepare_draft_extend_lengths__20...",
+          "calls": 108,
+          "ms": 0.09587,
+          "share_pct": 0.0031507627355387567,
+          "mean_us": 0.8876851851851852,
+          "p50_us": 0.896,
+          "p95_us": 0.992,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_fa2_valid_counts",
+          "calls": 108,
+          "ms": 0.078655,
+          "share_pct": 0.0025849926250526853,
+          "mean_us": 0.7282870370370371,
+          "p50_us": 0.672,
+          "p95_us": 0.832,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "CatArrayBatchedCopy_alignedK_contig",
+          "calls": 110,
+          "ms": 0.075647,
+          "share_pct": 0.0024861348561103615,
+          "mean_us": 0.6877000000000001,
+          "p50_us": 0.672,
+          "p95_us": 0.8,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "_qwen4_verify_conv_finish_kern_24...",
+          "calls": 108,
+          "ms": 0.065824,
+          "share_pct": 0.002163302454408085,
+          "mean_us": 0.6094814814814815,
+          "p50_us": 0.608,
+          "p95_us": 0.672,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "DeviceScanInitKernel",
+          "calls": 108,
+          "ms": 0.041439,
+          "share_pct": 0.0013618906539896792,
+          "mean_us": 0.38369444444444445,
+          "p50_us": 0.384,
+          "p95_us": 0.416,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "alloc_extend_kernel",
+          "calls": 4,
+          "ms": 0.006272,
+          "share_pct": 0.0002061289650286751,
+          "mean_us": 1.568,
+          "p50_us": 1.568,
+          "p95_us": 1.6,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "get_last_loc_kernel",
+          "calls": 4,
+          "ms": 0.00432,
+          "share_pct": 0.000141976583055465,
+          "mean_us": 1.08,
+          "p50_us": 1.056,
+          "p95_us": 1.152,
+          "overlap_other_kernels_ms": 0.0
+        },
+        {
+          "name": "assign_req_to_token_pool",
+          "calls": 4,
+          "ms": 0.004256,
+          "share_pct": 0.0001398732262694581,
+          "mean_us": 1.064,
+          "p50_us": 1.056,
+          "p95_us": 1.088,
+          "overlap_other_kernels_ms": 0.0
+        }
+      ],
+      "copies": [
+        {
+          "kind": 1,
+          "calls": 321,
+          "bytes": 1712,
+          "ms": 0.128541
+        },
+        {
+          "kind": 2,
+          "calls": 216,
+          "bytes": 1728,
+          "ms": 0.209882
+        },
+        {
+          "kind": 8,
+          "calls": 7236,
+          "bytes": 852683796,
+          "ms": 5.260988
+        }
+      ],
+      "top_gpu_idle_gaps_ms_start_s_end_s": [
+        [
+          0.279673,
+          4.93037577,
+          4.930655443
+        ],
+        [
+          0.056959,
+          4.930288956,
+          4.930345915
+        ],
+        [
+          0.038495,
+          4.931227301,
+          4.931265796
+        ],
+        [
+          0.026847,
+          4.930348315,
+          4.930375162
+        ],
+        [
+          0.021152,
+          4.930254237,
+          4.930275389
+        ],
+        [
+          0.019712,
+          4.930738705,
+          4.930758417
+        ],
+        [
+          0.017568,
+          7.148500512,
+          7.14851808
+        ],
+        [
+          0.014688,
+          6.242888437,
+          6.242903125
+        ]
+      ],
+      "cuda_api_inclusive_ms": [
+        {
+          "name": "cudaEventSynchronize_v3020",
+          "calls": 109,
+          "ms": 1186.498613
+        },
+        {
+          "name": "cudaGraphLaunch_v10000",
+          "calls": 15873,
+          "ms": 213.237026
+        },
+        {
+          "name": "cudaLaunchKernelExC_v11060",
+          "calls": 20844,
+          "ms": 63.96179
+        },
+        {
+          "name": "cudaLaunchKernel_v7000",
+          "calls": 13618,
+          "ms": 58.350242
+        },
+        {
+          "name": "cudaMemcpyAsync_v3020",
+          "calls": 6375,
+          "ms": 37.27974
+        },
+        {
+          "name": "cudaEventQuery_v3020",
+          "calls": 38071,
+          "ms": 24.330568
+        },
+        {
+          "name": "cuLaunchKernelEx",
+          "calls": 2164,
+          "ms": 12.355651
+        },
+        {
+          "name": "cudaEventRecordWithFlags_v11010",
+          "calls": 21597,
+          "ms": 12.020748
+        }
+      ]
+    }
+  },
+  "decode_dtoh_api_by_size": [
+    {
+      "bytes_per_copy": 12,
+      "calls": 108,
+      "host_api_ms": 0.821983,
+      "device_copy_ms": 0.151707
+    },
+    {
+      "bytes_per_copy": 4,
+      "calls": 108,
+      "host_api_ms": 0.304662,
+      "device_copy_ms": 0.058175
+    }
+  ],
+  "cpu_native_overlap": "unavailable: capture has no CpuNvfp4.run duration ranges"
+}

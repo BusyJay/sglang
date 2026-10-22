@@ -13,6 +13,7 @@ def _module():
         cuda_files=["moe/qwen38_expert_cache.cu"],
         cuda_wrappers=[
             ("route", "Qwen38CacheRoute::run"),
+            ("route_counts", "Qwen38CacheRoute::run_counts"),
             ("plan", "Qwen38CachePlan::run"),
             ("scatter", "Qwen38CacheScatter::run"),
             ("alpha_scatter", "Qwen38CacheAlphaScatter::run"),
@@ -34,6 +35,11 @@ def cache_route(topk_ids, lookup, remapped, counts):
     if topk_ids.dtype != torch.int32:
         raise ValueError("Qwen3.8 JIT routing requires int32 IDs")
     _module().route(topk_ids, lookup, remapped, counts)
+
+
+def cache_route_counts(topk_ids, counts):
+    """Count experts and invalid routes without materializing remapped IDs."""
+    _module().route_counts(topk_ids, counts)
 
 
 def cache_alpha_scatter(g1, g2, slot_g1, slot_g2, plan):

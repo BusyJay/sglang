@@ -11,7 +11,10 @@ import statistics
 
 import torch
 
-from sglang.kernels.ops.moe.qwen38_hybrid_plan import hybrid_plan, hybrid_plan_indexed
+from sglang.kernels.ops.moe.qwen38_hybrid_plan import (
+    hybrid_plan,
+    hybrid_plan_indexed,
+)
 from sglang.srt.layers.moe.qwen38_heap_index import build_heap_index
 
 
@@ -48,6 +51,8 @@ def main():
     parser.add_argument("--experts", type=int, default=512)
     parser.add_argument("--slots", type=int, default=6388)
     parser.add_argument("--max-slots", type=int, default=7006)
+    parser.add_argument("--tokens", type=int, default=1)
+    parser.add_argument("--top-k", type=int, default=3)
     parser.add_argument("--samples", type=int, default=100)
     parser.add_argument("--warmup", type=int, default=20)
     args = parser.parse_args()
@@ -55,6 +60,10 @@ def main():
         parser.error("CUDA GPU required")
     if not (1 < args.slots <= args.max_slots <= args.layers * args.experts):
         parser.error("invalid slot capacity")
+    if not (
+        1 <= args.tokens <= 3 and 1 <= args.top_k and args.tokens * args.top_k <= 32
+    ):
+        parser.error("invalid route shape")
     if args.samples < 1 or args.warmup < 0:
         parser.error("invalid sample count")
     rng = random.Random(617)
@@ -62,14 +71,11 @@ def main():
         source, source_index, first_unused = state_for_case(
             args.layers, args.experts, args.slots, args.max_slots, free_slots
         )
-        if first_unused + 3 >= args.experts:
+        if first_unused + args.top_k + args.tokens >= args.experts:
             parser.error("too few unused experts for miss case")
+        base = 0 if case == "all_hit" else first_unused
         ids = torch.tensor(
-            (
-                [[0, 1, 2]]
-                if case == "all_hit"
-                else [[first_unused, first_unused + 1, first_unused + 2]]
-            ),
+            [[base + r + t for r in range(args.top_k)] for t in range(args.tokens)],
             dtype=torch.int32,
             device="cuda",
         )
@@ -79,23 +85,28 @@ def main():
         gpu, cpu = torch.empty_like(ids), torch.empty_like(ids)
         plan = torch.empty(4 + 2 * ids.numel(), dtype=torch.int32, device="cuda")
         stats = torch.empty(7, dtype=torch.int64, device="cuda")
-        timings = {False: [], True: []}
+        functions = {
+            "scan": hybrid_plan,
+            "indexed": hybrid_plan_indexed,
+        }
+        timings = {name: [] for name in functions}
         outcomes = {}
         for sample in range(args.samples + args.warmup):
-            order = [False, True]
+            order = list(functions)
             rng.shuffle(order)
-            for indexed in order:
+            for mode in order:
                 for target, original in zip(state, source):
                     target.copy_(original)
                 index.copy_(source_index)
                 stats.zero_()
-                begin, end = torch.cuda.Event(enable_timing=True), torch.cuda.Event(
-                    enable_timing=True
+                begin, end = (
+                    torch.cuda.Event(enable_timing=True),
+                    torch.cuda.Event(enable_timing=True),
                 )
                 begin.record()
-                call = hybrid_plan_indexed if indexed else hybrid_plan
+                call = functions[mode]
                 arguments = (ids, *state, costs, gpu, cpu, plan, stats, 0, 0.95, 1.9)
-                if indexed:
+                if mode == "indexed":
                     arguments += (index,)
                 call(*arguments)
                 end.record()
@@ -104,7 +115,7 @@ def main():
                     owner_values, key_values = (
                         tensor.tolist() for tensor in state[2:4]
                     )
-                    outcomes[indexed] = (
+                    outcomes[mode] = (
                         tuple(
                             sorted(
                                 (owner, key)
@@ -117,18 +128,15 @@ def main():
                         tuple(sorted(plan[4 : 4 + 2 * plan[1].item() : 2].tolist())),
                     )
                 if sample >= args.warmup:
-                    timings[indexed].append(begin.elapsed_time(end) * 1000)
-        if outcomes[False] != outcomes[True]:
-            raise AssertionError(f"scan and indexed planner differ for {case}")
-        scan, indexed = (statistics.median(timings[key]) for key in (False, True))
+                    timings[mode].append(begin.elapsed_time(end) * 1000)
+        if not all(value == outcomes["scan"] for value in outcomes.values()):
+            raise AssertionError(f"planner decisions differ for {case}")
         print(
             case,
-            "scan_us",
-            round(scan, 3),
-            "indexed_us",
-            round(indexed, 3),
-            "ratio",
-            round(indexed / scan, 3),
+            {
+                name + "_us": round(statistics.median(values), 3)
+                for name, values in timings.items()
+            },
             flush=True,
         )
 

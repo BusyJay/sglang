@@ -11,6 +11,7 @@ struct HybridHeapIndex {
   int32_t cached_layer;
   int32_t *cached_heap, *cached_position, *cached_size;
   const double* cached_frequency;
+  double* top_heat;
 
   __device__ HybridHeapIndex(
       int32_t* data,
@@ -22,7 +23,9 @@ struct HybridHeapIndex {
       int32_t* local_heap = nullptr,
       int32_t* local_position = nullptr,
       int32_t* local_size = nullptr,
-      const double* local_frequency = nullptr)
+      const double* local_frequency = nullptr,
+      int32_t* local_top = nullptr,
+      double* local_top_heat = nullptr)
       : frequency(heat),
         layers(n_layers),
         experts(n_experts),
@@ -31,7 +34,8 @@ struct HybridHeapIndex {
         cached_heap(local_heap),
         cached_position(local_position),
         cached_size(local_size),
-        cached_frequency(local_frequency) {
+        cached_frequency(local_frequency),
+        top_heat(local_top_heat) {
     heap = data;
     if (!data) {
       position = size = top = top_position = top_size = nullptr;
@@ -47,6 +51,11 @@ struct HybridHeapIndex {
     head = free + slots;
     tail = head + 1;
     free_size = tail + 1;
+    if (local_top) {
+      top = local_top;
+      top_position = top + layers;
+      top_size = top_position + layers;
+    }
   }
 
   __device__ int32_t* heap_for(int32_t layer) const {
@@ -67,6 +76,7 @@ struct HybridHeapIndex {
     return x < y || (x == y && a < b);
   }
   __device__ bool top_less(int32_t a, int32_t b) const {
+    if (top_heat) return top_heat[a] < top_heat[b] || (top_heat[a] == top_heat[b] && a < b);
     int32_t ea = heap_for(a)[0], eb = heap_for(b)[0];
     double x = heat_for(a)[ea], y = heat_for(b)[eb];
     return x < y || (x == y && (a < b || (a == b && ea < eb)));
@@ -119,6 +129,7 @@ struct HybridHeapIndex {
   }
   __device__ void refresh_top(int32_t layer, bool was_present) {
     bool present = size_for(layer) > 0;
+    if (top_heat && present) top_heat[layer] = heat_for(layer)[heap_for(layer)[0]];
     if (was_present && !present) {
       int32_t i = top_position[layer], last = top[--*top_size];
       top_position[layer] = -1;
@@ -188,6 +199,16 @@ struct HybridHeapIndex {
   }
   __device__ HybridVictim minimum() const {
     int32_t layer = top[0], expert = heap_for(layer)[0];
-    return {heat_for(layer)[expert], layer, expert, -1};
+    return {top_heat ? top_heat[layer] : heat_for(layer)[expert], layer, expert, -1};
+  }
+  __device__ bool protect_minimum(int32_t layer, const int32_t* histogram) {
+    while (*top_size) {
+      int32_t first = top[0], expert = heap_for(first)[0];
+      if (first != layer || !histogram[expert]) return true;
+      // Active readers are ineligible victims, but normally never reach the
+      // cold root. Detach only those that actually obstruct a victim query.
+      detach(layer, expert);
+    }
+    return false;
   }
 };

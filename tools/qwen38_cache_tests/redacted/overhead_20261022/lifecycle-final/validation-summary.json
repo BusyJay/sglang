@@ -1,0 +1,111 @@
+{
+  "status": "passed",
+  "errors": [],
+  "cpu_initialization": [
+    "[2026-10-22 01:54:55] Qwen38 CPU hybrid enabled: backend=b12x cores=[2, 3, 4, 5] library=/workspace/sglang/tools/qwen38_cache_tests/migration_20261021/cpu.so global_slots=6388 calibrated_workloads=10 uncalibrated_misses=gpu"
+  ],
+  "transitions": [
+    {
+      "stage": 0,
+      "expert_slots": 7006,
+      "kv_tokens": 80000,
+      "runs": 128
+    },
+    {
+      "stage": 1,
+      "expert_slots": 6643,
+      "kv_tokens": 160000,
+      "runs": 3712
+    },
+    {
+      "stage": 2,
+      "expert_slots": 6388,
+      "kv_tokens": 220032,
+      "runs": 4096
+    },
+    {
+      "stage": 0,
+      "expert_slots": 7006,
+      "kv_tokens": 80000,
+      "runs": 6528
+    },
+    {
+      "stage": 1,
+      "expert_slots": 6643,
+      "kv_tokens": 160000,
+      "runs": 9344
+    },
+    {
+      "stage": 2,
+      "expert_slots": 6388,
+      "kv_tokens": 220032,
+      "runs": 9728
+    },
+    {
+      "stage": 1,
+      "expert_slots": 6643,
+      "kv_tokens": 160000,
+      "runs": 12544
+    },
+    {
+      "stage": 0,
+      "expert_slots": 7006,
+      "kv_tokens": 80000,
+      "runs": 12672
+    }
+  ],
+  "snapshots_checked": 125,
+  "cpu_stats": {
+    "cpu_calls": 1439,
+    "device_planner_calls": 13744,
+    "evictions": 269221,
+    "gpu_miss_experts": 24967,
+    "initial_global_handoff_waits": 1,
+    "insertions": 280022,
+    "lfu_admitted_experts": 32741,
+    "lfu_rejected_experts": 28615,
+    "misses": 61356,
+    "prefill_admission_d2d_bytes": 614655525712,
+    "prefill_borrow_evictions": 3796,
+    "prefill_compact_runs": 2256,
+    "prefill_global_hits": 173252,
+    "prefill_gpu_misses": 537045,
+    "resize_events": 8,
+    "resize_evictions": 0,
+    "resize_moves": 0,
+    "resize_retained_experts": 44150,
+    "selected_cpu_experts": 3648,
+    "selected_hit_calls": 1387,
+    "shared_fill_overlap_calls": 13744,
+    "usable_cache_slots": 7005
+  },
+  "cases": [
+    {
+      "context_tokens": 1024,
+      "seconds": 2.910029393999139
+    },
+    {
+      "context_tokens": 170000,
+      "seconds": 31.729431507992558
+    },
+    {
+      "context_tokens": 1024,
+      "seconds": 2.705391633993713
+    },
+    {
+      "context_tokens": 170000,
+      "seconds": 31.066421747993445
+    },
+    {
+      "context_tokens": 1024,
+      "seconds": 2.617122093011858
+    }
+  ],
+  "probes": [
+    {
+      "prompt": "[REDACTED]",
+      "matched": true,
+      "response": "[REDACTED]"
+    }
+  ]
+}
