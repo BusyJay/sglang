@@ -200,6 +200,51 @@ class TestCsfGpu(CustomTestCase):
                 torch.testing.assert_close(actual, expected, rtol=0.02, atol=0.0001)
                 self.assertGreater(actual[1:].abs().max().item(), 0)
 
+    def test_w4a4_atomic_scatter_initialization(self):
+        """The serving scatter path starts at zero, including fully masked rows."""
+        from unittest.mock import patch
+
+        native, compressed, specs = tensors()
+        for name in ("g1_alphas", "g2_alphas"):
+            native[name].fill_(0.03)
+        reference = CachedB12xW4A4(
+            torch.device("cuda"),
+            2560,
+            640,
+            4,
+            3,
+            scale_encoding=specs,
+            deterministic_output=True,
+        )
+        serving = CachedB12xW4A4(
+            torch.device("cuda"),
+            2560,
+            640,
+            4,
+            3,
+            scale_encoding=specs,
+        )
+        original_empty = torch.empty
+
+        def poison_empty(*args, **kwargs):
+            value = original_empty(*args, **kwargs)
+            if value.dtype == torch.bfloat16:
+                value.fill_(float("nan"))
+            return value
+
+        for nt in (3, 129):
+            x = (torch.randn(nt, 2560, device="cuda") * 0.05).bfloat16()
+            ids = torch.randint(1, 4, (nt, 3), device="cuda", dtype=torch.int32)
+            ids[0] = -1
+            weights = torch.rand(nt, 3, device="cuda") / 3
+            expected = reference.run(x, ids, weights, compressed)
+            # Warm compilation before poisoning allocation in the adapter.
+            serving.run(x, ids, weights, compressed)
+            with patch("torch.empty", side_effect=poison_empty):
+                actual = serving.run(x, ids, weights, compressed)
+            torch.testing.assert_close(actual, expected, rtol=0.02, atol=0.0001)
+            self.assertEqual(actual[0].count_nonzero().item(), 0)
+
     def test_gpu_prefill_and_relocated_slots(self):
         native, compressed, _ = tensors()
         # Copy opaque CSF rows exactly as cache rebalancing does.
