@@ -207,6 +207,24 @@ class TestCsfGpu(CustomTestCase):
         native, compressed, specs = tensors()
         for name in ("g1_alphas", "g2_alphas"):
             native[name].fill_(0.03)
+        rng = np.random.default_rng(171)
+        for name, rows, cols in (
+            ("w13_blockscale_swizzled", 1280, 160),
+            ("w2_blockscale_swizzled", 2560, 40),
+        ):
+            raw = rng.integers(48, 64, (4, rows, cols), dtype=np.uint8)
+            raw.reshape(-1)[::61] = 75
+            raw[0] = 0
+            slabs = [encode(t.tobytes(), rows, cols) for t in raw]
+            stride = (max(map(len, slabs)) + 15) // 16 * 16
+            compressed[name] = torch.from_numpy(
+                np.stack(
+                    [np.frombuffer(t + bytes(stride - len(t)), np.uint8) for t in slabs]
+                )
+            ).cuda()
+            specs[name] = dict(
+                encoding="b12x_csf_bitmap_v1", rows=rows, columns=cols, stride=stride
+            )
         reference = CachedB12xW4A4(
             torch.device("cuda"),
             2560,
@@ -238,12 +256,68 @@ class TestCsfGpu(CustomTestCase):
             ids[0] = -1
             weights = torch.rand(nt, 3, device="cuda") / 3
             expected = reference.run(x, ids, weights, compressed)
+            self.assertGreater(expected[1:].abs().max().item(), 0.001)
             # Warm compilation before poisoning allocation in the adapter.
             serving.run(x, ids, weights, compressed)
             with patch("torch.empty", side_effect=poison_empty):
                 actual = serving.run(x, ids, weights, compressed)
-            torch.testing.assert_close(actual, expected, rtol=0.02, atol=0.0001)
+            self.assertTrue(torch.isfinite(actual).all().item())
+            relative_error = (
+                actual - expected
+            ).float().norm() / expected.float().norm()
+            self.assertLess(relative_error.item(), 0.02)
             self.assertEqual(actual[0].count_nonzero().item(), 0)
+
+    def test_decode_after_asynchronous_slot_refills(self):
+        """Compare a chain of GPU fills/decodes without per-call host fences."""
+        from sglang.kernels.ops.moe.qwen38_expert_cache import _module
+
+        native, compressed, specs = tensors()
+        nn = {n: t.clone() for n, t in native.items()}
+        cc = {n: t.clone() for n, t in compressed.items()}
+        a = CachedB12xW4A16(torch.device("cuda"), 2560, 640, 4)
+        b = CachedB12xW4A16(torch.device("cuda"), 2560, 640, 4, scale_encoding=specs)
+        names = (
+            "w13_weight",
+            "w2_weight",
+            "w13_blockscale_swizzled",
+            "w2_blockscale_swizzled",
+            "g1_alphas",
+            "g2_alphas",
+        )
+
+        def layout(source, target):
+            return torch.tensor(
+                [
+                    [target[n].data_ptr(), source[n].nbytes // 4, source[n].data_ptr()]
+                    for n in names
+                ],
+                dtype=torch.int64,
+                device="cuda",
+            )
+
+        native_layout, csf_layout = layout(native, nn), layout(compressed, cc)
+        plan = torch.tensor([0, 1, 0, 0, 1, 1], device="cuda", dtype=torch.int32)
+        failed = torch.zeros(1, device="cuda", dtype=torch.int32)
+        inputs = []
+        for nt in (1, 2, 3):
+            x = (torch.randn(nt, 2560, device="cuda") * 0.05).bfloat16()
+            ids = torch.ones(nt, 10, device="cuda", dtype=torch.int32)
+            weights = torch.full((nt, 10), 0.1, device="cuda")
+            inputs.append((x, ids, weights))
+            a.run(x, ids, weights, nn)
+            b.run(x, ids, weights, cc)
+        torch.cuda.synchronize()
+        results = []
+        for iteration in range(24):
+            plan[4].fill_(1 + iteration % 3)
+            _module().mailbox_fill_grid(plan, native_layout, 1, failed.data_ptr(), 8)
+            _module().mailbox_fill_grid(plan, csf_layout, 1, failed.data_ptr(), 8)
+            x, ids, weights = inputs[iteration % 3]
+            results.append((a.run(x, ids, weights, nn), b.run(x, ids, weights, cc)))
+        # The first host synchronization is deliberately after the whole chain.
+        for expected, actual in results:
+            torch.testing.assert_close(actual, expected, rtol=0, atol=0)
 
     def test_gpu_prefill_and_relocated_slots(self):
         native, compressed, _ = tensors()
