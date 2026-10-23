@@ -208,7 +208,12 @@ class CachedB12xW4A4:
         # Alphas remain live after slot fills; no startup value snapshots.
         values["w1_alpha"].copy_(tensors["g1_alphas"])
         values["w2_alpha"].copy_(tensors["g2_alphas"])
-        output = torch.empty(x.shape, dtype=x.dtype, device=x.device)
+        # The vendor scatter path atomically adds routed expert contributions.
+        # Its public launcher supplies zeros; the prepared launcher bypasses
+        # that allocation, so own the same initialization here. Deterministic
+        # reduction writes every output element instead.
+        allocate = torch.empty if self.deterministic_output else torch.zeros
+        output = allocate(x.shape, dtype=x.dtype, device=x.device)
         w13 = tensors["w13_weight"].permute(1, 2, 0)
         down = tensors["w2_weight"].permute(1, 2, 0)
         # Conversion, when required by the ABI, happens once for the full call.
