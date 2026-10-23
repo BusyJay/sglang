@@ -22,6 +22,8 @@ def run(
     smoke=False,
     no_graph=False,
     static_cache=False,
+    dedicated_arena=False,
+    no_kv_stages=False,
 ):
     out = ROOT / name
     out.mkdir(exist_ok=False)
@@ -57,6 +59,8 @@ def run(
     if static_cache:
         cfg.pop("kv_cache_stages", None)
         cfg["adaptive_cache"] = False
+    if no_kv_stages:
+        cfg.pop("kv_cache_stages", None)
     command[index] = json.dumps(cfg)
     if no_spec:
         for flag in (
@@ -84,7 +88,9 @@ def run(
         SGLANG_QWEN38_STARTUP_CACHE="auto",
         SGLANG_QWEN38_SOURCE_CACHE_DIR="/dev/shm/sglang-qwen38-startup",
         SGLANG_QWEN38_HOST_TOKEN_EMBEDDING="1",
-        SGLANG_QWEN38_BORROW_PREFILL_ARENA="0" if static_cache else "1",
+        SGLANG_QWEN38_BORROW_PREFILL_ARENA="0"
+        if (static_cache or dedicated_arena)
+        else "1",
         SGLANG_QWEN38_PLE_PACKED_CACHE="1",
         SGLANG_QWEN38_CACHE_W4A16="1",
         SGLANG_QWEN38_CACHE_W4A16_BACKEND=os.getenv(
@@ -129,6 +135,8 @@ if __name__ == "__main__":
     parser.add_argument("--smoke", action="store_true")
     parser.add_argument("--no-graph", action="store_true")
     parser.add_argument("--static-cache", action="store_true")
+    parser.add_argument("--dedicated-arena", action="store_true")
+    parser.add_argument("--no-kv-stages", action="store_true")
     a = parser.parse_args()
     run(
         a.name,
@@ -139,4 +147,6 @@ if __name__ == "__main__":
         a.smoke,
         a.no_graph,
         a.static_cache,
+        a.dedicated_arena,
+        a.no_kv_stages,
     )

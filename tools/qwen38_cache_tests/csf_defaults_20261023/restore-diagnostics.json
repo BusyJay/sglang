@@ -1,0 +1,198 @@
+{
+  "restore_regression": {
+    "old_logic": "fails: restored external GPU pointer remains zero",
+    "fixed_logic": "passes: outlier pointer rebound, inline/source bytes and hit metadata preserved"
+  },
+  "runs": {
+    "isolate-csf-dedicated": {
+      "environment": {
+        "SGLANG_QWEN38_BORROW_PREFILL_ARENA": "0",
+        "SGLANG_QWEN38_CACHE_W4A16_BACKEND": "b12x",
+        "SGLANG_QWEN38_CACHE_PREFILL_W4A16": "0"
+      },
+      "result": "startup KV-budget failure; no generation",
+      "loader_config": {
+        "manifest_path": "/root/.cache/sglang/qwen38-fp4-local-csf-tiered/b9ce18a6887e18c089fdea8509a33e63429a3300/manifest.json",
+        "prefill_arena": true,
+        "runtime_mode": "threaded",
+        "stats_log_interval": 5760,
+        "staging_buffers": 4,
+        "staging_buffer_bytes": 67108864,
+        "adaptive_cache": true,
+        "adaptive_cache_window": 512,
+        "adaptive_cache_interval": 4096,
+        "adaptive_cache_mode": "rebalance",
+        "cache_policy": "lfu",
+        "cache_protected_fraction": 0.7,
+        "prefill_reuse_cache": true,
+        "prefill_seed_cache": true,
+        "kv_cache_stages": [
+          80000,
+          160000,
+          220000
+        ],
+        "preallocate_gdn_proj": true,
+        "async_pack_prefetch": true,
+        "prefill_direct_cache": false,
+        "cpu_hybrid_mode": "off",
+        "cache_budget_bytes": 17661593504,
+        "scale_compression": "csf"
+      }
+    },
+    "fix-borrowed-csf": {
+      "environment": {
+        "SGLANG_QWEN38_BORROW_PREFILL_ARENA": "1",
+        "SGLANG_QWEN38_CACHE_W4A16_BACKEND": "b12x",
+        "SGLANG_QWEN38_CACHE_PREFILL_W4A16": "0"
+      },
+      "result": "degenerate generation rejected",
+      "rejected_fields": [
+        "prompt_tokens",
+        "output_tokens",
+        "ttft_seconds",
+        "e2e_seconds",
+        "decode_tokens_per_second",
+        "after_64_tokens_per_second",
+        "mean_time_per_output_token_ms",
+        "stream_events",
+        "meta_info",
+        "response_text"
+      ],
+      "loader_config": {
+        "manifest_path": "/root/.cache/sglang/qwen38-fp4-local-csf-tiered/b9ce18a6887e18c089fdea8509a33e63429a3300/manifest.json",
+        "prefill_arena": true,
+        "runtime_mode": "threaded",
+        "stats_log_interval": 5760,
+        "staging_buffers": 4,
+        "staging_buffer_bytes": 67108864,
+        "adaptive_cache": true,
+        "adaptive_cache_window": 512,
+        "adaptive_cache_interval": 4096,
+        "adaptive_cache_mode": "rebalance",
+        "cache_policy": "lfu",
+        "cache_protected_fraction": 0.7,
+        "prefill_reuse_cache": true,
+        "prefill_seed_cache": true,
+        "kv_cache_stages": [
+          80000,
+          160000,
+          220000
+        ],
+        "preallocate_gdn_proj": true,
+        "async_pack_prefetch": true,
+        "prefill_direct_cache": false,
+        "cpu_hybrid_mode": "off",
+        "cache_budget_bytes": 17661593504,
+        "scale_compression": "csf"
+      }
+    },
+    "isolate-csf-borrow-nokv": {
+      "environment": {
+        "SGLANG_QWEN38_BORROW_PREFILL_ARENA": "1",
+        "SGLANG_QWEN38_CACHE_W4A16_BACKEND": "b12x",
+        "SGLANG_QWEN38_CACHE_PREFILL_W4A16": "0"
+      },
+      "result": "degenerate generation rejected",
+      "rejected_fields": [
+        "prompt_tokens",
+        "output_tokens",
+        "ttft_seconds",
+        "e2e_seconds",
+        "decode_tokens_per_second",
+        "after_64_tokens_per_second",
+        "mean_time_per_output_token_ms",
+        "stream_events",
+        "meta_info",
+        "response_text"
+      ],
+      "loader_config": {
+        "manifest_path": "/root/.cache/sglang/qwen38-fp4-local-csf-tiered/b9ce18a6887e18c089fdea8509a33e63429a3300/manifest.json",
+        "prefill_arena": true,
+        "runtime_mode": "threaded",
+        "stats_log_interval": 5760,
+        "staging_buffers": 4,
+        "staging_buffer_bytes": 67108864,
+        "adaptive_cache": true,
+        "adaptive_cache_window": 512,
+        "adaptive_cache_interval": 4096,
+        "adaptive_cache_mode": "rebalance",
+        "cache_policy": "lfu",
+        "cache_protected_fraction": 0.7,
+        "prefill_reuse_cache": true,
+        "prefill_seed_cache": true,
+        "preallocate_gdn_proj": true,
+        "async_pack_prefetch": true,
+        "prefill_direct_cache": false,
+        "cpu_hybrid_mode": "off",
+        "cache_budget_bytes": 17661593504,
+        "scale_compression": "csf"
+      }
+    },
+    "isolate-csf-dedicated-nokv": {
+      "environment": {
+        "SGLANG_QWEN38_BORROW_PREFILL_ARENA": "0",
+        "SGLANG_QWEN38_CACHE_W4A16_BACKEND": "b12x",
+        "SGLANG_QWEN38_CACHE_PREFILL_W4A16": "0"
+      },
+      "result": "degenerate generation rejected",
+      "rejected_fields": [
+        "prompt_tokens",
+        "output_tokens",
+        "ttft_seconds",
+        "e2e_seconds",
+        "decode_tokens_per_second",
+        "after_64_tokens_per_second",
+        "mean_time_per_output_token_ms",
+        "stream_events",
+        "meta_info",
+        "response_text"
+      ],
+      "loader_config": {
+        "manifest_path": "/root/.cache/sglang/qwen38-fp4-local-csf-tiered/b9ce18a6887e18c089fdea8509a33e63429a3300/manifest.json",
+        "prefill_arena": true,
+        "runtime_mode": "threaded",
+        "stats_log_interval": 5760,
+        "staging_buffers": 4,
+        "staging_buffer_bytes": 67108864,
+        "adaptive_cache": true,
+        "adaptive_cache_window": 512,
+        "adaptive_cache_interval": 4096,
+        "adaptive_cache_mode": "rebalance",
+        "cache_policy": "lfu",
+        "cache_protected_fraction": 0.7,
+        "prefill_reuse_cache": true,
+        "prefill_seed_cache": true,
+        "preallocate_gdn_proj": true,
+        "async_pack_prefetch": true,
+        "prefill_direct_cache": false,
+        "cpu_hybrid_mode": "off",
+        "cache_budget_bytes": 17661593504,
+        "scale_compression": "csf"
+      }
+    },
+    "diag-csf-clone-scales": {
+      "result": "degenerate generation rejected",
+      "rejected_fields": [
+        "prompt_tokens",
+        "output_tokens",
+        "ttft_seconds",
+        "e2e_seconds",
+        "decode_tokens_per_second",
+        "after_64_tokens_per_second",
+        "mean_time_per_output_token_ms",
+        "stream_events",
+        "meta_info",
+        "response_text"
+      ],
+      "environment": {},
+      "diagnostic_module": "diagnostic_clone/sitecustomize.py"
+    },
+    "verify-csf-static-control": {
+      "result": "degenerate generation rejected; previous static-cache success did not reproduce",
+      "adaptive_cache": false,
+      "kv_cache_stages": null,
+      "borrow_prefill_arena": false
+    }
+  },
+  "conclusion": "Arena restore pointer bug is proven and fixed; it does not resolve degenerate MTP output. Static-cache success was not reproducible. No cache-layout root cause established."
+}

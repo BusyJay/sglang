@@ -59,6 +59,15 @@ class BorrowedArenaMixin:
                     # Includes slot alphas; the original lookup/policy is retained.
                     self._fill(layer, expert, self.caches[layer], slot)
                     self.borrowed_restore_experts += 1
+                banks = getattr(self, "csf_banks", None)
+                if records and banks is not None:
+                    import torch
+
+                    # CPU source headers contain file offsets, not GPU pointers.
+                    # Restored slots keep their hit metadata, so decode will not
+                    # run the miss-fill kernel that normally binds these words.
+                    with torch.cuda.stream(self.transfer):
+                        banks.patch(layer, self.caches[layer])
             self.transfer.synchronize()
         except BaseException:
             self.poisoned = True
