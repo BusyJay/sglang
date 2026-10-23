@@ -1,0 +1,17 @@
+{
+  "pack_lossless_validation": "passed: 49152 scale slabs, 60398174592 unchanged bytes",
+  "prior_regression_tests": 203,
+  "prior_regression_subtests": 372,
+  "prior_targeted_tests": 95,
+  "prior_targeted_subtests": 20,
+  "tiered_memcheck_errors": 0,
+  "post_scatter_fix_gpu_tests": 5,
+  "final_strengthened_scatter_test": "passed; nonzero outputs, poisoned allocations, BF16 atomic error <2% relative L2",
+  "native_mtp_generation": "passed",
+  "csf_no_mtp_smoke": "passed",
+  "csf_mtp_generation": "failed: degenerate output; timings excluded",
+  "benchmark_scope": "single pass only; no reverse repeats after user request",
+  "csf_fixed_cache_dedicated_arena_mtp_smoke": "passed: normal response; diagnostic only",
+  "asynchronous_gpu_refill_regression": "passed: 24 fills/decodes, M=1/2/3, bitwise parity",
+  "remaining_issue": "Tiered CSF + MTP with adaptive cache/KV loans/shared arena; exact cause not isolated"
+}
