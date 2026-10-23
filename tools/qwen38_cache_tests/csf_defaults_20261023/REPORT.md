@@ -92,6 +92,43 @@ After the user requested fewer tests, the corrected matrix runs **one pass**
 over the three CSF routing modes, reusing valid native baselines. No reverse
 repeat. Long-context verification is reserved for a viable default candidate.
 
+## Follow-up: arena restoration and control reproducibility
+
+A second compressed-format integration defect was found in borrowed-arena
+return. CPU source headers carry file offsets and a zero GPU bank pointer.
+`_return_arena` reloaded the source bytes while retaining cache hit metadata,
+but did not rebind external bank addresses. Restored hits could therefore skip
+the decode miss-fill operation that normally performs that binding. The return
+path now binds restored layers on the transfer stream before publishing completion.
+No extra decode launch or synchronization was added to ordinary hits.
+
+The new GPU runtime regression executes the real borrow/drain/return and bank
+binding logic with substituted source transport. It verifies exact restored
+header/payload bytes, inline headers, preserved hit metadata, immutable CPU
+source headers and bank contents. It fails against the old return body and
+passes against the fix. This proves a lifecycle bug; it does **not** establish
+the cause of the current MTP generation failure.
+
+Small end-to-end controls after the fix:
+
+| Control | Result |
+| --- | --- |
+| Original dynamic/shared setup | Repeated-character output, rejected |
+| Adaptive pool + shared arena, KV stages removed | Repeated-character output, rejected |
+| Adaptive pool + dedicated arena, KV stages removed | Repeated-character output, rejected |
+| Clone both compressed scale planes before each eager expert call, no host fence | Repeated-character output, rejected |
+| Repeat fixed-cache/dedicated-arena control | Repeated-character output, rejected |
+| Dedicated arena with original KV stages | Startup fails: profiled KV budget 129,728 < required 220,032; no generation |
+
+The previously successful fixed-cache smoke is **not reproducible**. It cannot
+be used to assign the remaining problem to adaptive cache, KV borrowing, or
+shared arena storage. Copying scale operands also did not establish a slice
+addressing explanation. No new performance matrix was run on invalid outputs.
+`restore-diagnostics.json` retains the control settings and outcomes;
+`run_matrix.py` adds independent `--dedicated-arena` and `--no-kv-stages` controls.
+The clone module requires an explicit diagnostic PYTHONPATH and is not used by
+production or ordinary matrix runs.
+
 ## Current decision and remaining issue
 
 **Provisional default: native weights, layered GPU cache, CPU co-compute off,
@@ -124,8 +161,8 @@ Diagnostic evidence recorded before this checkpoint commit:
 
 The final positive control disables adaptive cache, removes KV stage borrowing,
 and uses a dedicated prefill arena. It changes multiple related allocation/
-lifecycle choices at once; further isolation is necessary. It points toward the
-combination of compressed layout and dynamic/shared-pool integration. It is
+lifecycle choices at once; further isolation is necessary. Its apparent indication toward compressed layout and dynamic/shared-pool
+integration was not reproduced in the follow-up above. It is
 **not proof of a particular race**, and no blanket synchronization workaround
 has been merged. Changing CSF reads to coherent L2 loads did not resolve the
 issue and was reverted. Already-validated native serving paths were not changed.
