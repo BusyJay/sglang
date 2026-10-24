@@ -12,6 +12,7 @@ from sglang.kernels.ops.gemm.hc_mix import (
 from sglang.test.ci.ci_register import register_cuda_ci
 
 register_cuda_ci(est_time=30, stage="base-b-kernel-unit", runner_config="4-gpu-b200")
+register_cuda_ci(est_time=30, stage="base-b-kernel-unit", runner_config="1-gpu-small")
 
 HC_COUNT = 4
 HIDDEN_SIZE = 2560
@@ -52,21 +53,23 @@ _TOLERANCES = {
 
 
 @pytest.mark.parametrize("dtype", [torch.bfloat16, torch.float16])
-@pytest.mark.parametrize("num_tokens", [1, 4, 7, _FUSED_MIX_MAX_ROWS])
-def test_fused_hc_mix_matches_reference(dtype, num_tokens):
+@pytest.mark.parametrize("num_tokens", [1, 3, 4, 7, _FUSED_MIX_MAX_ROWS])
+@pytest.mark.parametrize("split_k", [False, True])
+def test_fused_hc_mix_matches_reference(dtype, num_tokens, split_k):
     x, w_down, w_up = _make_inputs(num_tokens, dtype)
     assert fused_hc_mix_supported(x, w_down, w_up)
-    out = fused_hc_mix(x, w_down, w_up, HC_COUNT, HIDDEN_SIZE)
+    out = fused_hc_mix(x, w_down, w_up, HC_COUNT, HIDDEN_SIZE, split_k=split_k)
     ref = _reference_mix(x, w_down, w_up, HC_COUNT, HIDDEN_SIZE)
     torch.testing.assert_close(out.to(torch.float64), ref, **_TOLERANCES[dtype])
 
 
-def test_fused_hc_mix_no_less_accurate_than_eager():
+@pytest.mark.parametrize("split_k", [False, True])
+def test_fused_hc_mix_no_less_accurate_than_eager(split_k):
     """The fused kernel (fp32 accumulation throughout) must not be farther
     from the fp64 reference than the eager bf16 chain it replaces."""
     x, w_down, w_up = _make_inputs(8, torch.bfloat16)
     ref = _reference_mix(x, w_down, w_up, HC_COUNT, HIDDEN_SIZE)
-    fused = fused_hc_mix(x, w_down, w_up, HC_COUNT, HIDDEN_SIZE)
+    fused = fused_hc_mix(x, w_down, w_up, HC_COUNT, HIDDEN_SIZE, split_k=split_k)
     eager = _reference_mix(
         x, w_down, w_up, HC_COUNT, HIDDEN_SIZE, compute_dtype=torch.bfloat16
     )
@@ -78,6 +81,34 @@ def test_fused_hc_mix_no_less_accurate_than_eager():
 def test_fused_hc_mix_gate_rejects_prefill_rows():
     x, w_down, w_up = _make_inputs(_FUSED_MIX_MAX_ROWS + 1, torch.bfloat16)
     assert not fused_hc_mix_supported(x, w_down, w_up)
+
+
+@pytest.mark.parametrize("dtype", [torch.bfloat16, torch.float16])
+def test_split_k_masks_partial_lowrank_tiles(dtype):
+    x, w_down, w_up = _make_inputs(3, dtype)
+    w_down = w_down[:40].contiguous()
+    w_up = w_up[:, :40].contiguous()
+    out = fused_hc_mix(x, w_down, w_up, HC_COUNT, HIDDEN_SIZE, split_k=True)
+    ref = _reference_mix(x, w_down, w_up, HC_COUNT, HIDDEN_SIZE)
+    torch.testing.assert_close(out.double(), ref, **_TOLERANCES[dtype])
+
+
+@pytest.mark.parametrize("num_tokens", [1, 3, _FUSED_MIX_MAX_ROWS])
+def test_split_k_graph_replay_reads_updated_inputs(num_tokens):
+    x, w_down, w_up = _make_inputs(num_tokens, torch.bfloat16)
+    for _ in range(3):
+        fused_hc_mix(x, w_down, w_up, HC_COUNT, HIDDEN_SIZE, split_k=True)
+    graph = torch.cuda.CUDAGraph()
+    with torch.cuda.graph(graph):
+        out = fused_hc_mix(x, w_down, w_up, HC_COUNT, HIDDEN_SIZE, split_k=True)
+    for scale in [0.5, -1.0, 2.0, 0.0]:
+        x.mul_(scale)
+        graph.replay()
+        first = out.clone()
+        graph.replay()
+        torch.testing.assert_close(out, first, rtol=0, atol=0)
+        ref = _reference_mix(x, w_down, w_up, HC_COUNT, HIDDEN_SIZE)
+        torch.testing.assert_close(out.double(), ref, **_TOLERANCES[x.dtype])
 
 
 if __name__ == "__main__":

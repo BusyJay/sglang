@@ -51,6 +51,11 @@ def main():
     parser.add_argument("--iterations", type=int, default=50)
     parser.add_argument("--rounds", type=int, default=3)
     parser.add_argument(
+        "--full-miss-sweep",
+        action="store_true",
+        help="Sweep every miss count 0..30 in contiguous and fragmented layouts",
+    )
+    parser.add_argument(
         "--overlap-rows",
         nargs="+",
         type=int,
@@ -117,12 +122,14 @@ def main():
         if args.plans:
             plans = json.loads(args.plans.read_text())
         else:
-            plans = [
-                [[expert, expert] for expert in range(count)]
-                for count in (0, 1, 2, 3, 4, 6, 8, 10, 20, 30)
-            ]
+            counts = (
+                range(31) if args.full_miss_sweep else (0, 1, 2, 3, 4, 6, 8, 10, 20, 30)
+            )
+            plans = [[[expert, expert] for expert in range(count)] for count in counts]
             plan_rng = random.Random(args.seed)
-            for count in (1, 2, 3, 4, 6, 8, 10, 20, 30):
+            for count in (
+                range(1, 31) if args.full_miss_sweep else (1, 2, 3, 4, 6, 8, 10, 20, 30)
+            ):
                 plans.append(
                     list(
                         zip(
@@ -145,6 +152,7 @@ def main():
             torch.cuda.synchronize()
         variants = [("mapped_cta_" + str(cta), cta) for cta in range(1, 9)] + [
             ("mapped_adaptive", 0),
+            ("mapped_candidate", -1),
             ("dma_known_plan", None),
             ("dma_coalesced_plan", None),
             ("dma_plan_readback", None),
@@ -264,11 +272,13 @@ def main():
                 print("passed", index, name, len(pairs), timing, flush=True)
                 if (
                     copy_stream is not None
-                    and len(pairs) in (2, 3, 10)
+                    and len(pairs)
+                    in (range(31) if args.full_miss_sweep else (2, 3, 4, 10, 20, 30))
                     and name
                     in (
                         "mapped_cta_8",
                         "mapped_adaptive",
+                        "mapped_candidate",
                         "dma_known_plan",
                         "dma_plan_readback",
                         "dma_coalesced_plan",

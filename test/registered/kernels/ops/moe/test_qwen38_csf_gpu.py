@@ -6,6 +6,7 @@ import unittest
 
 import numpy as np
 import torch
+
 from sglang.srt.layers.quantization.qwen38_cached_b12x import CachedB12xW4A16
 from sglang.srt.layers.quantization.qwen38_cached_b12x_w4a4 import CachedB12xW4A4
 from sglang.srt.layers.quantization.qwen38_cached_w4a16 import cached_w4a16_moe
@@ -148,7 +149,7 @@ class TestCsfGpu(CustomTestCase):
                 dtype=torch.int64,
             )
             failed = torch.zeros(1, device="cuda", dtype=torch.int32)
-            for ctas in (0, 8):
+            for ctas in (-1, 0, 8):
                 _module().mailbox_fill_grid(plan, layout, 2, failed.data_ptr(), ctas)
                 torch.testing.assert_close(target, tiered[name][[2, 1]], rtol=0, atol=0)
             specs[name] = dict(

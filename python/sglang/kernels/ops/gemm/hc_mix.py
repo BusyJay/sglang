@@ -17,6 +17,114 @@ _FUSED_MIX_MAX_ROWS = 16
 
 
 @triton.jit
+def _hc_mix_down_partial_kernel(
+    x_ptr,
+    w_ptr,
+    partial_ptr,
+    K: tl.constexpr,
+    LOWRANK: tl.constexpr,
+    NUM_ROWS: tl.constexpr,
+    ROWS: tl.constexpr,
+    BLOCK_N: tl.constexpr,
+    BLOCK_K: tl.constexpr,
+):
+    nb = tl.program_id(0)
+    kc = tl.program_id(1)
+    m = tl.arange(0, ROWS)
+    n = nb * BLOCK_N + tl.arange(0, BLOCK_N)
+    k = kc * BLOCK_K + tl.arange(0, BLOCK_K)
+    x = tl.load(
+        x_ptr + m[:, None] * K + k[None, :],
+        mask=(m[:, None] < NUM_ROWS) & (k[None, :] < K),
+        other=0.0,
+    )
+    w = tl.load(
+        w_ptr + n[:, None] * K + k[None, :],
+        mask=(n[:, None] < LOWRANK) & (k[None, :] < K),
+        other=0.0,
+    )
+    acc = tl.dot(x, tl.trans(w))
+    tl.store(
+        partial_ptr + (kc * ROWS + m[:, None]) * LOWRANK + n[None, :],
+        acc,
+        mask=n[None, :] < LOWRANK,
+    )
+
+
+@triton.jit
+def _hc_mix_reduce_silu_kernel(
+    partial_ptr,
+    t_ptr,
+    LOWRANK: tl.constexpr,
+    ROWS: tl.constexpr,
+    CHUNKS: tl.constexpr,
+    HC: tl.constexpr,
+    BLOCK_C: tl.constexpr,
+    BLOCK_N: tl.constexpr,
+):
+    m = tl.program_id(0)
+    n = tl.program_id(1) * BLOCK_N + tl.arange(0, BLOCK_N)
+    c = tl.arange(0, BLOCK_C)
+    partial = tl.load(
+        partial_ptr + (c[:, None] * ROWS + m) * LOWRANK + n[None, :],
+        mask=(c[:, None] < CHUNKS) & (n[None, :] < LOWRANK),
+        other=0.0,
+    )
+    a = tl.sum(partial, axis=0) * (1.0 / HC)
+    tl.store(t_ptr + m * LOWRANK + n, a * tl.sigmoid(a), mask=n < LOWRANK)
+
+
+@triton.jit
+def _hc_mix_up_gate_kernel(
+    x_ptr,
+    w_ptr,
+    t_ptr,
+    out_ptr,
+    LOWRANK: tl.constexpr,
+    HS: tl.constexpr,
+    NUM_ROWS: tl.constexpr,
+    ROWS: tl.constexpr,
+    HC: tl.constexpr,
+    BLOCK_J: tl.constexpr,
+    BLOCK_R: tl.constexpr,
+):
+    m = tl.arange(0, ROWS)
+    g = tl.arange(0, HC)
+    j = tl.program_id(0) * BLOCK_J + tl.arange(0, BLOCK_J)
+    gj = tl.reshape(g[:, None] * HS + j[None, :], (HC * BLOCK_J,))
+    mask_gj = tl.reshape(
+        tl.broadcast_to(j[None, :] < HS, (HC, BLOCK_J)), (HC * BLOCK_J,)
+    )
+    r_offset = tl.arange(0, BLOCK_R)
+    acc = tl.zeros((ROWS, HC * BLOCK_J), dtype=tl.float32)
+    for r0 in range(0, LOWRANK, BLOCK_R):
+        r = r0 + r_offset
+        t = tl.load(
+            t_ptr + m[:, None] * LOWRANK + r[None, :],
+            mask=(m[:, None] < NUM_ROWS) & (r[None, :] < LOWRANK),
+            other=0.0,
+        )
+        w = tl.load(
+            w_ptr + gj[:, None] * LOWRANK + r[None, :],
+            mask=mask_gj[:, None] & (r[None, :] < LOWRANK),
+            other=0.0,
+        )
+        acc = tl.dot(t, tl.trans(w), acc)
+    gate = tl.sigmoid(tl.reshape(acc, (ROWS, HC, BLOCK_J)))
+    x = tl.load(
+        x_ptr + m[:, None, None] * (HC * HS) + g[None, :, None] * HS + j[None, None, :],
+        mask=(m[:, None, None] < NUM_ROWS) & (j[None, None, :] < HS),
+        other=0.0,
+    ).to(tl.float32)
+    out = tl.sum(gate * x, axis=1) * (1.0 / HC)
+    tl.store(
+        out_ptr + m[:, None] * HS + j[None, :],
+        out,
+        mask=(m[:, None] < NUM_ROWS) & (j[None, :] < HS),
+    )
+
+
+@triton.jit
 def _grid_barrier(counter_ptr, num_ctas):
     tl.atomic_add(counter_ptr, 1, sem="acq_rel", scope="gpu")
     while tl.atomic_add(counter_ptr, 0, sem="acq_rel", scope="gpu") < num_ctas:
@@ -185,16 +293,68 @@ def fused_hc_mix(
     w_up: torch.Tensor,
     hc: int,
     hs: int,
+    *,
+    split_k: bool = False,
 ) -> torch.Tensor:
+    """Compute the low-rank mix; ``split_k`` selects an experimental staged path.
+
+    The staged path uses private partials and a fixed reduction tree instead of
+    device atomics and grid barriers. Benchmark it on the serving GPU before
+    enabling it: its three launches can outweigh the saved synchronization.
+    """
     rows, k = hyper_input_normed.shape
     lowrank = w_down.shape[0]
     rows_pad = 16
     device = hyper_input_normed.device
-    num_ctas = torch.cuda.get_device_properties(device).multi_processor_count
-    t_raw = torch.empty((rows_pad, lowrank), dtype=torch.float32, device=device)
     out = torch.empty((rows, hs), dtype=hyper_input_normed.dtype, device=device)
     if rows == 0:
         return out
+    if split_k:
+        chunks = triton.cdiv(k, 256)
+        partial = torch.empty(
+            (chunks, rows_pad, lowrank), dtype=torch.float32, device=device
+        )
+        t = torch.empty((rows, lowrank), dtype=hyper_input_normed.dtype, device=device)
+        _hc_mix_down_partial_kernel[(triton.cdiv(lowrank, 32), chunks)](
+            hyper_input_normed,
+            w_down,
+            partial,
+            k,
+            lowrank,
+            rows,
+            ROWS=rows_pad,
+            BLOCK_N=32,
+            BLOCK_K=256,
+            num_warps=4,
+        )
+        _hc_mix_reduce_silu_kernel[(rows, triton.cdiv(lowrank, 32))](
+            partial,
+            t,
+            lowrank,
+            rows_pad,
+            chunks,
+            hc,
+            BLOCK_C=triton.next_power_of_2(chunks),
+            BLOCK_N=32,
+            num_warps=4,
+        )
+        _hc_mix_up_gate_kernel[(triton.cdiv(hs, 32),)](
+            hyper_input_normed,
+            w_up,
+            t,
+            out,
+            lowrank,
+            hs,
+            rows,
+            ROWS=rows_pad,
+            HC=hc,
+            BLOCK_J=32,
+            BLOCK_R=64,
+            num_warps=4,
+        )
+        return out
+    num_ctas = torch.cuda.get_device_properties(device).multi_processor_count
+    t_raw = torch.empty((rows_pad, lowrank), dtype=torch.float32, device=device)
     _hc_mix_persistent_kernel[(num_ctas,)](
         hyper_input_normed,
         w_down,

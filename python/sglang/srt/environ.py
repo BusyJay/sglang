@@ -1124,6 +1124,10 @@ class Envs:
     # ===================================================================
     # Experimental cached NVFP4 W4A16 launch adapter, pinned to FlashInfer 0.7.2.
     SGLANG_OPT_QWEN38_B12X_PREPARED_LAUNCH = EnvBool(False)
+    # Historical candidate buckets only; baseline fill policy remains default.
+    SGLANG_OPT_QWEN38_FILL_CTA_TABLE = EnvBool(False)
+    # Exact Qwen38 projection whitelist, M=1/3, native E4M3/E8M0 arithmetic.
+    SGLANG_OPT_QWEN38_MXFP8_SMALL_M = EnvBool(False)
     # Opt-in for calibrated threaded adaptive LFU W4A16; defaults to GPU-only.
     SGLANG_ENABLE_QWEN38_CPU_HYBRID = EnvBool(False)
     SGLANG_QWEN38_CPU_LIBRARY = EnvStr("")
@@ -1699,6 +1703,8 @@ class Envs:
 
     # Kernels and indexer
     SGLANG_OPT_DEEPGEMM_HC_PRENORM = EnvBool(True)
+    # Experimental staged HC mix; validate graph latency on the serving GPU.
+    SGLANG_OPT_HC_MIX_SPLIT_K = EnvBool(False)
     SGLANG_OPT_USE_TILELANG_MHC_PRE = EnvBool(True)
     SGLANG_OPT_USE_TILELANG_MHC_POST = EnvBool(True)
     SGLANG_OPT_USE_FLASHINFER_MHC = EnvBool(False)

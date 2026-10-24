@@ -1297,6 +1297,55 @@ class Fp8LinearMethod(LinearMethodBase):
             backend = self.mxfp8_dense_backend
             weight = getattr(layer, "weight_mxfp8_padded", layer.weight)
             logical_rows = layer.weight.shape[0]
+            role = getattr(layer, "_qwen38_mxfp8_role", None)
+            if (
+                role is not None
+                and self.use_mxfp8
+                and backend.is_flashinfer_cutlass()
+                and envs.SGLANG_OPT_QWEN38_MXFP8_SMALL_M.get()
+            ):
+                from sglang.kernels.ops.gemm.qwen38_mxfp8_small_m import (
+                    PROJECTION_SHAPES,
+                    qwen38_mxfp8_small_m,
+                )
+                from sglang.srt.batch_invariant_ops import (
+                    is_batch_invariant_mode_enabled,
+                )
+                from sglang.srt.runtime_context import get_exec
+
+                tensor = x[0] if isinstance(x, tuple) else x
+                m = tensor.numel() // tensor.shape[-1]
+                if (
+                    m in (1, 3)
+                    and tuple(layer.weight.shape) == PROJECTION_SHAPES[role]
+                    and tensor.is_cuda
+                    and torch.cuda.get_device_capability(tensor.device) == (12, 0)
+                    and (isinstance(x, tuple) or tensor.dtype == torch.bfloat16)
+                    and not is_batch_invariant_mode_enabled()
+                    and not get_exec().deterministic.enable_deterministic_inference
+                ):
+                    from sglang.srt.layers.quantization.fp8_utils import (
+                        flashinfer_mxfp8_quantize,
+                    )
+
+                    q, scales = (
+                        x
+                        if isinstance(x, tuple)
+                        else flashinfer_mxfp8_quantize(
+                            tensor.reshape(m, -1),
+                            is_sf_swizzled_layout=True,
+                            alignment=32,
+                        )
+                    )
+                    out = qwen38_mxfp8_small_m(
+                        q.reshape(m, -1),
+                        layer.weight,
+                        scales,
+                        layer.weight_scale_inv_swizzled,
+                    )
+                    if bias is not None:
+                        out = out + bias
+                    return out.reshape(*tensor.shape[:-1], logical_rows).contiguous()
             if bias is not None and weight.shape[0] != logical_rows:
                 bias = F.pad(bias, (0, weight.shape[0] - logical_rows))
             extra_kwargs = {}

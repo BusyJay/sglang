@@ -1,0 +1,105 @@
+{
+  "base_commit": "674461f5b6988882a3aeaa818f8513d266186bca",
+  "scope": "All currently uncommitted optimization code, tests and benchmarks; exact working-tree content.",
+  "files": [
+    {
+      "path": "python/sglang/kernels/jit/csrc/moe/qwen38_expert_cache.cu",
+      "sha256": "771680e2b9ae2ce349d09153c87b3025f3e97d70c2cad70940e70b1b54f3467c"
+    },
+    {
+      "path": "python/sglang/kernels/ops/gemm/__init__.py",
+      "sha256": "05c34de6b6fdd75fe7172be873687c64b64d8e9ee5db53101354eb253c68a8e1"
+    },
+    {
+      "path": "python/sglang/kernels/ops/gemm/hc_mix.py",
+      "sha256": "7dfeb4f8bffd91a0b8c8f31eecb411b5115886652bf4099a8f26b59156961620"
+    },
+    {
+      "path": "python/sglang/kernels/ops/gemm/qwen38_mxfp8_small_m.py",
+      "sha256": "7de316a0eb2c4b033776f2ab5f503c9839a62348eed61bd8a66a51d9707d20ef"
+    },
+    {
+      "path": "python/sglang/srt/environ.py",
+      "sha256": "0a0b1ad10cde3c568d8c619e0c065e3a096c53a9c1c57c62325f03b36cd8fd5d"
+    },
+    {
+      "path": "python/sglang/srt/layers/hyperconnection.py",
+      "sha256": "88614032c2149cdf50aadf270de1dc5258a1ba91e8e18857a770314a792856e1"
+    },
+    {
+      "path": "python/sglang/srt/layers/moe/qwen38_cache_mailbox.py",
+      "sha256": "3e213a30e3342980fae80da2843604afac34b13e91e370e526a683ff43ca4f7c"
+    },
+    {
+      "path": "python/sglang/srt/layers/quantization/fp8.py",
+      "sha256": "dec049b5a8418ea6560142e6fdbc0522bff89da63e867306a8bda973948be110"
+    },
+    {
+      "path": "python/sglang/srt/layers/quantization/qwen38_nvfp4_cache.py",
+      "sha256": "bfa3dd0f0c95fde12fb9d97f60f64cc7ed37b7b2eea8f64d06ba5ba63e41d78f"
+    },
+    {
+      "path": "test/manual/kernels/gemm/check_hc_mix_split_k.py",
+      "sha256": "28dd4fc3d49c5d6dad83166edd16e17369a5a296c694aed1f40ff1192b4a0808"
+    },
+    {
+      "path": "test/manual/kernels/gemm/check_qwen38_mxfp8_compile.py",
+      "sha256": "3fc646e876ad514b8e3f56d00a2c4a958c04862afdefef0ede0ec05fed0d75d7"
+    },
+    {
+      "path": "test/manual/kernels/gemm/check_qwen38_mxfp8_interpreter.py",
+      "sha256": "26f97b5d7a102c79e70dd14ee9a368561e60ea8cc9b6935fa68b0a51e4435b39"
+    },
+    {
+      "path": "test/manual/kernels/moe/qwen38_fill_ab.py",
+      "sha256": "14fddebf58e814ff4cbd9c51afcfc2debe0a68b8cc924789b6b2fff585491fd8"
+    },
+    {
+      "path": "test/registered/kernels/benchmark/gemm/bench_qwen38_mxfp8_small_m.py",
+      "sha256": "970be3a9f2c95b7319a7aa30f5583c2db0de663c310dd49ca749616052eb576a"
+    },
+    {
+      "path": "test/registered/kernels/ops/gemm/test_hc_mix.py",
+      "sha256": "83710b2a45de4ceb751d4b902b26ff11be92260c069efbc2be9aede1ca3b9d03"
+    },
+    {
+      "path": "test/registered/kernels/ops/gemm/test_qwen38_mxfp8_runtime.py",
+      "sha256": "475dc69047ec50810f1e1341bf435d7a6bfc791f24b2a8286470f2f1004b5d06"
+    },
+    {
+      "path": "test/registered/kernels/ops/gemm/test_qwen38_mxfp8_small_m.py",
+      "sha256": "dac689300501cd49d8bb0ce97cf98f2050db8ece4efaa9ba041b1c463d35f975"
+    },
+    {
+      "path": "test/registered/kernels/ops/moe/test_qwen38_csf_gpu.py",
+      "sha256": "68f356bb0b56eb3e730c07adc905526f6f09b8db8539ebbcbc19a796d1b6ccc9"
+    },
+    {
+      "path": "test/registered/kernels/ops/moe/test_qwen38_fill_cta_table.py",
+      "sha256": "6e42c799009293250abd3b576394c57d3845952efb039c4998308b8723396d2d"
+    },
+    {
+      "path": "test/registered/unit/kernels/test_qwen38_fill_benchmark_coverage.py",
+      "sha256": "0e8842f7639e6762e85b9608d2f393ca5cdca2d7212c6e79a1ea98205ca1670b"
+    },
+    {
+      "path": "test/registered/unit/models/test_qwen38_mxfp8_roles.py",
+      "sha256": "3e086ecc9fd5ea543180387fa1109c334e442f2f19b354e041ec5383fc171a93"
+    }
+  ],
+  "patch_sha256": "10fa2d076a202af348a2ba8bac8ec5b72f254368ce5e3f895311ee83e1093fc2",
+  "validation": [
+    "clean apply against base commit",
+    "all 21 applied files match current working-tree bytes",
+    "reverse apply check",
+    "Python syntax parsing",
+    "git diff --check",
+    "real git index unchanged"
+  ],
+  "excluded": [
+    "trace and profiling data",
+    "audit reports and logs",
+    "temporary analysis scripts and evidence",
+    "previous patch packages"
+  ]
+}

@@ -26,6 +26,19 @@ _SM12X = frozenset({CapabilityRequirement.cuda(min_sm=(12, 0), max_sm=(12, 9))})
 _SM10X = frozenset({CapabilityRequirement.cuda(min_sm=(10, 0), max_sm=(10, 9))})
 _KDA_PACKAGE = "sglang.kernels.kda_kernels"
 
+register_kernel(
+    KernelSpec(
+        op="gemm.qwen38_mxfp8_small_m",
+        backend=KernelBackend.TRITON,
+        target="sglang.kernels.ops.gemm.qwen38_mxfp8_small_m:qwen38_mxfp8_small_m",
+        capabilities=_SM120,
+        format_signature=FormatSignature(
+            supported_dtypes=("float8_e4m3fn",),
+            description="M=1/3 Qwen38 projections; E4M3 payload, uint8 128x4 E8M0 scales, BF16 output",
+        ),
+    )
+)
+
 
 def _prefer_torch_rowwise_fp8(
     mat_a: torch.Tensor,

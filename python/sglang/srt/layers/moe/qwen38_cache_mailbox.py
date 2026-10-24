@@ -18,6 +18,7 @@ from sglang.kernels.ops.moe.qwen38_expert_cache import (
     _module,
     cache_alpha_scatter,
 )
+from sglang.srt.environ import envs
 from sglang.srt.layers.moe.qwen38_cache_runtime import PreparedExperts
 
 
@@ -53,6 +54,12 @@ class DecodeMissMailbox:
         if fill_cta not in tuple(str(i) for i in range(1, 9)) + ("adaptive",):
             raise ValueError("SGLANG_QWEN38_FILL_CTA must be 1..8 or adaptive")
         self.fill_cta = 0 if fill_cta == "adaptive" else int(fill_cta)
+        if envs.SGLANG_OPT_QWEN38_FILL_CTA_TABLE.get():
+            if fill_cta != "adaptive":
+                raise ValueError(
+                    "candidate CTA table requires SGLANG_QWEN38_FILL_CTA=adaptive"
+                )
+            self.fill_cta = -1
         layers, experts = runtime.manifest.num_layers, runtime.manifest.num_experts
         # Original hits, all-hit calls, original misses, GPU fill calls.
         self.hit_stats = torch.zeros(

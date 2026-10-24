@@ -1,22 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
+#include "qwen38_layered_policy.cuh"
 #include "tvm_ffi_utils.h"
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cuda_runtime.h>
-#include "qwen38_layered_policy.cuh"
 
 namespace {
 // NVFP4/SM120 policy, indexed by miss count. Use three CTAs across 5-7 misses;
 // counts above this table retain eight CTAs.
 __device__ __constant__ int kMailboxCtasByMiss[11] = {8, 8, 5, 4, 4, 3, 3, 3, 2, 2, 1};
-template <bool Adaptive = false, bool Tiered = false>
-__global__ void mailbox_fill_kernel(
-    const int32_t* plan,
-    const int64_t* layout,
-    int tensors,
-    const volatile int32_t* failed) {
+template <bool Adaptive = false, bool Tiered = false, bool Candidate = false>
+__global__ void
+mailbox_fill_kernel(const int32_t* plan, const int64_t* layout, int tensors, const volatile int32_t* failed) {
   // The planner and fill run on the same stream. Immutable registered source
   // addresses need no CPU publication or acknowledgement before they are read.
   if (plan[0] || plan[3]) {
@@ -28,6 +25,16 @@ __global__ void mailbox_fill_kernel(
   int ctas = gridDim.y;
   if constexpr (Adaptive) {
     ctas = plan[1] <= 10 ? kMailboxCtasByMiss[plan[1]] : 8;
+    // Only change independently scanned buckets. Unmeasured verify union
+    // counts retain the baseline, including 11..19 and 21..29.
+    if constexpr (Candidate) {
+      if (plan[1] == 3)
+        ctas = 5;
+      else if (plan[1] == 4)
+        ctas = 3;
+      else if (plan[1] == 20 || plan[1] == 30)
+        ctas = 1;
+    }
     if (blockIdx.y >= ctas) return;
   }
   // Keep all-hit fills entirely on device. Only one thread per miss block
@@ -40,8 +47,8 @@ __global__ void mailbox_fill_kernel(
   for (int tensor = 0; tensor < tensors; ++tensor) {
     int64_t bytes = layout[columns * tensor + 1];
     auto* destination = reinterpret_cast<uint8_t*>(layout[columns * tensor]) + slot * bytes;
-    const uint8_t* source = reinterpret_cast<const uint8_t*>(layout[columns * tensor + 2]) +
-        static_cast<int64_t>(expert) * bytes;
+    const uint8_t* source =
+        reinterpret_cast<const uint8_t*>(layout[columns * tensor + 2]) + static_cast<int64_t>(expert) * bytes;
     int64_t i = static_cast<int64_t>(blockIdx.y) * blockDim.x + threadIdx.x;
     int64_t stride = static_cast<int64_t>(blockDim.x) * ctas;
     if ((reinterpret_cast<uintptr_t>(source) | reinterpret_cast<uintptr_t>(destination) | bytes) % 16 == 0) {
@@ -87,11 +94,12 @@ struct Qwen38MailboxRegister {
     const auto pointer_end = std::chrono::steady_clock::now();
     const char* observation = std::getenv("SGLANG_QWEN38_OBSERVE");
     if (!observation || observation[0] != '0') {
-      std::fprintf(stderr,
+      std::fprintf(
+          stderr,
           "Qwen38Register bytes=%lld register_ms=%.3f device_pointer_ms=%.3f status=%d\n",
           static_cast<long long>(bytes.size(0)),
-          std::chrono::duration<double, std::milli>(register_end-register_start).count(),
-          std::chrono::duration<double, std::milli>(pointer_end-register_end).count(),
+          std::chrono::duration<double, std::milli>(register_end - register_start).count(),
+          std::chrono::duration<double, std::milli>(pointer_end - register_end).count(),
           static_cast<int>(status));
     }
     if (status != cudaSuccess) cudaHostUnregister(bytes.data_ptr());
@@ -108,16 +116,12 @@ struct Qwen38MailboxUnregister {
 };
 
 struct Qwen38MailboxFill {
-  static void
-  run(TensorView plan,
-      TensorView layout,
-      int64_t top_k,
-      int64_t failed) {
+  static void run(TensorView plan, TensorView layout, int64_t top_k, int64_t failed) {
     run_config(plan, layout, top_k, failed, 8);
   }
-  static void run_config(TensorView plan, TensorView layout, int64_t top_k,
-                         int64_t failed, int64_t grid_y) {
-    TVM_FFI_ICHECK(grid_y >= 0 && grid_y <= 64);
+  static void run_config(TensorView plan, TensorView layout, int64_t top_k, int64_t failed, int64_t grid_y) {
+    // -1 selects the opt-in historical candidate; 0 is baseline adaptive.
+    TVM_FFI_ICHECK(grid_y >= -1 && grid_y <= 64);
     CHECK_INPUT_AND_TYPE(plan, dl_int32);
     CHECK_INPUT_AND_TYPE(layout, dl_int64);
     CHECK_DIM(1, plan);
@@ -128,25 +132,41 @@ struct Qwen38MailboxFill {
     TVM_FFI_ICHECK_GE(plan.size(0), 4);
     TVM_FFI_ICHECK_GT(top_k, 0);
     TVM_FFI_ICHECK_LE(top_k, 32);
-    if (layout.size(1) == 4 && grid_y == 0) {
+    if (layout.size(1) == 4 && grid_y == -1) {
+      mailbox_fill_kernel<true, true, true><<<dim3(top_k, 8), 256, 0, get_stream(plan.device())>>>(
+          static_cast<const int32_t*>(plan.data_ptr()),
+          static_cast<const int64_t*>(layout.data_ptr()),
+          layout.size(0),
+          reinterpret_cast<const volatile int32_t*>(failed));
+    } else if (grid_y == -1) {
+      mailbox_fill_kernel<true, false, true><<<dim3(top_k, 8), 256, 0, get_stream(plan.device())>>>(
+          static_cast<const int32_t*>(plan.data_ptr()),
+          static_cast<const int64_t*>(layout.data_ptr()),
+          layout.size(0),
+          reinterpret_cast<const volatile int32_t*>(failed));
+    } else if (layout.size(1) == 4 && grid_y == 0) {
       mailbox_fill_kernel<true, true><<<dim3(top_k, 8), 256, 0, get_stream(plan.device())>>>(
           static_cast<const int32_t*>(plan.data_ptr()),
-          static_cast<const int64_t*>(layout.data_ptr()), layout.size(0),
+          static_cast<const int64_t*>(layout.data_ptr()),
+          layout.size(0),
           reinterpret_cast<const volatile int32_t*>(failed));
     } else if (layout.size(1) == 4) {
       mailbox_fill_kernel<false, true><<<dim3(top_k, grid_y), 256, 0, get_stream(plan.device())>>>(
           static_cast<const int32_t*>(plan.data_ptr()),
-          static_cast<const int64_t*>(layout.data_ptr()), layout.size(0),
+          static_cast<const int64_t*>(layout.data_ptr()),
+          layout.size(0),
           reinterpret_cast<const volatile int32_t*>(failed));
     } else if (grid_y == 0) {
       mailbox_fill_kernel<true><<<dim3(top_k, 8), 256, 0, get_stream(plan.device())>>>(
           static_cast<const int32_t*>(plan.data_ptr()),
-          static_cast<const int64_t*>(layout.data_ptr()), layout.size(0),
+          static_cast<const int64_t*>(layout.data_ptr()),
+          layout.size(0),
           reinterpret_cast<const volatile int32_t*>(failed));
     } else {
       mailbox_fill_kernel<false><<<dim3(top_k, grid_y), 256, 0, get_stream(plan.device())>>>(
           static_cast<const int32_t*>(plan.data_ptr()),
-          static_cast<const int64_t*>(layout.data_ptr()), layout.size(0),
+          static_cast<const int64_t*>(layout.data_ptr()),
+          layout.size(0),
           reinterpret_cast<const volatile int32_t*>(failed));
     }
     TVM_FFI_ICHECK_EQ(cudaGetLastError(), cudaSuccess);
@@ -155,13 +175,13 @@ struct Qwen38MailboxFill {
 
 namespace sglang {
 namespace {
-__global__ void csf_headers_kernel(uint8_t* heads, int32_t count, int64_t stride, int64_t delta, uint64_t lower, uint64_t upper) {
+__global__ void
+csf_headers_kernel(uint8_t* heads, int32_t count, int64_t stride, int64_t delta, uint64_t lower, uint64_t upper) {
   const int32_t expert = static_cast<int32_t>(blockIdx.x * blockDim.x + threadIdx.x);
   if (expert >= count) return;
   uint8_t* head = heads + static_cast<int64_t>(expert) * stride;
   const uint64_t offset = *reinterpret_cast<const uint64_t*>(head + 976);
-  if (offset >= lower && offset < upper)
-    *reinterpret_cast<uint64_t*>(head + 992) = offset + delta;
+  if (offset >= lower && offset < upper) *reinterpret_cast<uint64_t*>(head + 992) = offset + delta;
 }
 }  // namespace
 
@@ -180,7 +200,12 @@ struct Qwen38CsfHeaders {
     TVM_FFI_ICHECK_GE(delta, -lower);
     if (!heads.size(0) || lower == upper) return;
     csf_headers_kernel<<<(heads.size(0) + 127) / 128, 128, 0, get_stream(heads.device())>>>(
-        static_cast<uint8_t*>(heads.data_ptr()), static_cast<int32_t>(heads.size(0)), heads.size(1), delta, lower, upper);
+        static_cast<uint8_t*>(heads.data_ptr()),
+        static_cast<int32_t>(heads.size(0)),
+        heads.size(1),
+        delta,
+        lower,
+        upper);
     TVM_FFI_ICHECK_EQ(cudaGetLastError(), cudaSuccess);
   }
 };
@@ -502,8 +527,7 @@ __global__ void plan_kernel(
 // One token, top-k <= 32. Only the small active list is sorted, preserving
 // the original planner's ascending expert order and its LFU/SLRU tie-breaks.
 // LFU only: parallel decay/victim scan, sequential sorted expert updates.
-__device__ bool better_victim(int a, int b, const int32_t* keys,
-                              const float* frequency, const int64_t* ages) {
+__device__ bool better_victim(int a, int b, const int32_t* keys, const float* frequency, const int64_t* ages) {
   if (a < 0) return false;
   if (b < 0) return true;
   bool empty_a = keys[a] < 0, empty_b = keys[b] < 0;
@@ -514,10 +538,22 @@ __device__ bool better_victim(int a, int b, const int32_t* keys,
   return a < b;
 }
 
-__device__ void parallel_lfu_plan(const int32_t* counts, const int32_t* active_ids,
-    int active, int experts, int slots, int32_t* lookup, int32_t* keys,
-    float* frequency, int64_t* ages, int64_t* generation, int64_t* clock,
-    int32_t* plan, float decay, bool export_routes, bool warp_reduce) {
+__device__ void parallel_lfu_plan(
+    const int32_t* counts,
+    const int32_t* active_ids,
+    int active,
+    int experts,
+    int slots,
+    int32_t* lookup,
+    int32_t* keys,
+    float* frequency,
+    int64_t* ages,
+    int64_t* generation,
+    int64_t* clock,
+    int32_t* plan,
+    float decay,
+    bool export_routes,
+    bool warp_reduce) {
   __shared__ int candidates[128];
   __shared__ int current_slot;
   if (threadIdx.x == 0) {
@@ -545,32 +581,30 @@ __device__ void parallel_lfu_plan(const int32_t* counts, const int32_t* active_i
         // Four warp minima replace seven full-block reduction barriers.
         for (int delta = 16; delta; delta >>= 1) {
           int other = __shfl_down_sync(0xffffffff, best, delta);
-          if ((threadIdx.x & 31) + delta < 32 &&
-              better_victim(other, best, keys, frequency, ages)) best = other;
+          if ((threadIdx.x & 31) + delta < 32 && better_victim(other, best, keys, frequency, ages)) best = other;
         }
         if ((threadIdx.x & 31) == 0) candidates[threadIdx.x >> 5] = best;
         __syncthreads();
         if (threadIdx.x == 0) {
           best = candidates[0];
           for (int warp = 1; warp < 4; ++warp)
-            if (better_victim(candidates[warp], best, keys, frequency, ages))
-              best = candidates[warp];
+            if (better_victim(candidates[warp], best, keys, frequency, ages)) best = candidates[warp];
           candidates[0] = best;
         }
       } else {
         candidates[threadIdx.x] = best;
         __syncthreads();
-        for (int stride = blockDim.x/2; stride; stride /= 2) {
+        for (int stride = blockDim.x / 2; stride; stride /= 2) {
           if (threadIdx.x < stride &&
-              better_victim(candidates[threadIdx.x+stride], candidates[threadIdx.x],
-                            keys, frequency, ages))
-            candidates[threadIdx.x] = candidates[threadIdx.x+stride];
+              better_victim(candidates[threadIdx.x + stride], candidates[threadIdx.x], keys, frequency, ages))
+            candidates[threadIdx.x] = candidates[threadIdx.x + stride];
           __syncthreads();
         }
       }
       if (threadIdx.x == 0) {
         current_slot = candidates[0];
-        if (current_slot < 0) plan[0] = 2;
+        if (current_slot < 0)
+          plan[0] = 2;
         else {
           int slot = current_slot;
           if (keys[slot] >= 0) lookup[keys[slot]] = -1;
@@ -579,8 +613,8 @@ __device__ void parallel_lfu_plan(const int32_t* counts, const int32_t* active_i
           generation[slot] += 1;
           frequency[slot] = 0;
           int miss = plan[1]++;
-          plan[4+2*miss] = expert;
-          plan[5+2*miss] = slot;
+          plan[4 + 2 * miss] = expert;
+          plan[5 + 2 * miss] = slot;
         }
       }
       __syncthreads();
@@ -643,8 +677,7 @@ __global__ void decode_plan_kernel(
   __syncthreads();
   if (threadIdx.x < route_count) {
     int expert = ids[threadIdx.x];
-    if (early_ids) early_ids[threadIdx.x] =
-        (expert >= 0 && expert < experts) ? lookup[expert] : -1;
+    if (early_ids) early_ids[threadIdx.x] = (expert >= 0 && expert < experts) ? lookup[expert] : -1;
     if (expert >= 0 && expert < experts)
       atomicAdd(histogram + expert, 1);
     else if (expert != -1)
@@ -726,10 +759,11 @@ __global__ void decode_plan_kernel(
             if (victim_heat[warp] < victim) victim = victim_heat[warp];
             residents += resident_count[warp];
           }
-          cpu_count = sglang::layered_lfu_select(ids, lookup, active_ids, active,
-              original_misses, slots - residents, victim, *hybrid, filtered_ids);
+          cpu_count = sglang::layered_lfu_select(
+              ids, lookup, active_ids, active, original_misses, slots - residents, victim, *hybrid, filtered_ids);
         } else {
-          for (int j = 0; j < route_count; ++j) filtered_ids[j] = ids[j];
+          for (int j = 0; j < route_count; ++j)
+            filtered_ids[j] = ids[j];
         }
       } else {
         cpu_count = sglang::layered_select(ids, lookup, experts, slots, *hybrid, filtered_ids);
@@ -750,7 +784,8 @@ __global__ void decode_plan_kernel(
       hybrid->stats[3] += cpu_count != 0;
     } else if (hybrid) {
       hybrid->stats[0] += original_misses;
-      for (int j = 0; j < route_count; ++j) filtered_ids[j] = ids[j];
+      for (int j = 0; j < route_count; ++j)
+        filtered_ids[j] = ids[j];
       hybrid->descriptor[0] = 0;
       hybrid->descriptor[1] = hybrid->sequence;
     }
@@ -798,8 +833,21 @@ __global__ void decode_plan_kernel(
   }
   __syncthreads();
   if (!all_hit && parallel_miss && !policy) {
-    parallel_lfu_plan(histogram, active_ids, active_count, experts, slots,
-        lookup, keys, frequency, ages, generation, clock, plan, decay, export_routes,
+    parallel_lfu_plan(
+        histogram,
+        active_ids,
+        active_count,
+        experts,
+        slots,
+        lookup,
+        keys,
+        frequency,
+        ages,
+        generation,
+        clock,
+        plan,
+        decay,
+        export_routes,
         parallel_miss == 2);
   }
   if (all_hit) {
@@ -830,7 +878,8 @@ __global__ void decode_plan_kernel(
       for (int i = 0; i < route_count; ++i) {
         int expert = ids[i];
         if (expert >= 0 && expert < experts && lookup[expert] >= 0) {
-          safe_slot = lookup[expert]; break;
+          safe_slot = lookup[expert];
+          break;
         }
       }
     }
@@ -841,7 +890,8 @@ __global__ void decode_plan_kernel(
     int slot = (expert >= 0 && expert < experts) ? lookup[expert] : -1;
     if (hybrid) {
       hybrid->cpu_ids[threadIdx.x] = original_ids[threadIdx.x] >= 0 && original_ids[threadIdx.x] < experts && expert < 0
-          ? original_ids[threadIdx.x] : -1;
+                                         ? original_ids[threadIdx.x]
+                                         : -1;
       hybrid->gpu_weights[threadIdx.x] = expert < 0 ? 0.0f : hybrid->weights[threadIdx.x];
       if (hybrid->safe_mask && slot < 0 && safe_slot >= 0) slot = safe_slot;
     }
@@ -886,7 +936,8 @@ __global__ void decode_plan_kernel(
             sample[1 + i] = original_active_ids[i];
         } else {
           sample[0] = active_count;
-          for (int i = 0; i < active_count; ++i) sample[1 + i] = active_ids[i];
+          for (int i = 0; i < active_count; ++i)
+            sample[1 + i] = active_ids[i];
         }
       }
     }
@@ -1083,25 +1134,67 @@ struct Qwen38CacheDecodePlan {
         static_cast<int>(slots * protected_fraction),
         plan.size(0) == 4 + 4 * slots,
         reinterpret_cast<int64_t*>(hit_stats),
-        reinterpret_cast<int32_t*>(sample), false);
+        reinterpret_cast<int32_t*>(sample),
+        false);
     auto status = cudaGetLastError();
     TVM_FFI_ICHECK_EQ(status, cudaSuccess) << cudaGetErrorString(status);
   }
   static void run_parallel(
-      TensorView ids, TensorView output, TensorView counts, TensorView lookup,
-      TensorView keys, TensorView frequency, TensorView ages, TensorView generation,
-      TensorView clock, TensorView plan, double decay, int64_t policy,
-      double protected_fraction, int64_t hit_stats, int64_t sample, int64_t parallel_miss) {
-    run_parallel_impl(ids, output, counts, lookup, keys, frequency, ages,
-        generation, clock, plan, decay, policy, protected_fraction, hit_stats,
-        sample, parallel_miss, 0, 0);
+      TensorView ids,
+      TensorView output,
+      TensorView counts,
+      TensorView lookup,
+      TensorView keys,
+      TensorView frequency,
+      TensorView ages,
+      TensorView generation,
+      TensorView clock,
+      TensorView plan,
+      double decay,
+      int64_t policy,
+      double protected_fraction,
+      int64_t hit_stats,
+      int64_t sample,
+      int64_t parallel_miss) {
+    run_parallel_impl(
+        ids,
+        output,
+        counts,
+        lookup,
+        keys,
+        frequency,
+        ages,
+        generation,
+        clock,
+        plan,
+        decay,
+        policy,
+        protected_fraction,
+        hit_stats,
+        sample,
+        parallel_miss,
+        0,
+        0);
   }
   static void run_parallel_early(
-      TensorView ids, TensorView output, TensorView counts, TensorView lookup,
-      TensorView keys, TensorView frequency, TensorView ages, TensorView generation,
-      TensorView clock, TensorView plan, double decay, int64_t policy,
-      double protected_fraction, int64_t hit_stats, int64_t sample, int64_t parallel_miss,
-      TensorView early_ids, TensorView late_ids) {
+      TensorView ids,
+      TensorView output,
+      TensorView counts,
+      TensorView lookup,
+      TensorView keys,
+      TensorView frequency,
+      TensorView ages,
+      TensorView generation,
+      TensorView clock,
+      TensorView plan,
+      double decay,
+      int64_t policy,
+      double protected_fraction,
+      int64_t hit_stats,
+      int64_t sample,
+      int64_t parallel_miss,
+      TensorView early_ids,
+      TensorView late_ids) {
     CHECK_INPUT_AND_TYPE(early_ids, dl_int32);
     CHECK_INPUT_AND_TYPE(late_ids, dl_int32);
     CHECK_DIM(2, early_ids);
@@ -1112,49 +1205,172 @@ struct Qwen38CacheDecodePlan {
     TVM_FFI_ICHECK_EQ(early_ids.size(1), ids.size(1));
     TVM_FFI_ICHECK_EQ(late_ids.size(0), ids.size(0));
     TVM_FFI_ICHECK_EQ(late_ids.size(1), ids.size(1));
-    run_parallel_impl(ids, output, counts, lookup, keys, frequency, ages,
-        generation, clock, plan, decay, policy, protected_fraction, hit_stats,
-        sample, parallel_miss, reinterpret_cast<int64_t>(early_ids.data_ptr()),
+    run_parallel_impl(
+        ids,
+        output,
+        counts,
+        lookup,
+        keys,
+        frequency,
+        ages,
+        generation,
+        clock,
+        plan,
+        decay,
+        policy,
+        protected_fraction,
+        hit_stats,
+        sample,
+        parallel_miss,
+        reinterpret_cast<int64_t>(early_ids.data_ptr()),
         reinterpret_cast<int64_t>(late_ids.data_ptr()));
   }
   static void run_layered(
-      TensorView ids, TensorView output, TensorView counts, TensorView lookup,
-      TensorView keys, TensorView frequency, TensorView ages, TensorView generation,
-      TensorView clock, TensorView plan, double decay, int64_t policy,
-      double protected_fraction, int64_t hit_stats, int64_t sample, int64_t parallel_miss,
-      TensorView x, TensorView weights, TensorView table, TensorView gpu_weights,
-      TensorView cpu_ids, TensorView descriptor,
-      TensorView stats, int64_t host_page, int64_t layer, int64_t sequence, int64_t forced, int64_t safe_mask,
+      TensorView ids,
+      TensorView output,
+      TensorView counts,
+      TensorView lookup,
+      TensorView keys,
+      TensorView frequency,
+      TensorView ages,
+      TensorView generation,
+      TensorView clock,
+      TensorView plan,
+      double decay,
+      int64_t policy,
+      double protected_fraction,
+      int64_t hit_stats,
+      int64_t sample,
+      int64_t parallel_miss,
+      TensorView x,
+      TensorView weights,
+      TensorView table,
+      TensorView gpu_weights,
+      TensorView cpu_ids,
+      TensorView descriptor,
+      TensorView stats,
+      int64_t host_page,
+      int64_t layer,
+      int64_t sequence,
+      int64_t forced,
+      int64_t safe_mask,
       int64_t overlap) {
-    auto args = sglang::layered_args(ids, x, weights, table, gpu_weights, cpu_ids,
-                                    descriptor, stats, host_page, layer, sequence, forced, safe_mask, overlap, keys.size(0));
+    auto args = sglang::layered_args(
+        ids,
+        x,
+        weights,
+        table,
+        gpu_weights,
+        cpu_ids,
+        descriptor,
+        stats,
+        host_page,
+        layer,
+        sequence,
+        forced,
+        safe_mask,
+        overlap,
+        keys.size(0));
     TVM_FFI_ICHECK_EQ(policy, 0);
-    run_parallel_impl(ids, output, counts, lookup, keys, frequency, ages,
-        generation, clock, plan, decay, policy, protected_fraction, hit_stats,
-        sample, parallel_miss, 0, 0, &args);
+    run_parallel_impl(
+        ids,
+        output,
+        counts,
+        lookup,
+        keys,
+        frequency,
+        ages,
+        generation,
+        clock,
+        plan,
+        decay,
+        policy,
+        protected_fraction,
+        hit_stats,
+        sample,
+        parallel_miss,
+        0,
+        0,
+        &args);
   }
   static void run_layered_lfu(
-      TensorView ids, TensorView output, TensorView counts, TensorView lookup,
-      TensorView keys, TensorView frequency, TensorView ages, TensorView generation,
-      TensorView clock, TensorView plan, double decay, int64_t policy,
-      double protected_fraction, int64_t hit_stats, int64_t sample, int64_t parallel_miss,
-      TensorView x, TensorView weights, TensorView table, TensorView gpu_weights,
-      TensorView cpu_ids, TensorView descriptor,
-      TensorView stats, int64_t host_page, int64_t layer, int64_t sequence, int64_t forced, int64_t safe_mask,
-      int64_t overlap, TensorView expert_frequency, int64_t max_cpu_experts) {
-    auto args = sglang::layered_args(ids, x, weights, table, gpu_weights, cpu_ids,
-                                    descriptor, stats, host_page, layer, sequence, forced, safe_mask, overlap, keys.size(0));
+      TensorView ids,
+      TensorView output,
+      TensorView counts,
+      TensorView lookup,
+      TensorView keys,
+      TensorView frequency,
+      TensorView ages,
+      TensorView generation,
+      TensorView clock,
+      TensorView plan,
+      double decay,
+      int64_t policy,
+      double protected_fraction,
+      int64_t hit_stats,
+      int64_t sample,
+      int64_t parallel_miss,
+      TensorView x,
+      TensorView weights,
+      TensorView table,
+      TensorView gpu_weights,
+      TensorView cpu_ids,
+      TensorView descriptor,
+      TensorView stats,
+      int64_t host_page,
+      int64_t layer,
+      int64_t sequence,
+      int64_t forced,
+      int64_t safe_mask,
+      int64_t overlap,
+      TensorView expert_frequency,
+      int64_t max_cpu_experts) {
+    auto args = sglang::layered_args(
+        ids,
+        x,
+        weights,
+        table,
+        gpu_weights,
+        cpu_ids,
+        descriptor,
+        stats,
+        host_page,
+        layer,
+        sequence,
+        forced,
+        safe_mask,
+        overlap,
+        keys.size(0));
     CHECK_INPUT_AND_TYPE(expert_frequency, dl_float32);
-    CHECK_CONTIGUOUS(expert_frequency); CHECK_DIM(1, expert_frequency);
+    CHECK_CONTIGUOUS(expert_frequency);
+    CHECK_DIM(1, expert_frequency);
     CHECK_DEVICE(ids, expert_frequency);
     TVM_FFI_ICHECK_EQ(expert_frequency.size(0), lookup.size(0));
-    TVM_FFI_ICHECK_GE(max_cpu_experts, 0); TVM_FFI_ICHECK_LE(max_cpu_experts, 30);
+    TVM_FFI_ICHECK_GE(max_cpu_experts, 0);
+    TVM_FFI_ICHECK_LE(max_cpu_experts, 30);
     args.expert_frequency = static_cast<float*>(expert_frequency.data_ptr());
     args.max_cpu_experts = static_cast<int>(max_cpu_experts);
     TVM_FFI_ICHECK_EQ(policy, 0);
-    run_parallel_impl(ids, output, counts, lookup, keys, frequency, ages,
-        generation, clock, plan, decay, policy, protected_fraction, hit_stats,
-        sample, parallel_miss, 0, 0, &args);
+    run_parallel_impl(
+        ids,
+        output,
+        counts,
+        lookup,
+        keys,
+        frequency,
+        ages,
+        generation,
+        clock,
+        plan,
+        decay,
+        policy,
+        protected_fraction,
+        hit_stats,
+        sample,
+        parallel_miss,
+        0,
+        0,
+        &args);
   }
   static void run_parallel_impl(
       TensorView ids,
@@ -1247,8 +1463,11 @@ struct Qwen38CacheDecodePlan {
         static_cast<int>(slots * protected_fraction),
         plan.size(0) == 4 + 4 * slots,
         reinterpret_cast<int64_t*>(hit_stats),
-        reinterpret_cast<int32_t*>(sample), parallel_miss,
-        reinterpret_cast<int32_t*>(early_ids), reinterpret_cast<int32_t*>(late_ids), hybrid ? *hybrid : sglang::LayeredHybridArgs{});
+        reinterpret_cast<int32_t*>(sample),
+        parallel_miss,
+        reinterpret_cast<int32_t*>(early_ids),
+        reinterpret_cast<int32_t*>(late_ids),
+        hybrid ? *hybrid : sglang::LayeredHybridArgs{});
     auto status = cudaGetLastError();
     TVM_FFI_ICHECK_EQ(status, cudaSuccess) << cudaGetErrorString(status);
   }
@@ -1299,8 +1518,12 @@ struct Qwen38RegisteredCopy {
     CHECK_DIM(1, source);
     CHECK_DIM(1, destination);
     TVM_FFI_ICHECK_EQ(source.size(0), destination.size(0));
-    auto status = cudaMemcpyAsync(destination.data_ptr(), source.data_ptr(),
-        source.size(0), cudaMemcpyHostToDevice, get_stream(destination.device()));
+    auto status = cudaMemcpyAsync(
+        destination.data_ptr(),
+        source.data_ptr(),
+        source.size(0),
+        cudaMemcpyHostToDevice,
+        get_stream(destination.device()));
     TVM_FFI_ICHECK_EQ(status, cudaSuccess) << cudaGetErrorString(status);
   }
 };

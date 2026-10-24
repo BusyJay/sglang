@@ -8,6 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from sglang.kernels.ops.gemm.hc_mix import fused_hc_mix, fused_hc_mix_supported
+from sglang.srt.environ import envs
 
 
 @lru_cache(None)
@@ -307,6 +308,7 @@ class GatedResidual(HyperConnectionBase):
                 self.input_mix_weight_up.weight,
                 self.hc_count,
                 self.hidden_size,
+                split_k=envs.SGLANG_OPT_HC_MIX_SPLIT_K.get(),
             ).to(self.params_dtype)
         else:
             mixed_input = self._mix_compute(

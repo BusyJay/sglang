@@ -9,6 +9,8 @@ import re
 from typing import Optional
 
 import torch
+
+from sglang.srt.environ import envs
 from sglang.srt.layers.quantization.base_config import (
     FusedMoEMethodBase,
     QuantizationConfig,
@@ -706,6 +708,25 @@ class Qwen38CachedModelOptConfig(QuantizationConfig):
                 raise ValueError(f"{prefix} must use serialized NVFP4 routed experts")
             return Qwen38CachedNvFp4MoeMethod(self.manifest, prefix)
         method = self.delegate.get_quant_method(layer, prefix)
+        # Mark only native MXFP8 roles in this model adapter. The dense FP8
+        # implementation verifies exact local shape and backend at execution.
+        if envs.SGLANG_OPT_QWEN38_MXFP8_SMALL_M.get():
+            from sglang.srt.layers.quantization.fp8 import Fp8LinearMethod
+
+            roles = {
+                "mlp.shared_expert.gate_up_proj": "shared_gate_up",
+                "mlp.shared_expert.down_proj": "shared_down",
+                "linear_attn.in_proj_qkvz": "gdn_qkvz",
+                "linear_attn.in_proj_ba": "gdn_ba",
+                "linear_attn.out_proj": "gdn_out",
+                "self_attn.qkv_proj": "attention_qkv",
+                "self_attn.o_proj": "attention_out",
+            }
+            if isinstance(method, Fp8LinearMethod) and method.use_mxfp8:
+                for suffix, role in roles.items():
+                    if prefix.endswith("." + suffix):
+                        layer._qwen38_mxfp8_role = role
+                        break
         if self.gdn_value_heads is not None and re.search(
             r"(?:^|\.)layers\.\d+\.linear_attn\.in_proj_(?:qkvz|ba)$", prefix
         ):
