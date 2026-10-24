@@ -13,6 +13,7 @@ import os
 import time
 
 import torch
+
 from sglang.srt.environ import envs
 from sglang.srt.layers.moe.qwen38_cache_capacity import resolve_cache_slots
 from sglang.srt.layers.quantization.qwen38_nvfp4_cache import (
@@ -264,7 +265,17 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
             raise ValueError("decode_device_gate must be a JSON boolean")
         from sglang.srt.mem_cache.qwen38_kv_stages import validate_stages
 
-        stages = validate_stages(config.get("kv_cache_stages"))
+        stage_config = config.get("kv_cache_stages")
+        stages = True if stage_config == "auto" else validate_stages(stage_config)
+        auto_budget = config.get("cache_budget_bytes") == "auto"
+        if auto_budget and (
+            not stages
+            or not config.get("adaptive_cache", False)
+            or config.get("runtime_mode", "sync") != "threaded"
+        ):
+            raise ValueError(
+                "automatic expert capacity requires staged adaptive threaded runtime"
+            )
         if stages and (
             not config.get("adaptive_cache", False)
             or config.get("runtime_mode", "sync") != "threaded"
@@ -342,8 +353,15 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
         )
         from sglang.srt.layers.moe.qwen38_cache_capacity import slots_from_byte_budget
 
+        provisional_minimum = 10
+        if config.get("cache_budget_bytes") == "auto":
+            from sglang.srt.runtime_context import get_spec
+
+            provisional_minimum = max(
+                10, self.manifest.top_k * (get_spec().speculative_num_draft_tokens or 1)
+            )
         self.initial_layer_slots = resolve_cache_slots(
-            slots_from_byte_budget(config, self.manifest),
+            slots_from_byte_budget(config, self.manifest, minimum=provisional_minimum),
             self.manifest.num_layers,
             self.manifest.num_experts,
             minimum=10,
@@ -696,6 +714,25 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
                         "adaptive MTP cache must fit the full verify route bound in every layer"
                     )
             runtime.kv_cache_stages = self.config.get("kv_cache_stages")
+            if runtime.kv_cache_stages == "auto":
+                from sglang.srt.layers.moe.qwen38_auto_capacity import auto_kv_stages
+                from sglang.srt.runtime_context import get_schedule
+
+                runtime.kv_cache_stages = auto_kv_stages(
+                    model_config.context_len, get_schedule().chunked_prefill_size
+                )
+            runtime.auto_cache_budget = self.config.get("cache_budget_bytes") == "auto"
+            if runtime.auto_cache_budget:
+                from sglang.srt.model_executor.cuda_graph_config import (
+                    Backend,
+                    Phase,
+                    check_cuda_graph_backend,
+                )
+
+                if not check_cuda_graph_backend(Phase.DECODE, Backend.BREAKABLE):
+                    raise ValueError(
+                        "automatic expert capacity requires breakable decode graphs"
+                    )
             # Bounds how much cold prefix cache the KV loan may evict to reclaim a
             # tail it loaned to the expert pool. Absent means one stage gap; 0
             # keeps the historical behaviour of never evicting for a re-loan.

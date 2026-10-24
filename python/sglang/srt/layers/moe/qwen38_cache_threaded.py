@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import torch
+
 from sglang.kernels.ops.moe.qwen38_expert_cache import (
     cache_alpha_scatter,
     cache_decode_plan,
@@ -1402,6 +1403,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
             result["expert_physical_bytes"] = (
                 self.staged_pool.arena.backed_bytes + self.staged_pool.auxiliary_bytes
             )
+        result["auto_cache_plan"] = getattr(self, "auto_cache_plan", None)
         result["borrowed_prefill_arena"] = self.borrowed_arena
         result["borrowed_restore_runs"] = self.borrowed_restore_runs
         result["borrowed_restore_experts"] = self.borrowed_restore_experts

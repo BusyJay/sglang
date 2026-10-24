@@ -378,8 +378,10 @@ def capture_cuda_graphs(
 
     """
 
+    from sglang.srt.layers.moe.qwen38_auto_capacity import maybe_resolve_auto_capacity
     from sglang.srt.layers.moe.qwen38_startup_memory import memory_mark
 
+    maybe_resolve_auto_capacity(model_runner)
     probe = getattr(model_runner, "qwen38_startup_memory_probe", None)
     memory_mark(probe, "graph.before_shared_output")
     model_runner.graph_shared_output = GraphSharedOutput.create_for_model_runner(
