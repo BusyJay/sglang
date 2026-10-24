@@ -530,9 +530,10 @@ __device__ void parallel_lfu_plan(const int32_t* counts, const int32_t* active_i
   __syncthreads();
   for (int index = 0; index < active; ++index) {
     int expert = active_ids[index];
-    if (threadIdx.x == 0) current_slot = lookup[expert];
-    __syncthreads();
-    if (current_slot < 0) {
+    // Active IDs are unique and protected from eviction. Their lookup rows
+    // cannot change in earlier iterations, so hits need no block rendezvous.
+    int slot = lookup[expert];
+    if (slot < 0) {
       int best = -1;
       for (int slot = threadIdx.x; slot < slots; slot += blockDim.x) {
         if (keys[slot] >= 0 && counts[keys[slot]]) continue;
@@ -582,14 +583,16 @@ __device__ void parallel_lfu_plan(const int32_t* counts, const int32_t* active_i
       }
       __syncthreads();
       if (plan[0]) return;
+      slot = current_slot;
     }
     if (threadIdx.x == 0) {
-      ages[current_slot] = ++clock[0];
-      frequency[current_slot] += 1;
-      if (export_routes) plan[4+3*slots+plan[2]] = expert;
-      plan[4+2*slots+plan[2]++] = current_slot;
+      ages[slot] = ++clock[0];
+      frequency[slot] += 1;
+      if (export_routes) plan[4 + 3 * slots + plan[2]] = expert;
+      plan[4 + 2 * slots + plan[2]++] = slot;
     }
-    __syncthreads();
+    // Only active metadata changed here; victim scans exclude those slots.
+    // The miss-install barrier above publishes keys before the next scan.
   }
 }
 
@@ -757,8 +760,14 @@ __global__ void decode_plan_kernel(
   if (hybrid) ids = filtered_ids;
   if (threadIdx.x == 0) {
     all_hit = !policy && !histogram[experts] && active_count <= slots;
-    for (int i = 0; i < active_count && all_hit; ++i) {
-      all_hit = lookup[active_ids[i]] >= 0;
+    if (hybrid) {
+      // CPU selection may have removed misses from the active GPU union.
+      for (int i = 0; i < active_count && all_hit; ++i) {
+        all_hit = lookup[active_ids[i]] >= 0;
+      }
+    } else {
+      // No lookup or route mutation occurred since the warp counted misses.
+      all_hit = all_hit && original_misses == 0;
     }
     if (all_hit) {
       clock_before = clock[0];
