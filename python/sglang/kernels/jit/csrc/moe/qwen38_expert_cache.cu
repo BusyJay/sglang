@@ -646,25 +646,36 @@ __global__ void decode_plan_kernel(
       atomicAdd(histogram + experts, 1);
   }
   __syncthreads();
-  if (threadIdx.x == 0) {
-    int active = 0;
-    for (int i = 0; i < route_count; ++i) {
-      int expert = ids[i];
-      if (expert < 0 || expert >= experts) continue;
-      int pos = 0;
-      while (pos < active && active_ids[pos] < expert)
-        ++pos;
-      if (pos < active && active_ids[pos] == expert) continue;
-      for (int j = active; j > pos; --j)
-        active_ids[j] = active_ids[j - 1];
-      active_ids[pos] = expert;
-      ++active;
+  if (threadIdx.x < 32) {
+    // The host bounds this union to one warp. Sort in registers, then compact
+    // unique valid IDs in ascending order, preserving LFU ages and tie breaks.
+    const int lane = threadIdx.x;
+    int expert = lane < route_count ? ids[lane] : experts;
+    if (expert < 0 || expert >= experts) expert = experts;
+#pragma unroll
+    for (int size = 2; size <= 32; size *= 2) {
+#pragma unroll
+      for (int stride = size / 2; stride > 0; stride /= 2) {
+        int other = __shfl_xor_sync(0xffffffff, expert, stride);
+        bool take_min = ((lane & stride) == 0) == ((lane & size) == 0);
+        expert = take_min ? min(expert, other) : max(expert, other);
+      }
     }
-    original_active = active;
-    for (int j = 0; j < active; ++j) original_active_ids[j] = active_ids[j];
-    original_misses = 0;
-    for (int j = 0; j < active; ++j) original_misses += lookup[active_ids[j]] < 0;
-    active_count = active;
+    int previous = __shfl_up_sync(0xffffffff, expert, 1);
+    bool unique = expert < experts && (lane == 0 || expert != previous);
+    unsigned mask = __ballot_sync(0xffffffff, unique);
+    bool missing = false;
+    if (unique) {
+      int position = __popc(mask & ((1u << lane) - 1));
+      active_ids[position] = expert;
+      original_active_ids[position] = expert;
+      missing = lookup[expert] < 0;
+    }
+    unsigned misses = __ballot_sync(0xffffffff, missing);
+    if (lane == 0) {
+      original_active = active_count = __popc(mask);
+      original_misses = __popc(misses);
+    }
   }
   __syncthreads();
   if (hybrid && hybrid->expert_frequency && !histogram[experts] && original_active <= slots) {
