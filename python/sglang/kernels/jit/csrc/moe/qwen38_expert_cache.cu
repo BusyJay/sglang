@@ -173,9 +173,11 @@ struct Qwen38CsfHeaders {
     CHECK_CONTIGUOUS(heads);
     TVM_FFI_ICHECK_GE(heads.size(1), 1024);
     TVM_FFI_ICHECK_EQ(heads.size(1) % 16, 0);
-    TVM_FFI_ICHECK_GE(delta, 0);
     TVM_FFI_ICHECK_GE(lower, 0);
     TVM_FFI_ICHECK_GE(upper, lower);
+    // delta is device_address - file_offset. CUDA VMM allocators may return
+    // low virtual addresses, so a valid bank can have a negative delta.
+    TVM_FFI_ICHECK_GE(delta, -lower);
     if (!heads.size(0) || lower == upper) return;
     csf_headers_kernel<<<(heads.size(0) + 127) / 128, 128, 0, get_stream(heads.device())>>>(
         static_cast<uint8_t*>(heads.data_ptr()), static_cast<int32_t>(heads.size(0)), heads.size(1), delta, lower, upper);

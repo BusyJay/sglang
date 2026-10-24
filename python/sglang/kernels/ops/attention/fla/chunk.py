@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2023-2025, Songlin Yang, Yu Zhang
 
+from math import prod
 from typing import Optional
 
 import torch
@@ -45,12 +46,24 @@ def chunk_gated_delta_rule_fwd(
     cu_seqlens: Optional[torch.LongTensor] = None,
     chunk_indices: torch.LongTensor | None = None,
     inplace_update: bool = True,
+    out_h: Optional[torch.Tensor] = None,
+    out_w: Optional[torch.Tensor] = None,
+    inplace_inputs: bool = False,
 ):
     g = chunk_local_cumsum(
         g, chunk_size=CHUNK_SIZE, cu_seqlens=cu_seqlens, chunk_indices=chunk_indices
     )
 
     # fused kkt + solve_tril + recompute_w_u
+    intra_storage = {"out_w": out_w} if out_w is not None else {}
+    if out_h is not None:
+        B, T = k.shape[:2]
+        H = v.shape[-2]
+        a_count = B * T * H * CHUNK_SIZE
+        # A is consumed before h is written; both can use the same bytes.
+        if out_h.numel() >= a_count:
+            intra_storage["out_A"] = out_h.view(-1)[:a_count].view(B, T, H, CHUNK_SIZE)
+        intra_storage.update(out_w=out_w, inplace_u=inplace_inputs)
     w, u, A = chunk_gated_delta_rule_fwd_intra(
         k=k,
         v=v,
@@ -58,7 +71,12 @@ def chunk_gated_delta_rule_fwd(
         beta=beta,
         cu_seqlens=cu_seqlens,
         chunk_indices=chunk_indices,
+        **intra_storage,
     )
+    if out_h is not None:
+        # Serving does not retain backward intermediates. A is dead after
+        # recomputing w/u; release it before the recurrent-state allocation.
+        A = None
 
     h, v_new = chunk_gated_delta_rule_fwd_h(
         k=k,
@@ -70,6 +88,7 @@ def chunk_gated_delta_rule_fwd(
         cu_seqlens=cu_seqlens,
         chunk_indices=chunk_indices,
         inplace_update=inplace_update,
+        **({"out_h": out_h, "inplace_new_value": True} if out_h is not None else {}),
     )
     # The state update has consumed u. Keeping it alive through the output
     # allocation needlessly overlaps two full token/value buffers. Likewise w
@@ -77,6 +96,11 @@ def chunk_gated_delta_rule_fwd(
     del u
     if SUPPRESS_LEVEL < 3:
         del w
+    out_o = None
+    if SUPPRESS_LEVEL < 3 and out_h is not None and out_w.numel() >= v_new.numel():
+        # The recurrent kernel has consumed w. Its disjoint scratch region
+        # can now hold the output, consumed by the caller before scratch reuse.
+        out_o = out_w.view(-1)[: v_new.numel()].view(v_new.shape)
     o = chunk_fwd_o(
         q=q,
         k=k,
@@ -85,6 +109,7 @@ def chunk_gated_delta_rule_fwd(
         g=g,
         scale=scale,
         cu_seqlens=cu_seqlens,
+        **({"out": out_o} if out_o is not None else {}),
     )
     if SUPPRESS_LEVEL < 3:
         return g, o, A, None, h, None
@@ -109,19 +134,51 @@ class ChunkGatedDeltaRuleFunction(torch.autograd.Function):
         cu_seqlens: Optional[torch.LongTensor] = None,
         use_qk_l2norm_in_kernel: bool = False,
         inplace_update: bool = True,
+        prefill_scratch: Optional[torch.Tensor] = None,
     ):
         q_orig = q
         k_orig = k
 
+        chunk_indices = None
+        out_h, out_w = None, None
+        if prefill_scratch is not None and SUPPRESS_LEVEL < 3:
+            if cu_seqlens is not None:
+                chunk_indices = prepare_chunk_indices(cu_seqlens, CHUNK_SIZE)
+            B, T, Hg, K = k.shape
+            H, V = v.shape[-2:]
+            NT = (
+                (T + CHUNK_SIZE - 1) // CHUNK_SIZE
+                if chunk_indices is None
+                else len(chunk_indices)
+            )
+            h_shape, w_shape = (B, NT, H, V, K), (B, T, H, K)
+            h_count, w_count = prod(h_shape), prod(w_shape)
+            if (
+                prefill_scratch.dtype == k.dtype
+                and prefill_scratch.device == k.device
+                and prefill_scratch.is_contiguous()
+                and prefill_scratch.numel() >= h_count + w_count
+            ):
+                flat = prefill_scratch.view(-1)
+                out_h = flat[:h_count].view(h_shape)
+                out_w = flat[h_count : h_count + w_count].view(w_shape)
+        # The runtime opts in only for consumed inference Q/K/V temporaries.
+        inplace_inputs = False
+        if out_h is not None:
+            spans = [
+                (t.data_ptr(), t.data_ptr() + t.numel() * t.element_size())
+                for t in (q, k, v)
+            ]
+            inplace_inputs = all(
+                a1 <= b0 or b1 <= a0
+                for i, (a0, a1) in enumerate(spans)
+                for b0, b1 in spans[i + 1 :]
+            )
         if use_qk_l2norm_in_kernel:
-            q = l2norm_fwd(q)
-            k = l2norm_fwd(k)
-
-        chunk_indices = (
-            prepare_chunk_indices(cu_seqlens, CHUNK_SIZE)
-            if cu_seqlens is not None
-            else None
-        )
+            q = l2norm_fwd(q, inplace=inplace_inputs)
+            k = l2norm_fwd(k, inplace=inplace_inputs)
+        if chunk_indices is None and cu_seqlens is not None:
+            chunk_indices = prepare_chunk_indices(cu_seqlens, CHUNK_SIZE)
         g, o, A, w, h, v_new = chunk_gated_delta_rule_fwd(
             q=q,
             k=k,
@@ -134,6 +191,9 @@ class ChunkGatedDeltaRuleFunction(torch.autograd.Function):
             cu_seqlens=cu_seqlens,
             chunk_indices=chunk_indices,
             inplace_update=inplace_update,
+            out_h=out_h,
+            out_w=out_w,
+            inplace_inputs=inplace_inputs,
         )
         return o.to(q.dtype), h
 
@@ -152,6 +212,7 @@ def chunk_gated_delta_rule(
     head_first: bool = False,
     use_qk_l2norm_in_kernel: bool = False,
     inplace_update: bool = True,
+    prefill_scratch: Optional[torch.Tensor] = None,
 ):
     r"""
     Args:
@@ -182,6 +243,10 @@ def chunk_gated_delta_rule(
             Default: `False`.
         inplace_update (Optional[bool]):
             Whether to write final states back to `initial_state`. Default: `True`.
+        prefill_scratch (Optional[torch.Tensor]):
+            Borrowed, same-dtype contiguous inference scratch. Opting in permits
+            overwriting consumed Q/K/V temporaries. Returned output and chunk
+            states can alias scratch, valid until its next use. Default: `None`.
 
     Returns:
         o (torch.Tensor):
@@ -219,12 +284,12 @@ def chunk_gated_delta_rule(
         )
     """
     assert q.dtype == k.dtype == v.dtype
-    assert q.dtype != torch.float32, (
-        "ChunkGatedDeltaRuleFunction does not support float32. Please use bfloat16."
-    )
-    assert len(beta.shape) == 3, (
-        "beta must be of shape [B, T, H] if head_first=False, or [B, H, T] otherwise."
-    )
+    assert (
+        q.dtype != torch.float32
+    ), "ChunkGatedDeltaRuleFunction does not support float32. Please use bfloat16."
+    assert (
+        len(beta.shape) == 3
+    ), "beta must be of shape [B, T, H] if head_first=False, or [B, H, T] otherwise."
 
     if head_first:
         raise DeprecationWarning(
@@ -257,6 +322,8 @@ def chunk_gated_delta_rule(
             )
     if scale is None:
         scale = k.shape[-1] ** -0.5
+    if prefill_scratch is not None and any(t.requires_grad for t in (q, k, v, g, beta)):
+        raise ValueError("borrowed prefill scratch requires inference inputs")
     o, h = ChunkGatedDeltaRuleFunction.apply(
         q,
         k,
@@ -269,6 +336,7 @@ def chunk_gated_delta_rule(
         cu_seqlens,
         use_qk_l2norm_in_kernel,
         inplace_update,
+        prefill_scratch,
     )
     if head_first:
         o = rearrange(o, "b t h ... -> b h t ...")

@@ -118,6 +118,8 @@ def recompute_w_u_fwd(
     A: torch.Tensor,
     cu_seqlens: Optional[torch.LongTensor],
     chunk_indices: torch.LongTensor | None = None,
+    out_w: Optional[torch.Tensor] = None,
+    inplace_u: bool = False,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     B, T, Hg, K, V = *k.shape, v.shape[-1]
     H = v.shape[-2]
@@ -128,8 +130,13 @@ def recompute_w_u_fwd(
     NT = triton.cdiv(T, BT) if cu_seqlens is None else len(chunk_indices)
     BK = 64
     BV = 64
-    u = torch.empty_like(v)
-    w = k.new_empty(B, T, H, K)
+    # Each CTA consumes one disjoint token/head tile, including all of that
+    # tile's input rows, before writing u. Inference can consume its private v.
+    u = v if inplace_u else torch.empty_like(v)
+    if out_w is not None:
+        assert out_w.shape == (B, T, H, K) and out_w.dtype == k.dtype
+        assert out_w.device == k.device and out_w.is_contiguous()
+    w = k.new_empty(B, T, H, K) if out_w is None else out_w
     recompute_w_u_fwd_kernel[(NT, B * H)](
         k=k,
         v=v,

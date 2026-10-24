@@ -16,6 +16,7 @@ cs = load_manifest(root / "qwen38-fp4-local-csf-tiered" / rev / "manifest.json")
 files = [m.payload_path.open("rb") for m in [ns, cs]]
 mm = [mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) for f in files]
 H, I = ns.hidden_size, ns.intermediate_size
+capacity = max(8, ns.top_k)
 keep = []
 
 
@@ -60,7 +61,7 @@ def load(m, mp, layer, expert):
                     rg["offset"] + rg["nbytes"],
                 )
         out[n] = (
-            t.repeat((8,) + (1,) * (t.ndim - 1))
+            t.repeat((capacity,) + (1,) * (t.ndim - 1))
             if t.ndim
             and t.shape[0] == 1
             and n not in ("w13_input_scale_quant", "w2_input_scale_quant")
@@ -69,24 +70,29 @@ def load(m, mp, layer, expert):
     return out
 
 
-A = CachedB12xW4A16(torch.device("cuda"), H, I, 8, enable_fp32=True)
+A = CachedB12xW4A16(torch.device("cuda"), H, I, capacity, enable_fp32=False)
 B = CachedB12xW4A16(
-    torch.device("cuda"), H, I, 8, enable_fp32=True, scale_encoding=cs.scale_encoding
+    torch.device("cuda"),
+    H,
+    I,
+    capacity,
+    enable_fp32=False,
+    scale_encoding=cs.scale_encoding,
 )
 A4 = CachedB12xW4A4(
     torch.device("cuda"),
     H,
     I,
-    8,
+    capacity,
     ns.top_k,
     scale_encoding={},
-    deterministic_output=True,
+    deterministic_output=False,
 )
 B4 = CachedB12xW4A4(
     torch.device("cuda"),
     H,
     I,
-    8,
+    capacity,
     ns.top_k,
     scale_encoding=cs.scale_encoding,
     deterministic_output=False,
@@ -110,6 +116,8 @@ for l, e in [(0, 0), (5, 0), (47, 0)]:
             .expand(nt, -1)
             .contiguous()
         )
+        assert ids.min().item() >= 0 and ids.max().item() < capacity
+        assert nn["w13_weight"].shape[0] == cc["w13_weight"].shape[0] == capacity
         w = torch.full_like(ids, 1 / ns.top_k, dtype=torch.float32)
         from flashinfer.fused_moe import cutlass_fused_moe
         from flashinfer.fused_moe.core import ActivationType
@@ -131,9 +139,9 @@ for l, e in [(0, 0), (5, 0), (47, 0)]:
                 nn["w2_blockscale_swizzled"].view(torch.int32),
                 nn["g2_alphas"],
             ],
-            swiglu_alpha=torch.ones(8, device="cuda"),
-            swiglu_beta=torch.zeros(8, device="cuda"),
-            swiglu_limit=torch.full((8,), float("inf"), device="cuda"),
+            swiglu_alpha=torch.ones(capacity, device="cuda"),
+            swiglu_beta=torch.zeros(capacity, device="cuda"),
+            swiglu_limit=torch.full((capacity,), float("inf"), device="cuda"),
             activation_type=ActivationType.Swiglu,
         )[0]
         pairs = [
@@ -151,7 +159,22 @@ for l, e in [(0, 0), (5, 0), (47, 0)]:
                     ),
                 ]
             )
+            if nt == 3:
+                split = torch.cat(
+                    [
+                        B.run(
+                            x[i : i + 1],
+                            ids[i : i + 1].clone(),
+                            w[i : i + 1].clone(),
+                            cc,
+                        )
+                        for i in range(nt)
+                    ]
+                )
+                pairs.append(("csf-m3-vs-split", B.run(x, ids, w, cc), split))
         for name, a, b in pairs:
+            assert torch.isfinite(a).all().item(), (l, nt, name, "native nonfinite")
+            assert torch.isfinite(b).all().item(), (l, nt, name, "compressed nonfinite")
             print(
                 name,
                 nt,
@@ -170,4 +193,6 @@ for l, e in [(0, 0), (5, 0), (47, 0)]:
                 ((a - b).float().norm() / a.float().norm()).item(),
                 flush=True,
             )
-    print("passed", flush=True)
+            if name in ("a16", "triton"):
+                assert torch.equal(a, b), (l, nt, name, "native/CSF mismatch")
+    print("completed; exact assertions apply to a16/triton only", flush=True)

@@ -1671,6 +1671,9 @@ class Qwen4ExpPLELayer(nn.Module):
                 gate = gate.abs().clamp_min(1e-6).sqrt() * gate.sign()
                 gate = torch.sigmoid(gate)
                 gated_value = gate * value.unsqueeze(-2)
+        # These projections are dead once the gate has been applied. Release
+        # them before allocating the full-size convolution input and output.
+        del embeddings, key, value, key_normed, query_normed, query
         gated_value_normed = self._apply_ple_norm(self.norm_conv, gated_value)
         gated_value = gated_value.flatten(-2)
         gated_value_normed = gated_value_normed.flatten(-2)
@@ -1702,11 +1705,9 @@ class Qwen4ExpPLELayer(nn.Module):
         )
         output = gated_value + conv_output
         if not batch.use_decode_fast_path:
-            output = torch.where(
-                batch.valid_tokens.unsqueeze(-1),
-                output,
-                torch.zeros_like(output),
-            )
+            # The addition owns output. Mask it in place instead of keeping
+            # two extra full PLE outputs alive (320 MiB at 8192 tokens).
+            output.masked_fill_(~batch.valid_tokens.unsqueeze(-1), 0)
         return _pad_token_rows(output, batch.physical_tokens)
 
 

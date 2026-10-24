@@ -3,6 +3,7 @@
 
 import queue
 import struct
+import threading
 import unittest
 from types import SimpleNamespace
 
@@ -18,6 +19,88 @@ register_cuda_ci(est_time=5, stage="base-b", runner_config="1-gpu-small")
 
 @unittest.skipUnless(torch.cuda.is_available(), "requires CUDA")
 class TestCsfArenaRestore(CustomTestCase):
+    def test_threaded_fill_binds_headers_before_hit(self):
+        """A short prefill miss must publish bound headers to later cache hits."""
+        from sglang.srt.layers.moe.qwen38_cache_threaded import (
+            Qwen38ThreadedExpertRuntime,
+            TransferJob,
+        )
+
+        name = "w13_blockscale_swizzled"
+        source = torch.zeros((3, 1040), dtype=torch.uint8, pin_memory=True)
+        source[1, 976:984] = torch.tensor(list(struct.pack("<Q", 4096)))
+        source[1:, 1024:] = torch.arange(16, dtype=torch.uint8)
+        pack = SimpleNamespace(
+            manifest=SimpleNamespace(
+                scale_encoding={
+                    name: {
+                        "encoding": "b12x_csf_tiered_v1",
+                        "overflow": {"0": {"offset": 4096, "nbytes": 16}},
+                    }
+                }
+            ),
+            cuda_source_mapping=lambda: bytearray(4096) + bytearray(range(16)),
+        )
+        banks = CsfBanks(pack, torch.device("cuda"))
+
+        class Runtime(Qwen38ThreadedExpertRuntime):
+            # Substitute only source transport; run the real worker, readiness
+            # publication, slot-reader tracking and bank binding.
+            def _fill(self, layer, expert, tensors, slot, names):
+                with torch.cuda.stream(self.transfer):
+                    tensors[name][slot].copy_(source[expert], non_blocking=True)
+
+        runtime = Runtime.__new__(Runtime)
+        runtime.device = torch.device("cuda")
+        runtime.manifest = SimpleNamespace(num_experts=3)
+        runtime.layer_cache_slots = [3]
+        runtime.jobs, runtime.retired = queue.Queue(), queue.Queue()
+        runtime.transfer = torch.cuda.Stream()
+        runtime.worker_error = None
+        runtime.caches = {0: {name: torch.zeros_like(source, device="cuda")}}
+        runtime.csf_banks = banks
+        runtime.decode_copy_names = (name,)
+        runtime.slot_last_use = {0: [None] * 3}
+        runtime.resident_alphas = runtime.adaptive_cache = False
+        runtime.misses = runtime.hits = 0
+        runtime.layer_misses, runtime.layer_hits = {0: 0}, {0: 0}
+        worker = threading.Thread(target=runtime._work, daemon=True)
+        worker.start()
+        snapshots = []
+        try:
+            for misses in (2, 0):
+                planned, computed = torch.cuda.Event(), torch.cuda.Event()
+                planned.record()
+                job = TransferJob(
+                    0,
+                    False,
+                    None,
+                    planned,
+                    computed,
+                    threading.Event(),
+                    plan_values=[0, misses, 2, 0, 1, 1, 2, 2, 0, 0, 1, 2, 0],
+                )
+                runtime.jobs.put(job)
+                self.assertTrue(job.ready_set.wait(30))
+                self.assertIsNone(job.error)
+                if job.ready is not None:
+                    torch.cuda.current_stream().wait_event(job.ready)
+                snapshots.append(runtime.caches[0][name].clone())
+                computed.record()
+                job.launched.set()
+        finally:
+            runtime.jobs.put(None)
+            worker.join(30)
+        self.assertFalse(worker.is_alive())
+        expected = source.clone()
+        pointer = banks.banks[0, name][0].data_ptr()
+        expected[1, 992:1000] = torch.tensor(list(struct.pack("<Q", pointer)))
+        for snapshot in snapshots:
+            torch.testing.assert_close(snapshot.cpu(), expected, rtol=0, atol=0)
+        self.assertEqual(runtime.misses, 2)
+        self.assertEqual(runtime.hits, 2)
+        self.assertEqual(source[:, 992:1000].count_nonzero().item(), 0)
+
     def test_restored_hits_rebind_external_bank(self):
         from sglang.srt.model_loader.qwen38_nvfp4_pack.tiered import TIER_MAGIC
 

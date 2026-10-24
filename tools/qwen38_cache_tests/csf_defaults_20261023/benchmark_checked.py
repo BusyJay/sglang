@@ -5,6 +5,8 @@ import ast
 import inspect
 import re
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -15,15 +17,31 @@ spec = importlib.util.spec_from_file_location("qwen38_existing_benchmark", sourc
 benchmark = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(benchmark)
 generate = benchmark.generate
+checked_cases = 0
 
 
 def checked_generate(*args, **kwargs):
+    global checked_cases
     case = generate(*args, **kwargs)
     text = case["response_text"] or ""
     if not text.strip() or re.search(r"([^\s])\1{63,}", text):
         output = Path(sys.argv[sys.argv.index("--output") + 1])
         (output / "rejected-output.json").write_text(json.dumps(case, indent=2) + "\n")
         raise AssertionError("Degenerate output: performance result is invalid")
+    checked_cases += 1
+    if checked_cases == int(os.getenv("ROOT_CSF_CHAT_AFTER", "0")):
+        output = Path(sys.argv[sys.argv.index("--output") + 1])
+        subprocess.run(
+            [
+                sys.executable,
+                "/results/validate_mtp_chat.py",
+                "--command",
+                str(output / "command.json"),
+                "--output",
+                str(output / "chat-correctness.json"),
+            ],
+            check=True,
+        )
     return case
 
 
@@ -37,7 +55,16 @@ if __name__ == "__main__":
             if isinstance(node, ast.Assign) and any(
                 isinstance(t, ast.Name) and t.id == "report" for t in node.targets
             ):
-                body.insert(i, ast.parse("workloads = workloads[:1]").body[0])
+                workload = (
+                    'workloads = [workloads[0], ("natural_chat", chat, 512)]'
+                    if os.getenv("ROOT_CSF_NATURAL") == "full"
+                    else (
+                        'workloads = [workloads[0], ("natural_chat", chat, 128)]'
+                        if os.getenv("ROOT_CSF_NATURAL") == "1"
+                        else "workloads = workloads[:1]"
+                    )
+                )
+                body.insert(i, ast.parse(workload).body[0])
                 break
         else:
             raise RuntimeError("benchmark workload boundary changed")

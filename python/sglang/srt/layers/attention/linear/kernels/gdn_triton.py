@@ -183,6 +183,11 @@ class TritonGDNKernel(LinearAttnKernelBase):
         recurrent_state = ssm_states
         recurrent_state_indices_args = {"initial_state_indices": cache_indices}
         inplace_update_args = {"inplace_update": inplace_update}
+        if (
+            not (is_cpu() or is_npu() or is_xpu())
+            and kwargs.get("prefill_scratch") is not None
+        ):
+            inplace_update_args["prefill_scratch"] = kwargs["prefill_scratch"]
         if is_cpu():
             if not inplace_update:
                 raise NotImplementedError(

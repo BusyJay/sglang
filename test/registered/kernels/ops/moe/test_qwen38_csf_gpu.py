@@ -111,10 +111,21 @@ class TestCsfGpu(CustomTestCase):
                 struct.pack_into("<2I", head, 1016, TIER_MAGIC, stride)
                 heads[expert] = np.frombuffer(head, np.uint8)
             gpu_bank = torch.from_numpy(np.frombuffer(bank, np.uint8).copy()).cuda()
+            # VMM/expandable allocators can put the GPU bank below its file
+            # offset. Exercise a negative relocation through real MoE readers.
+            file_base = gpu_bank.data_ptr() + 4096 if name.startswith("w13") else 4096
+            if file_base != 4096:
+                for head in heads:
+                    offset = struct.unpack_from("<Q", head, 976)[0]
+                    if offset:
+                        struct.pack_into("<Q", head, 976, file_base + offset - 4096)
             banks.append(gpu_bank)
             tiered[name] = torch.from_numpy(heads).cuda()
             csf_patch_headers(
-                tiered[name], gpu_bank.data_ptr() - 4096, 4096, 4096 + len(bank)
+                tiered[name],
+                gpu_bank.data_ptr() - file_base,
+                file_base,
+                file_base + len(bank),
             )
             # Decode fills must bind an uploaded source header inside the
             # existing fill launch, including the adaptive CTA configuration.
@@ -130,7 +141,7 @@ class TestCsfGpu(CustomTestCase):
                         target.data_ptr(),
                         stride,
                         source.data_ptr(),
-                        gpu_bank.data_ptr() - 4096,
+                        gpu_bank.data_ptr() - file_base,
                     ]
                 ],
                 device="cuda",
@@ -167,6 +178,22 @@ class TestCsfGpu(CustomTestCase):
             expected = cached_w4a16_moe(x, ids, weights, nn)
             actual = cached_w4a16_moe(x, ids, weights, cc)
             torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+        # A resize within the compiled bucket must neither recompile nor make
+        # the bucket's extra rows addressable. Slot 3 still exists in backing
+        # storage, so a missing runtime bound produces a nonzero wrong answer.
+        compact_native = {n: t[:3] if t.ndim else t for n, t in nn.items()}
+        compact_csf = {n: t[:3] if t.ndim else t for n, t in cc.items()}
+        ids = torch.tensor(
+            [[3, 3, 3], [1, 2, 3], [2, 1, -1]], device="cuda", dtype=torch.int32
+        )
+        programs = b.prepared_launch.kernel._SMALL_M_DIRECT_CACHE
+        compiled_before = len(programs)
+        expected = a.run(x, ids, weights, compact_native)
+        actual = b.run(x, ids, weights, compact_csf)
+        torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+        self.assertEqual(actual[0].count_nonzero().item(), 0)
+        self.assertGreater(actual[1:].abs().max().item(), 0)
+        self.assertEqual(len(programs), compiled_before)
         a4 = CachedB12xW4A4(
             torch.device("cuda"),
             2560,

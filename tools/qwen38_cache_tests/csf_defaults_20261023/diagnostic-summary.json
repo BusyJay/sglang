@@ -2328,5 +2328,15 @@
       "max_diff": 0.0,
       "relative_l2": 0.0
     }
-  ]
+  ],
+  "coverage_correction": {
+    "first_verify_completed": false,
+    "stop": "decode_probe.py raises at layer 47 before the wrapped call returns",
+    "native_reference_enable_fp32": true,
+    "production_off_enable_fp32": false,
+    "alpha_refresh_matches_production": false,
+    "original_real_pack_probe_valid": false,
+    "original_real_pack_probe_error": "capacity=8, IDs=0..9; IDs 8 and 9 out of range",
+    "scope": "48 synchronized expert-call output comparisons only; no full-verify parity proof"
+  }
 }

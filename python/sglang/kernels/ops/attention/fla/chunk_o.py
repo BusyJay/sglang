@@ -134,6 +134,7 @@ def chunk_fwd_o(
     scale: Optional[float] = None,
     cu_seqlens: Optional[torch.LongTensor] = None,
     chunk_size: int = 64,
+    out: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     B, T, Hg, K, V = *q.shape, v.shape[-1]
     H = v.shape[-2]
@@ -145,7 +146,12 @@ def chunk_fwd_o(
     if scale is None:
         scale = k.shape[-1] ** -0.5
 
-    o = torch.zeros_like(v)
+    if out is None:
+        o = torch.zeros_like(v)
+    else:
+        assert out.shape == v.shape and out.dtype == v.dtype
+        assert out.device == v.device and out.is_contiguous()
+        o = out.zero_()
 
     def grid(meta):
         return (triton.cdiv(V, meta["BV"]), NT, B * H)

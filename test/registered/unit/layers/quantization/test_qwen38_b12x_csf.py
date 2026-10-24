@@ -31,8 +31,6 @@ class TestB12xCsf(CustomTestCase):
     prefetch_global_l2(address)
     return scale, weight
 """
-        tree, count = csf_method(source, {"w13_blockscale_swizzled": spec})
-        self.assertEqual(count, 1)
         decoded = decode(slab, rows, cols)
         observed = []
 
@@ -41,15 +39,29 @@ class TestB12xCsf(CustomTestCase):
             self.assertEqual(offset // (r * c), 2)
             return struct.unpack_from("<I", decoded, offset % (r * c))[0]
 
-        namespace = dict(
-            _csf_word=word, ld_global_nc_u32=lambda addr: observed.append(addr) or 77
-        )
-        exec(compile(tree, "generated", "exec"), namespace)
-        for pos in (0, 4, 508, 512, 1020, 2044):
-            value, weight = namespace["read"](10000, 50000, 2, pos)
-            self.assertEqual(value, struct.unpack_from("<I", raw, pos)[0])
-            self.assertEqual(weight, 77)
-            self.assertEqual(observed[-1], 50000 + pos)
+        def word_at(base, expert, offset, r, c, stride):
+            self.assertEqual(expert, 2)
+            self.assertGreaterEqual(offset, 0)
+            self.assertLess(offset, r * c)
+            return word(base, expert * r * c + offset, r, c, stride)
+
+        for direct in (False, True):
+            tree, count = csf_method(
+                source, {"w13_blockscale_swizzled": spec}, direct_expert=direct
+            )
+            self.assertEqual(count, 1)
+            namespace = dict(
+                _csf_word=word,
+                _csf_word_at=word_at,
+                Int64=int,
+                ld_global_nc_u32=lambda addr: observed.append(addr) or 77,
+            )
+            exec(compile(tree, "generated", "exec"), namespace)
+            for pos in (0, 4, 508, 512, 1020, 2044):
+                value, weight = namespace["read"](10000, 50000, 2, pos)
+                self.assertEqual(value, struct.unpack_from("<I", raw, pos)[0])
+                self.assertEqual(weight, 77)
+                self.assertEqual(observed[-1], 50000 + pos)
 
     def test_unknown_scale_load_abi_rejected(self):
         with self.assertRaisesRegex(RuntimeError, "scale load"):

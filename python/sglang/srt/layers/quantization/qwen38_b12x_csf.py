@@ -15,7 +15,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 
-def csf_method(source, specs):
+def csf_method(source, specs, *, direct_expert=False):
     tree = ast.parse(textwrap.dedent(source))
     origins = {
         "w1s_base_addr": "w13_blockscale_swizzled",
@@ -56,6 +56,15 @@ def csf_method(source, specs):
         def visit_Call(self, node):
             nonlocal changed
             self.generic_visit(node)
+            if (
+                direct_expert
+                and isinstance(node.func, ast.Attribute)
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "self"
+                and node.func.attr == "_resolve_route_expert"
+            ):
+                node.args.append(ast.Name(id="route_expert_limit", ctx=ast.Load()))
+                return node
             if not isinstance(node.func, ast.Name) or not node.func.id.startswith(
                 "ld_global_nc_"
             ):
@@ -71,11 +80,37 @@ def csf_method(source, specs):
             )
             spec = specs[plane]
             changed += 1
-            return ast.Call(
-                func=ast.Name(id="_csf_word", ctx=ast.Load()),
-                args=[
+            offset = ast.BinOp(left=node.args[0], op=ast.Sub(), right=base)
+            args = [base, offset]
+            if direct_expert:
+                # Native route resolution already produced this expert ID.
+                # Keep its local scale offset instead of recovering the ID
+                # with a 64-bit division for every four decoded scale bytes.
+                expert = ast.Name(id="eid", ctx=ast.Load())
+                args = [
                     base,
-                    ast.BinOp(left=node.args[0], op=ast.Sub(), right=base),
+                    expert,
+                    ast.BinOp(
+                        left=offset,
+                        op=ast.Sub(),
+                        right=ast.BinOp(
+                            left=ast.Call(
+                                func=ast.Name(id="Int64", ctx=ast.Load()),
+                                args=[expert],
+                                keywords=[],
+                            ),
+                            op=ast.Mult(),
+                            right=ast.Constant(spec["rows"] * spec["columns"]),
+                        ),
+                    ),
+                ]
+            return ast.Call(
+                func=ast.Name(
+                    id="_csf_word_at" if direct_expert else "_csf_word",
+                    ctx=ast.Load(),
+                ),
+                args=[
+                    *args,
                     *[ast.Constant(spec[k]) for k in ("rows", "columns", "stride")],
                     *(
                         [ast.Constant(True)]
@@ -127,19 +162,36 @@ def csf_kernel_namespace(native, specs):
             )
         )
 
+    @dsl_user_op
+    def _csf_codes(address: Int64, *, loc=None, ip=None) -> Uint32:
+        # Native scale words are four-byte aligned, so their two packed
+        # nibble bytes are two-byte aligned as well.
+        return Uint32(
+            llvm.inline_asm(
+                T.i32(),
+                [Int64(address).ir_value(loc=loc, ip=ip)],
+                "ld.global.nc.u16 $0, [$1];",
+                "=r,l",
+                has_side_effects=False,
+                is_align_stack=False,
+                asm_dialect=llvm.AsmDialect.AD_ATT,
+                loc=loc,
+                ip=ip,
+            )
+        )
+
     @micro.cute.jit
-    def _csf_word(
+    def _csf_word_at(
         base: Int64,
+        expert: Int32,
         offset: Int64,
         rows: micro.cutlass.Constexpr,
         columns: micro.cutlass.Constexpr,
         stride: micro.cutlass.Constexpr,
         tiered: micro.cutlass.Constexpr = False,
     ) -> Uint32:
-        size = Int64(rows * columns)
-        expert = offset // size
-        pos = Int32(offset % size)
-        slab = base + expert * Int64(stride)
+        pos = Int32(offset)
+        slab = base + expert.to(Int64) * Int64(stride)
         # Bitmap/rank is shared by A4 and A16.
         tile = pos // Int32(512)
         lane = (pos % Int32(512)) // Int32(4)
@@ -150,13 +202,14 @@ def csf_kernel_namespace(native, specs):
         codes = (
             slab + fixed + Int64(128) + Int64((pos % Int32(columns * 128)) // Int32(2))
         )
-        c0, c1 = _csf_u8(codes), _csf_u8(codes + Int64(1))
-        word = (
-            (b + (c0 & Uint32(15)))
-            | ((b + (c0 >> Uint32(4))) << Uint32(8))
-            | ((b + (c1 & Uint32(15))) << Uint32(16))
-            | ((b + (c1 >> Uint32(4))) << Uint32(24))
+        packed = _csf_codes(codes)
+        deltas = (
+            (packed & Uint32(0xF))
+            | ((packed & Uint32(0xF0)) << Uint32(4))
+            | ((packed & Uint32(0xF00)) << Uint32(8))
+            | ((packed & Uint32(0xF000)) << Uint32(12))
         )
+        word = deltas + b * Uint32(0x01010101)
         metadata = (
             slab + Int64(1024 + rows * (1 + columns // 2)) + Int64(tile) * Int64(32)
         )
@@ -182,7 +235,25 @@ def csf_kernel_namespace(native, specs):
         return word
 
     cls = native.MoEMicroKernelW4A16SmallMDirect
-    namespace = dict(vars(micro), _csf_word=_csf_word)
+
+    @micro.cute.jit
+    def _resolve_route_expert(self, route_eid: Int64, route_expert_limit: Int32):
+        eid, active = Int32(0), Int32(0)
+        if route_eid >= Int64(0) and route_eid < Int64(route_expert_limit):
+            eid, active = Int32(route_eid), Int32(1)
+        return eid, active
+
+    @micro.cute.jit
+    def _fc2_route(self, topk_ids, topk_weights, eid_addr, route_expert_limit):
+        eid, active = self._resolve_route_expert(
+            Int64(topk_ids[eid_addr]), route_expert_limit
+        )
+        weight = micro.Float32(0.0)
+        if active > Int32(0):
+            weight = micro.Float32(topk_weights[eid_addr])
+        return eid, weight, active
+
+    namespace = dict(vars(micro), _csf_word_at=_csf_word_at)
     namespace.update(getattr(native, "_qwen38_helpers", {}))
     # Hybrid/FP32 derived methods refer to generated helpers in their globals.
     generated = Path(tempfile.mkdtemp(prefix="qwen38-b12x-csf-"))
@@ -196,7 +267,7 @@ def csf_kernel_namespace(native, specs):
         "_m2_fc2_rowquad_wide",
     ):
         method = getattr(cls, name)
-        tree, count = csf_method(inspect.getsource(method), specs)
+        tree, count = csf_method(inspect.getsource(method), specs, direct_expert=True)
         if count:
             ns = dict(
                 namespace,
@@ -213,10 +284,14 @@ def csf_kernel_namespace(native, specs):
             total += count
     if total == 0 or "kernel" not in overrides:
         raise RuntimeError("B12X native scale load definitions changed")
+    overrides.update(_resolve_route_expert=_resolve_route_expert, _fc2_route=_fc2_route)
     derived = type("Qwen38SmallMDirectCsf", (cls,), overrides)
     compiled = dict(vars(native))
     compiled["MoEMicroKernelW4A16SmallMDirect"] = derived
     compiled["_SMALL_M_DIRECT_CACHE"] = {}
+    # Only the route bound depends on the physical slot count. Both FC1 and
+    # FC2 now check the runtime extent; reuse programs across KV/cache resize.
+    compiled["_qwen38_capacity_bucket"] = True
     tree = (
         copy.deepcopy(native._qwen38_compile_tree)
         if hasattr(native, "_qwen38_compile_tree")

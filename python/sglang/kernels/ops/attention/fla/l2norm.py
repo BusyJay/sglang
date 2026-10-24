@@ -71,12 +71,22 @@ def l2norm_fwd_kernel(
 
 
 def l2norm_fwd(
-    x: torch.Tensor, eps: float = 1e-6, output_dtype: Optional[torch.dtype] = None
+    x: torch.Tensor,
+    eps: float = 1e-6,
+    output_dtype: Optional[torch.dtype] = None,
+    *,
+    inplace: bool = False,
 ):
     x_shape_og = x.shape
     x = x.view(-1, x.shape[-1])
     # allocate output
-    if output_dtype is None:
+    if inplace:
+        if not x.is_contiguous() or output_dtype not in (None, x.dtype):
+            raise ValueError(
+                "in-place L2 normalization requires contiguous, same-dtype storage"
+            )
+        y = x
+    elif output_dtype is None:
         y = torch.empty_like(x)
     else:
         y = torch.empty_like(x, dtype=output_dtype)

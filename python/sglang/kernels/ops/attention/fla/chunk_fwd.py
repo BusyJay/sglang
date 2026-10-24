@@ -346,6 +346,9 @@ def chunk_gated_delta_rule_fwd_intra(
     cu_seqlens: torch.LongTensor | None = None,
     chunk_size: int = 64,
     chunk_indices: torch.LongTensor | None = None,
+    out_w: torch.Tensor | None = None,
+    out_A: torch.Tensor | None = None,
+    inplace_u: bool = False,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     r"""
     GDN intra-chunk forward: fused kkt + solve_tril + recompute_w_u.
@@ -389,7 +392,12 @@ def chunk_gated_delta_rule_fwd_intra(
     NT = triton.cdiv(T, BT) if cu_seqlens is None else len(chunk_indices)
 
     # Step 1: fused kkt + solve_tril
-    A = torch.zeros(B, T, H, BT, device=k.device, dtype=k.dtype)
+    if out_A is None:
+        A = torch.zeros(B, T, H, BT, device=k.device, dtype=k.dtype)
+    else:
+        assert out_A.shape == (B, T, H, BT) and out_A.dtype == k.dtype
+        assert out_A.device == k.device and out_A.is_contiguous()
+        A = out_A.zero_()
     chunk_gated_delta_rule_fwd_kkt_solve_kernel[(NT, B * H)](
         k=k,
         g=g,
@@ -414,5 +422,7 @@ def chunk_gated_delta_rule_fwd_intra(
         g_cumsum=g,
         cu_seqlens=cu_seqlens,
         chunk_indices=chunk_indices,
+        out_w=out_w,
+        inplace_u=inplace_u,
     )
     return w, u, A

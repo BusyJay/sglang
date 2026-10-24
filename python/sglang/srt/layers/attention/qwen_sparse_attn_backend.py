@@ -34,6 +34,7 @@ from sglang.srt.layers.attention.qsa.metadata import (
     compressed_decode_view,
 )
 from sglang.srt.layers.attention.qsa.sparse_attn import (
+    can_use_qsa_paged_prefill,
     pack_qsa_prefill_kv,
     qwen_sparse_fa2_cu_seqlens_triton,
     qwen_sparse_kv_extraction_compact_triton,
@@ -52,7 +53,7 @@ from sglang.srt.layers.cp.utils import (
 from sglang.srt.mem_cache.memory_pool import HybridLinearKVPool, MHATokenToKVPool
 from sglang.srt.mem_cache.qsa_kv_pool import QSATokenToKVPool
 from sglang.srt.model_executor.forward_batch_info import ForwardMode
-from sglang.srt.runtime_context import get_spec
+from sglang.srt.runtime_context import get_buffer, get_schedule, get_spec
 from sglang.srt.utils import is_hip, is_sm100_supported, is_sm120
 
 logger = logging.getLogger(__name__)
@@ -204,6 +205,21 @@ class QwenSparseAttnBackend(AttentionBackend):
     # Every seq_lens_cpu read here has a device fallback (one readback);
     # the graphed decode path never reads it, so opting out is safe.
     needs_cpu_seq_lens: bool = False
+
+    def _allocate_trtllm_workspace(self, device):
+        def allocate():
+            return torch.zeros(128 * 1024 * 1024, dtype=torch.uint8, device=device)
+
+        # Single-request EAGLE/NEXTN target verify, draft decode and draft
+        # extend are dependency-ordered. Keep private scratch for concurrent
+        # requests, other speculative algorithms, or runner-free callers.
+        if (
+            self.runner is not None
+            and get_schedule().max_running_requests == 1
+            and get_spec().speculative_algorithm in (None, "EAGLE", "NEXTN")
+        ):
+            return get_buffer(f"qsa_trtllm_single_request_workspace:{device}", allocate)
+        return allocate()
 
     def __init__(self, runner=None) -> None:
         self.runner = runner
@@ -1510,25 +1526,37 @@ class QwenSparseAttnBackend(AttentionBackend):
             sequence_lens, dtype=torch.int32, device=q.device
         )
         cu_seqlens_k = F.pad(sequence_lens_tensor.cumsum(0), (1, 0)).contiguous()
-        packed_k, packed_v = pack_qsa_prefill_kv(
-            k=pool.get_key_buffer(layer.layer_id),
-            v=pool.get_value_buffer(layer.layer_id),
-            req_to_token=self.req_to_token_pool.req_to_token,
-            req_indices=forward_batch.req_pool_indices,
-            cu_k=cu_seqlens_k,
-            total_k=sum(sequence_lens),
-            max_k=max(sequence_lens, default=1),
-            output_dtype=q.dtype,
+        keys, values = pool.get_key_buffer(layer.layer_id), pool.get_value_buffer(
+            layer.layer_id
         )
+        paged_args = {}
+        if can_use_qsa_paged_prefill(q, keys, values):
+            paged_args = dict(
+                req_to_token=self.req_to_token_pool.req_to_token,
+                req_indices=forward_batch.req_pool_indices,
+            )
+        else:
+            # Preserve the existing conversion for unsupported cache layouts.
+            keys, values = pack_qsa_prefill_kv(
+                k=keys,
+                v=values,
+                req_to_token=self.req_to_token_pool.req_to_token,
+                req_indices=forward_batch.req_pool_indices,
+                cu_k=cu_seqlens_k,
+                total_k=sum(sequence_lens),
+                max_k=max(sequence_lens, default=1),
+                output_dtype=q.dtype,
+            )
         output = sparse_gqa_fwd_interface_triton_ck(
             q.contiguous(),
-            packed_k,
-            packed_v,
+            keys,
+            values,
             topk_indices,
             cu_seqlens_q,
             cu_seqlens_k,
             sequence_lens_tensor,
             layer.scaling,
+            **paged_args,
         )
         return self._pad_extend_output(output, num_output_rows)
 
@@ -1789,9 +1817,7 @@ class QwenSparseAttnBackend(AttentionBackend):
             .permute(0, 2, 1, 3)
         )
         if self._trtllm_workspace is None:
-            self._trtllm_workspace = torch.zeros(
-                128 * 1024 * 1024, dtype=torch.uint8, device=device
-            )
+            self._trtllm_workspace = self._allocate_trtllm_workspace(device)
         from flashinfer.utils import get_trtllm_gen_multi_ctas_kv_counter_bytes
 
         key = (batch, q.shape[1], device)

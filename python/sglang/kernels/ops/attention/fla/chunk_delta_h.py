@@ -364,19 +364,21 @@ def chunk_gated_delta_rule_fwd_h(
     track_state: Optional[torch.Tensor] = None,
     track_chunk_idx: Optional[torch.Tensor] = None,
     chunk_offsets: Optional[torch.Tensor] = None,
+    out_h: Optional[torch.Tensor] = None,
+    inplace_new_value: bool = False,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    assert not (use_exp2 and g is not None), (
-        "use_exp2 covers only the per-channel gk path; scalar g stays natural-exp"
-    )
-    assert (track_state is None) == (track_chunk_idx is None), (
-        "track_state and track_chunk_idx must be passed together"
-    )
+    assert not (
+        use_exp2 and g is not None
+    ), "use_exp2 covers only the per-channel gk path; scalar g stays natural-exp"
+    assert (track_state is None) == (
+        track_chunk_idx is None
+    ), "track_state and track_chunk_idx must be passed together"
     if track_state is not None:
         # The caller rounds once to the pool dtype; a narrower buffer would
         # silently double-round the snapshot.
-        assert track_state.dtype == torch.float32, (
-            f"track_state must be fp32, got {track_state.dtype}"
-        )
+        assert (
+            track_state.dtype == torch.float32
+        ), f"track_state must be fp32, got {track_state.dtype}"
     B, T, Hg, K, V = *k.shape, u.shape[-1]
     H = u.shape[-2]
     BT = CHUNK_SIZE
@@ -394,9 +396,18 @@ def chunk_gated_delta_rule_fwd_h(
             chunk_offsets = prepare_chunk_offsets(cu_seqlens, BT)
     assert K <= 256, "current kernel does not support head dimension larger than 256."
 
-    h = k.new_empty(B, NT, H, V, K)
+    if out_h is not None:
+        assert out_h.shape == (B, NT, H, V, K) and out_h.dtype == k.dtype
+        assert out_h.device == k.device and out_h.is_contiguous()
+    h = k.new_empty(B, NT, H, V, K) if out_h is None else out_h
 
-    v_new = torch.empty_like(u) if save_new_value else None
+    # Each CTA owns disjoint value columns and consumes its u tile before
+    # writing the updated values. The inference caller owns u as temporary.
+    if inplace_new_value:
+        assert u.is_contiguous()
+    v_new = (
+        (u if inplace_new_value else torch.empty_like(u)) if save_new_value else None
+    )
 
     def grid(meta):
         return (triton.cdiv(V, meta["BV"]), N * H)

@@ -24,7 +24,7 @@ from sglang.srt.layers.radix_linear_attention import RadixLinearAttention
 from sglang.srt.mem_cache.memory_pool import MambaPool
 from sglang.srt.model_executor.forward_batch_info import ForwardBatch, ForwardMode
 from sglang.srt.model_executor.model_runner import ModelRunner
-from sglang.srt.runtime_context import get_exec, get_memory, get_schedule
+from sglang.srt.runtime_context import get_exec, get_memory, get_schedule, get_spec
 from sglang.srt.utils import is_cpu, is_cuda, is_hip, is_npu, is_xpu
 from sglang.srt.utils.common import is_pin_memory_available, rank0_log
 
@@ -529,9 +529,9 @@ class GDNAttnBackend(MambaAttnBackendBase):
             model_runner.req_to_token_pool.mamba_pool.mamba_cache.conv[0].shape
         )
         if not is_cpu() and not is_npu():
-            assert self.conv_states_shape[-1] < FLA_CHUNK_SIZE, (
-                f"{self.conv_states_shape[-1]=} should be less than {FLA_CHUNK_SIZE}"
-            )
+            assert (
+                self.conv_states_shape[-1] < FLA_CHUNK_SIZE
+            ), f"{self.conv_states_shape[-1]=} should be less than {FLA_CHUNK_SIZE}"
 
         backends = model_runner.linear_attn_backends
         validate_gdn_mis_backend(backends.prefill)
@@ -1164,6 +1164,22 @@ class GDNAttnBackend(MambaAttnBackendBase):
                 )
         else:
             g, beta = self._prefill_gates(layer, a, b)
+            prefill_scratch = None
+            if (
+                is_cuda()
+                and get_schedule().max_running_requests == 1
+                and get_spec().speculative_algorithm in ("EAGLE", "NEXTN")
+                and isinstance(self.kernel_dispatcher.extend_kernel, TritonGDNKernel)
+            ):
+                # This is the non-verify branch. The single request cannot
+                # verify concurrently with its own prefill. All layers reuse
+                # the full pool's idle intermediate storage; h is consumed by
+                # output/track kernels on this stream before the next layer.
+                prefill_scratch = getattr(
+                    self.req_to_token_pool.mamba_pool.mamba_cache,
+                    "intermediate_ssm",
+                    None,
+                )
             h_track_buf = None
             if (
                 forward_metadata.has_mamba_track_mask
@@ -1198,6 +1214,7 @@ class GDNAttnBackend(MambaAttnBackendBase):
                 layer_id=layer.layer_id,
                 extend_prefix_lens=forward_batch.extend_prefix_lens,
                 track_state=h_track_buf,
+                prefill_scratch=prefill_scratch,
                 track_chunk_idx=(
                     forward_metadata.track_chunk_idx
                     if h_track_buf is not None

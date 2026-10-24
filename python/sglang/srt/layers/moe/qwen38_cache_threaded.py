@@ -1639,6 +1639,13 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
                                 slot,
                                 names=self.decode_copy_names,
                             )
+                        if misses and self.csf_banks is not None:
+                            # Legacy cache fills upload source headers with
+                            # file offsets and no GPU bank pointer. Bind before
+                            # publishing readiness: later device-planned hits
+                            # skip the fill kernel that normally binds them.
+                            with torch.cuda.stream(self.transfer):
+                                self.csf_banks.patch(job.layer, self.caches[job.layer])
                         if misses and self.resident_alphas:
                             # All victim readers were joined above. The job
                             # event covers both weight H2D and alpha writes.

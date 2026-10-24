@@ -1,5 +1,6 @@
 """Validated sparse GQA operators migrated from the QSA reference branch."""
 
+from functools import lru_cache
 from typing import Optional
 
 import torch
@@ -165,6 +166,20 @@ def sparse_gqa_fwd_interface_triton(q, k, v, max_seqlen_k, indices, cu_seqlens, 
 
 
 @triton.jit
+def _qsa_fp8_pair_to_bf16(words):
+    low, high = tl.inline_asm_elementwise(
+        "{ .reg .b32 x; cvt.rn.f16x2.e4m3x2 x, $2; mov.b32 {$0, $1}, x; }",
+        constraints="=h,=h,h",
+        args=[words],
+        dtype=(tl.float16, tl.float16),
+        is_pure=True,
+        pack=1,
+    )
+    # Every finite E4M3 value is exactly representable in both FP16 and BF16.
+    return low.to(tl.bfloat16), high.to(tl.bfloat16)
+
+
+@triton.jit
 def _sparse_gqa_chunk_prefill(
     q,
     k,
@@ -196,6 +211,11 @@ def _sparse_gqa_chunk_prefill(
     BLOCK_M: tl.constexpr,
     BLOCK_N: tl.constexpr,
     HEAD_DIM: tl.constexpr,
+    req_to_token=None,
+    req_indices=None,
+    SR0: tl.constexpr = 0,
+    SR1: tl.constexpr = 0,
+    PAGED_KV: tl.constexpr = False,
 ):
     query_relative = tl.program_id(0).to(tl.int64)
     batch_group = tl.program_id(1)
@@ -206,7 +226,11 @@ def _sparse_gqa_chunk_prefill(
     query = (q_start + query_relative).to(tl.int64)
     if query >= q_end:
         return
-    k_start = tl.load(cu_k + batch).to(tl.int64)
+    if PAGED_KV:
+        k_start = 0
+        req = tl.load(req_indices + batch).to(tl.int64)
+    else:
+        k_start = tl.load(cu_k + batch).to(tl.int64)
     kv_len = tl.load(kv_lens + batch).to(tl.int64)
     visible = query_relative + kv_len - (q_end - q_start) + 1
     row_topk = tl.minimum(topk, visible)
@@ -233,16 +257,59 @@ def _sparse_gqa_chunk_prefill(
         current = start + offs_n
         token = tl.load(idx_row + current * si_n, mask=current < topk, other=-1)
         valid = token >= 0
-        keys = tl.load(
-            k_base + token[None, :] * sk_n + offs_d[:, None] * sk_d,
-            mask=valid[None, :],
-            other=0.0,
-        )
-        values = tl.load(
-            v_base + token[:, None] * sv_n + offs_d[None, :] * sv_d,
-            mask=valid[:, None],
-            other=0.0,
-        )
+        if PAGED_KV:
+            token = tl.load(
+                req_to_token + req * SR0 + token * SR1, mask=valid, other=0
+            ).to(tl.int64)
+        # Keep the source load width at 16 bits when unpacking FP8. Triton's
+        # MMA heuristic traces through casts to the original load width; an
+        # 8-bit load selects kWidth=4 and changes the BF16 reduction order.
+        if (
+            PAGED_KV
+            and k.dtype.element_ty.primitive_bitwidth == 8
+            and sk_d == 1
+            and sk_n % 2 == 0
+            and sk_h % 2 == 0
+        ):
+            packed_d = tl.arange(0, HEAD_DIM // 2)
+            words = tl.load(
+                k_base.to(tl.pointer_type(tl.uint16))
+                + token[:, None] * (sk_n // 2)
+                + packed_d[None, :],
+                mask=valid[:, None],
+                other=0,
+            )
+            low, high = _qsa_fp8_pair_to_bf16(words)
+            keys = tl.join(low, high).reshape(BLOCK_N, HEAD_DIM).trans()
+        else:
+            keys = tl.load(
+                k_base + token[None, :] * sk_n + offs_d[:, None] * sk_d,
+                mask=valid[None, :],
+                other=0.0,
+            )
+        if (
+            PAGED_KV
+            and v.dtype.element_ty.primitive_bitwidth == 8
+            and sv_d == 1
+            and sv_n % 2 == 0
+            and sv_h % 2 == 0
+        ):
+            packed_d = tl.arange(0, HEAD_DIM // 2)
+            words = tl.load(
+                v_base.to(tl.pointer_type(tl.uint16))
+                + token[:, None] * (sv_n // 2)
+                + packed_d[None, :],
+                mask=valid[:, None],
+                other=0,
+            )
+            low, high = _qsa_fp8_pair_to_bf16(words)
+            values = tl.join(low, high).reshape(BLOCK_N, HEAD_DIM)
+        else:
+            values = tl.load(
+                v_base + token[:, None] * sv_n + offs_d[None, :] * sv_d,
+                mask=valid[:, None],
+                other=0.0,
+            )
         # Direct callers can pass FP8 K/V; production packing uses Q's dtype.
         # QSA stores unscaled K/V, so a plain cast supports both callers.
         keys = keys.to(q_values.dtype)
@@ -366,8 +433,62 @@ def pack_qsa_prefill_kv(
     return packed_k, packed_v
 
 
-def sparse_gqa_fwd_interface_triton_ck(q, k, v, indices, cu_q, cu_k, kv_lens, scale):
-    k, v = k.contiguous(), v.contiguous()
+@lru_cache(maxsize=None)
+def _qsa_native_fp8_pair_supported(device):
+    if torch.version.hip is not None:
+        return False
+    major, minor = torch.cuda.get_device_capability(device)
+    if major < 9:
+        return False
+    # The packed FP16 destination requires PTX ISA 7.8 / CUDA 11.8.
+    # Inspect the assembler Triton actually uses, including tool overrides.
+    try:
+        from triton.backends.nvidia.compiler import get_ptxas
+
+        version = get_ptxas(major * 10 + minor).version
+        return tuple(int(part) for part in version.split(".")[:2]) >= (11, 8)
+    except (ImportError, AttributeError, TypeError, ValueError, RuntimeError):
+        return False
+
+
+def can_use_qsa_paged_prefill(q, k, v):
+    if not q.is_cuda or q.dtype != torch.bfloat16 or k.dtype != v.dtype:
+        return False
+    if k.dtype == torch.bfloat16:
+        return True
+    if k.dtype != torch.float8_e4m3fn or not _qsa_native_fp8_pair_supported(q.device):
+        return False
+    return all(
+        t.stride(2) == 1
+        and t.stride(0) % 2 == 0
+        and t.stride(1) % 2 == 0
+        and t.shape[2] % 2 == 0
+        and t.data_ptr() % 2 == 0
+        for t in (k, v)
+    )
+
+
+def sparse_gqa_fwd_interface_triton_ck(
+    q,
+    k,
+    v,
+    indices,
+    cu_q,
+    cu_k,
+    kv_lens,
+    scale,
+    *,
+    req_to_token=None,
+    req_indices=None,
+):
+    # Read exactly the values the packing kernel would gather/cast, using the
+    # same attention arithmetic. Avoid duplicating the entire historical KV.
+    paged = req_to_token is not None
+    assert paged == (req_indices is not None)
+    if paged and not can_use_qsa_paged_prefill(q, k, v):
+        raise ValueError("unsupported paged prefill dtype or KV alignment")
+    if not paged:
+        k, v = k.contiguous(), v.contiguous()
     total_q, num_q_heads, head_dim = q.shape
     num_kv_heads = k.shape[1]
     group_size = num_q_heads // num_kv_heads
@@ -406,6 +527,11 @@ def sparse_gqa_fwd_interface_triton_ck(q, k, v, indices, cu_q, cu_k, kv_lens, sc
         BLOCK_M=block_m,
         BLOCK_N=block_n,
         HEAD_DIM=head_dim,
+        req_to_token=req_to_token,
+        req_indices=req_indices,
+        SR0=req_to_token.stride(0) if paged else 0,
+        SR1=req_to_token.stride(1) if paged else 0,
+        PAGED_KV=paged,
         num_warps=warps,
         num_stages=stages,
     )

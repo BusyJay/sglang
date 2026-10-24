@@ -49,11 +49,16 @@ class _PreparedSmallMLaunch:
         )
         binding = self.bindings.get(key)
         if binding is None:
+            compile_capacity = (
+                1 << (capacity - 1).bit_length()
+                if getattr(k, "_qwen38_capacity_bucket", False)
+                else capacity
+            )
             launch = k._compile_w4a16_small_m_direct(
                 m=x.shape[0],
                 hidden_size=x.shape[1],
                 intermediate_size=tensors["w2_weight"].shape[2] * 2,
-                num_experts=capacity,
+                num_experts=compile_capacity,
                 topk=ids.shape[1],
                 activation="silu",
                 fast_math=True,
@@ -155,6 +160,7 @@ class CachedB12xW4A16:
         *,
         enable_fp32=False,
         scale_encoding=None,
+        native_load_bits=0,
     ):
         import flashinfer
         from b12x.moe._shared.kernels.w4a16 import kernel
@@ -221,6 +227,37 @@ class CachedB12xW4A16:
             if envs.SGLANG_OPT_QWEN38_B12X_PREPARED_LAUNCH.get()
             else None
         )
+
+        # Explicit tuning only: wider loads do not consistently improve the
+        # complete expert call, especially when its working set stays hot.
+        if native_load_bits:
+            if self.scale_encoding or (hidden, width) != (2560, 640):
+                raise ValueError(
+                    "native vector loads require uncompressed Qwen38 weights"
+                )
+            from sglang.srt.layers.quantization.qwen38_b12x_vector import (
+                vector_kernel_namespace,
+            )
+
+            self.prepared_launch = _PreparedSmallMLaunch(
+                vector_kernel_namespace(kernel, native_load_bits),
+                self.workspace,
+                self.intermediate,
+            )
+            if enable_fp32:
+                self.fp32_launch = _PreparedSmallMLaunch(
+                    vector_kernel_namespace(fp32_kernel_namespace(), native_load_bits),
+                    self.workspace,
+                    self.intermediate,
+                    torch.float32,
+                )
+                self.hybrid_launch = _PreparedSmallMLaunch(
+                    vector_kernel_namespace(
+                        hybrid_kernel_namespace(), native_load_bits
+                    ),
+                    self.workspace,
+                    self.intermediate,
+                )
 
         if self.scale_encoding:
             from sglang.srt.layers.quantization.qwen38_b12x_csf import (
