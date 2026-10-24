@@ -274,7 +274,6 @@ class BaseSpecWorker(ABC):
             return HiCacheDraftPlan()
         draft_pools = tuple(runner.token_to_kv_pool for runner in draft_runners)
         if _can_pack_hicache_mtp(spec_algorithm, draft_runners):
-            target_model_runner.mtp_draft_device_pools = draft_pools
             target_mamba_pool = getattr(
                 target_model_runner.req_to_token_pool, "mamba_pool", None
             )
@@ -282,6 +281,23 @@ class BaseSpecWorker(ABC):
                 getattr(runner.req_to_token_pool, "mamba_pool", None)
                 for runner in draft_runners
             )
+            if (
+                len(draft_pools) == 1
+                and draft_pools[0].dtype != target_model_runner.token_to_kv_pool.dtype
+                and draft_mamba_pools[0] is target_mamba_pool
+            ):
+                # A BF16 draft cannot be appended to an FP8 target host row.
+                # Shared recurrent state is already saved with the target;
+                # the existing KV/indexer sidecars preserve draft precision.
+                if get_memory().enable_unified_cache_external_linker:
+                    raise NotImplementedError(
+                        "The external linker only supports packed draft KV caches."
+                    )
+                return HiCacheDraftPlan(
+                    mode=HiCacheDraftMode.SIDECAR,
+                    device_pools=draft_pools,
+                )
+            target_model_runner.mtp_draft_device_pools = draft_pools
             # Shared state is already backed up with the target. Separate
             # draft state follows the target's Mamba slot indices.
             if any(

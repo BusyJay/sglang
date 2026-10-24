@@ -478,7 +478,7 @@ class TestHybridDevicePoolAssembler(CustomTestCase):
         from sglang.srt.speculative.spec_info import SpeculativeAlgorithm
 
         draft = SimpleNamespace(
-            token_to_kv_pool=object(),
+            token_to_kv_pool=SimpleNamespace(dtype=torch.bfloat16),
             req_to_token_pool=None,
             model_config=SimpleNamespace(
                 num_nextn_predict_layers=0,
@@ -486,7 +486,9 @@ class TestHybridDevicePoolAssembler(CustomTestCase):
             ),
         )
         target = SimpleNamespace(
-            spec_algorithm=SpeculativeAlgorithm.EAGLE, req_to_token_pool=None
+            spec_algorithm=SpeculativeAlgorithm.EAGLE,
+            req_to_token_pool=None,
+            token_to_kv_pool=SimpleNamespace(dtype=torch.bfloat16),
         )
         worker = SimpleNamespace(
             target_worker=SimpleNamespace(model_runner=target),

@@ -23,16 +23,22 @@ register_cpu_ci(est_time=5, suite="base-a-test-cpu")
 
 def _worker(monkeypatch, draft_config, target_pool, draft_pools):
     monkeypatch.setattr(
-        spec, "get_memory", lambda: SimpleNamespace(enable_hierarchical_cache=True)
+        spec,
+        "get_memory",
+        lambda: SimpleNamespace(
+            enable_hierarchical_cache=True,
+            enable_unified_cache_external_linker=False,
+        ),
     )
     target = SimpleNamespace(
         spec_algorithm=SpeculativeAlgorithm.EAGLE,
         req_to_token_pool=SimpleNamespace(mamba_pool=target_pool),
+        token_to_kv_pool=SimpleNamespace(dtype=torch.bfloat16),
     )
     runners = tuple(
         SimpleNamespace(
             model_config=draft_config,
-            token_to_kv_pool=object(),
+            token_to_kv_pool=SimpleNamespace(dtype=torch.bfloat16),
             req_to_token_pool=SimpleNamespace(mamba_pool=pool),
         )
         for pool in draft_pools
@@ -115,6 +121,63 @@ def test_shared_target_state_is_not_packed_twice(monkeypatch, has_state):
     target.mtp_draft_mamba_pools = (object(),)
     plan = spec.BaseSpecWorker._build_hicache_draft_plan(worker)
     assert plan.mode == spec.HiCacheDraftMode.PACKED
+    assert target.mtp_draft_mamba_pools == ()
+
+
+@pytest.mark.parametrize("has_state", [False, True])
+@pytest.mark.parametrize(
+    "target_dtype,draft_dtype",
+    [(torch.float8_e4m3fn, torch.bfloat16), (torch.bfloat16, torch.float8_e4m3fn)],
+)
+def test_mixed_precision_single_mtp_uses_dtype_preserving_sidecar(
+    monkeypatch, has_state, target_dtype, draft_dtype
+):
+    state = object() if has_state else None
+    worker, target, runners = _worker(
+        monkeypatch, SimpleNamespace(num_nextn_predict_layers=1), state, (state,)
+    )
+    target.token_to_kv_pool.dtype = target_dtype
+    runners[0].token_to_kv_pool.dtype = draft_dtype
+
+    plan = spec.BaseSpecWorker._build_hicache_draft_plan(worker)
+
+    assert plan.mode == spec.HiCacheDraftMode.SIDECAR
+    assert plan.device_pools == (runners[0].token_to_kv_pool,)
+    assert target.mtp_draft_device_pools == ()
+    assert target.mtp_draft_mamba_pools == ()
+    assert target.token_to_kv_pool.dtype == target_dtype
+    assert plan.device_pools[0].dtype == draft_dtype
+
+
+def test_mixed_precision_mtp_sidecar_is_rejected_by_packed_only_linker(monkeypatch):
+    state = object()
+    worker, target, _ = _worker(
+        monkeypatch, SimpleNamespace(num_nextn_predict_layers=1), state, (state,)
+    )
+    target.token_to_kv_pool.dtype = torch.float8_e4m3fn
+    monkeypatch.setattr(
+        spec,
+        "get_memory",
+        lambda: SimpleNamespace(
+            enable_hierarchical_cache=True,
+            enable_unified_cache_external_linker=True,
+        ),
+    )
+    with pytest.raises(NotImplementedError, match="only supports packed"):
+        spec.BaseSpecWorker._build_hicache_draft_plan(worker)
+
+
+@pytest.mark.parametrize("dtype", [torch.bfloat16, torch.float8_e4m3fn])
+def test_same_precision_single_mtp_keeps_packed_rows(monkeypatch, dtype):
+    state = object()
+    worker, target, runners = _worker(
+        monkeypatch, SimpleNamespace(num_nextn_predict_layers=1), state, (state,)
+    )
+    target.token_to_kv_pool.dtype = dtype
+    runners[0].token_to_kv_pool.dtype = dtype
+    plan = spec.BaseSpecWorker._build_hicache_draft_plan(worker)
+    assert plan.mode == spec.HiCacheDraftMode.PACKED
+    assert target.mtp_draft_device_pools == plan.device_pools
     assert target.mtp_draft_mamba_pools == ()
 
 
