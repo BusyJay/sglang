@@ -46,6 +46,78 @@ class TestCachePartition(CustomTestCase):
                 )
                 torch.testing.assert_close(arena, expected_arena)
 
+    def test_warp_route_union_preserves_serial_policy_state(self):
+        """Sorted deduplication must preserve eviction ties and LFU ages, even
+        when lane 31 is unique, routes repeat, or every route is masked.
+        Compare against separate histogram/serial-policy/remap kernels.
+        """
+        module = _module()
+        fields = (
+            "counts",
+            "lookup",
+            "keys",
+            "frequency",
+            "ages",
+            "generation",
+            "clock",
+            "plan",
+        )
+        rows = (
+            list(range(511, 479, -1)),
+            [0, 3, 6, 9, 12, 15, 18, 21, 24, 27] * 3,
+            [-1] * 32,
+            [3, -1, 3, 400, 0, 400, 511, 6, -1, 42] * 3,
+            [511],
+        )
+        for slots in (32, 147):
+            for policy in (0, 1):
+                with self.subTest(slots=slots, policy=policy):
+                    states = []
+                    for _ in range(2):
+                        buffers = AdaptiveMetadataBuffers(
+                            1, 512, slots, torch.device("cuda")
+                        )
+                        state = buffers.reset(0, slots)
+                        buffers.restore(
+                            0,
+                            state,
+                            [(3 * e, float(e % 5), e + 1) for e in range(slots // 2)],
+                        )
+                        states.append(state)
+                    actual, expected = states
+                    for row in rows:
+                        ids = torch.tensor([row], dtype=torch.int32, device="cuda")
+                        output, reference = torch.empty_like(ids), torch.empty_like(ids)
+                        for state in states:
+                            state["plan"].zero_()
+                        module.decode_plan_parallel(
+                            ids,
+                            output,
+                            *(actual[k] for k in fields),
+                            0.95,
+                            policy,
+                            0.7,
+                            0,
+                            0,
+                            2,
+                        )
+                        module.route(
+                            ids, expected["lookup"], reference, expected["counts"]
+                        )
+                        module.plan(*(expected[k] for k in fields), 0.95, policy, 0.7)
+                        module.route(
+                            ids, expected["lookup"], reference, expected["counts"]
+                        )
+                        torch.testing.assert_close(output, reference, rtol=0, atol=0)
+                        for field in fields:
+                            torch.testing.assert_close(
+                                actual[field],
+                                expected[field],
+                                rtol=0,
+                                atol=0,
+                                msg=lambda message, field=field: f"{field}: {message}",
+                            )
+
     def test_decode_snapshots_hits_before_installing_misses(self):
         for policy in (0, 1):
             for row in ([0, 1], [2, 3], [0, 4], [0, 0, 4], [-1, -1]):
