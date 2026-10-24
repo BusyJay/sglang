@@ -1,5 +1,9 @@
 # Qwen38 optimization bundle verification (2026-10-24)
 
+Current default selection and the simplified validation results are in
+[`SINGLE_SWITCH_REPORT.md`](SINGLE_SWITCH_REPORT.md). The measurements and
+all-defaults-off description below record the initial integration state.
+
 The bundle `qwen38-all-optimizations-20261024.tar.gz` was applied to the existing
 Qwen38 working tree. Existing changes were first preserved as commit
 `5e8b2e3d13`; the original archive base is

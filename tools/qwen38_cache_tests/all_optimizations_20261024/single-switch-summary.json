@@ -1,0 +1,119 @@
+{
+  "scope": "baseline and three single switches; one launch each; repeated matrix stopped at user request",
+  "bit_order": [
+    "HC",
+    "CTA",
+    "MXFP8"
+  ],
+  "workload_weighting": "equal-weight geometric mean of short median, natural chat, and fresh short requests after 32K/170K/219K",
+  "cases": {
+    "baseline": {
+      "bits": "000",
+      "tokens_per_second": {
+        "short": 107.76507294053353,
+        "natural_chat": 122.5841111104111,
+        "after_32768_short": 111.8206831760843,
+        "after_170064_short": 96.55762208079501,
+        "after_219064_short": 114.39387794762031
+      },
+      "core_answer_checks": 21,
+      "core_answer_checks_passed": 21,
+      "host_probe_answer_correct": true,
+      "host_hit_coverage_passed": 0,
+      "host_hit_coverage_probes": 1,
+      "source_result": "tools/qwen38_cache_tests/csf_defaults_20261023/all_optimizations_matrix_hicache_20261024/r0-000/result.json",
+      "throughput_change_percent": {
+        "short": 0.0,
+        "natural_chat": 0.0,
+        "after_32768_short": 0.0,
+        "after_170064_short": 0.0,
+        "after_219064_short": 0.0
+      },
+      "equal_weight_geomean_change_percent": 0.0
+    },
+    "hc": {
+      "bits": "100",
+      "tokens_per_second": {
+        "short": 111.87453718856648,
+        "natural_chat": 118.3179748316193,
+        "after_32768_short": 105.02825936389988,
+        "after_170064_short": 94.75071766044316,
+        "after_219064_short": 122.76049518134431
+      },
+      "core_answer_checks": 21,
+      "core_answer_checks_passed": 21,
+      "host_probe_answer_correct": true,
+      "host_hit_coverage_passed": 0,
+      "host_hit_coverage_probes": 1,
+      "source_result": "tools/qwen38_cache_tests/csf_defaults_20261023/all_optimizations_matrix_hicache_20261024/r0-100/result.json",
+      "throughput_change_percent": {
+        "short": 3.8133544903742767,
+        "natural_chat": -3.4801706682437095,
+        "after_32768_short": -6.074389477202868,
+        "after_170064_short": -1.8713224097833714,
+        "after_219064_short": 7.313868000484236
+      },
+      "equal_weight_geomean_change_percent": -0.17918341442522134
+    },
+    "cta": {
+      "bits": "010",
+      "tokens_per_second": {
+        "short": 109.05829415349342,
+        "natural_chat": 115.86689710161552,
+        "after_32768_short": 105.5861203785231,
+        "after_170064_short": 97.19623223479685,
+        "after_219064_short": 99.87971595295635
+      },
+      "core_answer_checks": 21,
+      "core_answer_checks_passed": 21,
+      "host_probe_answer_correct": true,
+      "host_hit_coverage_passed": 0,
+      "host_hit_coverage_probes": 1,
+      "source_result": "tools/qwen38_cache_tests/csf_defaults_20261023/all_optimizations_matrix_hicache_20261024/r0-010/result.json",
+      "throughput_change_percent": {
+        "short": 1.2000374311197382,
+        "natural_chat": -5.479677543809414,
+        "after_32768_short": -5.575500542903688,
+        "after_170064_short": 0.6613772587186206,
+        "after_219064_short": -12.687883525821054
+      },
+      "equal_weight_geomean_change_percent": -4.512705454068778
+    },
+    "mxfp8": {
+      "bits": "001",
+      "tokens_per_second": {
+        "short": 108.27362462941383,
+        "natural_chat": 115.41878912675764,
+        "after_32768_short": 107.78971579386295,
+        "after_170064_short": 91.43757027955161,
+        "after_219064_short": 107.28198843049118
+      },
+      "core_answer_checks": 21,
+      "core_answer_checks_passed": 21,
+      "host_probe_answer_correct": true,
+      "host_hit_coverage_passed": 0,
+      "host_hit_coverage_probes": 1,
+      "source_result": "tools/qwen38_cache_tests/csf_defaults_20261023/all_optimizations_matrix_hicache_20261024/r0-001/result.json",
+      "throughput_change_percent": {
+        "short": 0.4719077109156977,
+        "natural_chat": -5.845228976861183,
+        "after_32768_short": -3.6048495392160818,
+        "after_170064_short": -5.302586881188088,
+        "after_219064_short": -6.217019341179764
+      },
+      "equal_weight_geomean_change_percent": -4.1304116635273775
+    }
+  },
+  "defaults": {
+    "HC": true,
+    "CTA": false,
+    "MXFP8": false,
+    "smoke_answer_checks_passed": 3,
+    "effective_switches": {
+      "SGLANG_OPT_HC_MIX_SPLIT_K": true,
+      "SGLANG_OPT_QWEN38_FILL_CTA_TABLE": false,
+      "SGLANG_OPT_QWEN38_MXFP8_SMALL_M": false
+    }
+  },
+  "commands_equal": true
+}
