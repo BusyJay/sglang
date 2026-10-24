@@ -1,6 +1,7 @@
 """Exercise real QSA host transfers and File L3 with reordered physical pages."""
 
 import tempfile
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -11,6 +12,9 @@ from sglang.srt.mem_cache.hicache_storage import (
     HiCacheStorageConfig,
     PoolName,
     PoolTransfer,
+)
+from sglang.srt.mem_cache.hybrid_cache.hybrid_pool_assembler import (
+    build_full_draft_pools,
 )
 from sglang.srt.mem_cache.l2_transfer import L2Transfer, L2TransferEngine
 from sglang.srt.mem_cache.pool_host.mha import MHATokenToKVPoolHost
@@ -26,10 +30,10 @@ PAGE = 64
 RATIO = 4
 
 
-def make_device_pool(layers, start_layer=0):
+def make_device_pool(layers, start_layer=0, dtype=torch.bfloat16):
     return QSATokenToKVPool(
         size=PAGE * 8,
-        dtype=torch.bfloat16,
+        dtype=dtype,
         page_size=PAGE,
         head_num=1,
         head_dim=128,
@@ -70,6 +74,102 @@ def slots(pages, device="cpu"):
 
 def compressed_slots(indices):
     return indices[::RATIO] // RATIO
+
+
+def test_mixed_precision_mtp_sidecar_roundtrip_preserves_all_bytes():
+    """FP8 target and BF16 draft KV use independent host rows and QSA sidecars."""
+    publish(
+        ServerArgs(model_path="dummy", hicache_mem_layout="page_first_direct"),
+        role="test",
+    )
+    hosts = []
+    try:
+        target = make_device_pool([0, 1], dtype=torch.float8_e4m3fn)
+        draft = make_device_pool([0], dtype=torch.bfloat16)
+        anchor = MHATokenToKVPoolHost(
+            target.full_kv_pool, 2, 0, PAGE, "page_first_direct"
+        )
+        hosts.append(anchor)
+        indexer = QSAIndexerPoolHost(target, anchor)
+        hosts.append(indexer)
+        specs, entries = build_full_draft_pools(
+            draft_kv_pool=draft,
+            tree_cache=SimpleNamespace(
+                cache_controller=SimpleNamespace(
+                    mem_pool_host=SimpleNamespace(logical_size=anchor.size),
+                    page_size=PAGE,
+                )
+            ),
+        )
+        hosts.extend(entry.host_pool for entry in entries)
+        assert [spec.pool_name for spec in specs] == [
+            PoolName.DRAFT,
+            PoolName.DRAFT_INDEXER,
+        ]
+        assert anchor.dtype == torch.uint8
+        assert entries[0].host_pool.dtype == torch.bfloat16
+        source, destination = slots([3, 1], "cuda"), slots([4, 2], "cuda")
+        host_indices = slots([2, 0])
+        tensors = []
+        for pool in (target, draft):
+            for buffer in (*pool.full_kv_pool.k_buffer, *pool.full_kv_pool.v_buffer):
+                tensors.append((buffer, source, destination))
+            for buffer in pool.qsa_compressed_k_buffer_pool:
+                tensors.append(
+                    (buffer, compressed_slots(source), compressed_slots(destination))
+                )
+        expected = []
+        for index, (buffer, src, _) in enumerate(tensors):
+            raw = buffer.view(torch.uint8)
+            raw.copy_(
+                (
+                    torch.arange(raw.numel(), device="cuda").reshape(raw.shape)
+                    + 17 * index
+                )
+                .remainder(251)
+                .to(torch.uint8)
+            )
+            expected.append(buffer[src].view(torch.uint8).clone())
+        transfers = [
+            L2Transfer(
+                anchor,
+                target.full_kv_pool,
+                host_indices,
+                source.cpu(),
+                {0: 0, 1: 1}.get,
+            ),
+            L2Transfer(indexer, target, host_indices, source.cpu(), {0: 0, 1: 1}.get),
+            *[
+                L2Transfer(
+                    entry.host_pool,
+                    entry.device_pool,
+                    host_indices,
+                    source.cpu(),
+                    entry.layer_mapper,
+                )
+                for entry in entries
+            ],
+        ]
+        engine = L2TransferEngine("direct")
+        engine.submit_device_to_host(transfers).finish_event.synchronize()
+        for buffer, _, _ in tensors:
+            buffer.view(torch.uint8).zero_()
+        engine.submit_host_to_device(
+            [
+                transfer._replace(device_indices=destination.cpu())
+                for transfer in transfers
+            ],
+            transfer_layer_id_max=2,
+        ).finish_event.synchronize()
+        for (buffer, _, dst), saved in zip(tensors, expected, strict=True):
+            torch.testing.assert_close(
+                buffer[dst].view(torch.uint8), saved, rtol=0, atol=0
+            )
+    finally:
+        torch.cuda.synchronize()
+        for host in reversed(hosts):
+            host.destroy()
+        reset_context()
 
 
 @pytest.mark.parametrize(
