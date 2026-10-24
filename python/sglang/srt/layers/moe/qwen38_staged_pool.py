@@ -80,9 +80,10 @@ class StagedExpertPool:
     def configure_loans(self, loan_bytes):
         if self.budgets is not None:
             raise RuntimeError("expert loan may only be configured once")
+        self.loan_bytes = list(loan_bytes)
         base = self.physical_bytes(self.base_budget)
         self.budgets = []
-        for loan in loan_bytes:
+        for loan in self.loan_bytes:
             low, high = self.base_budget, self.maximum_budget
             while low < high:
                 mid = (low + high + 1) // 2
@@ -93,6 +94,31 @@ class StagedExpertPool:
             self.budgets.append(low)
         self.grow_stage(0, initial=True)
         return list(self.budgets)
+
+    def rebase_before_execution(self, budget):
+        """Grow an empty pool, retaining its virtual tensor addresses."""
+        if (
+            type(budget) is not int
+            or not self.base_budget <= budget <= self.maximum_budget
+        ):
+            raise ValueError("invalid automatic base expert capacity")
+        if self.budgets is None or self.stage_index != 0:
+            raise RuntimeError("automatic rebasing requires initial KV backing")
+        loans = list(self.loan_bytes)
+        self.release_stage(len(self.budgets) - 1)
+        previous = self.base_budget
+        for name, offset in self.offsets.items():
+            self.arena.commit_range(offset, budget * self.rows[name])
+        for tensor in self.tensors.values():
+            tensor[previous:budget].zero_()
+        self.base_budget = budget
+        count = len(self.base_layout)
+        self.base_layout = [
+            budget // count + int(i < budget % count) for i in range(count)
+        ]
+        self.budgets = None
+        self.loan_mappings = []
+        self.configure_loans(loans)
 
     def pool_views(self, budget):
         backed = (
