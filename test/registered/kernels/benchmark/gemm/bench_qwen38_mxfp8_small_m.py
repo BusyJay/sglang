@@ -1,4 +1,4 @@
-"""Per-projection M=1/3 tiles vs pinned CUTLASS, with rotating cold-L2 inputs."""
+"""Per-projection M=1/3 tiles vs autotuned/pinned CUTLASS with cold-L2 inputs."""
 
 import torch
 
@@ -15,11 +15,13 @@ register_cuda_ci(
 
 
 def run(q, w, s, sw, provider, logical_n):
-    if provider == "cutlass_pinned":
+    if provider in ("cutlass_auto", "cutlass_pinned"):
         from flashinfer import mm_mxfp8
         from flashinfer.autotuner import autotune
 
-        with autotune(False, skip_ops={"mxfp8_gemm"}):
+        with autotune(
+            False, skip_ops={"mxfp8_gemm"} if provider == "cutlass_pinned" else set()
+        ):
             return mm_mxfp8(q, w.T, s, sw, out_dtype=torch.bfloat16, backend="cutlass")[
                 :, :logical_n
             ].contiguous()
@@ -32,7 +34,8 @@ def run(q, w, s, sw, provider, logical_n):
 @marker.parametrize("role", list(PROJECTION_SHAPES), ["shared_gate_up", "shared_down"])
 @marker.parametrize("m", [1, 3])
 @marker.benchmark(
-    "provider", ["cutlass_pinned", "16x128", "32x128", "64x128", "32x256"]
+    "provider",
+    ["cutlass_auto", "cutlass_pinned", "16x128", "32x128", "64x128", "32x256"],
 )
 def benchmark(role, m, provider):
     import flashinfer
@@ -47,6 +50,13 @@ def benchmark(role, m, provider):
     weight = torch.randn(n, k, device="cuda", dtype=torch.bfloat16) * 0.02
     q, s = flashinfer.mxfp8_quantize(x, True)
     w, sw = flashinfer.mxfp8_quantize(weight, True)
+    if provider == "cutlass_auto":
+        from flashinfer.autotuner import autotune
+
+        with autotune(True):
+            flashinfer.mm_mxfp8(
+                q, w.T, s, sw, out_dtype=torch.bfloat16, backend="cutlass"
+            )
     return marker.do_bench(
         run,
         input_args=(q, w, s, sw, provider, logical_n),

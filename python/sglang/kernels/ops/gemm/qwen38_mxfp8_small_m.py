@@ -1,8 +1,10 @@
-"""Experimental SM120 MXFP8 projections with a fixed M=1/3 reduction.
+"""Opt-in SM120 MXFP8 projections with a fixed M=1/3 reduction.
 
 Payload and scales use the existing FlashInfer E4M3 / 128x4 E8M0 contract.
-Each tile handles all three possible rows and accumulates K in order without
-atomics, split-K scratch, or shape-dependent autotuning.
+The 16-column default is selected by cold-L2 comparisons against autotuned
+CUTLASS at the whitelisted shapes. Each tile handles all three possible rows
+and accumulates K in order without atomics, split-K scratch, or shape-dependent
+autotuning.
 """
 
 import torch
@@ -11,7 +13,7 @@ import triton.language as tl
 
 from sglang.kernels.ops.quantization.mxfp8_swizzled_triton import _mx_scale_offsets
 
-# Runtime opt-in additionally checks the semantic role at model construction.
+# The model adapter also checks the semantic role at model construction.
 PROJECTION_SHAPES = {
     "shared_gate_up": (1280, 2560),
     "shared_down": (2560, 640),
@@ -74,7 +76,7 @@ def _small_m_kernel(
 
 
 def qwen38_mxfp8_small_m(
-    q, weight, input_scale, weight_scale, *, block_n=32, block_k=128
+    q, weight, input_scale, weight_scale, *, block_n=16, block_k=128
 ):
     """Return BF16 [M,N] for a whitelisted, prequantized SM120 projection."""
     m, k = q.shape
