@@ -59,7 +59,9 @@ def shared_expert_gate_add(gate, shared, routed):
         DO_ADD=True,
         USE_PDL=True,
         PRECOMPUTED_GATE=True,
-        num_warps=16,
+        # This phase only applies a scalar gate; retain the reduction's
+        # 16-warp layout above, but use fewer warps for the elementwise add.
+        num_warps=8,
         launch_pdl=True,
     )
     return routed

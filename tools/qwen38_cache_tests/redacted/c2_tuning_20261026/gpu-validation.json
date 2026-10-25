@@ -1,0 +1,51 @@
+{
+  "handoff": {
+    "exit_code": 0,
+    "command": [
+      "docker",
+      "run",
+      "--rm",
+      "--gpus",
+      "device=0",
+      "--ipc=host",
+      "-v",
+      "/home/user/workspace/sglang:/workspace/sglang:ro",
+      "-e",
+      "PYTHONPATH=/workspace/sglang/python:/workspace/sglang",
+      "-w",
+      "/workspace/sglang",
+      "--entrypoint",
+      "/opt/sglang/bin/python",
+      "swallow-sglang:nightly-dev-20261018-b234b5c3",
+      "test/manual/kernels/qwen38_handoff_parity.py"
+    ]
+  },
+  "memcheck": {
+    "exit_code": 0,
+    "command": [
+      "docker",
+      "run",
+      "--rm",
+      "--gpus",
+      "device=0",
+      "--ipc=host",
+      "-v",
+      "/home/user/workspace/sglang:/workspace/sglang:ro",
+      "-e",
+      "PYTHONPATH=/workspace/sglang/python:/workspace/sglang",
+      "-w",
+      "/workspace/sglang",
+      "--entrypoint",
+      "/usr/local/cuda/bin/compute-sanitizer",
+      "swallow-sglang:nightly-dev-20261018-b234b5c3",
+      "--tool",
+      "memcheck",
+      "--report-api-errors",
+      "no",
+      "--error-exitcode",
+      "99",
+      "/opt/sglang/bin/python",
+      "test/manual/kernels/qwen38_handoff_parity.py"
+    ]
+  }
+}
