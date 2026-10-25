@@ -47,8 +47,9 @@ class LayeredCpuHybrid:
             )
         if runtime.cache_policy != "lfu" or not runtime.adaptive_cache:
             raise ValueError("layered CPU hybrid requires adaptive per-layer LFU")
-        if runtime.decode_early_cache:
-            raise ValueError("layered CPU hybrid and early-cache decode are exclusive")
+        self.fc1_overlap = runtime.decode_early_cache
+        if self.fc1_overlap and (mode != "lfu" or backend != "b12x"):
+            raise ValueError("layered early-cache requires native B12X LFU")
         self.cpu = None
         if mode != "zero":
             self.cpu = CpuNvfp4(

@@ -71,7 +71,7 @@ class TestCachePartition(CustomTestCase):
             [3, -1, 3, 400, 0, 400, 511, 6, -1, 42] * 3,
             [511],
         )
-        for slots in (32, 147):
+        for slots in (32, 33, 129, 147):
             for policy in (0, 1):
                 for parallel_miss in (0, 1, 2):
                     with self.subTest(
@@ -87,7 +87,13 @@ class TestCachePartition(CustomTestCase):
                                 0,
                                 state,
                                 [
-                                    (3 * e, float(e % 5), e + 1)
+                                    # High age bits must survive warp shuffles;
+                                    # tied keys still prefer the smaller slot.
+                                    (
+                                        3 * e,
+                                        float(e % 5),
+                                        (1 << 40) + (e % 3) * (1 << 32) + e // 3,
+                                    )
                                     for e in range(slots // 2)
                                 ],
                             )
@@ -95,8 +101,9 @@ class TestCachePartition(CustomTestCase):
                         actual, expected = states
                         for row in rows:
                             ids = torch.tensor([row], dtype=torch.int32, device="cuda")
-                            output, reference = torch.empty_like(ids), torch.empty_like(
-                                ids
+                            output, reference = (
+                                torch.empty_like(ids),
+                                torch.empty_like(ids),
                             )
                             for state in states:
                                 state["plan"].zero_()
@@ -129,56 +136,66 @@ class TestCachePartition(CustomTestCase):
                                     expected[field],
                                     rtol=0,
                                     atol=0,
-                                    msg=lambda message, field=field: f"{field}: {message}",
+                                    msg=lambda message, field=field: (
+                                        f"{field}: {message}"
+                                    ),
                                 )
 
     def test_decode_snapshots_hits_before_installing_misses(self):
-        for policy in (0, 1):
-            for row in ([0, 1], [2, 3], [0, 4], [0, 0, 4], [-1, -1]):
-                with self.subTest(policy=policy, row=row):
-                    buffers = AdaptiveMetadataBuffers(1, 8, 4, torch.device("cuda"))
-                    state = buffers.reset(0, 4)
-                    buffers.restore(0, state, [(0, 2.0, 1), (1, 1.0, 2)])
-                    ids = torch.tensor([row], dtype=torch.int32, device="cuda")
-                    output, early, late = (torch.empty_like(ids) for _ in range(3))
-                    _module().decode_plan_parallel_early(
-                        ids,
-                        output,
-                        *(
-                            state[k]
-                            for k in (
-                                "counts",
-                                "lookup",
-                                "keys",
-                                "frequency",
-                                "ages",
-                                "generation",
-                                "clock",
-                                "plan",
-                            )
-                        ),
-                        0.95,
-                        policy,
-                        0.7,
-                        0,
-                        0,
-                        2,
-                        early,
-                        late,
-                    )
-                    mixed = any(i in (0, 1) for i in row) and any(i >= 2 for i in row)
-                    expected = [[i if mixed and i in (0, 1) else -1 for i in row]]
-                    self.assertEqual(early.tolist(), expected)
-                    late_ids = late.tolist()[0]
-                    remapped = output.tolist()[0]
-                    for i, expert in enumerate(row):
-                        self.assertEqual(
-                            late_ids[i],
-                            -1 if mixed and expert in (0, 1) else remapped[i],
+        for native in (False, True):
+            planner = (
+                _module().decode_plan_parallel_fc1
+                if native
+                else _module().decode_plan_parallel_early
+            )
+            for policy in (0, 1):
+                for row in ([0, 1], [2, 3], [0, 4], [0, 0, 4], [-1, -1]):
+                    with self.subTest(policy=policy, row=row):
+                        buffers = AdaptiveMetadataBuffers(1, 8, 4, torch.device("cuda"))
+                        state = buffers.reset(0, 4)
+                        buffers.restore(0, state, [(0, 2.0, 1), (1, 1.0, 2)])
+                        ids = torch.tensor([row], dtype=torch.int32, device="cuda")
+                        output, early, late = (torch.empty_like(ids) for _ in range(3))
+                        planner(
+                            ids,
+                            output,
+                            *(
+                                state[k]
+                                for k in (
+                                    "counts",
+                                    "lookup",
+                                    "keys",
+                                    "frequency",
+                                    "ages",
+                                    "generation",
+                                    "clock",
+                                    "plan",
+                                )
+                            ),
+                            0.95,
+                            policy,
+                            0.7,
+                            0,
+                            0,
+                            2,
+                            early,
+                            late,
                         )
-                    # Every valid route contributes once across the two branches.
-                    actual = (early >= 0).int() + (late >= 0).int()
-                    torch.testing.assert_close(actual, (ids >= 0).int())
+                        mixed = native or (
+                            any(i in (0, 1) for i in row) and any(i >= 2 for i in row)
+                        )
+                        expected = [[i if mixed and i in (0, 1) else -1 for i in row]]
+                        self.assertEqual(early.tolist(), expected)
+                        late_ids = late.tolist()[0]
+                        remapped = output.tolist()[0]
+                        for i, expert in enumerate(row):
+                            self.assertEqual(
+                                late_ids[i],
+                                -1 if mixed and expert in (0, 1) else remapped[i],
+                            )
+                        # Every valid route contributes once across the two branches.
+                        actual = (early >= 0).int() + (late >= 0).int()
+                        torch.testing.assert_close(actual, (ids >= 0).int())
 
 
 if __name__ == "__main__":

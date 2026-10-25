@@ -31,7 +31,7 @@ struct LayeredHybridArgs {
 __device__ inline int layered_lfu_select(const int32_t* ids, const int32_t* lookup,
     const int32_t* active_ids, int active, int misses, int free, float victim,
     const LayeredHybridArgs& a, int32_t* filtered) {
-  for (int j = 0; j < a.routes; ++j) filtered[j] = ids[j];
+  // The decode planner initializes filtered routes in parallel before selection.
   if (!a.max_cpu_experts || !misses || misses <= free) return 0;
   int cold[30], count = 0;
   for (int j = 0; j < active; ++j) {

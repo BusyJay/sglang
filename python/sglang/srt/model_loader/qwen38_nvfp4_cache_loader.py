@@ -309,12 +309,12 @@ class Qwen38NvFp4CacheModelLoader(BaseModelLoader):
         ):
             raise ValueError("cpu_hybrid_mode requires threaded runtime")
         if mode in ("layered", "layered_zero", "layered_probe", "layered_lfu") and (
-            config.get("decode_early_cache", False)
+            (config.get("decode_early_cache", False) and mode != "layered_lfu")
             or not config.get("fused_decode_plan", True)
             or not config.get("decode_device_gate", True)
         ):
             raise ValueError(
-                "layered CPU hybrid requires fused device gate without early cache"
+                "layered CPU hybrid requires fused device gate; early cache requires layered_lfu"
             )
         self.config = config
         self.manifest = load_manifest(manifest_path)

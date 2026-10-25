@@ -151,6 +151,7 @@ class DecodeMissMailbox:
         sample=None,
         during_fill=None,
         early_cache=None,
+        native_fc1=None,
         layered=None,
     ):
         r = self.runtime
@@ -185,7 +186,42 @@ class DecodeMissMailbox:
             raise ValueError("layered CPU hybrid and early cache are exclusive")
         early_ids = torch.empty_like(ids) if early_cache is not None else None
         late_ids = torch.empty_like(ids) if early_cache is not None else None
-        remapped = torch.empty_like(ids)
+        fc1_stage = None
+        adapter = None
+        if layered is not None and getattr(layered[0], "fc1_overlap", False):
+            component, x, weights = layered
+            adapter = component.b12x[layer]
+            stage_weights = component.gpu_weights[x.shape[0]]
+        elif native_fc1 is not None:
+            adapter, x, stage_weights, wrap_result = native_fc1
+        if adapter is not None:
+            tensors = {**r.caches[layer], **r.layer_scales[layer]}
+            resident = (
+                (
+                    state["plan"],
+                    r.alpha_tables[layer]["g1_alphas"],
+                    r.alpha_tables[layer]["g2_alphas"],
+                )
+                if r.resident_alphas
+                else None
+            )
+            fc1_stage = adapter.fc1_stage(
+                x, ids, stage_weights, tensors, resident_alphas=resident
+            )
+            from sglang.kernels.ops.moe.qwen38_expert_cache import (
+                cache_partition_routes,
+            )
+
+            if layered is not None:
+                cache_partition_routes(
+                    ids,
+                    state["lookup"],
+                    r.slots_for_layer(layer),
+                    out=(fc1_stage.early, fc1_stage.arena),
+                )
+        remapped = (
+            fc1_stage.remapped if fc1_stage is not None else torch.empty_like(ids)
+        )
         capture = (
             self.sampler.begin(layer, sample, compute)
             if self.sampler is not None
@@ -197,7 +233,9 @@ class DecodeMissMailbox:
         cpu_ids = gpu_weights = None
         if layered is None:
             planner = (
-                _module().decode_plan_parallel_early
+                _module().decode_plan_parallel_fc1
+                if fc1_stage is not None
+                else _module().decode_plan_parallel_early
                 if early_ids is not None
                 else _module().decode_plan_parallel
             )
@@ -221,6 +259,8 @@ class DecodeMissMailbox:
                 *(
                     (early_ids.view(1, -1), late_ids.view(1, -1))
                     if early_ids is not None
+                    else (fc1_stage.early.view(1, -1), fc1_stage.late.view(1, -1))
+                    if fc1_stage is not None
                     else ()
                 ),
             )
@@ -291,7 +331,7 @@ class DecodeMissMailbox:
             self.sampler.commit(layer, sample, compute)
         r.fused_decode_plan_invocations += 1
         r.decode_device_gate_invocations += 1
-        if r.resident_alphas:
+        if r.resident_alphas and fc1_stage is None:
             tables, tensors = r.alpha_tables[layer], r.caches[layer]
             cache_alpha_scatter(
                 tables["g1_alphas"],
@@ -317,12 +357,14 @@ class DecodeMissMailbox:
                 nonlocal early_output
                 if during_fill is not None:
                     during_fill()
+                if fc1_stage is not None:
+                    fc1_stage.begin(x)
                 if early_ids is not None:
                     early_output = early_cache(
                         early_ids, {**r.caches[layer], **r.layer_scales[layer]}
                     )
 
-            if during_fill is None and early_ids is None:
+            if during_fill is None and early_ids is None and fc1_stage is None:
                 submit_fill()
             else:
                 from sglang.srt.layers.moe.qwen38_cache_overlap import fill_with_overlap
@@ -332,12 +374,16 @@ class DecodeMissMailbox:
                     compute, self.fill_stream, ready, filled, submit_fill, independent
                 )
                 self.overlap_invocations += 1
-                if early_ids is not None:
+                if early_ids is not None or fc1_stage is not None:
                     self.early_cache_invocations += 1
             if layered is not None:
                 from sglang.kernels.ops.moe.qwen38_hybrid_plan import hybrid_merge
 
-                gpu = component.run_gpu(layer, x, remapped, gpu_weights)
+                gpu = (
+                    fc1_stage.finish()
+                    if fc1_stage is not None
+                    else component.run_gpu(layer, x, remapped, gpu_weights)
+                )
                 result = torch.empty_like(x)
                 hybrid_merge(
                     cpu_ids,
@@ -350,6 +396,8 @@ class DecodeMissMailbox:
                     completed_address=component.page.batch.device_addresses[5],
                 )
                 return result
+            if fc1_stage is not None:
+                return wrap_result(fc1_stage.finish())
             return execute(
                 PreparedExperts(
                     {**r.caches[layer], **r.layer_scales[layer]},

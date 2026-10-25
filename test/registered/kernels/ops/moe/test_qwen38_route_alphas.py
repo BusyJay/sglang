@@ -52,6 +52,55 @@ class TestRouteAlphas(CustomTestCase):
                         expected[0, slots] *= 2
                         torch.testing.assert_close(output, expected, rtol=0, atol=0)
 
+    def test_fc1_complement_preserves_cpu_placeholders_and_unrouted_alphas(self):
+        from sglang.kernels.ops.moe.qwen38_route_alphas import prepare_fc1_routes
+
+        early = torch.tensor([[2, -1, 2, -1]], dtype=torch.int32, device="cuda")
+        remapped = torch.tensor([[2, 0, 2, 3]], dtype=torch.int32, device="cuda")
+        late = torch.empty_like(early)
+        alpha = torch.full((8,), float("nan"), device="cuda")
+        alpha[2] = 3
+        outputs = torch.full((2, 8), 17.0, device="cuda")
+        scale = torch.tensor(0.5, device="cuda")
+        prepare_fc1_routes(
+            early, remapped, late, alpha, alpha, scale, scale, *outputs.unbind()
+        )
+        self.assertEqual(late.tolist(), [[-1, 0, -1, 3]])
+        expected = torch.full_like(outputs, 17.0)
+        expected[:, 2] = 1.5
+        torch.testing.assert_close(outputs, expected, rtol=0, atol=0)
+
+    def test_resident_scatter_and_all_route_alphas_match_separate_operations(self):
+        from sglang.kernels.ops.moe.qwen38_route_alphas import prepare_fc1_routes
+
+        early = torch.tensor([[2, -1, 2, -1]], dtype=torch.int32, device="cuda")
+        remapped = torch.tensor([[2, 0, 2, 3]], dtype=torch.int32, device="cuda")
+        plan = torch.zeros(16, dtype=torch.int32, device="cuda")
+        plan[:8] = torch.tensor([0, 2, 3, 0, 5, 0, 7, 3], device="cuda")
+        table = torch.arange(8, dtype=torch.float32, device="cuda") + 1
+        alpha = torch.full((8,), float("nan"), device="cuda")
+        alpha[2] = 3
+        outputs = torch.full((2, 8), 17.0, device="cuda")
+        scale = torch.tensor(0.5, device="cuda")
+        late = torch.empty_like(early)
+        prepare_fc1_routes(
+            early,
+            remapped,
+            late,
+            alpha,
+            alpha,
+            scale,
+            scale,
+            *outputs.unbind(),
+            resident_alphas=(plan, table, table),
+        )
+        self.assertEqual(late.tolist(), [[-1, 0, -1, 3]])
+        expected = torch.full_like(outputs, 17.0)
+        expected[:, [0, 2, 3]] = torch.tensor([3.0, 1.5, 4.0], device="cuda")
+        torch.testing.assert_close(outputs, expected, rtol=0, atol=0)
+        self.assertEqual(alpha[[0, 2, 3]].tolist(), [6.0, 3.0, 8.0])
+        self.assertTrue(torch.isnan(alpha[[1, 4, 5, 6, 7]]).all().item())
+
     def test_invalid_route_geometry_is_rejected(self):
         alpha = torch.ones(8, device="cuda")
         scale = torch.ones((), device="cuda")

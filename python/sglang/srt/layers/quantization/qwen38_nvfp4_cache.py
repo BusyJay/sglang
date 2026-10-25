@@ -198,8 +198,10 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
                 enable_fp32=(
                     getattr(runtime, "hybrid", None) is not None
                     or runtime.layered_hybrid is not None
+                    or getattr(runtime, "decode_early_cache", False)
                 ),
                 scale_encoding=getattr(self.manifest, "scale_encoding", {}),
+                enable_fc1_overlap=getattr(runtime, "decode_early_cache", False),
             )
             if getattr(runtime, "hybrid", None) is not None:
                 if runtime.hybrid.gpu_backend != self.w4a16_backend:
@@ -603,7 +605,27 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
         if shared_call is not None:
             options["during_fill"] = lambda: shared_call.run(shared_input)
         if (
+            execution_phase in ("decode", "verify")
+            and getattr(self.runtime, "decode_early_cache", False)
+            and getattr(self.runtime, "supports_native_fc1_overlap", False)
+            and self.b12x is not None
+            and self.b12x.eligible(hidden_states, topk_ids, execution_phase)
+        ):
+            from sglang.srt.layers.moe.token_dispatcher.standard import (
+                StandardCombineInput,
+            )
+
+            options["native_fc1"] = (
+                self.b12x,
+                hidden_states,
+                topk_weights,
+                lambda result: StandardCombineInput(
+                    hidden_states=result.to(hidden_states.dtype)
+                ),
+            )
+        if (
             execution_phase == "decode"
+            and "native_fc1" not in options
             and getattr(self.runtime, "decode_early_cache", False)
             # Forced-miss sweeps have no reliable profitable decode interval
             # with these backends. Auto must take the original single call,

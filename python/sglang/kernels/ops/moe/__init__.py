@@ -318,6 +318,20 @@ register_kernel(
 
 register_kernel(
     KernelSpec(
+        op="moe.qwen38_prepare_fc1_routes",
+        backend=KernelBackend.JIT,
+        target="sglang.kernels.ops.moe.qwen38_route_alphas:prepare_fc1_routes",
+        capabilities=_CUDA,
+        format_signature=FormatSignature(
+            in_place=True,
+            description="Complementary native FC1 routes and routed alpha preparation",
+        ),
+        description="Prepare hit/miss FC1 staging without reading fill targets.",
+    )
+)
+
+register_kernel(
+    KernelSpec(
         op="moe.qwen38_cache_partition_routes",
         backend=KernelBackend.JIT,
         target="sglang.kernels.ops.moe.qwen38_expert_cache:cache_partition_routes",

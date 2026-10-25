@@ -161,6 +161,7 @@ class CachedB12xW4A16:
         enable_fp32=False,
         scale_encoding=None,
         native_load_bits=0,
+        enable_fc1_overlap=False,
     ):
         import flashinfer
         from b12x.moe._shared.kernels.w4a16 import kernel
@@ -179,6 +180,8 @@ class CachedB12xW4A16:
         ):
             raise ValueError("unsupported Qwen38 B12X geometry")
         self.scale_encoding = scale_encoding or {}
+        if enable_fc1_overlap and self.scale_encoding:
+            raise ValueError("native FC1 overlap does not support CSF scales")
         self.kernel, self.weights_type = kernel, W4A16ModelOptWeights
         self.hidden, self.width, self.max_experts = hidden, width, max_experts
         # Allocate bounded scratch before KV sizing, independent of pool views.
@@ -283,6 +286,74 @@ class CachedB12xW4A16:
                     self.workspace,
                     self.intermediate,
                 )
+
+        self.fc1_stages = OrderedDict()
+        self.fc1_namespace = self.fc2_namespace = None
+        if enable_fc1_overlap:
+            if self.fp32_launch is None or (hidden, width) != (2560, 640):
+                raise ValueError("FC1 overlap requires native Qwen38 FP32 output")
+            from sglang.srt.layers.quantization.qwen38_b12x_fc1_overlap import (
+                phase_kernel_namespace,
+            )
+
+            self.fc1_namespace = phase_kernel_namespace(self.fp32_launch.kernel, 1)
+            self.fc2_namespace = phase_kernel_namespace(self.fp32_launch.kernel, 2)
+
+    def fc1_stage(self, x, ids, weights, tensors, *, resident_alphas=None):
+        if self.fc1_namespace is None:
+            raise RuntimeError("native FC1 overlap was not initialized")
+        if not self.eligible(x, ids, "verify") or ids.dtype != torch.int32:
+            raise ValueError("FC1 overlap requires native M=1..3 int32 routes")
+        from sglang.srt.layers.quantization.qwen38_cached_w4a16 import (
+            validate_cache_tensors,
+        )
+
+        capacity = tensors["w13_weight"].shape[0]
+        key = (
+            x.shape[0],
+            ids.shape[1],
+            capacity,
+            weights.data_ptr(),
+            *(t.data_ptr() for t in tensors.values()),
+            *(t.data_ptr() for t in (resident_alphas or ())),
+        )
+        stage = self.fc1_stages.get(key)
+        if stage is None:
+            validate_cache_tensors(tensors, self.hidden, self.width, capacity)
+            if (
+                capacity > self.max_experts
+                or weights.shape != ids.shape
+                or weights.dtype != torch.float32
+            ):
+                raise ValueError("invalid FC1 staging capacity or route weights")
+            if any(t.device != x.device for t in (weights, ids, *tensors.values())):
+                raise ValueError("FC1 staging tensors must share the input CUDA device")
+            from sglang.srt.layers.quantization.qwen38_b12x_fc1_overlap import (
+                NativeFc1Stage,
+            )
+
+            stream = torch.cuda.current_stream(x.device)
+            if self.used:
+                stream.wait_event(self.done)
+            stage = NativeFc1Stage(
+                self, x.shape[0], ids.shape[1], tensors, weights, resident_alphas
+            )
+            self.fc1_stages[key] = stage
+            if len(self.fc1_stages) > 8:
+                _, retired = self.fc1_stages.popitem(last=False)
+                # Current-stream ordering covers prior adapter readers. Keep
+                # persistent graph buffers alive across warmup/serving streams.
+                for buffer in (
+                    retired.x,
+                    retired.early,
+                    retired.late,
+                    retired.remapped,
+                    retired.arena,
+                    retired.output,
+                ):
+                    buffer.record_stream(stream)
+        self.fc1_stages.move_to_end(key)
+        return stage
 
     @classmethod
     def eligible(cls, x, ids, phase):

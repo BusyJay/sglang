@@ -20,7 +20,14 @@ def _module():
             ("decode_plan", "Qwen38CacheDecodePlan::run"),
             ("decode_plan_mailbox", "Qwen38CacheDecodePlan::run_mailbox"),
             ("decode_plan_parallel", "Qwen38CacheDecodePlan::run_parallel"),
-            ("decode_plan_parallel_early", "Qwen38CacheDecodePlan::run_parallel_early"),
+            (
+                "decode_plan_parallel_early",
+                "Qwen38CacheDecodePlan::run_parallel_early<false>",
+            ),
+            (
+                "decode_plan_parallel_fc1",
+                "Qwen38CacheDecodePlan::run_parallel_early<true>",
+            ),
             ("decode_plan_layered", "Qwen38CacheDecodePlan::run_layered"),
             ("decode_plan_layered_lfu", "Qwen38CacheDecodePlan::run_layered_lfu"),
             ("packed_scatter", "Qwen38PackedScatter::run"),
@@ -140,9 +147,11 @@ def _partition_module():
     )
 
 
-def cache_partition_routes(ids, lookup, slot_limit):
+def cache_partition_routes(ids, lookup, slot_limit, *, out=None):
     """Return cache-slot and arena-expert routes; inactive routes are -1."""
-    cache, arena = torch.empty_like(ids), torch.empty_like(ids)
+    cache, arena = (
+        out if out is not None else (torch.empty_like(ids), torch.empty_like(ids))
+    )
     _partition_module().partition(ids, lookup, cache, arena, slot_limit)
     return cache, arena
 

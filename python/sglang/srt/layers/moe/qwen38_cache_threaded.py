@@ -1861,6 +1861,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
 
     supports_execution_phase = True
     supports_fill_overlap = True
+    supports_native_fc1_overlap = True
 
     def run_layered(
         self, layer_id, x, ids, weights, during_fill=None, *, execution_phase="decode"
@@ -1887,6 +1888,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         execution_phase=None,
         during_fill=None,
         early_cache=None,
+        native_fc1=None,
         prefill_w4a4=False,
     ):
         result = self._run(
@@ -1896,6 +1898,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
             execution_phase=execution_phase,
             during_fill=during_fill,
             early_cache=early_cache,
+            native_fc1=native_fc1,
             prefill_w4a4=prefill_w4a4,
         )
         self.finish_layer(layer_id)
@@ -1925,6 +1928,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         execution_phase=None,
         during_fill=None,
         early_cache=None,
+        native_fc1=None,
         prefill_w4a4=False,
         layered=None,
     ):
@@ -1974,6 +1978,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
                     execution_phase == "verify"
                     or layered is not None
                     or early_cache is not None
+                    or native_fc1 is not None
                     or layer_id in self.gate_warmed_layers
                     or sample is not None
                 )
@@ -1994,6 +1999,7 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
                     sample=sample,
                     during_fill=during_fill,
                     early_cache=early_cache,
+                    native_fc1=native_fc1,
                     layered=layered,
                 )
                 self.gate_warmed_layers.add(layer_id)
