@@ -1,0 +1,47 @@
+{
+  "routes": {
+    "exit_code": 0,
+    "command": [
+      "docker",
+      "run",
+      "--rm",
+      "-v",
+      "/home/user/workspace/sglang:/workspace/sglang:ro",
+      "-e",
+      "PYTHONPATH=/workspace/sglang/python:/workspace/sglang",
+      "-w",
+      "/workspace/sglang",
+      "--entrypoint",
+      "/opt/sglang/bin/python",
+      "swallow-sglang:nightly-dev-20261018-b234b5c3",
+      "test/registered/unit/layers/moe/test_qwen38_prefill_routes.py"
+    ]
+  },
+  "decode-graph": {
+    "exit_code": 0,
+    "command": [
+      "docker",
+      "run",
+      "--rm",
+      "-v",
+      "/home/user/workspace/sglang:/workspace/sglang:ro",
+      "-e",
+      "PYTHONPATH=/workspace/sglang/python:/workspace/sglang",
+      "-w",
+      "/workspace/sglang",
+      "--entrypoint",
+      "/opt/sglang/bin/python",
+      "swallow-sglang:nightly-dev-20261018-b234b5c3",
+      "-m",
+      "unittest",
+      "tools.qwen38_cache_tests.test_cpu_decode_graph"
+    ]
+  },
+  "calculation": {
+    "exit_code": 0,
+    "results": "calculation-verified.json",
+    "log": "calculation.txt",
+    "production_tune_flag": 1,
+    "environment": "swallow-sglang:nightly-dev-20261018-b234b5c3, GPU0 RTX 5090 D SM120"
+  }
+}

@@ -408,7 +408,17 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
             hidden_states_pre_quant,
         )
 
-        def execute_single(prepared, route_weights, output_dtype=None):
+        chunked_cutlass_prefill = (
+            execution_phase == "prefill"
+            and not self.uses_w4a16(execution_phase)
+            and self.b12x_w4a4 is None
+            and hidden_states.shape[0] > 2048
+            and hidden_states_pre_quant is None
+        )
+
+        def execute_single(
+            prepared, route_weights, output_dtype=None, *, accumulate_into=None
+        ):
             if self.uses_w4a16(execution_phase):
                 from sglang.srt.layers.moe.token_dispatcher.standard import (
                     StandardCombineInput,
@@ -507,19 +517,19 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
             # Pre-quantized inputs have layout-specific scale padding; retain
             # their existing path rather than slice that representation here.
             chunk = 2048
-            if (
-                execution_phase == "prefill"
-                and hidden_states.shape[0] > chunk
-                and hidden_states_pre_quant is None
-            ):
+            if chunked_cutlass_prefill:
                 from sglang.srt.layers.moe.token_dispatcher.standard import (
                     StandardCombineInput,
                 )
 
-                output = torch.empty(
-                    hidden_states.shape,
-                    dtype=quant_info.output_dtype,
-                    device=hidden_states.device,
+                output = (
+                    accumulate_into
+                    if accumulate_into is not None
+                    else torch.empty(
+                        hidden_states.shape,
+                        dtype=quant_info.output_dtype,
+                        device=hidden_states.device,
+                    )
                 )
                 for start in range(0, hidden_states.shape[0], chunk):
                     end = start + chunk
@@ -534,7 +544,12 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
                         ),
                         quant_info,
                     ).hidden_states
-                    output[start:end].copy_(part)
+                    if accumulate_into is None:
+                        output[start:end].copy_(part)
+                    else:
+                        # Preserve each backend result's BF16 rounding before
+                        # adding it, including a short final subchunk.
+                        output[start:end].add_(part)
                 return StandardCombineInput(hidden_states=output)
             remapped = StandardTopKOutput(
                 route_weights, prepared.topk_ids, router_logits
@@ -596,9 +611,12 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
                 return StandardCombineInput(
                     hidden_states=cached.to(hidden_states.dtype)
                 )
-            # Some backends reuse an output buffer; preserve the first result
-            # before dispatching the second contribution.
-            cached = cached.clone()
+            # The chunked CUTLASS path has already copied every backend result
+            # into an owned output. Accumulate misses there instead of cloning
+            # it and materializing another full-size partial and sum. Other
+            # paths can reuse backend output and still need the protective copy.
+            if not chunked_cutlass_prefill:
+                cached = cached.clone()
             if prepared.wait_for_weights is not None:
                 prepared.wait_for_weights()
             missing = execute_single(
@@ -611,7 +629,12 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
                 ),
                 arena_weights,
                 partial_dtype,
+                accumulate_into=cached if chunked_cutlass_prefill else None,
             ).hidden_states
+            if chunked_cutlass_prefill:
+                return StandardCombineInput(
+                    hidden_states=missing.to(hidden_states.dtype)
+                )
             return StandardCombineInput(
                 hidden_states=(cached + missing).to(hidden_states.dtype)
             )

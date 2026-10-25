@@ -379,6 +379,53 @@ class TestPrefillRoutes(CustomTestCase):
         actual = method._run_experts(x, weights, ids, None, execution_phase="prefill")
         torch.testing.assert_close(actual, x * weights)
 
+        # Split partials must survive a reused backend buffer across every
+        # subchunk, including the five-token tail, and join the fill first.
+        ids = torch.tensor([[0, 1]], dtype=torch.int32).repeat(4101, 1)
+        weights = torch.cat((weights, 1 - weights), dim=1).float()
+        cache = {**dict.fromkeys(names), "w13_weight": torch.tensor([1.25])}
+        arena = {
+            **dict.fromkeys(names),
+            "w13_weight": torch.full((2,), float("nan")),
+        }
+
+        def run_split(batch, quant):
+            n = batch.hidden_states.shape[0]
+            self.assertLessEqual(n, 2048)
+            route = batch.topk_output
+            valid = route.topk_ids >= 0
+            values = torch.zeros_like(route.topk_weights)
+            values[valid] = quant.w13_weight[route.topk_ids[valid].long()]
+            scale = (values * route.topk_weights).sum(1, keepdim=True)
+            scratch[:n].copy_(batch.hidden_states.float() * scale)
+            return StandardCombineInput(hidden_states=scratch[:n])
+
+        def finish_fill():
+            arena["w13_weight"][1] = -0.75
+
+        prepared = PreparedExperts(
+            arena,
+            ids,
+            2,
+            True,
+            cache_tensors=cache,
+            cache_experts={0: 0},
+            arena_experts=[1],
+            wait_for_weights=finish_fill,
+        )
+        method.runners = {n: SimpleNamespace(run=run_split) for n in (1, 2)}
+        expected = (x.float() * (weights[:, :1] * 1.25)).bfloat16() + (
+            x.float() * (weights[:, 1:] * -0.75)
+        ).bfloat16()
+        for dtype in (torch.bfloat16, torch.float16):
+            for _ in range(2):
+                arena["w13_weight"].fill_(float("nan"))
+                actual = method._run_experts(
+                    x.to(dtype), weights, ids, None, execution_phase="prefill"
+                )
+                self.assertEqual(actual.dtype, dtype)
+                torch.testing.assert_close(actual, expected.to(dtype), rtol=0, atol=0)
+
     def test_decode_early_output_is_added_once_after_fill(self):
         from sglang.srt.layers.moe.moe_runner.base import MoeRunnerConfig
         from sglang.srt.layers.moe.qwen38_cache_runtime import PreparedExperts
