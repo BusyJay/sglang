@@ -31,6 +31,13 @@ class TestSharedFillOverlap(unittest.TestCase):
         with mock.patch.dict(
             "sys.modules",
             {
+                "sglang.srt.environ": SimpleNamespace(
+                    envs=SimpleNamespace(
+                        SGLANG_OPT_QWEN38_SHARED_GATE_OVERLAP=SimpleNamespace(
+                            get=lambda: False
+                        )
+                    )
+                ),
                 "torch": SimpleNamespace(
                     empty_like=lambda x: Value(0),
                     cuda=SimpleNamespace(stream=stream_context),
@@ -53,6 +60,51 @@ class TestSharedFillOverlap(unittest.TestCase):
         )
         self.ready = SimpleNamespace(record=lambda stream: self.trace.append("ready"))
         self.filled = SimpleNamespace(record=lambda stream: self.trace.append("filled"))
+
+    def test_split_fill_failure_paths_join_all_issued_writers(self):
+        # A second fill or late-FC1 failure must never publish completion before
+        # the W2 stream joins, including when FC1 never became readable.
+        for failed_step in (None, "fc1", "fc2", "shared", "late_fc1"):
+            self.trace.clear()
+            fc1_ready = SimpleNamespace(
+                record=lambda stream: self.trace.append("fc1_ready")
+            )
+
+            def step(name):
+                def run():
+                    self.trace.append(name)
+                    if name == failed_step:
+                        raise RuntimeError(name)
+
+                return run
+
+            def run():
+                self.module.fill_with_fc1_overlap(
+                    self.compute,
+                    self.fill,
+                    self.ready,
+                    fc1_ready,
+                    self.filled,
+                    step("fc1"),
+                    step("fc2"),
+                    step("shared"),
+                    step("late_fc1"),
+                )
+
+            if failed_step is None:
+                run()
+                self.assertLess(
+                    self.trace.index("shared"), self.trace.index("late_fc1")
+                )
+                self.assertEqual(self.trace.count("compute_wait"), 2)
+            else:
+                with self.assertRaisesRegex(RuntimeError, failed_step):
+                    run()
+            self.assertEqual(self.trace[-1], "compute_wait")
+            self.assertEqual(self.trace.count("filled"), 1)
+            self.assertEqual(self.trace.count("fc1_ready"), 1)
+            if failed_step in ("fc1", "fc2", "shared"):
+                self.assertNotIn("late_fc1", self.trace)
 
     def test_fill_and_shared_join_before_routed_execution(self):
         self.module.fill_with_overlap(

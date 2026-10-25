@@ -1397,6 +1397,9 @@ class Qwen38ThreadedExpertRuntime(BorrowedArenaMixin, Qwen38DeviceExpertRuntime)
         result["decode_shared_fill_overlap_invocations"] = getattr(
             getattr(self, "miss_mailbox", None), "overlap_invocations", 0
         )
+        result["decode_split_fill_invocations"] = getattr(
+            getattr(self, "miss_mailbox", None), "split_fill_invocations", 0
+        )
         if hasattr(self, "staged_pool"):
             result["kv_cache_stages"] = self.kv_cache_stages
             result["expert_loan_budgets"] = getattr(self, "expert_loan_budgets", None)

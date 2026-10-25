@@ -1,0 +1,15 @@
+--- sglang-fp4-local.sh.before
++++ sglang-fp4-local.sh
+@@ -28,6 +28,12 @@
+ # Runtime settings live here; edit these literals, then restart homelab-llm.
+ # Explicit exports override stale environment values in an existing container.
+ export SGLANG_OPT_QWEN38_B12X_PREPARED_LAUNCH="1"
++# r3 paths validated on the frozen Hermes workload; compile reachable phases at startup.
++export SGLANG_OPT_QWEN38_FC1_PRECOMPILE="1"
++export SGLANG_OPT_QWEN38_SPLIT_FILL="1"
++export SGLANG_OPT_QWEN38_HC_GATE_OVERLAP="1"
++export SGLANG_OPT_QWEN38_SHARED_GATE_OVERLAP="1"
++export SGLANG_OPT_QWEN38_CUTLASS_PREFILL_TUNE="1"
+ export SGLANG_QWEN38_FILL_CTA="adaptive"
+ export SGLANG_OPT_QWEN38_FILL_CTA_TABLE="1"
+ export SGLANG_QWEN38_STARTUP_CACHE="auto"

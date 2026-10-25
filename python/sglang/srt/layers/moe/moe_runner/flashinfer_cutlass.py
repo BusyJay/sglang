@@ -59,6 +59,8 @@ class FlashInferCutlassMoeQuantInfo(MoeQuantInfo):
     swiglu_beta: Optional[torch.Tensor] = None
     swiglu_limit: Optional[torch.Tensor] = None
     apply_routed_scaling_factor: bool = True
+    # Cached offload payloads bound their CUTLASS subchunks independently.
+    tune_max_num_tokens: Optional[int] = None
 
 
 def materialize_swiglu_params_for_cutlass(
@@ -312,7 +314,8 @@ def _run_flashinfer_cutlass(
         ep_rank=runner_config.moe_ep_rank,
         tp_size=runner_config.moe_tp_size,
         tp_rank=runner_config.moe_tp_rank,
-        tune_max_num_tokens=next_power_of_2(x.shape[0]),
+        tune_max_num_tokens=quant_info.tune_max_num_tokens
+        or next_power_of_2(x.shape[0]),
         activation_type=_activation_type(runner_config),
         enable_alltoall=enable_alltoall,
         use_fused_finalize=envs.SGLANG_FLASHINFER_MOE_FUSED_FINALIZE.get(),

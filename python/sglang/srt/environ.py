@@ -1124,6 +1124,12 @@ class Envs:
     # ===================================================================
     # Experimental cached NVFP4 W4A16 launch adapter, pinned to FlashInfer 0.7.2.
     SGLANG_OPT_QWEN38_B12X_PREPARED_LAUNCH = EnvBool(False)
+    # Handoff experiments: opt in independently; GPU acceptance is required.
+    SGLANG_OPT_QWEN38_FC1_PRECOMPILE = EnvBool(False)
+    SGLANG_OPT_QWEN38_SPLIT_FILL = EnvBool(False)
+    SGLANG_OPT_QWEN38_SHARED_GATE_OVERLAP = EnvBool(False)
+    SGLANG_OPT_QWEN38_HC_GATE_OVERLAP = EnvBool(False)
+    SGLANG_OPT_QWEN38_CUTLASS_PREFILL_TUNE = EnvBool(False)
     # Historical candidate buckets only; baseline fill policy remains default.
     SGLANG_OPT_QWEN38_FILL_CTA_TABLE = EnvBool(False)
     # Exact Qwen38 projection whitelist, M=1/3, native E4M3/E8M0 arithmetic.

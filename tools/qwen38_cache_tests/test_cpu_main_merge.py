@@ -1,10 +1,11 @@
 """Offload behavior at main's new FFN boundary (no checkpoint/GPU)."""
 
 import ast
+import unittest
 from contextlib import contextmanager
 from types import SimpleNamespace
-import unittest
 from unittest import mock
+
 from ._load_source import REPO_ROOT
 
 
@@ -46,10 +47,9 @@ class TestMainMerge(unittest.TestCase):
         mlp = Moe()
         method = SimpleNamespace(
             can_overlap_shared=lambda block, x, phase: phase != "prefill",
-            run_shared_overlap=lambda block, x, phase: events.append(
-                ("overlap", active["qwen38_execution_phase"])
-            )
-            or x + 2,
+            run_shared_overlap=lambda block, x, phase: (
+                events.append(("overlap", active["qwen38_execution_phase"])) or x + 2
+            ),
         )
         mlp.experts = SimpleNamespace(quant_method=method)
         model = SimpleNamespace(
@@ -60,6 +60,9 @@ class TestMainMerge(unittest.TestCase):
             ),
         )
         namespace = dict(
+            envs=SimpleNamespace(
+                SGLANG_OPT_QWEN38_HC_GATE_OVERLAP=SimpleNamespace(get=lambda: False)
+            ),
             torch=SimpleNamespace(Tensor=object),
             ForwardBatch=object,
             Qwen2MoeSparseMoeBlock=Moe,
@@ -93,8 +96,12 @@ class TestMainMerge(unittest.TestCase):
             self.assertEqual(active, {})
 
     def test_shared_overlap_leaves_reduction_to_new_boundary(self):
+        try:
+            import torch
+        except ImportError:
+            self.skipTest("torch is unavailable")
+
         from sglang.srt.layers.moe import qwen38_cache_overlap as overlap
-        import torch
 
         block = SimpleNamespace(reduce_results=False, shared_expert_gate=None)
         block._forward_shared_experts = lambda x, apply_gate: x * 2

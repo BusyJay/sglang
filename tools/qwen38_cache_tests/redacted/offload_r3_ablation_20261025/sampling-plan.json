@@ -1,0 +1,57 @@
+{
+  "prompt_tokens": 25560,
+  "sampling_params": {
+    "temperature": 0,
+    "max_new_tokens": 4096,
+    "min_new_tokens": 0,
+    "stop": null,
+    "stop_token_ids": null,
+    "stop_regex": null,
+    "top_p": 1,
+    "top_k": 1,
+    "min_p": 0.0,
+    "presence_penalty": 0.0,
+    "frequency_penalty": 0.0,
+    "repetition_penalty": 1.1,
+    "regex": null,
+    "ebnf": null,
+    "n": 1,
+    "no_stop_trim": false,
+    "ignore_eos": false,
+    "skip_special_tokens": false,
+    "logit_bias": null,
+    "custom_params": null,
+    "sampling_seed": 42,
+    "spaces_between_special_tokens": true,
+    "watermark": null
+  },
+  "original_request_path": "/home/user/workspace/prod/homelab-llm/models/profiles/user-cta-abba-20261025/private-fixture/frozen-request.json",
+  "server_seed": 42,
+  "profiler": false,
+  "source_groups": {
+    "u1": [
+      "python/sglang/srt/layers/attention/qsa/kernel.py",
+      "python/sglang/srt/layers/attention/qsa/metadata.py",
+      "python/sglang/kernels/ops/attention/__init__.py",
+      "python/sglang/srt/layers/attention/qwen_sparse_attn_backend.py"
+    ],
+    "u2": [
+      "python/sglang/srt/utils/custom_op.py"
+    ],
+    "u3": [
+      "python/sglang/kernels/ops/activation/__init__.py",
+      "python/sglang/kernels/ops/activation/softcap.py",
+      "python/sglang/srt/layers/logits_processor.py"
+    ],
+    "u4": [
+      "python/sglang/srt/hardware_backend/mlx/kv_cache/auxiliary_state.py",
+      "python/sglang/srt/hardware_backend/mlx/model_runner.py",
+      "python/sglang/srt/managers/schedule_batch.py",
+      "python/sglang/srt/managers/scheduler_components/batch_result_processor.py",
+      "python/sglang/srt/managers/scheduler_components/pool_stats_observer.py",
+      "python/sglang/srt/mem_cache/memory_pool.py",
+      "python/sglang/srt/mem_cache/unified_memory_pool.py",
+      "python/sglang/srt/session/streaming_session.py"
+    ]
+  }
+}

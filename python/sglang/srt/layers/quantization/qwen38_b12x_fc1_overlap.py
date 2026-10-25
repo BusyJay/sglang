@@ -66,6 +66,23 @@ def masked_fc1_method(source):
 def phase_kernel_namespace(native, phase):
     if phase not in (1, 2):
         raise ValueError("expected FC1 or FC2 phase")
+    from sglang.srt.runtime_context import get_buffer
+
+    # Compiled programs depend on the kernel implementation, never on a layer's
+    # weights or scratch pointers. Keep their cache across adapters, just like
+    # the native B12X compiler cache; each adapter still owns its graph bindings.
+    namespaces = get_buffer("qwen38_fc1_phase_namespaces", dict)
+    key = (
+        native.MoEMicroKernelW4A16SmallMDirect,
+        native._compile_w4a16_small_m_direct,
+        phase,
+    )
+    if key not in namespaces:
+        namespaces[key] = _build_phase_kernel_namespace(native, phase)
+    return namespaces[key]
+
+
+def _build_phase_kernel_namespace(native, phase):
     from b12x.moe._shared.kernels import micro
 
     cls = native.MoEMicroKernelW4A16SmallMDirect
@@ -129,6 +146,7 @@ def _resolve_route_expert(self, route_eid: Int64, route_expert_limit: Int32):
     # Runtime route bounds protect actual allocations. Expert count only sizes
     # fake tensors; share compiled phases across adaptive capacity changes.
     namespace["_qwen38_capacity_bucket"] = True
+    namespace["_qwen38_phase"] = phase
     tree = (
         copy.deepcopy(native._qwen38_compile_tree)
         if hasattr(native, "_qwen38_compile_tree")
@@ -171,8 +189,51 @@ def _resolve_route_expert(self, route_eid: Int64, route_expert_limit: Int32):
     return SimpleNamespace(**namespace)
 
 
+def precompile_phases(adapter, topk, buckets):
+    import torch
+
+    from sglang.srt.layers.moe.qwen38_observation import observe
+    from sglang.srt.layers.quantization.qwen38_cached_b12x import compile_small_m
+
+    compiled = getattr(adapter, "precompiled_phases", None)
+    if compiled is None:
+        compiled = adapter.precompiled_phases = set()
+    for namespace in (adapter.fc1_namespace, adapter.fc2_namespace):
+        shared = getattr(namespace, "_qwen38_precompiled_phases", None)
+        if shared is None:
+            shared = namespace._qwen38_precompiled_phases = set()
+        for tokens in range(1, adapter.max_tokens + 1):
+            for bucket in buckets:
+                key = (id(namespace), adapter.globals.device, tokens, topk, bucket)
+                if key in compiled:
+                    continue
+                if key in shared:
+                    compiled.add(key)
+                    continue
+                with observe(
+                    "fc1_startup_compile",
+                    startup=True,
+                    tokens=tokens,
+                    topk=topk,
+                    bucket=bucket,
+                    phase=namespace._qwen38_phase,
+                ):
+                    compile_small_m(
+                        namespace,
+                        adapter.globals.device,
+                        tokens,
+                        adapter.hidden,
+                        adapter.width,
+                        bucket,
+                        topk,
+                        torch.int32,
+                    )
+                compiled.add(key)
+                shared.add(key)
+
+
 class NativeFc1Stage:
-    """Two reusable graphs; no input activation references survive a call.
+    """Reusable phase graphs; no input activation references survive a call.
 
     The mailbox owns plan/fill ordering. Its snapshot writes ``early`` before
     plan mutation; CPU placeholders remain in late FC1, preserving initialized
@@ -181,6 +242,7 @@ class NativeFc1Stage:
 
     def __init__(self, adapter, tokens, topk, tensors, weights, resident_alphas=None):
         import torch
+
         from sglang.kernels.ops.moe.qwen38_route_alphas import (
             prepare_fc1_routes,
             refresh_route_alphas,
@@ -243,7 +305,7 @@ class NativeFc1Stage:
                 torch.cuda.current_stream(),
             )
 
-        def finish(warmup=False):
+        def late_fc1(warmup=False):
             if resident_alphas is None or warmup:
                 refresh_route_alphas(
                     self.remapped,
@@ -264,6 +326,8 @@ class NativeFc1Stage:
                 self.output,
                 torch.cuda.current_stream(),
             )
+
+        def fc2():
             self.fc2.run(
                 self.x,
                 self.remapped,
@@ -280,8 +344,20 @@ class NativeFc1Stage:
         # A new binding can see a previous plan with obsolete slot indices.
         # Warm the resident kernel with an empty plan, before capture can
         # trigger its first device load. Never scatter a stale previous plan.
-        begin(warmup=True)
-        finish(warmup=True)
+        from sglang.srt.environ import envs
+        from sglang.srt.layers.moe.qwen38_observation import observe
+
+        self.split_fill = (
+            envs.SGLANG_OPT_QWEN38_SPLIT_FILL.get() and resident_alphas is not None
+        )
+
+        def finish(warmup=False):
+            late_fc1(warmup=warmup)
+            fc2()
+
+        with observe("fc1_warmup_enqueue"):
+            begin(warmup=True)
+            finish(warmup=True)
         self.begin_graph, self.finish_graph = (
             torch.cuda.CUDAGraph(),
             torch.cuda.CUDAGraph(),
@@ -293,11 +369,20 @@ class NativeFc1Stage:
         current = torch.cuda.current_stream(self.x.device)
         capture_stream = torch.cuda.Stream(device=self.x.device)
         capture_stream.wait_stream(current)
-        with torch.cuda.stream(capture_stream):
-            for graph, launch in (
+        if self.split_fill:
+            self.late_fc1_graph = torch.cuda.CUDAGraph()
+            launches = (
                 (self.begin_graph, begin),
-                (self.finish_graph, finish),
-            ):
+                (self.late_fc1_graph, late_fc1),
+                (self.finish_graph, fc2),
+            )
+        else:
+            launches = ((self.begin_graph, begin), (self.finish_graph, finish))
+        with (
+            observe("fc1_capture_instantiate_enqueue"),
+            torch.cuda.stream(capture_stream),
+        ):
+            for graph, launch in launches:
                 # Other serving threads may retire samples on unrelated
                 # streams. Keep this thread's capture checks without rejecting
                 # their independent CUDA calls under global capture mode.
@@ -323,10 +408,17 @@ class NativeFc1Stage:
         self.x.copy_(x)
         self.begin_graph.replay()
 
-    def finish(self):
+    def late_fc1(self):
+        if not self.split_fill:
+            raise RuntimeError("late FC1 requires split-fill staging")
+        self.late_fc1_graph.replay()
+
+    def finish(self, *, late_fc1_done=False):
         import torch
 
         try:
+            if self.split_fill and not late_fc1_done:
+                self.late_fc1_graph.replay()
             self.finish_graph.replay()
             return self.output
         finally:

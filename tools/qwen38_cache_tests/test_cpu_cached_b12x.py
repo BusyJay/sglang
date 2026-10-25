@@ -13,6 +13,21 @@ from sglang.srt.layers.quantization.qwen38_nvfp4_cache import Qwen38CachedNvFp4M
 
 
 class TestCachedB12x(unittest.TestCase):
+    def test_precompile_covers_every_capacity_in_legal_interval(self):
+        from sglang.srt.layers.quantization.qwen38_cached_b12x import (
+            reachable_capacity_buckets,
+        )
+
+        for minimum, maximum in ((10, 256), (128, 256), (129, 256), (107, 210), (1, 1)):
+            buckets = reachable_capacity_buckets(minimum, maximum)
+            observed = {
+                1 << (capacity - 1).bit_length()
+                for capacity in range(minimum, maximum + 1)
+            }
+            self.assertEqual(set(buckets), observed)
+        with self.assertRaises(ValueError):
+            reachable_capacity_buckets(0, 128)
+
     def test_switch_validation_and_default(self):
         with mock.patch.dict(os.environ, {}, clear=True):
             self.assertEqual(

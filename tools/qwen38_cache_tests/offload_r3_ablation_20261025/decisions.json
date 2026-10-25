@@ -1,0 +1,62 @@
+[
+  {
+    "component": "U1 QSA gather",
+    "evidence": "BF16 gather 8.414→1.492 µs；TTFT +0.12% / -0.11%",
+    "assessment": "算子提升；整请求 TTFT 持平",
+    "decision": "保留"
+  },
+  {
+    "component": "U2 eager direct",
+    "evidence": "普通参数 3.514→3.114 µs；VERIFY +2.84% / -1.10%",
+    "assessment": "主机开销提升；服务持平",
+    "decision": "修复容器 dispatch 后保留"
+  },
+  {
+    "component": "U3 logits cast",
+    "evidence": "M1 1.655→0.959 µs；M3 2.167→1.553 µs；VERIFY +1.50% / -0.26%",
+    "assessment": "cast 提升；服务持平",
+    "decision": "修复列 stride 回退后保留"
+  },
+  {
+    "component": "U4 Mamba planning",
+    "evidence": "真实规划函数 CPU 9.605→6.436 µs；VERIFY +4.58% / +1.81%",
+    "assessment": "CPU 路径提升；服务正向趋势",
+    "decision": "保留"
+  },
+  {
+    "component": "A startup precompile",
+    "evidence": "独立冷缓存：最大停顿 1.789→0.247 s；启动 50.189→64.203 s；VERIFY +0.77% / +0.42%",
+    "assessment": "冷路径改善；稳态持平",
+    "decision": "保留（冷启动有编译成本）"
+  },
+  {
+    "component": "B split fill",
+    "evidence": "VERIFY -0.82% / -0.07%；吞吐 +4.52% / +7.98%",
+    "assessment": "服务持平，未确认回退",
+    "decision": "保留"
+  },
+  {
+    "component": "C1 HC gate overlap",
+    "evidence": "串行 M3 1.307→1.307 µs；VERIFY +1.93% / -2.37%",
+    "assessment": "服务持平，未确认回退",
+    "decision": "保留"
+  },
+  {
+    "component": "C2 shared gate overlap",
+    "evidence": "串行 M3 2.044→2.659 µs；fill 后 1.717 µs；VERIFY +1.21% / -1.40%",
+    "assessment": "串行工作增加；重叠服务持平",
+    "decision": "保留；不宣称减少总 GPU 工作"
+  },
+  {
+    "component": "U5 CUTLASS tune ceiling",
+    "evidence": "TTFT +0.12% / +0.11%",
+    "assessment": "服务持平，未确认回退",
+    "decision": "保留"
+  },
+  {
+    "component": "F draft head formats",
+    "evidence": "未接入 serving，未采集真实 head 激活，未运行 GPU 格式收益验收",
+    "assessment": "不属于本次线上性能集合",
+    "decision": "仅离线工具；不启用、不计作持平或收益"
+  }
+]

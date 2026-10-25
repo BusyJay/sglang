@@ -489,6 +489,7 @@ def _fused_gate_sigmoid_mul_add_kernel(
     DO_ADD: tl.constexpr = True,
     USE_PDL: tl.constexpr = False,
     GATE_ONLY: tl.constexpr = False,
+    PRECOMPUTED_GATE: tl.constexpr = False,
 ):
     pid = tl.program_id(axis=0).to(tl.int64)
     row_offset = pid * hidden_dim
@@ -496,14 +497,16 @@ def _fused_gate_sigmoid_mul_add_kernel(
     offsets = tl.arange(0, BLOCK_SIZE)
     mask = offsets < hidden_dim
 
-    w = tl.load(gate_weight_ptr + offsets, mask=mask, other=0.0).to(tl.float32)
+    if not PRECOMPUTED_GATE:
+        w = tl.load(gate_weight_ptr + offsets, mask=mask, other=0.0).to(tl.float32)
 
     if USE_PDL:
         tl.extra.cuda.gdc_wait()
 
-    h = tl.load(hidden_states_ptr + row_offset + offsets, mask=mask, other=0.0).to(
-        tl.float32
-    )
+    if not PRECOMPUTED_GATE:
+        h = tl.load(hidden_states_ptr + row_offset + offsets, mask=mask, other=0.0).to(
+            tl.float32
+        )
     if not GATE_ONLY:
         s = tl.load(shared_output_ptr + row_offset + offsets, mask=mask, other=0.0).to(
             tl.float32
@@ -516,7 +519,10 @@ def _fused_gate_sigmoid_mul_add_kernel(
         if USE_PDL:
             tl.extra.cuda.gdc_launch_dependents()
 
-    gate_val = tl.sigmoid(tl.sum(h * w, axis=0))
+    if PRECOMPUTED_GATE:
+        gate_val = tl.load(gate_weight_ptr + pid)
+    else:
+        gate_val = tl.sigmoid(tl.sum(h * w, axis=0))
     if GATE_ONLY:
         # Preserve FP32 for the later shared-add FMA, without an intermediate
         # BF16 gated shared output. Keep the standalone gate's PDL ordering.

@@ -26,7 +26,7 @@ register_kernel(
         backend=KernelBackend.TRITON,
         target="sglang.kernels.ops.moe.shared_expert_gate:shared_expert_gate",
         capabilities=frozenset({CapabilityRequirement.cuda(min_sm=(9, 0))}),
-        description="FP32 sigmoid gate from a single BF16 row of width 2560, with PDL.",
+        description="FP32 sigmoid gate from 1..3 BF16 rows of width 2560, with PDL.",
     )
 )
 
@@ -477,5 +477,14 @@ register_kernel(
         target="sglang.kernels.ops.moe.qwen38_expert_cache:csf_patch_headers",
         capabilities=_CUDA,
         description="Bind immutable exception banks in tiered CSF cache headers.",
+    )
+)
+
+register_kernel(
+    KernelSpec(
+        op="moe.shared_expert_gate_add",
+        backend=KernelBackend.TRITON,
+        target="sglang.kernels.ops.moe.shared_expert_gate:shared_expert_gate_add",
+        capabilities=frozenset({CapabilityRequirement.cuda(min_sm=(9, 0))}),
     )
 )

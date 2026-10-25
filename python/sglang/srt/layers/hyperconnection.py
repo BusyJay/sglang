@@ -360,7 +360,8 @@ class GatedResidual(HyperConnectionBase):
             )
 
             current = torch.cuda.current_stream()
-            current.wait_stream(self._gate_stream)
+            if self._gate_stream is not None:
+                current.wait_stream(self._gate_stream)
             partials.record_stream(current)
             return hc_combine_apply_norm(
                 block_output,
@@ -383,7 +384,8 @@ class GatedResidual(HyperConnectionBase):
             )
 
             current = torch.cuda.current_stream()
-            current.wait_stream(self._gate_stream)
+            if self._gate_stream is not None:
+                current.wait_stream(self._gate_stream)
             partials.record_stream(current)
             return hc_combine_apply(block_output, hyper_input, partials)
         assert hyper_input.shape[-1] == self.hc_count * self.hidden_size

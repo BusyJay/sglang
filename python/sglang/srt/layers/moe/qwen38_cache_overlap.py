@@ -8,6 +8,7 @@ from contextvars import ContextVar
 
 import torch
 
+from sglang.srt.environ import envs
 from sglang.srt.model_executor.runner_backend_utils.breakable_cuda_graph import (
     get_current_capture_pool,
 )
@@ -34,6 +35,37 @@ def fill_with_overlap(compute, fill_stream, ready, filled, submit_fill, independ
     finally:
         # The caller records cache-reader completion after this join, including
         # when the independent branch raises. No host synchronization is needed.
+        compute.wait_event(filled)
+
+
+def fill_with_fc1_overlap(
+    compute,
+    fill_stream,
+    ready,
+    fc1_ready,
+    filled,
+    fill_fc1,
+    fill_fc2,
+    independent,
+    late_fc1,
+):
+    """Join both writers on every exit, before caller publishes reader completion."""
+    ready.record(compute)
+    fill_stream.wait_event(ready)
+    try:
+        with torch.cuda.stream(fill_stream):
+            try:
+                try:
+                    fill_fc1()
+                finally:
+                    fc1_ready.record(fill_stream)
+                fill_fc2()
+            finally:
+                filled.record(fill_stream)
+        independent()
+        compute.wait_event(fc1_ready)
+        late_fc1()
+    finally:
         compute.wait_event(filled)
 
 
@@ -70,10 +102,33 @@ class SharedExpertCall:
     until the following segment has consumed it. Eager calls never build a graph.
     """
 
-    def __init__(self, block):
+    def __init__(self, block, hc_gate=None):
         self.block = block
+        self.hc_gate = hc_gate
         self.graph = None
         self.output = None
+        self.gate = None
+
+    def prepare_gate(self, hidden_states):
+        if self.hc_gate is not None:
+            from sglang.kernels.ops.elementwise.hc_combine_decode import hc_combine_gate
+
+            normed, weight, partials = self.hc_gate
+            hc_combine_gate(normed, weight, out=partials)
+        if (
+            envs.SGLANG_OPT_QWEN38_SHARED_GATE_OVERLAP.get()
+            and self.block.shared_expert_gate is not None
+            and hidden_states.dtype == torch.bfloat16
+            and 1 <= hidden_states.shape[0] <= 3
+            and hidden_states.shape[1] == 2560
+            and hidden_states.is_contiguous()
+            and self.block.shared_expert_gate.weight.dtype == torch.bfloat16
+        ):
+            from sglang.kernels.ops.moe.shared_expert_gate import shared_expert_gate
+
+            self.gate = shared_expert_gate(
+                hidden_states, self.block.shared_expert_gate.weight.squeeze()
+            )
 
     def capture(self, hidden_states):
         if self.graph is not None:
@@ -87,12 +142,14 @@ class SharedExpertCall:
             pool=get_current_capture_pool(),
             stream=torch.cuda.current_stream(),
         ):
+            self.prepare_gate(hidden_states)
             result = self.block._forward_shared_experts(hidden_states, apply_gate=False)
         self.output = result
         self.graph = graph
 
     def run(self, hidden_states):
         if self.graph is None:
+            self.prepare_gate(hidden_states)
             self.output = self.block._forward_shared_experts(
                 hidden_states, apply_gate=False
             )
@@ -100,7 +157,7 @@ class SharedExpertCall:
             self.graph.replay()
 
 
-def run_shared_overlap(block, hidden_states, phase):
+def run_shared_overlap(block, hidden_states, phase, hc_gate=None):
     from sglang.srt.models.qwen2_moe import (
         fused_gate_sigmoid_mul_add,
         reduce_moe_output,
@@ -109,7 +166,7 @@ def run_shared_overlap(block, hidden_states, phase):
     # This function stays INSIDE the ordinary graph segments. Only quant's
     # existing expert boundary breaks capture; its stub prepares the shared
     # graph, and its runtime callback replays it alongside fill.
-    call = SharedExpertCall(block)
+    call = SharedExpertCall(block, hc_gate=hc_gate)
     token = _during_fill.set((call, hidden_states))
     try:
         routed = block._forward_router_experts(hidden_states)
@@ -118,7 +175,11 @@ def run_shared_overlap(block, hidden_states, phase):
     shared = call.output
     if shared is None:
         raise RuntimeError("direct-fill transport did not execute shared expert")
-    if block.shared_expert_gate is not None:
+    if call.gate is not None:
+        from sglang.kernels.ops.moe.shared_expert_gate import shared_expert_gate_add
+
+        shared_expert_gate_add(call.gate, shared, routed)
+    elif block.shared_expert_gate is not None:
         fused_gate_sigmoid_mul_add(
             hidden_states,
             block.shared_expert_gate.weight.squeeze(),

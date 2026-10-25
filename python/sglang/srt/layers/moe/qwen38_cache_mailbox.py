@@ -22,6 +22,15 @@ from sglang.srt.environ import envs
 from sglang.srt.layers.moe.qwen38_cache_runtime import PreparedExperts
 
 
+def split_fill_names(names):
+    """FC1 needs weight and scale13; resident alpha tables are separate."""
+    first = ("w13_weight", "w13_blockscale_swizzled")
+    second = ("w2_weight", "w2_blockscale_swizzled")
+    if set(names) != set(first + second):
+        raise ValueError("split fill requires native scales and resident alphas")
+    return first, second
+
+
 class DecodeMissMailbox:
     def __init__(self, runtime):
         try:
@@ -115,6 +124,8 @@ class DecodeMissMailbox:
         for pair in self.overlap_events.values():
             for event in pair:
                 event.record(torch.cuda.current_stream(runtime.device))
+        self.fc1_ready_events = {id(event): torch.cuda.Event() for event in self.events}
+        self.split_fill_invocations = 0
         self.overlap_invocations = 0
         self.early_cache_invocations = 0
         self.available = collections.deque(self.events)
@@ -364,7 +375,43 @@ class DecodeMissMailbox:
                         early_ids, {**r.caches[layer], **r.layer_scales[layer]}
                     )
 
-            if during_fill is None and early_ids is None and fc1_stage is None:
+            split_fill = (
+                fc1_stage is not None
+                and fc1_stage.split_fill
+                and layer in self.split_layouts
+            )
+            if split_fill:
+                from sglang.srt.layers.moe.qwen38_cache_overlap import (
+                    fill_with_fc1_overlap,
+                )
+
+                ready, filled = self.overlap_events[id(computed)]
+                fc1_ready = self.fc1_ready_events[id(computed)]
+
+                def submit_part(index):
+                    _module().mailbox_fill_grid(
+                        state["plan"],
+                        self.split_layouts[layer][index],
+                        ids.numel(),
+                        self.failed_address,
+                        self.fill_cta,
+                    )
+
+                fill_with_fc1_overlap(
+                    compute,
+                    self.fill_stream,
+                    ready,
+                    fc1_ready,
+                    filled,
+                    lambda: submit_part(0),
+                    lambda: submit_part(1),
+                    independent,
+                    fc1_stage.late_fc1,
+                )
+                self.split_fill_invocations += 1
+                self.overlap_invocations += 1
+                self.early_cache_invocations += 1
+            elif during_fill is None and early_ids is None and fc1_stage is None:
                 submit_fill()
             else:
                 from sglang.srt.layers.moe.qwen38_cache_overlap import fill_with_overlap
@@ -380,7 +427,7 @@ class DecodeMissMailbox:
                 from sglang.kernels.ops.moe.qwen38_hybrid_plan import hybrid_merge
 
                 gpu = (
-                    fc1_stage.finish()
+                    fc1_stage.finish(late_fc1_done=split_fill)
                     if fc1_stage is not None
                     else component.run_gpu(layer, x, remapped, gpu_weights)
                 )
@@ -397,7 +444,7 @@ class DecodeMissMailbox:
                 )
                 return result
             if fc1_stage is not None:
-                return wrap_result(fc1_stage.finish())
+                return wrap_result(fc1_stage.finish(late_fc1_done=split_fill))
             return execute(
                 PreparedExperts(
                     {**r.caches[layer], **r.layer_scales[layer]},
@@ -428,12 +475,25 @@ class DecodeMissMailbox:
         r = self.runtime
         self.upload_hosts = []
         self.layouts = {}
-        for layer in self.sizes:
+        self.split_layouts = {}
+        split = bool(
+            envs.SGLANG_OPT_QWEN38_SPLIT_FILL.get()
+            and r.resident_alphas
+            and not r.manifest.scale_encoding
+        )
+        # Order descriptors on the host before their single upload. Each stage
+        # then uses a contiguous view; rebalance never uploads CUDA indices.
+        names = r.decode_copy_names
+        if split:
+            first, second = split_fill_names(names)
+            names = first + second
+        for layer, sizes in self.sizes.items():
+            size_by_name = dict(zip(r.decode_copy_names, sizes))
             table = torch.tensor(
                 [
                     [
                         r.caches[layer][name].data_ptr(),
-                        size,
+                        size_by_name[name],
                         self.pack_address + r.manifest.tensors[layer][name].offset,
                         *(
                             [r.csf_banks.delta(layer, name)]
@@ -441,7 +501,7 @@ class DecodeMissMailbox:
                             else []
                         ),
                     ]
-                    for name, size in zip(r.decode_copy_names, self.sizes[layer])
+                    for name in names
                 ],
                 dtype=torch.int64,
                 device="cpu" if non_blocking else r.device,
@@ -451,6 +511,8 @@ class DecodeMissMailbox:
                 self.upload_hosts.append(table)
                 table = table.to(r.device, non_blocking=True)
             self.layouts[layer] = table
+            if split:
+                self.split_layouts[layer] = (table[: len(first)], table[len(first) :])
 
     @property
     def device_bytes(self):

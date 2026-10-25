@@ -11,6 +11,34 @@ from collections import OrderedDict
 
 import torch
 
+from sglang.srt.layers.moe.qwen38_observation import observe
+
+
+def compile_small_m(kernel, device, tokens, hidden, width, capacity, topk, ids_dtype):
+    return kernel._compile_w4a16_small_m_direct(
+        m=tokens,
+        hidden_size=hidden,
+        intermediate_size=width,
+        num_experts=capacity,
+        topk=topk,
+        activation="silu",
+        fast_math=True,
+        topk_ids_dtype=ids_dtype,
+        device=device,
+        w13_layout="w13",
+    )
+
+
+def reachable_capacity_buckets(minimum, maximum):
+    """Power-of-two compiler buckets intersecting the legal capacity interval."""
+    if not 1 <= minimum <= maximum:
+        raise ValueError("invalid reachable capacity interval")
+    first = 1 << (minimum - 1).bit_length()
+    last = 1 << (maximum - 1).bit_length()
+    return tuple(
+        1 << power for power in range(first.bit_length() - 1, last.bit_length())
+    )
+
 
 class _PreparedSmallMLaunch:
     """Bounded pointer bindings; no cached activations or expert pool tensors.
@@ -24,6 +52,7 @@ class _PreparedSmallMLaunch:
         self.output_dtype = output_dtype or torch.bfloat16
         self.bindings = OrderedDict()
         self.dynamic_pointers = OrderedDict()
+        self.binding_misses = 0
         self.barrier_state = workspace[-2:]
         self.barriers = (workspace[-2:-1], workspace[-1:])
         self.intermediate = intermediate.view(torch.uint32)
@@ -54,18 +83,23 @@ class _PreparedSmallMLaunch:
                 if getattr(k, "_qwen38_capacity_bucket", False)
                 else capacity
             )
-            launch = k._compile_w4a16_small_m_direct(
-                m=x.shape[0],
-                hidden_size=x.shape[1],
-                intermediate_size=tensors["w2_weight"].shape[2] * 2,
-                num_experts=compile_capacity,
+            with observe(
+                "fc1_compile_entry",
+                tokens=x.shape[0],
                 topk=ids.shape[1],
-                activation="silu",
-                fast_math=True,
-                topk_ids_dtype=ids.dtype,
-                device=x.device,
-                w13_layout="w13",
-            )
+                bucket=compile_capacity,
+                phase=getattr(k, "_qwen38_phase", 0),
+            ):
+                launch = compile_small_m(
+                    k,
+                    x.device,
+                    x.shape[0],
+                    x.shape[1],
+                    tensors["w2_weight"].shape[2] * 2,
+                    compile_capacity,
+                    ids.shape[1],
+                    ids.dtype,
+                )
 
             def ptr(dtype, tensor):
                 return k.make_ptr(
@@ -91,6 +125,7 @@ class _PreparedSmallMLaunch:
                 k.Int32(x.shape[0]),
                 k.Int32(launch.grid_x),
             )
+            self.binding_misses += 1
             binding = (launch, fixed, tail)
             self.bindings[key] = binding
             if len(self.bindings) > 8:
@@ -288,6 +323,8 @@ class CachedB12xW4A16:
                 )
 
         self.fc1_stages = OrderedDict()
+        self.fc1_stage_misses = 0
+        self.last_fc1_key = None
         self.fc1_namespace = self.fc2_namespace = None
         if enable_fc1_overlap:
             if self.fp32_launch is None or (hidden, width) != (2560, 640):
@@ -298,6 +335,16 @@ class CachedB12xW4A16:
 
             self.fc1_namespace = phase_kernel_namespace(self.fp32_launch.kernel, 1)
             self.fc2_namespace = phase_kernel_namespace(self.fp32_launch.kernel, 2)
+
+    def precompile_fc1(self, topk, minimum, maximum):
+        if self.fc1_namespace is None:
+            return
+        from sglang.srt.layers.quantization.qwen38_b12x_fc1_overlap import (
+            precompile_phases,
+        )
+
+        buckets = reachable_capacity_buckets(minimum, maximum)
+        precompile_phases(self, topk, buckets)
 
     def fc1_stage(self, x, ids, weights, tensors, *, resident_alphas=None):
         if self.fc1_namespace is None:
@@ -335,9 +382,28 @@ class CachedB12xW4A16:
             stream = torch.cuda.current_stream(x.device)
             if self.used:
                 stream.wait_event(self.done)
-            stage = NativeFc1Stage(
-                self, x.shape[0], ids.shape[1], tensors, weights, resident_alphas
+            self.fc1_stage_misses += 1
+            fields = (
+                ("tokens", "topk", "capacity", "route_weights")
+                + tuple(tensors)
+                + tuple(f"resident_{i}" for i in range(len(resident_alphas or ())))
             )
+            changed = (
+                list(fields)
+                if self.last_fc1_key is None
+                else [
+                    name
+                    for name, old, new in zip(fields, self.last_fc1_key, key)
+                    if old != new
+                ]
+            )
+            with observe(
+                "fc1_stage_binding", misses=self.fc1_stage_misses, changed=changed
+            ):
+                stage = NativeFc1Stage(
+                    self, x.shape[0], ids.shape[1], tensors, weights, resident_alphas
+                )
+            self.last_fc1_key = key
             self.fc1_stages[key] = stage
             if len(self.fc1_stages) > 8:
                 _, retired = self.fc1_stages.popitem(last=False)

@@ -24,6 +24,9 @@ import torch
 from torch import nn
 
 from sglang.kernels.ops.activation.softcap import (
+    cast_to_float32_logits,
+)
+from sglang.kernels.ops.activation.softcap import (
     softcap_inplace_logits as fused_softcap,
 )
 from sglang.kernels.ops.activation.softcap import (
@@ -1175,6 +1178,16 @@ class LogitsProcessor(nn.Module):
             logits.shape
         ):
             assert logits_buffer.dtype == torch.float
+            if (
+                logits.is_cuda
+                and logits.dtype in (torch.float16, torch.bfloat16)
+                and logits.ndim == 2
+                and logits.numel() > 0
+                and logits.stride(1) == 1
+                and logits_buffer.stride(1) == 1
+                and (logits.shape[0] <= 1 or logits_buffer.stride(0) >= logits.shape[1])
+            ):
+                return cast_to_float32_logits(logits, logits_buffer)
             logits_buffer.copy_(logits)
             logits = logits_buffer
         else:

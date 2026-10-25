@@ -22,9 +22,15 @@ def _jit_module():
     )
 
 
-def hc_combine_gate(normed: torch.Tensor, weight: torch.Tensor) -> torch.Tensor:
-    partials = torch.empty(
-        (normed.shape[0], 8, 4), device=normed.device, dtype=torch.float32
+def hc_combine_gate(
+    normed: torch.Tensor, weight: torch.Tensor, out=None
+) -> torch.Tensor:
+    partials = (
+        out
+        if out is not None
+        else torch.empty(
+            (normed.shape[0], 8, 4), device=normed.device, dtype=torch.float32
+        )
     )
     _jit_module().gate(normed, weight, partials)
     return partials

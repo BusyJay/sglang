@@ -203,6 +203,23 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
                 scale_encoding=getattr(self.manifest, "scale_encoding", {}),
                 enable_fc1_overlap=getattr(runtime, "decode_early_cache", False),
             )
+            if (
+                envs.SGLANG_OPT_QWEN38_FC1_PRECOMPILE.get()
+                and self.b12x.fc1_namespace is not None
+            ):
+                minimum = maximum = runtime.slots_for_layer(self.layer_id)
+                if runtime.adaptive_cache:
+                    minimum = getattr(
+                        runtime, "adaptive_min_slots", self.manifest.top_k
+                    )
+                    maximum = min(
+                        self.manifest.num_experts,
+                        sum(runtime.layer_cache_slots)
+                        - (self.manifest.num_layers - 1) * minimum,
+                    )
+                    if hasattr(runtime, "staged_pool"):
+                        maximum = self.manifest.num_experts
+                self.b12x.precompile_fc1(self.manifest.top_k, minimum, maximum)
             if getattr(runtime, "hybrid", None) is not None:
                 if runtime.hybrid.gpu_backend != self.w4a16_backend:
                     raise ValueError(
@@ -304,10 +321,10 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
 
         return can_overlap_shared(self, block, hidden_states, phase)
 
-    def run_shared_overlap(self, block, hidden_states, phase):
+    def run_shared_overlap(self, block, hidden_states, phase, hc_gate=None):
         from sglang.srt.layers.moe.qwen38_cache_overlap import run_shared_overlap
 
-        return run_shared_overlap(block, hidden_states, phase)
+        return run_shared_overlap(block, hidden_states, phase, hc_gate=hc_gate)
 
     @eager_on_graph(True, capture_stub=_capture_expert_output)
     def _run_experts(
@@ -477,6 +494,12 @@ class Qwen38CachedNvFp4MoeMethod(FusedMoEMethodBase):
                 swiglu_beta=swiglu_beta,
                 swiglu_limit=swiglu_limit,
                 apply_routed_scaling_factor=False,
+                tune_max_num_tokens=(
+                    2048
+                    if envs.SGLANG_OPT_QWEN38_CUTLASS_PREFILL_TUNE.get()
+                    and not self.manifest.scale_encoding
+                    else None
+                ),
             )
             runner = self.runners[capacity]
             # Bound CUTLASS's routed-activation workspace independently of the

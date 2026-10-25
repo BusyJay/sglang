@@ -232,6 +232,13 @@ class TestEagerBreakReplay(unittest.TestCase):
         with mock.patch.dict(
             "sys.modules",
             {
+                "sglang.srt.environ": SimpleNamespace(
+                    envs=SimpleNamespace(
+                        SGLANG_OPT_QWEN38_CUTLASS_PREFILL_TUNE=SimpleNamespace(
+                            get=lambda: False
+                        )
+                    )
+                ),
                 "torch": SimpleNamespace(
                     bfloat16="bf16", zeros_like=lambda _: Tensor(0)
                 ),

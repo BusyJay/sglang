@@ -421,3 +421,11 @@ for _fn in ("fp4_index_logits_paged", "finish_paged_indexer_topk"):
         )
     )
 del _fn
+
+register_kernel(
+    KernelSpec(
+        op="attention.gather_qsa_compressed_keys",
+        backend=KernelBackend.TRITON,
+        target="sglang.srt.layers.attention.qsa.kernel:gather_qsa_compressed_keys",
+    )
+)

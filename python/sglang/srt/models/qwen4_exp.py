@@ -1862,18 +1862,18 @@ class Qwen4ExpLayerExtensionMixin:
             use_mix=True,
             use_combine=True,
         )
+        self._gated_residual_state = GatedResidualState(
+            expand=self._widen_streams,
+            attn_mix=self._attn_mix,
+            ffn_mix=self._ffn_mix,
+            attn_combine=self._attn_combine,
+            ffn_combine=self._ffn_combine,
+            attn_reads_every_row=_has_ple(layer_id, config),
+        )
         self.attn_boundary, self.ffn_boundary = _build_qwen4_exp_stages(
             config,
             layer_id,
-            GatedResidualState(
-                expand=self._widen_streams,
-                attn_mix=self._attn_mix,
-                ffn_mix=self._ffn_mix,
-                attn_combine=self._attn_combine,
-                ffn_combine=self._ffn_combine,
-                # The PLE embedding is computed for every row.
-                attn_reads_every_row=_has_ple(layer_id, config),
-            ).residual_ops(),
+            self._gated_residual_state.residual_ops(),
             linear_attention=linear_attention,
         )
 
@@ -2041,9 +2041,42 @@ class Qwen4ExpLayerExtensionMixin:
                         and can_overlap is not None
                         and can_overlap(self.mlp, hidden_states, phase)
                     ):
-                        hidden_states = method.run_shared_overlap(
-                            self.mlp, hidden_states, phase
-                        )
+                        hc_gate = None
+                        state = getattr(self, "_gated_residual_state", None)
+                        normed = state.normed if state is not None else None
+                        if (
+                            envs.SGLANG_OPT_QWEN38_HC_GATE_OVERLAP.get()
+                            and phase in ("decode", "verify")
+                            and state is not None
+                            and state.gate_partials is None
+                            and normed is not None
+                            and normed.is_cuda
+                            and normed.dtype == torch.bfloat16
+                            and normed.shape == (hidden_states.shape[0], 10240)
+                            and 1 <= normed.shape[0] <= 3
+                            and self.hc_count == 4
+                            and self.hidden_size == 2560
+                            and self.mlp_hyper_connection.block_inject_weight.weight.dtype
+                            == torch.bfloat16
+                        ):
+                            state.gate_partials = torch.empty(
+                                (normed.shape[0], 8, 4),
+                                dtype=torch.float32,
+                                device=normed.device,
+                            )
+                            hc_gate = (
+                                normed,
+                                self.mlp_hyper_connection.block_inject_weight.weight,
+                                state.gate_partials,
+                            )
+                        if hc_gate is None:
+                            hidden_states = method.run_shared_overlap(
+                                self.mlp, hidden_states, phase
+                            )
+                        else:
+                            hidden_states = method.run_shared_overlap(
+                                self.mlp, hidden_states, phase, hc_gate=hc_gate
+                            )
                     else:
                         hidden_states = self.mlp(
                             hidden_states,

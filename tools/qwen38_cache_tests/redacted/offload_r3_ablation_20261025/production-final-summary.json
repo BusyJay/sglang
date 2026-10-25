@@ -1,0 +1,66 @@
+{
+  "ttft_seconds": 6.859933327999897,
+  "e2e_seconds": 67.16497855598573,
+  "decode_tokens_per_second": 97.73695161604805,
+  "steady_after_128_tokens_per_second": 97.66544773124076,
+  "p95_stream_gap_seconds": 0.02397521298553329,
+  "max_stream_gap_seconds": 0.24532444099895656,
+  "output_tokens": 5895,
+  "output_sha256": "a499e80a8132d2c32c632866b52b178729aa688978015cc8b81310f8ac5e6878",
+  "meta_info": {
+    "id": "[REDACTED REQUEST ID]",
+    "finish_reason": {
+      "type": "length",
+      "length": 5895
+    },
+    "prompt_tokens": 25560,
+    "weight_version": "default",
+    "num_retractions": 0,
+    "reasoning_tokens": 0,
+    "completion_tokens": 5895,
+    "cached_tokens": 0,
+    "weight_versions": [
+      {
+        "version": "default",
+        "start": 0,
+        "end": 5895
+      }
+    ],
+    "cached_tokens_details": null,
+    "dp_rank": null,
+    "e2e_latency": 67.13815256796079,
+    "spec_accept_rate": 0.3679328621908127,
+    "spec_accept_length": 1.7358657243816253,
+    "spec_num_correct_drafts": 2499,
+    "spec_num_proposed_drafts": 6792,
+    "spec_verify_ct": 3396,
+    "spec_correct_drafts_histogram": [
+      1750,
+      793,
+      853
+    ]
+  },
+  "ready_status": 200,
+  "inference_errors": [],
+  "rebalance_count": 1,
+  "environment": {
+    "SGLANG_OPT_QWEN38_FC1_PRECOMPILE": "1",
+    "SGLANG_OPT_QWEN38_SPLIT_FILL": "1",
+    "SGLANG_OPT_QWEN38_HC_GATE_OVERLAP": "1",
+    "SGLANG_OPT_QWEN38_SHARED_GATE_OVERLAP": "1",
+    "SGLANG_OPT_QWEN38_CUTLASS_PREFILL_TUNE": "1",
+    "SGLANG_QWEN38_OBSERVE": "0",
+    "MTP_MODE": "2",
+    "SPEC_DRAFT_KV_DTYPE": "bfloat16"
+  },
+  "config": {
+    "context_length": 220000,
+    "chunked_prefill_size": 8192,
+    "kv_cache_dtype": "fp8_e4m3",
+    "speculative_draft_kv_cache_dtype": "bfloat16",
+    "speculative_num_steps": 2,
+    "speculative_num_draft_tokens": 3,
+    "max_mamba_cache_size": 10
+  },
+  "private_evidence_directory": "/home/user/workspace/prod/homelab-llm/models/profiles/offload-r3-ablation-20261025/production-final-post-cold"
+}

@@ -763,6 +763,11 @@ class QwenSparseAttnBackend(AttentionBackend):
             pending_ring_slots=pending_ring_slots,
             compress_group_ring_locs=compress_group_ring_locs,
             extend_rope_matrix=extend_rope_matrix,
+            prefill_sequence_lengths_cpu=(
+                tuple(forward_batch.seq_lens_cpu[: sequence_lengths.numel()].tolist())
+                if not decode_like and forward_batch.seq_lens_cpu is not None
+                else None
+            ),
             defer_block_expansion=(
                 self._can_defer_block_expansion(forward_batch.forward_mode)
                 and decode_logical_positions is not None
@@ -1526,8 +1531,9 @@ class QwenSparseAttnBackend(AttentionBackend):
             sequence_lens, dtype=torch.int32, device=q.device
         )
         cu_seqlens_k = F.pad(sequence_lens_tensor.cumsum(0), (1, 0)).contiguous()
-        keys, values = pool.get_key_buffer(layer.layer_id), pool.get_value_buffer(
-            layer.layer_id
+        keys, values = (
+            pool.get_key_buffer(layer.layer_id),
+            pool.get_value_buffer(layer.layer_id),
         )
         paged_args = {}
         if can_use_qsa_paged_prefill(q, keys, values):
