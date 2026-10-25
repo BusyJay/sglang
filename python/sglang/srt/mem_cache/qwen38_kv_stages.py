@@ -196,7 +196,16 @@ class StagedKVLoan:
     def fits_allocation(self, reserve):
         a = self.allocator
         free = (len(a.free_pages) + a.num_staged_pages) * a.page_size
-        return reserve <= free
+        # Host-prefix restoration runs before the next before_forward(). Keep
+        # that forward's chunk physically backed so it can reach the existing
+        # result fence and request a larger stage. Otherwise a load-back can
+        # pin all free rows while admission still counts the expert loan.
+        headroom = (
+            getattr(self, "reserve", 0)
+            if self.policy.index < len(self.policy.capacities) - 1
+            else 0
+        )
+        return reserve + headroom <= free
 
     def prepare(self, reserve):
         # Actual allocation never waits or unmaps. Leave return to copy_done.

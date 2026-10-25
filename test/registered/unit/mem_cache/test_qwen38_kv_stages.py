@@ -218,6 +218,100 @@ class TestKVStages(CustomTestCase):
         allocator.cache_maintenance_after_result(result)
         self.assertEqual(len(operations), 3)
 
+    def test_prefill_evicts_backed_pages_even_when_logical_loan_covers_demand(self):
+        """01:21 incident: 60,800 logical free tokens hid only 768 backed tokens."""
+        from array import array
+
+        import torch
+
+        from sglang.srt.mem_cache.allocation import alloc_paged_token_slots_extend
+        from sglang.srt.mem_cache.allocator.paged import PagedTokenToKVPoolAllocator
+        from sglang.srt.mem_cache.base_prefix_cache import (
+            InsertParams,
+            MatchPrefixParams,
+        )
+        from sglang.srt.mem_cache.cache_init_params import CacheInitParams
+        from sglang.srt.mem_cache.radix_cache import RadixCache, RadixKey
+
+        allocator = PagedTokenToKVPoolAllocator(
+            220032, 64, torch.float32, "cpu", None, False
+        )
+        allocator.use_triton_kernels = False
+        allocator.backed_num_pages = 160000 // 64
+        allocator.free_pages = torch.arange(1, 2501, dtype=torch.int64)
+        cache = RadixCache(
+            CacheInitParams(
+                disable=False,
+                req_to_token_pool=None,
+                token_to_kv_pool_allocator=allocator,
+                page_size=64,
+            )
+        )
+        # Preserve a 52,288-token active prefix; only cold prefixes may be evicted.
+        locked = allocator.alloc(52288)
+        key = RadixKey(array("q", [1] * 52288))
+        cache.insert(InsertParams(key=key, value=locked))
+        node = cache.match_prefix(MatchPrefixParams(key=key)).last_device_node
+        cache.inc_lock_ref(node)
+        for value, size in ((2, 576), (3, 106368)):
+            cache.insert(
+                InsertParams(
+                    key=RadixKey(array("q", [value] * size)),
+                    value=allocator.alloc(size),
+                )
+            )
+        loan = StagedKVLoan.__new__(StagedKVLoan)
+        loan.allocator = allocator
+        loan.policy = OneWayKVStages(
+            [80000, 160000, 220032], lambda _: self.fail("allocation returned loan")
+        )
+        loan.policy.index = 1
+        loan.reserve = 8192
+        allocator.staged_loan = loan
+        self.assertEqual(allocator.available_size(), 60800)
+        self.assertEqual(cache.evictable_size(), 106944)
+        prefix = torch.tensor([52288], dtype=torch.int64)
+        seq = torch.tensor([53631], dtype=torch.int64)
+        out = alloc_paged_token_slots_extend(
+            cache,
+            prefix,
+            prefix,
+            seq,
+            seq,
+            locked[-1:],
+            1343,
+        )
+        self.assertEqual(out.numel(), 1343)
+        self.assertEqual(out.unique().numel(), 1343)
+        self.assertLessEqual(int(out.max()), 160000 + 63)
+        self.assertEqual(cache.evictable_size(), 106368)
+        torch.testing.assert_close(cache.path_device_indices(node), locked)
+
+    def test_host_prefix_load_keeps_next_chunk_backed_until_result_fence(self):
+        """A load-back must not pin the physical slack needed to reach expansion."""
+        import torch
+
+        from sglang.srt.mem_cache.allocator.paged import PagedTokenToKVPoolAllocator
+
+        a = PagedTokenToKVPoolAllocator(512, 64, torch.float32, "cpu", None, False)
+        a.backed_num_pages = 4
+        a.free_pages = torch.arange(1, 5, dtype=torch.int64)
+        loan = StagedKVLoan.__new__(StagedKVLoan)
+        loan.allocator = a
+        loan.policy = OneWayKVStages(
+            [128, 256, 512], lambda _: self.fail("early return")
+        )
+        loan.policy.index = 1
+        loan.reserve = 64
+        a.staged_loan = loan
+        self.assertIsNone(a.alloc(256))
+        self.assertIsNotNone(a.alloc(192))
+        self.assertEqual(len(a.free_pages), 1)
+        self.assertFalse(a.check_decode_capacity(num_tokens=128, tree_cache=None))
+        # Once all backing has returned, no artificial reserve limits load-back.
+        loan.policy.index = 2
+        self.assertIsNotNone(a.alloc(64))
+
     def test_physical_allocation_cannot_trigger_a_host_wait_or_early_return(self):
         loan = StagedKVLoan.__new__(StagedKVLoan)
         loan.allocator = SimpleNamespace(

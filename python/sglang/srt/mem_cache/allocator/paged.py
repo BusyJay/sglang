@@ -207,12 +207,31 @@ class PagedTokenToKVPoolAllocator(BaseTokenToKVPoolAllocator):
             self.maintenance_result = None
 
     def available_size(self):
-        # Admission may count the reclaimable loan. Allocation must first
-        # return its physical backing through prepare_staged_allocation().
+        # Admission may count the reclaimable loan. Allocation and eviction
+        # use allocatable_size(); backing returns at the result fence.
         loan_pages = self.num_pages - self.backed_num_pages
         return (
             len(self.free_pages) + self.num_staged_pages + loan_pages
         ) * self.page_size
+
+    def allocatable_size(self):
+        if self.staged_loan is None:
+            # Derived allocators may expose a class-constrained capacity floor.
+            return self.available_size()
+        return (len(self.free_pages) + self.num_staged_pages) * self.page_size
+
+    def get_extend_allocation_demand(
+        self, prefix_lens_cpu, seq_lens_cpu, *, conservative_num_tokens, shard_size
+    ):
+        if self.staged_loan is None:
+            return conservative_num_tokens
+        # Price physical pages exactly so reclaiming a loan does not require
+        # evicting an extra prefix merely for the usual admission upper bound.
+        return self.page_size * get_num_new_pages(
+            seq_lens=seq_lens_cpu,
+            page_size=self.page_size,
+            prefix_lens=prefix_lens_cpu,
+        )
 
     def get_all_free_pages(self):
         return torch.cat((self.free_pages, *self.staged_pages))

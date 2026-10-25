@@ -178,7 +178,7 @@ class BaseTokenToKVPoolAllocator(abc.ABC):
 
         if tree_cache is None or not tree_cache.supports_prefix_sharing():
             return
-        shortfall = num_tokens - self.available_size()
+        shortfall = num_tokens - self.allocatable_size()
         if shortfall > 0:
             tree_cache.evict_for_alloc(EvictParams(num_tokens=shortfall))
             _evict_until_allocatable(tree_cache, self, num_tokens)
@@ -197,7 +197,7 @@ class BaseTokenToKVPoolAllocator(abc.ABC):
         ``requests`` and ``spec_algorithm`` provide optional request-level context for allocators
         whose demand cannot be represented by a single token count."""
         self.evict_to_free_tokens(tree_cache, num_tokens)
-        return self.available_size() >= num_tokens
+        return self.allocatable_size() >= num_tokens
 
     def verify_byte_accounting(self) -> list:
         """Idle-time diagnostic: recompute byte/slot accounting and return
@@ -213,6 +213,10 @@ class BaseTokenToKVPoolAllocator(abc.ABC):
 
     def available_size(self):
         return (len(self.free_pages) + len(self.release_pages)) * self.page_size
+
+    def allocatable_size(self):
+        """Free tokens backed now, excluding loans counted only for admission."""
+        return self.available_size()
 
     def get_kvcache(self):
         return self._kvcache

@@ -301,7 +301,7 @@ def _evict_until_allocatable(
     if page_interleave_shard_size(allocator) <= 1:
         return
     while True:
-        available_size = allocator.available_size()
+        available_size = allocator.allocatable_size()
         if available_size >= num_tokens:
             return
         shortfall = num_tokens - available_size
