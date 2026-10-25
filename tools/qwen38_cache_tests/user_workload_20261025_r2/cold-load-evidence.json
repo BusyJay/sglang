@@ -1,0 +1,17 @@
+{
+  "loads": [
+    {
+      "load_timestamp_us": 2058197777739.174,
+      "load_duration_us": 59.1,
+      "next_kernel_name": "kernel_cutlass_kernel_sglangsrtlayersquantizationqwen38_b12x_fc1_overlapQwen38SmallMPhase1_object_at__tensorptrbf16gmemalign16o1_tensorptri8gmemalign16oi641_tensorptri8gmemalign16oi641_te_0",
+      "next_kernel_timestamp_us": 2058197777986.771
+    },
+    {
+      "load_timestamp_us": 2058199168350.099,
+      "load_duration_us": 55.61,
+      "next_kernel_name": "kernel_cutlass_kernel_sglangsrtlayersquantizationqwen38_b12x_fc1_overlapQwen38SmallMPhase2_object_at__tensorptrbf16gmemalign16o1_tensorptri8gmemalign16oi641_tensorptri8gmemalign16oi641_te_0",
+      "next_kernel_timestamp_us": 2058199168602.697
+    }
+  ],
+  "interpretation": "Two long untraced host gaps end with library loads followed by Phase1/Phase2 kernels; new capacity-bucket compilation is strongly suggested by source and ordering, but Python stacks were not captured."
+}

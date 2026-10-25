@@ -1,0 +1,205 @@
+{
+  "round_two": {
+    "log_sha256": "d755b25a39aaf069a0fcaa960398031c96c75b7aa61b4beb0f91bced53d3da77",
+    "first_request_prompt_tokens": 25560,
+    "first_request_prefill_chunks": [
+      8192,
+      8192,
+      8192,
+      984
+    ],
+    "first_request_decode_samples": [
+      {
+        "time": "2026-10-25 16:00:07",
+        "accept_length": 1.81,
+        "tokens_per_second": 5.77,
+        "estimated_cycle_ms": 313.6915077989602
+      },
+      {
+        "time": "2026-10-25 16:00:14",
+        "accept_length": 1.76,
+        "tokens_per_second": 95.11,
+        "estimated_cycle_ms": 18.50488907580696
+      },
+      {
+        "time": "2026-10-25 16:00:21",
+        "accept_length": 1.51,
+        "tokens_per_second": 81.87,
+        "estimated_cycle_ms": 18.443874435080005
+      },
+      {
+        "time": "2026-10-25 16:00:31",
+        "accept_length": 1.79,
+        "tokens_per_second": 75.8,
+        "estimated_cycle_ms": 23.614775725593667
+      },
+      {
+        "time": "2026-10-25 16:00:38",
+        "accept_length": 1.72,
+        "tokens_per_second": 93.86,
+        "estimated_cycle_ms": 18.32516513956957
+      },
+      {
+        "time": "2026-10-25 16:00:45",
+        "accept_length": 1.6,
+        "tokens_per_second": 88.78,
+        "estimated_cycle_ms": 18.022077044379365
+      },
+      {
+        "time": "2026-10-25 16:00:53",
+        "accept_length": 1.62,
+        "tokens_per_second": 87.54,
+        "estimated_cycle_ms": 18.50582590815627
+      },
+      {
+        "time": "2026-10-25 16:01:00",
+        "accept_length": 1.61,
+        "tokens_per_second": 86.44,
+        "estimated_cycle_ms": 18.62563627950023
+      },
+      {
+        "time": "2026-10-25 16:01:08",
+        "accept_length": 1.73,
+        "tokens_per_second": 85.8,
+        "estimated_cycle_ms": 20.163170163170165
+      },
+      {
+        "time": "2026-10-25 16:01:17",
+        "accept_length": 1.95,
+        "tokens_per_second": 92.23,
+        "estimated_cycle_ms": 21.142795185948174
+      },
+      {
+        "time": "2026-10-25 16:01:25",
+        "accept_length": 1.89,
+        "tokens_per_second": 92.62,
+        "estimated_cycle_ms": 20.405959835888577
+      }
+    ],
+    "steady_sample_count": 10,
+    "method": "First request only; discard first decode log interval; cycle ms uses rounded log accept length / throughput, not exact timestamps.",
+    "steady_median_tokens_per_second": 88.16,
+    "steady_median_accept_length": 1.725,
+    "steady_median_estimated_cycle_ms": 18.56573109382825,
+    "last_process_counter_snapshot": {
+      "decode_early_cache": true,
+      "decode_early_cache_invocations": 210863,
+      "decode_device_gate_invocations": 210863,
+      "decode_device_gate_hits": 65874,
+      "decode_device_gate_copy_bytes": 1095112396800,
+      "cache_hit_rate": 0.9164502113366203,
+      "cache_slots_total": 7161,
+      "kv_stage": 0,
+      "kv_backed_tokens": 80000
+    }
+  },
+  "baseline_summary": {
+    "log_sha256": "e6167afa5665d13bd9cab3f3536fca9b3d523df2e24e1f653f692e395a06c35b",
+    "first_request_prompt_tokens": 25776,
+    "first_request_prefill_chunks": [
+      8192,
+      8192,
+      8192,
+      1200
+    ],
+    "first_request_decode_samples": [
+      {
+        "time": "2026-10-25 15:34:52",
+        "accept_length": 1.77,
+        "tokens_per_second": 6.89,
+        "estimated_cycle_ms": 256.89404934687957
+      },
+      {
+        "time": "2026-10-25 15:35:00",
+        "accept_length": 1.65,
+        "tokens_per_second": 81.04,
+        "estimated_cycle_ms": 20.36031589338598
+      },
+      {
+        "time": "2026-10-25 15:35:08",
+        "accept_length": 1.56,
+        "tokens_per_second": 80.88,
+        "estimated_cycle_ms": 19.287833827893177
+      },
+      {
+        "time": "2026-10-25 15:35:16",
+        "accept_length": 1.65,
+        "tokens_per_second": 81.73,
+        "estimated_cycle_ms": 20.188425302826378
+      },
+      {
+        "time": "2026-10-25 15:35:24",
+        "accept_length": 1.61,
+        "tokens_per_second": 80.02,
+        "estimated_cycle_ms": 20.119970007498125
+      },
+      {
+        "time": "2026-10-25 15:35:33",
+        "accept_length": 1.68,
+        "tokens_per_second": 76.42,
+        "estimated_cycle_ms": 21.983773881182938
+      },
+      {
+        "time": "2026-10-25 15:35:42",
+        "accept_length": 1.64,
+        "tokens_per_second": 76.01,
+        "estimated_cycle_ms": 21.576108406788578
+      }
+    ],
+    "steady_sample_count": 6,
+    "method": "First request only; discard first decode log interval; cycle ms uses rounded log accept length / throughput, not exact timestamps.",
+    "steady_median_tokens_per_second": 80.44999999999999,
+    "steady_median_accept_length": 1.645,
+    "steady_median_estimated_cycle_ms": 20.27437059810618,
+    "last_process_counter_snapshot": {
+      "decode_early_cache": false,
+      "decode_early_cache_invocations": 0,
+      "decode_device_gate_invocations": 191567,
+      "decode_device_gate_hits": 56798,
+      "decode_device_gate_copy_bytes": 1044665856000,
+      "cache_hit_rate": 0.9123529570047116,
+      "cache_slots_total": 7161,
+      "kv_stage": 0,
+      "kv_backed_tokens": 80000
+    }
+  },
+  "observed_median_throughput_change_percent": 9.583592293349907,
+  "comparison_limits": [
+    "Prompt token counts, output lengths and generated routes differ.",
+    "Baseline included an uncalibrated py-spy sampler; round two omitted it.",
+    "Adaptive expert layouts and random seeds differ after restart.",
+    "This is an observed comparison, not a causal feature speedup measurement."
+  ],
+  "full_trace_fill_overlap": {
+    "baseline": {
+      "fill_streams": [
+        "33"
+      ],
+      "fill_union_seconds": 26.811678141845704,
+      "overlap_any_other_stream_kernel_seconds": 2.5049954880371095,
+      "overlap_fraction": 0.09342926894708227,
+      "scope": "full trace; simultaneous execution, not causal savings"
+    },
+    "round_two": {
+      "fill_streams": [
+        "33"
+      ],
+      "fill_union_seconds": 31.353970572753905,
+      "overlap_any_other_stream_kernel_seconds": 9.781310577636718,
+      "overlap_fraction": 0.3119640160068441,
+      "scope": "full trace; simultaneous execution, not causal savings"
+    }
+  },
+  "full_trace_per_verify_ms": {
+    "baseline": {
+      "verify_count": 4105,
+      "fill_total": 6.531468487660342,
+      "fill_with_no_other_stream_kernel": 5.921238161707332
+    },
+    "round_two": {
+      "verify_count": 4673,
+      "fill_total": 6.709602091323326,
+      "fill_with_no_other_stream_kernel": 4.616447677106181
+    }
+  }
+}

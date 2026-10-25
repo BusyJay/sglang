@@ -1,0 +1,443 @@
+{
+  "window_us": [
+    2058197314593.812,
+    2058199178602.697
+  ],
+  "events": 9583,
+  "overhead_events": [
+    {
+      "ph": "X",
+      "cat": "overhead",
+      "name": "Runtime Triggered Module Loading",
+      "pid": -1,
+      "tid": 0,
+      "ts": 2058197777739.664,
+      "dur": 58.07
+    },
+    {
+      "ph": "X",
+      "cat": "overhead",
+      "name": "Lazy Function Loading",
+      "pid": -1,
+      "tid": 0,
+      "ts": 2058197777879.443,
+      "dur": 54.45
+    },
+    {
+      "ph": "X",
+      "cat": "overhead",
+      "name": "Runtime Triggered Module Loading",
+      "pid": -1,
+      "tid": 0,
+      "ts": 2058199168350.969,
+      "dur": 54.36
+    },
+    {
+      "ph": "X",
+      "cat": "overhead",
+      "name": "Lazy Function Loading",
+      "pid": -1,
+      "tid": 0,
+      "ts": 2058199168482.288,
+      "dur": 65.36
+    }
+  ],
+  "category_top": {
+    "user_annotation": [
+      {
+        "name": "scheduler.run_batch",
+        "count": 1,
+        "clipped_duration_ms": 1859.3038559570311
+      },
+      {
+        "name": "step[VERIFY bs=1 forward_id=1264]",
+        "count": 1,
+        "clipped_duration_ms": 1857.8433530273437
+      },
+      {
+        "name": "scheduler.process_batch_result",
+        "count": 1,
+        "clipped_duration_ms": 4.254791015625
+      },
+      {
+        "name": "draft",
+        "count": 1,
+        "clipped_duration_ms": 0.59876708984375
+      },
+      {
+        "name": "scheduler.get_next_batch_to_run",
+        "count": 1,
+        "clipped_duration_ms": 0.38984912109375
+      }
+    ],
+    "cpu_op": [
+      {
+        "name": "aten::select",
+        "count": 1711,
+        "clipped_duration_ms": 0.9990766601562558
+      },
+      {
+        "name": "aten::copy_",
+        "count": 1742,
+        "clipped_duration_ms": 0.936659667968745
+      },
+      {
+        "name": "aten::to",
+        "count": 22,
+        "clipped_duration_ms": 0.3392099609374999
+      },
+      {
+        "name": "aten::_to_copy",
+        "count": 16,
+        "clipped_duration_ms": 0.32373999023437494
+      },
+      {
+        "name": "aten::fill_",
+        "count": 65,
+        "clipped_duration_ms": 0.25355908203125
+      },
+      {
+        "name": "aten::zero_",
+        "count": 40,
+        "clipped_duration_ms": 0.25210961914062496
+      },
+      {
+        "name": "aten::empty_strided",
+        "count": 97,
+        "clipped_duration_ms": 0.22391796875000008
+      },
+      {
+        "name": "aten::zeros_like",
+        "count": 26,
+        "clipped_duration_ms": 0.21872924804687505
+      },
+      {
+        "name": "aten::zeros",
+        "count": 14,
+        "clipped_duration_ms": 0.204540283203125
+      },
+      {
+        "name": "aten::as_strided",
+        "count": 1850,
+        "clipped_duration_ms": 0.19033105468749636
+      },
+      {
+        "name": "aten::empty_like",
+        "count": 80,
+        "clipped_duration_ms": 0.17885888671874992
+      },
+      {
+        "name": "aten::slice",
+        "count": 130,
+        "clipped_duration_ms": 0.15902001953125003
+      },
+      {
+        "name": "aten::view",
+        "count": 126,
+        "clipped_duration_ms": 0.15547070312500005
+      },
+      {
+        "name": "aten::reshape",
+        "count": 52,
+        "clipped_duration_ms": 0.09911083984375002
+      },
+      {
+        "name": "aten::empty",
+        "count": 29,
+        "clipped_duration_ms": 0.079781005859375
+      },
+      {
+        "name": "aten::full_like",
+        "count": 13,
+        "clipped_duration_ms": 0.07562817382812499
+      },
+      {
+        "name": "aten::unbind",
+        "count": 13,
+        "clipped_duration_ms": 0.06417993164062501
+      },
+      {
+        "name": "aten::index",
+        "count": 2,
+        "clipped_duration_ms": 0.0587099609375
+      },
+      {
+        "name": "aten::lift_fresh",
+        "count": 1684,
+        "clipped_duration_ms": 0.04061962890624889
+      },
+      {
+        "name": "aten::scatter_",
+        "count": 1,
+        "clipped_duration_ms": 0.03487890625
+      }
+    ],
+    "cuda_runtime": [
+      {
+        "name": "cudaGraphLaunch",
+        "count": 50,
+        "clipped_duration_ms": 1.1771362304687503
+      },
+      {
+        "name": "cudaGraphInstantiateWithFlags",
+        "count": 24,
+        "clipped_duration_ms": 0.874253173828125
+      },
+      {
+        "name": "cudaLaunchKernel",
+        "count": 93,
+        "clipped_duration_ms": 0.33402880859374995
+      },
+      {
+        "name": "cudaLaunchKernelExC",
+        "count": 110,
+        "clipped_duration_ms": 0.3206386718749999
+      },
+      {
+        "name": "cudaMemcpyAsync",
+        "count": 51,
+        "clipped_duration_ms": 0.24751879882812503
+      },
+      {
+        "name": "cudaKernelSetAttributeForDevice",
+        "count": 4,
+        "clipped_duration_ms": 0.2055390625
+      },
+      {
+        "name": "cudaLibraryLoadData",
+        "count": 2,
+        "clipped_duration_ms": 0.114710205078125
+      },
+      {
+        "name": "cudaStreamWaitEvent",
+        "count": 90,
+        "clipped_duration_ms": 0.062340576171875016
+      },
+      {
+        "name": "cudaEventRecordWithFlags",
+        "count": 77,
+        "clipped_duration_ms": 0.04197900390625001
+      },
+      {
+        "name": "cudaGraphDestroy",
+        "count": 24,
+        "clipped_duration_ms": 0.03140112304687499
+      },
+      {
+        "name": "cudaStreamIsCapturing",
+        "count": 202,
+        "clipped_duration_ms": 0.029489990234374916
+      },
+      {
+        "name": "cudaEventQuery",
+        "count": 16,
+        "clipped_duration_ms": 0.0193798828125
+      },
+      {
+        "name": "cudaStreamBeginCapture",
+        "count": 24,
+        "clipped_duration_ms": 0.018199462890625004
+      },
+      {
+        "name": "cudaStreamEndCapture",
+        "count": 24,
+        "clipped_duration_ms": 0.0159697265625
+      },
+      {
+        "name": "cudaStreamGetCaptureInfo",
+        "count": 24,
+        "clipped_duration_ms": 0.008460693359375
+      },
+      {
+        "name": "cudaGraphGetNodes",
+        "count": 24,
+        "clipped_duration_ms": 0.008409423828125002
+      },
+      {
+        "name": "cudaDeviceGetAttribute",
+        "count": 2,
+        "clipped_duration_ms": 0.0041799316406250005
+      },
+      {
+        "name": "cudaLibraryGetKernel",
+        "count": 2,
+        "clipped_duration_ms": 0.0021499023437500002
+      },
+      {
+        "name": "cudaEventRecord",
+        "count": 1,
+        "clipped_duration_ms": 0.00110009765625
+      },
+      {
+        "name": "cudaGetDeviceCount",
+        "count": 2,
+        "clipped_duration_ms": 0.00031005859375
+      }
+    ],
+    "gpu_memcpy": [
+      {
+        "name": "Memcpy DtoD (Device -> Device)",
+        "count": 29,
+        "clipped_duration_ms": 0.039905273437499986
+      },
+      {
+        "name": "Memcpy HtoD (Pinned -> Device)",
+        "count": 20,
+        "clipped_duration_ms": 0.014881591796875
+      },
+      {
+        "name": "Memcpy HtoD (Pageable -> Device)",
+        "count": 2,
+        "clipped_duration_ms": 0.00051220703125
+      }
+    ],
+    "kernel": [
+      {
+        "name": "void (anonymous namespace)::mailbox_fill_kernel<true, false, false>(int const*, long const*, int, int const volatile*)",
+        "count": 12,
+        "clipped_duration_ms": 1.788864013671875
+      },
+      {
+        "name": "_ZN7cutlass13device_kernelIN10flashinfer4gemm53DeviceGemmMxfp8GemmSm120___nv_bfloat16_128_32_128true9Sm12xOnlyINS_4gemm6kernel13GemmUniversalIN4cute5tupleIJiiiiEEENS5_10collective13CollectiveMmaINS5_42MainloopSm120TmaWarpSpecializedBlockScaledILi4ELi3ENS9_IJNS8_1CILi1EEESF_SF_EEENS5_51KernelTmaWarpSpecializedCooperativeBlockScaledSm120ILi3EEEEENS9_IJNSE_ILi128EEENSE_ILi32EEESK_EEENS9_IJNS_12float_e4m3_tENS_13float_ue8m0_tEEEENS9_IJNS9_IJlSF_lEEENS8_6LayoutINS9_IJNS9_IJNS9_IJSL_NSE_ILi4EEEEEEiEEESU_NS9_IJSF_iEEEEEENS9_IJNS9_IJNS9_IJNSE_ILi16EEESS_EEEiEEENS9_IJNS9_IJNSE_ILi0EEESF_EEENSE_ILi512EEEEEENS9_IJS10_iEEEEEEEEEEESP_S17_NS8_8TiledMMAINS8_8MMA_AtomIJNS8_5SM12011BLOCKSCALED19SM120_16x8x32_TN_VSISN_SN_fSO_Li32EEEEEENSR_INS9_IJSS_NSE_ILi2EEESF_EEENS9_IJSF_SS_S10_EEEEENS9_IJSK_NSR_INS9_IJNSE_ILi8EEES1F_S1F_EEENS9_IJSF_SX_S1J_EEEEESL_EEEEENS9_IJNS8_13SM90_TMA_LOADES1P_EEENS9_IJNS8_14ComposedLayoutINS8_7SwizzleILi3ELi4ELi3EEENS8_18smem_ptr_flag_bitsILi8EEENSR_INS9_IJS1J_SK_EEENS9_IJSK_SF_EEEEEEENSR_INS9_IJNS9_IJST_SF_EEENS9_IJNS9_IJSL_SF_EEESS_SF_EEEEEENS9_IJNS9_IJSY_S12_EEENS9_IJS11_SF_S12_EEEEEEEEEEENS9_IJNS8_9Copy_AtomIJNS8_17SM75_U32x4_LDSM_NEhEEENS29_IJNS8_13UniversalCopyISO_SO_EESO_EEEEEENS8_8identityES1Q_S28_S2F_S2G_EENS_8epilogue10collective18CollectiveEpilogueINS2I_22Sm90TmaWarpSpecializedILi2ELi2ELi4ELb0ELb1EEEJSM_NS9_IJNSE_ILi64EEESL_EEEvNS9_IJSF_llEEENS_10bfloat16_tES2P_NS2I_6fusion15FusionCallbacksINS2I_23Sm120TmaWarpSpecializedILi2ELi2ELi4ELb0ELb1EEENS2R_17LinearCombinationIS2Q_fvfLNS_15FloatRoundStyleE2EEESM_S2O_JEEES1P_NS1R_IS1T_NS1U_ILi16EEENSR_INS9_IJS2N_S1J_EEENS9_IJSF_S2N_EEEEEEENS8_17SM75_U16x4_LDSM_TENS8_14SM90_TMA_STOREES33_NS8_17SM90_U16x4_STSM_TENS29_IJNS8_17SM90_U32x2_STSM_NENS_6half_tEEEEvEEENS5_19PersistentSchedulerEvEEEEEEvNT_6ParamsE",
+        "count": 63,
+        "clipped_duration_ms": 1.0478012695312497
+      },
+      {
+        "name": "kernel_cutlass_kernel_sglangsrtlayersquantizationqwen38_b12x_fc1_overlapQwen38SmallMPhase1_object_at__tensorptrbf16gmemalign16o1_tensorptri8gmemalign16oi641_tensorptri8gmemalign16oi641_te_0",
+        "count": 48,
+        "clipped_duration_ms": 0.9407949218749999
+      },
+      {
+        "name": "std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, false, true, true, false, 6, false, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float> >(cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float>)",
+        "count": 4,
+        "clipped_duration_ms": 0.86051123046875
+      },
+      {
+        "name": "kernel_cutlass_kernel_sglangsrtlayersquantizationqwen38_b12x_fc1_overlapQwen38SmallMPhase2_object_at__tensorptrbf16gmemalign16o1_tensorptri8gmemalign16oi641_tensorptri8gmemalign16oi641_te_0",
+        "count": 24,
+        "clipped_duration_ms": 0.34483203125000006
+      },
+      {
+        "name": "_hc_mix_up_gate_kernel",
+        "count": 29,
+        "clipped_duration_ms": 0.1744323730468751
+      },
+      {
+        "name": "_hc_mix_down_partial_kernel",
+        "count": 29,
+        "clipped_duration_ms": 0.16211206054687505
+      },
+      {
+        "name": "(anonymous namespace)::decode_plan_kernel(int const*, int*, int*, int*, int*, float*, long*, long*, long*, int*, int, int, int, float, int, int, bool, long*, int*, int, int*, int*, sglang::LayeredHybridArgs, bool)",
+        "count": 12,
+        "clipped_duration_ms": 0.137537109375
+      },
+      {
+        "name": "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8::Params)",
+        "count": 16,
+        "clipped_duration_ms": 0.12051416015625001
+      },
+      {
+        "name": "fused_sigmoid_gating_delta_rule_update_kernel",
+        "count": 10,
+        "clipped_duration_ms": 0.07744140625
+      },
+      {
+        "name": "_norm",
+        "count": 29,
+        "clipped_duration_ms": 0.07155322265625003
+      },
+      {
+        "name": "void sglang::prepare_fc1_routes_kernel<true>(int const*, int const*, int*, float const*, float const*, float const*, float const*, float*, float*, int, int, int const*, float const*, float const*, int)",
+        "count": 25,
+        "clipped_duration_ms": 0.06845141601562502
+      },
+      {
+        "name": "_layer_norm_fwd_1pass_kernel",
+        "count": 10,
+        "clipped_duration_ms": 0.064864990234375
+      },
+      {
+        "name": "kernel_mha(unsigned int, float, float const*, Vec<__nv_bfloat16, 256u>*, Vec<__nv_bfloat16, 256u> const*, float const*, KVCacheList<true>, unsigned int, float, float const*, unsigned int, unsigned int, unsigned int, unsigned int*, void*)",
+        "count": 4,
+        "clipped_duration_ms": 0.062047119140624996
+      },
+      {
+        "name": "_router_triton_kernel",
+        "count": 14,
+        "clipped_duration_ms": 0.05375659179687502
+      },
+      {
+        "name": "std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, false, true, true, false, 7, false, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float> >(cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float>)",
+        "count": 3,
+        "clipped_duration_ms": 0.051329833984375
+      },
+      {
+        "name": "kernel_cutlass_kernel_flashinferquantizationkernelsmxfp8_quantizeMXFP8QuantizeSwizzledKernel_object_at__tensorptrbf16gmemalign16o256025601_tensorptri8gmemalign16o256025601_tensorptri8gmem_0",
+        "count": 38,
+        "clipped_duration_ms": 0.051070800781249974
+      },
+      {
+        "name": "_gather_ple_embedding_from_pinned_kernel",
+        "count": 3,
+        "clipped_duration_ms": 0.03872021484375
+      },
+      {
+        "name": "void sglang::hc_combine_gate_kernel<4l, 2560l, true, __nv_bfloat16>(sglang::HcCombineSplitParams)",
+        "count": 27,
+        "clipped_duration_ms": 0.03820678710937499
+      },
+      {
+        "name": "_ZN7cutlass13device_kernelINS_4gemm6kernel13GemmUniversalINS1_17GroupProblemShapeIN4cute5tupleIJlllEEEEENS1_10collective13CollectiveMmaINS1_47MainloopSm120ArrayTmaWarpSpecializedBlockScaledILi6ELi3ENS6_IJNS5_1CILi1EEESD_SD_EEENS1_59KernelPtrArrayTmaWarpSpecializedCooperativeBlockScaledSm120ILi3EEEEENS6_IJNSC_ILi128EEENSC_ILi32EEESI_EEENS6_IJNS_12float_e2m1_tENS_13float_ue4m3_tEEEENS6_IJPNS6_IJlSD_NSC_ILi0EEEEEEPNS5_6LayoutINS6_IJNS6_IJNS6_IJSJ_NSC_ILi4EEEEEEiEEENS6_IJNS6_IJNSC_ILi16EEESS_EEEiEEENS6_IJSD_iEEEEEENS6_IJSX_NS6_IJNS6_IJSO_SD_EEENSC_ILi512EEEEEENS6_IJSO_iEEEEEEEEEEESN_S17_NS5_8TiledMMAINS5_8MMA_AtomIJNS5_5SM12011BLOCKSCALED19SM120_16x8x64_TN_VSISL_SL_fSM_Li16EEEEEENSR_INS6_IJSS_NSC_ILi2EEESD_EEENS6_IJSD_SS_SO_EEEEENS6_IJSI_NSR_INS6_IJNSC_ILi8EEES1F_S1F_EEENS6_IJSD_SV_S1J_EEEEENSC_ILi64EEEEEEEENS6_IJNS5_13SM90_TMA_LOADES1Q_EEENS6_IJNS5_14ComposedLayoutINS5_7SwizzleILi2ELi4ELi3EEENS5_18smem_ptr_flag_bitsILi4EEENSR_INS6_IJS1J_SI_EEENS6_IJSI_SD_EEEEEEENSR_INS6_IJNS6_IJST_SD_EEENS6_IJSW_SD_S1F_EEEEEENS6_IJNS6_IJSW_S11_EEENS6_IJS10_SS_S11_EEEEEEEEEEENS6_IJNS5_9Copy_AtomIJNS5_17SM75_U32x4_LDSM_NENS_15integer_subbyteILi4ELb0EEEEEENS29_IJNS5_13UniversalCopyISM_SM_EESM_EEEEEENS5_8identityES1R_S28_S2H_S2I_EENS_8epilogue10collective18CollectiveEpilogueINS2K_30Sm90PtrArrayTmaWarpSpecializedILi3ELi2ELi4ELb1ELb0ELi2EEEJSK_NS6_IJS1N_SJ_EEENS_10bfloat16_tEPNS6_IJSD_lSO_EEES2Q_S2S_NS2K_6fusion15FusionCallbacksINS2K_31Sm120PtrArrayTmaWarpSpecializedILi3ELi2ELi4ELb1ELb0ELi2EEENS2T_17LinearCombinationIS2Q_fS2Q_fLNS_15FloatRoundStyleE2EEESK_S2P_JEEES1Q_NS1S_INS1T_ILi3ELi4ELi3EEENS1V_ILi16EEENSR_INS6_IJS1N_S1J_EEENS6_IJSD_S1N_EEEEEEENS5_17SM75_U16x4_LDSM_TENS5_14SM90_TMA_STOREES36_NS5_17SM90_U16x4_STSM_TENS29_IJNS5_17SM90_U32x2_STSM_NENS_6half_tEEEEvEEEvvEEEEvNT_6ParamsE",
+        "count": 2,
+        "clipped_duration_ms": 0.034208007812499996
+      }
+    ],
+    "cuda_driver": [
+      {
+        "name": "cuLaunchKernelEx",
+        "count": 8,
+        "clipped_duration_ms": 0.0361298828125
+      }
+    ],
+    "overhead": [
+      {
+        "name": "Lazy Function Loading",
+        "count": 2,
+        "clipped_duration_ms": 0.11981005859374999
+      },
+      {
+        "name": "Runtime Triggered Module Loading",
+        "count": 2,
+        "clipped_duration_ms": 0.11243017578125
+      }
+    ],
+    "gpu_user_annotation": [
+      {
+        "name": "step[VERIFY bs=1 forward_id=1264]",
+        "count": 13,
+        "clipped_duration_ms": 3713.999450195312
+      },
+      {
+        "name": "scheduler.run_batch",
+        "count": 2,
+        "clipped_duration_ms": 1859.0566892089844
+      },
+      {
+        "name": "scheduler.process_batch_result",
+        "count": 1,
+        "clipped_duration_ms": 3.765640869140625
+      },
+      {
+        "name": "draft",
+        "count": 2,
+        "clipped_duration_ms": 1.594754150390625
+      },
+      {
+        "name": "scheduler.get_next_batch_to_run",
+        "count": 1,
+        "clipped_duration_ms": 0.156610107421875
+      }
+    ]
+  }
+}

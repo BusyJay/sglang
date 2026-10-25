@@ -1,0 +1,51 @@
+{
+  "runtime_commit": "9e1daf70469a6091de8ca9a508ab63cc5ca7c619",
+  "full_trace": {
+    "local_path": "/home/user/workspace/prod/homelab-llm/models/profiles/user-workload-20261025-r2/llm-hermes-full-TP-0.trace.json.gz",
+    "bytes": 1183126297,
+    "sha256": "2afb17a0c5910e8aba932695c91943de2b063fb27cedd244b1c485de5c9555f9"
+  },
+  "representative_traces": {
+    "prefill-representative.trace.json.gz": {
+      "bytes": 647692,
+      "sha256": "10b065dc1dc8c9dad5f6fa20d55df39b2a2580e52595798eca51d9af9a00c837"
+    },
+    "decode-representative.trace.json.gz": {
+      "bytes": 987059,
+      "sha256": "f0fd5ce6435ee2807c3857c07baddc27a1245fa4cf29c4620106616866abef31"
+    },
+    "rebalance-transition.trace.json.gz": {
+      "bytes": 163016,
+      "sha256": "9a8172323257ac121fb80384a31e57fd18ed79bfbfbaa8a95bb9bb7a062c8a3d"
+    }
+  },
+  "representative_windows_us": {
+    "prefill": [
+      2058168559704.233,
+      2058169059704.233
+    ],
+    "decode": [
+      2058177498933.366,
+      2058177597266.819
+    ]
+  },
+  "transition_window_us": [
+    2058197314593.812,
+    2058199178602.697
+  ],
+  "capture_request": {
+    "activities": [
+      "CPU",
+      "GPU"
+    ],
+    "with_stack": false,
+    "record_shapes": false,
+    "detailed_annotations": true,
+    "profile_by_stage": false,
+    "output_dir": "/prod/homelab-llm/models/profiles/user-workload-20261025-r2",
+    "profile_id": "hermes-full",
+    "profile_prefix": "llm"
+  },
+  "baseline_trace_sha256": "56eaf3a49e10b05084a11a81d8e2426e6e00bb2663484a19175db338d48f6621",
+  "method": "full CPU/GPU Kineto trace; two-pass full metrics; complete-event slices; single-trace attribution; no Python stack sampling in round two"
+}

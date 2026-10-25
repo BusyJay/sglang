@@ -1,0 +1,16 @@
+--- a/sglang-flash-next-common.sh
++++ b/sglang-flash-next-common.sh
+@@ -141 +141 @@
+-{"manifest_path":"$MANIFEST_PATH","checkpoint_revision":"$CHECKPOINT_REVISION","sglang_commit":"$PACK_SGLANG_COMMIT",$cache_capacity_config$scale_compression_config,"prefill_arena":true,"runtime_mode":"$RUNTIME_MODE","stats_log_interval":$CACHE_STATS_LOG_INTERVAL,"adaptive_cache":$ADAPTIVE_CACHE,"kv_cache_stages":$kv_stages_config,"kv_tail_evict_tokens":0,"preallocate_gdn_proj":$PREALLOCATE_GDN_PROJ,"async_pack_prefetch":true,"packed_decode":"$QWEN38_PACKED_DECODE","packed_prefill":"$QWEN38_PACKED_PREFILL"}
++{"manifest_path":"$MANIFEST_PATH","checkpoint_revision":"$CHECKPOINT_REVISION","sglang_commit":"$PACK_SGLANG_COMMIT",$cache_capacity_config$scale_compression_config,"prefill_arena":true,"runtime_mode":"$RUNTIME_MODE","stats_log_interval":$CACHE_STATS_LOG_INTERVAL,"adaptive_cache":$ADAPTIVE_CACHE,"decode_early_cache":${QWEN38_DECODE_EARLY_CACHE:-false},"kv_cache_stages":$kv_stages_config,"kv_tail_evict_tokens":0,"preallocate_gdn_proj":$PREALLOCATE_GDN_PROJ,"async_pack_prefetch":true,"packed_decode":"$QWEN38_PACKED_DECODE","packed_prefill":"$QWEN38_PACKED_PREFILL"}
+--- a/sglang-fp4-local.sh
++++ b/sglang-fp4-local.sh
+@@ -68,0 +69,5 @@
++# Enable the existing native cached-FC1 overlap for the W4A16 preset.
++export QWEN38_DECODE_EARLY_CACHE=false
++if (( decode_w4a16 )); then
++  export QWEN38_DECODE_EARLY_CACHE=true
++fi
+@@ -85 +90 @@
+-  python3 -c 'import json,os; keys=("MODEL","CHECKPOINT_DIR","CHECKPOINT_REVISION","PACK_DIR","MANIFEST_PATH","PACK_SGLANG_COMMIT","SGLANG_LOG_FILE","SGLANG_QWEN38_CACHE_W4A16","SGLANG_QWEN38_CACHE_W4A16_BACKEND","SGLANG_QWEN38_CACHE_PREFILL_W4A16","SGLANG_OPT_QWEN38_B12X_PREPARED_LAUNCH","SGLANG_QWEN38_FILL_CTA","SGLANG_QWEN38_STARTUP_CACHE","SGLANG_QWEN38_SOURCE_CACHE_DIR","SGLANG_QWEN38_HOST_TOKEN_EMBEDDING","SGLANG_QWEN38_BORROW_PREFILL_ARENA","SGLANG_QWEN38_PLE_PACKED_CACHE","CACHE_SLOTS_TOTAL","CACHE_BUDGET_BYTES","CONTEXT_LENGTH","SCALE_COMPRESSION","MAX_MAMBA_CACHE_SIZE","SPEC_DRAFT_KV_DTYPE","MTP_MODE","PLE_OFFLOAD_BACKEND","MEM_FRACTION_STATIC","SGLANG_QWEN38_OBSERVE","SGLANG_QWEN38_OBSERVE_NVTX","SGLANG_TORCH_PROFILER_DIR"); print(json.dumps({k:os.environ[k] for k in keys if k in os.environ}))'
++  python3 -c 'import json,os; keys=("MODEL","CHECKPOINT_DIR","CHECKPOINT_REVISION","PACK_DIR","MANIFEST_PATH","PACK_SGLANG_COMMIT","SGLANG_LOG_FILE","SGLANG_QWEN38_CACHE_W4A16","SGLANG_QWEN38_CACHE_W4A16_BACKEND","SGLANG_QWEN38_CACHE_PREFILL_W4A16","SGLANG_OPT_QWEN38_B12X_PREPARED_LAUNCH","SGLANG_QWEN38_FILL_CTA","SGLANG_QWEN38_STARTUP_CACHE","SGLANG_QWEN38_SOURCE_CACHE_DIR","SGLANG_QWEN38_HOST_TOKEN_EMBEDDING","SGLANG_QWEN38_BORROW_PREFILL_ARENA","SGLANG_QWEN38_PLE_PACKED_CACHE","CACHE_SLOTS_TOTAL","CACHE_BUDGET_BYTES","CONTEXT_LENGTH","SCALE_COMPRESSION","MAX_MAMBA_CACHE_SIZE","SPEC_DRAFT_KV_DTYPE","MTP_MODE","PLE_OFFLOAD_BACKEND","QWEN38_DECODE_EARLY_CACHE","MEM_FRACTION_STATIC","SGLANG_QWEN38_OBSERVE","SGLANG_QWEN38_OBSERVE_NVTX","SGLANG_TORCH_PROFILER_DIR"); print(json.dumps({k:os.environ[k] for k in keys if k in os.environ}))'
