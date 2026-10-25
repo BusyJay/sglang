@@ -105,7 +105,7 @@ for n in lnames:
 reference = {n: (backup / n).read_bytes() for n in owned}
 base = {
     n: subprocess.check_output(
-        ["git", "show", "8451b22b1a478514636823c2d27119cd1c25f0a9:" + n], cwd=repo
+        ["git", "show", "1ba4deaff878d8faf8bf3c057fd538a9b3052375:" + n], cwd=repo
     )
     for n in owned
 }

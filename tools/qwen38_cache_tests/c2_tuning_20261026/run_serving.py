@@ -31,7 +31,7 @@ for node in ast.parse(helper.read_text()).body:
 source_path = repo / "python/sglang/kernels/ops/moe/shared_expert_gate.py"
 source = source_path.read_bytes()
 old = subprocess.check_output(
-    ["git", "show", "8505ae70ab:python/sglang/kernels/ops/moe/shared_expert_gate.py"],
+    ["git", "show", "e4160f8222:python/sglang/kernels/ops/moe/shared_expert_gate.py"],
     cwd=repo,
 )
 launch = (

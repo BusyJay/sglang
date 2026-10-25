@@ -34,7 +34,7 @@ old = subprocess.check_output(
     [
         "git",
         "show",
-        "6f633d3a6e:python/sglang/srt/layers/quantization/qwen38_nvfp4_cache.py",
+        "4f8fec2e36:python/sglang/srt/layers/quantization/qwen38_nvfp4_cache.py",
     ],
     cwd=repo,
 )

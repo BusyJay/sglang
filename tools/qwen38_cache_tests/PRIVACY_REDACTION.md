@@ -12,8 +12,10 @@ binary profiler captures and logs are excluded from publishable branch history.
 
 The cleanup reviewed 216 non-upstream commits across experiment branches and
 local checkpoints. 71 commits directly touched artifacts selected for cleanup;
-other commit IDs changed through ancestry. Author and committer identity lines
-were verified unchanged for all 216 commits. Runtime code and registered tests
+other commit IDs changed through ancestry. The privacy-only pass initially preserved identity lines. A subsequent
+owner-authorized correction normalized 29 author records and 15 incorrectly
+configured committer records to Jay Lee <busyjaylee@gmail.com>; upstream
+contributors and the genuine GitHub platform committer remain unchanged. Runtime code and registered tests
 remain unchanged. Existing modified code in other worktrees was preserved.
 
 Credential scanning found no confirmed live API token or private key. Entropy
