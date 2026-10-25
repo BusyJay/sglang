@@ -34,12 +34,15 @@ old = subprocess.check_output(
     [
         "git",
         "show",
-        "a03f36b70d:python/sglang/srt/layers/quantization/qwen38_nvfp4_cache.py",
+        "6f633d3a6e:python/sglang/srt/layers/quantization/qwen38_nvfp4_cache.py",
     ],
     cwd=repo,
 )
-launch = pathlib.Path(
-    "/home/user/workspace/prod/homelab-llm/home-jay/remote-mapping/llm"
+launch = (
+    pathlib.Path.home()
+    / "workspace/prod/homelab-llm"
+    / ("home-" + pathlib.Path.home().name)
+    / "remote-mapping/llm"
 )
 common = launch / "sglang-flash-next-common.sh"
 original = common.read_bytes()

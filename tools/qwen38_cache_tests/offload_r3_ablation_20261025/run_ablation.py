@@ -78,8 +78,11 @@ a = ap.parse_args()
 repo = pathlib.Path(__file__).resolve().parents[3]
 root = a.output_dir
 root.mkdir(parents=True, exist_ok=False)
-launch = pathlib.Path(
-    "/home/user/workspace/prod/homelab-llm/home-jay/remote-mapping/llm"
+launch = (
+    pathlib.Path.home()
+    / "workspace/prod/homelab-llm"
+    / ("home-" + pathlib.Path.home().name)
+    / "remote-mapping/llm"
 )
 lnames = ["sglang-fp4-local.sh", "sglang-flash-next-common.sh"]
 backup = root / "snapshot"
@@ -102,7 +105,7 @@ for n in lnames:
 reference = {n: (backup / n).read_bytes() for n in owned}
 base = {
     n: subprocess.check_output(
-        ["git", "show", "cd748677bb6bd87c3162b24c8a4d3591dce2c8ea:" + n], cwd=repo
+        ["git", "show", "8451b22b1a478514636823c2d27119cd1c25f0a9:" + n], cwd=repo
     )
     for n in owned
 }

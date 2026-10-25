@@ -77,9 +77,10 @@ parser.add_argument("--container", default="homelab-llm")
 parser.add_argument(
     "--log",
     type=Path,
-    default=Path(
-        "/home/user/workspace/prod/homelab-llm/home-jay/remote-mapping/llm/sglang-fp4-local.log"
-    ),
+    default=Path.home()
+    / "workspace/prod/homelab-llm"
+    / ("home-" + Path.home().name)
+    / "remote-mapping/llm/sglang-fp4-local.log",
 )
 args = parser.parse_args()
 URL = args.url

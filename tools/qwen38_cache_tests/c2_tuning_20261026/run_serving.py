@@ -31,11 +31,14 @@ for node in ast.parse(helper.read_text()).body:
 source_path = repo / "python/sglang/kernels/ops/moe/shared_expert_gate.py"
 source = source_path.read_bytes()
 old = subprocess.check_output(
-    ["git", "show", "06cbc28918:python/sglang/kernels/ops/moe/shared_expert_gate.py"],
+    ["git", "show", "8505ae70ab:python/sglang/kernels/ops/moe/shared_expert_gate.py"],
     cwd=repo,
 )
-launch = pathlib.Path(
-    "/home/user/workspace/prod/homelab-llm/home-jay/remote-mapping/llm"
+launch = (
+    pathlib.Path.home()
+    / "workspace/prod/homelab-llm"
+    / ("home-" + pathlib.Path.home().name)
+    / "remote-mapping/llm"
 )
 common = launch / "sglang-flash-next-common.sh"
 original = common.read_bytes()

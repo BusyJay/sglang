@@ -19,8 +19,11 @@ root = args.output_dir
 root.mkdir(parents=True, exist_ok=False)
 phase = repo / "python/sglang/srt/layers/quantization/qwen38_b12x_fc1_overlap.py"
 source = phase.read_bytes()
-launch = pathlib.Path(
-    "/home/user/workspace/prod/homelab-llm/home-jay/remote-mapping/llm"
+launch = (
+    pathlib.Path.home()
+    / "workspace/prod/homelab-llm"
+    / ("home-" + pathlib.Path.home().name)
+    / "remote-mapping/llm"
 )
 names = ["sglang-fp4-local.sh", "sglang-flash-next-common.sh"]
 original = {n: (launch / n).read_text() for n in names}
