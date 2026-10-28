@@ -60,6 +60,13 @@ def _deepseek_family_overrides(server_args: Any, hf_config: Any) -> dict:
     )
 
     model_arch = (getattr(hf_config, "architectures", None) or [None])[0]
+    if model_arch == "Glm5NextForConditionalGeneration" and cfg.device == "mps":
+        from sglang.srt.hardware_backend.mlx.runtime import use_mlx
+
+        if use_mlx():
+            # The native MLX runner owns compressed MLA/indexer and KDA state.
+            # CUDA DSA page layout and kernels do not apply to these caches.
+            return {}
     if model_arch in ("HYV4ForCausalLM", "HYV4ForCausalLMNextN"):
         if cfg.enable_prefill_cp:
             raise ValueError(

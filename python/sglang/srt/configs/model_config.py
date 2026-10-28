@@ -683,6 +683,13 @@ class ModelConfig:
         self.is_lm_only = language_model_only or getattr(
             self.hf_config, "language_model_only", False
         )
+        if self.hf_config.model_type == "glm5_next":
+            from sglang.srt.hardware_backend.mlx.runtime import use_mlx
+
+            if use_mlx():
+                if enable_multimodal is True:
+                    raise ValueError("GLM5-Next MLX currently supports text input only")
+                self.is_lm_only = True
         self.model_is_mrope = (
             not self.is_lm_only
             and rope_scaling is not None

@@ -166,6 +166,19 @@ def handle_model_specific_adjustments(server_args: Any):
     hf_config = model_config.hf_config
     model_arch = hf_config.architectures[0]
 
+    if (
+        model_arch == "Glm5NextForConditionalGeneration"
+        and cfg.device == "mps"
+        and use_mlx()
+    ):
+        defaults = dict(disable_radix_cache=True, disable_overlap_schedule=True)
+        if cfg.max_running_requests is None:
+            defaults["max_running_requests"] = 1
+        if cfg.chunked_prefill_size is None or cfg.chunked_prefill_size > 256:
+            defaults["chunked_prefill_size"] = 256
+        declare_resolution(server_args, "glm5_next_mlx", **defaults)
+        return
+
     if get_platform().is_npu and cfg.dcp_size > 1 and not is_deepseek_dsa(hf_config):
         raise ValueError(
             "NPU decode context parallelism is currently implemented only for "
