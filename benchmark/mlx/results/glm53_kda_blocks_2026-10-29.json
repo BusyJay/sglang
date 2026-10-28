@@ -1,0 +1,41 @@
+{
+  "method": "Random BF16, 64 heads x 128 dimensions, bounded vector log gates [-5, 0], nonzero FP32 initial state, alternating timed pairs after one warmup pair. No full-model speed or quality claim.",
+  "mlx_enable_tf32": "1",
+  "serving_default": "mlx-lm recurrent Metal kernel; block32 remains experimental",
+  "trials": [
+    {
+      "query_tokens": 256,
+      "recurrent_samples_s": [
+        0.0014735839940840378,
+        0.0014670000091427937,
+        0.001449791991035454
+      ],
+      "block32_samples_s": [
+        0.0022407920041587204,
+        0.0020486249995883554,
+        0.002234999992651865
+      ],
+      "recurrent_median_s": 0.0014670000091427937,
+      "block32_median_s": 0.002234999992651865,
+      "max_output_abs_error": 0.000244140625,
+      "max_state_abs_error": 0.0012040138244628906
+    },
+    {
+      "query_tokens": 1024,
+      "recurrent_samples_s": [
+        0.0032082500110846013,
+        0.0032982499978970736,
+        0.002656832992215641
+      ],
+      "block32_samples_s": [
+        0.005708458003937267,
+        0.005658833993948065,
+        0.005164749993127771
+      ],
+      "recurrent_median_s": 0.0032082500110846013,
+      "block32_median_s": 0.005658833993948065,
+      "max_output_abs_error": 0.00048828125,
+      "max_state_abs_error": 0.0009064078330993652
+    }
+  ]
+}

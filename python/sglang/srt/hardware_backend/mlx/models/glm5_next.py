@@ -6,6 +6,7 @@ the ordinary MLX attention adapter, MLA keeps compressed KV and indexer state;
 these caches must stay together for the lifetime of a request.
 """
 
+import copy
 import logging
 from dataclasses import dataclass
 
@@ -62,19 +63,25 @@ class MLP(nn.Module):
         )
 
 
+class ClampedSwiGLU(nn.Module):
+    def __init__(self, limit):
+        super().__init__()
+        self.limit = limit
+
+    def __call__(self, up, gate):
+        return clamped_swiglu(gate, up, self.limit)
+
+
 class ClampedSwitchGLU(SwitchGLU):
     def __init__(self, args):
+        # Keep mlx-lm's sorting/grouped matmul path for larger token batches;
+        # the model-specific difference is only the clamped activation.
         super().__init__(
-            args.hidden_size, args.moe_intermediate_size, args.n_routed_experts
+            args.hidden_size,
+            args.moe_intermediate_size,
+            args.n_routed_experts,
+            activation=ClampedSwiGLU(args.swiglu_limit),
         )
-        self.limit = args.swiglu_limit
-
-    def __call__(self, x, indices):
-        # SwitchLinear broadcasts the selected-expert axis over the inputs.
-        x = mx.expand_dims(x, (-2, -3))
-        gate = self.gate_proj(x, indices)
-        up = self.up_proj(x, indices)
-        return self.down_proj(clamped_swiglu(gate, up, self.limit), indices).squeeze(-2)
 
 
 class MoE(nn.Module):
@@ -142,14 +149,81 @@ class KDA(nn.Module):
         self.dt_bias = mx.zeros((self.dim,), mx.float32)
         self.o_norm = nn.RMSNorm(self.head_dim, eps=args.rms_norm_eps)
         self.o_proj = nn.Linear(self.dim, args.hidden_size, bias=False)
+        self._fused_qkv = None
+        self._fused_qkv_sources = ()
+
+    def _qkv_sources(self):
+        return tuple(
+            value
+            for p in (self.q_proj, self.k_proj, self.v_proj)
+            for value in (p, p.weight, p.get("scales"), p.get("biases"))
+        )
+
+    def _fused_qkv_is_current(self):
+        return self._fused_qkv is not None and all(
+            old is new for old, new in zip(self._fused_qkv_sources, self._qkv_sources())
+        )
+
+    def prepare_for_inference(self):
+        """Fuse compatible Q/K/V once, following Glimmer's load-time fusion.
+
+        Canonical checkpoint parameters become views of the fused storage;
+        saving a model still uses its original names and mixed-bit metadata.
+        No second resident copy of all KDA projection weights is retained.
+        """
+        if self._fused_qkv_is_current():
+            return True
+        self._fused_qkv = None
+        self._fused_qkv_sources = ()
+        projections = (self.q_proj, self.k_proj, self.v_proj)
+        first = projections[0]
+        if type(first) not in (nn.Linear, nn.QuantizedLinear):
+            return False
+        if any(type(p) is not type(first) or "bias" in p for p in projections):
+            return False
+        fields = ("weight",)
+        if isinstance(first, nn.QuantizedLinear):
+            if first.mode != "affine" or any(
+                (p.bits, p.group_size, p.mode)
+                != (first.bits, first.group_size, first.mode)
+                for p in projections
+            ):
+                return False
+            fields += ("scales", "biases")
+        if any(
+            any(
+                p[field].shape != first[field].shape
+                or p[field].dtype != first[field].dtype
+                for p in projections
+            )
+            for field in fields
+        ):
+            return False
+        fused = copy.copy(first)
+        for field in fields:
+            fused[field] = mx.concatenate([p[field] for p in projections], axis=0)
+        mx.eval([fused[field] for field in fields])
+        for field in fields:
+            for projection, value in zip(
+                projections, mx.split(fused[field], 3, axis=0)
+            ):
+                projection[field] = value
+        self._fused_qkv = fused
+        self._fused_qkv_sources = self._qkv_sources()
+        return True
 
     def __call__(self, x, cache):
         b, t, _ = x.shape
+        if self._fused_qkv_is_current():
+            projected = mx.split(self._fused_qkv(x), 3, axis=-1)
+        else:
+            if self._fused_qkv is not None:
+                self._fused_qkv = None
+                self._fused_qkv_sources = ()
+            projected = [self.q_proj(x), self.k_proj(x), self.v_proj(x)]
         projections = []
-        for i, name in enumerate(("q", "k", "v")):
-            value, state = getattr(self, name + "_conv")(
-                getattr(self, name + "_proj")(x), cache[i], None, None
-            )
+        for i, (name, value) in enumerate(zip(("q", "k", "v"), projected)):
+            value, state = getattr(self, name + "_conv")(value, cache[i], None, None)
             cache[i] = state
             projections.append(value.reshape(b, t, self.num_heads, self.head_dim))
         q, k, v = projections
@@ -197,6 +271,12 @@ class Indexer(nn.Module):
         )
 
     def __call__(self, x, qr, cache, offset):
+        """Return selected raw KV indices, or None for dense causal attention.
+
+        Invalid complete pools and padded tail positions carry -1. Keeping
+        indices instead of a full-history boolean mask lets attention gather
+        only selected latent KV before either QK or PV multiplication.
+        """
         a = self.args
         b, t, _ = x.shape
         keys = self.k_norm(self.wk(x))
@@ -206,11 +286,10 @@ class Indexer(nn.Module):
             gates = mx.concatenate([cache[2], gates], axis=1)
         cache[1], cache[2] = keys, gates
         length, pool = keys.shape[1], a.index_kpool
-        visible = mx.arange(length)[None, :] <= (offset + mx.arange(t))[:, None]
         # Below the sparse budget every complete pool and its causal tail
         # are selected. Still retain indexer state for future sparse steps.
-        if length <= a.index_topk:
-            return mx.broadcast_to(visible, (b, t, length))
+        if length <= a.index_topk and a.index_kpool_always_select_tail:
+            return None
         n = length // pool
         grouped = keys[:, : n * pool].reshape(b, n, pool, a.index_head_dim)
         logits = gates[:, : n * pool].reshape(grouped.shape).astype(mx.float32)
@@ -230,17 +309,23 @@ class Indexer(nn.Module):
         valid = pool_ends[None, :] <= (offset + mx.arange(t))[:, None]
         scores = mx.where(valid[None], scores, -float("inf"))
         count = min(a.index_topk // pool, n)
-        selected = mx.argpartition(-scores, kth=count - 1, axis=-1)[..., :count]
-        pool_mask = mx.zeros((b, t, n + 1), mx.int32)
-        pool_mask = mx.put_along_axis(
-            pool_mask, selected, mx.array(1, mx.int32), axis=-1
-        )
-        raw_pool = mx.arange(length) // pool
-        mask = mx.take(pool_mask, raw_pool, axis=-1).astype(mx.bool_)
+        if count:
+            selected = mx.argpartition(-scores, kth=count - 1, axis=-1)[..., :count]
+            indices = selected[..., None] * pool + mx.arange(pool)
+            valid = indices[..., -1] <= (offset + mx.arange(t))[None, :, None]
+            indices = mx.where(valid[..., None], indices, -1).reshape(b, t, -1)
+        else:
+            indices = mx.zeros((b, t, 0), dtype=mx.int32)
         if a.index_kpool_always_select_tail:
-            tail_start = ((offset + mx.arange(t) + 1) // pool) * pool
-            mask |= mx.arange(length)[None, None, :] >= tail_start[None, :, None]
-        return mask & visible[None]
+            visible_count = offset + mx.arange(t) + 1
+            tail_count = visible_count % pool
+            tail_start = visible_count - tail_count
+            tail_offsets = mx.arange(pool - 1)
+            tail = tail_start[:, None] + tail_offsets
+            tail = mx.where(tail_offsets < tail_count[:, None], tail, -1)
+            tail = mx.broadcast_to(tail, (b, t, pool - 1))
+            indices = mx.concatenate([indices, tail], axis=-1)
+        return indices
 
 
 class MLA(nn.Module):
@@ -285,38 +370,118 @@ class MLA(nn.Module):
         if cache[0] is not None:
             kv = mx.concatenate([cache[0], kv], axis=1)
         cache[0] = kv
-        mask = self.indexer(x, qr, cache, cache.offset)
+        indices = self.indexer(x, qr, cache, cache.offset)
         cache.offset += t
-        # Keep only the compressed latent in cache. Expansion is transient.
-        expanded = (
-            self.kv_b_proj(kv)
-            .reshape(b, -1, a.num_attention_heads, a.qk_nope_head_dim + a.v_head_dim)
-            .transpose(0, 2, 1, 3)
+        scale = a.qk_nope_head_dim**-0.5
+        if indices is None and t > 1:
+            # Dense prefill reuses the expanded K/V across all queries. Its
+            # smaller per-head dimension is faster than latent-space SDPA
+            # here; decode and sparse attention still avoid historical expansion.
+            expanded = (
+                self.kv_b_proj(kv)
+                .reshape(
+                    b,
+                    -1,
+                    a.num_attention_heads,
+                    a.qk_nope_head_dim + a.v_head_dim,
+                )
+                .transpose(0, 2, 1, 3)
+            )
+            k, v = mx.split(expanded, [a.qk_nope_head_dim], axis=-1)
+            out = mx.fast.scaled_dot_product_attention(
+                q, k, v, scale=scale, mask="causal"
+            )
+            return self.o_proj(out.transpose(0, 2, 1, 3).reshape(b, t, -1))
+        # W_k and W_v map the shared latent to a head's K/V. Associate the
+        # products as (Q W_k) C^T and (P C) W_v^T, rather than expanding every
+        # historical latent C into all heads on each step.
+        weight = self.kv_b_proj.weight
+        if isinstance(self.kv_b_proj, nn.QuantizedLinear):
+            weight = mx.dequantize(
+                weight,
+                self.kv_b_proj.scales,
+                self.kv_b_proj.biases,
+                group_size=self.kv_b_proj.group_size,
+                bits=self.kv_b_proj.bits,
+                mode=self.kv_b_proj.mode,
+            )
+        wk, wv = mx.split(
+            weight.reshape(a.num_attention_heads, -1, a.kv_lora_rank),
+            [a.qk_nope_head_dim],
+            axis=1,
         )
-        k, v = mx.split(expanded, [a.qk_nope_head_dim], axis=-1)
-        out = mx.fast.scaled_dot_product_attention(
-            q, k, v, scale=a.qk_nope_head_dim**-0.5, mask=mask[:, None]
-        )
+        latent_q = q @ wk
+        if indices is None:
+            latent_kv = kv[:, None]
+            latent_out = mx.fast.scaled_dot_product_attention(
+                latent_q,
+                latent_kv,
+                latent_kv,
+                scale=scale,
+                mask="causal" if t > 1 else None,
+            )
+        elif indices.shape[-1] == 0:
+            latent_out = mx.zeros(latent_q.shape, dtype=latent_q.dtype)
+        else:
+            # One query per flattened batch row. Every head shares the same
+            # selected compressed KV; do not tile it across heads. QK/PV now
+            # scale with the selected budget, not the full history length.
+            width = indices.shape[-1]
+            selected_kv = mx.take_along_axis(
+                kv[:, None],
+                mx.maximum(indices, 0)[..., None],
+                axis=2,
+            ).reshape(b * t, 1, width, a.kv_lora_rank)
+            selected_q = latent_q.transpose(0, 2, 1, 3).reshape(
+                b * t,
+                a.num_attention_heads,
+                1,
+                a.kv_lora_rank,
+            )
+            latent_out = (
+                mx.fast.scaled_dot_product_attention(
+                    selected_q,
+                    selected_kv,
+                    selected_kv,
+                    scale=scale,
+                    mask=(indices >= 0).reshape(b * t, 1, 1, width),
+                )
+                .reshape(b, t, a.num_attention_heads, a.kv_lora_rank)
+                .transpose(0, 2, 1, 3)
+            )
+        out = latent_out @ wv.swapaxes(-1, -2)
         return self.o_proj(out.transpose(0, 2, 1, 3).reshape(b, t, -1))
 
 
 def hyper_connection(x, fn, base, scale, args):
+    return _hyper_connection(
+        x,
+        fn,
+        base,
+        scale,
+        args.hc_mult,
+        args.rms_norm_eps,
+        args.hc_eps,
+        args.hc_sinkhorn_iters,
+    )
+
+
+@mx.compile
+def _hyper_connection(x, fn, base, scale, h, norm_eps, eps, sinkhorn_iters):
+    # Compile the repeated small reductions/elementwise Sinkhorn operations
+    # together. Shape-specialized compilation is required by mx.split here.
     dtype = x.dtype
     flat = x.reshape(*x.shape[:2], -1).astype(mx.float32)
-    weights = mx.fast.rms_norm(flat, None, args.rms_norm_eps) @ fn.astype(mx.float32).T
-    h = args.hc_mult
+    weights = mx.fast.rms_norm(flat, None, norm_eps) @ fn.astype(mx.float32).T
     pre, post, comb = mx.split(weights, [h, 2 * h], axis=-1)
     pb, qb, cb = mx.split(base.astype(mx.float32), [h, 2 * h])
-    pre = mx.sigmoid(pre * scale[0] + pb) + args.hc_eps
+    pre = mx.sigmoid(pre * scale[0] + pb) + eps
     post = 2 * mx.sigmoid(post * scale[1] + qb)
-    comb = (
-        mx.softmax((comb * scale[2] + cb).reshape(*x.shape[:2], h, h), axis=-1)
-        + args.hc_eps
-    )
-    comb /= comb.sum(-2, keepdims=True) + args.hc_eps
-    for _ in range(args.hc_sinkhorn_iters - 1):
-        comb /= comb.sum(-1, keepdims=True) + args.hc_eps
-        comb /= comb.sum(-2, keepdims=True) + args.hc_eps
+    comb = mx.softmax((comb * scale[2] + cb).reshape(*x.shape[:2], h, h), axis=-1) + eps
+    comb /= comb.sum(-2, keepdims=True) + eps
+    for _ in range(sinkhorn_iters - 1):
+        comb /= comb.sum(-1, keepdims=True) + eps
+        comb /= comb.sum(-2, keepdims=True) + eps
     collapsed = (pre[..., None] * x).sum(-2).astype(dtype)
     return collapsed, post.astype(dtype), comb.astype(dtype).swapaxes(-1, -2) @ x
 
@@ -363,6 +528,10 @@ class DecoderLayer(nn.Module):
 
 
 class TextModel(nn.Module):
+    # Submit one KDA/MLA period at a time. Async evaluation bounds the lazy
+    # graph without making the host wait after each individual decoder layer.
+    _eval_group_size = 4
+
     def __init__(self, args):
         super().__init__()
         self.args = args
@@ -374,10 +543,12 @@ class TextModel(nn.Module):
         x = self.embed_tokens(inputs)
         if self.args.mhc:
             x = mx.repeat(x[..., None, :], self.args.hc_mult, axis=-2)
-        for layer, state in zip(self.layers, cache):
+        group_start = 0
+        for i, (layer, state) in enumerate(zip(self.layers, cache)):
             x = layer(x, cache=state)
-            # Bound the lazy graph and release layer-local transient expanded KV.
-            mx.eval(x, *[s for s in state.state if s is not None])
+            if (i + 1) % self._eval_group_size == 0 or i + 1 == len(self.layers):
+                mx.async_eval(x, [c.cache for c in cache[group_start : i + 1]])
+                group_start = i + 1
         if self.args.mhc:
             x = x.mean(axis=-2)
         return self.norm(x)
@@ -402,6 +573,19 @@ class Model(nn.Module):
 
     def __call__(self, inputs, cache=None):
         return self.lm_head(self.model(inputs, cache or self.make_cache()))
+
+    def forward_last_logits(self, inputs, cache=None):
+        hidden = self.model(inputs, cache or self.make_cache())
+        return self.lm_head(hidden[:, -1:, :])
+
+    def prepare_for_inference(self):
+        # Run after checkpoint loading and optional quantization, before serving.
+        count = sum(
+            layer.self_attn.prepare_for_inference()
+            for layer in self.layers
+            if layer.is_linear
+        )
+        logger.info("Fused GLM5-Next KDA Q/K/V projections in %d layers", count)
 
     def sanitize(self, weights):
         result = {}

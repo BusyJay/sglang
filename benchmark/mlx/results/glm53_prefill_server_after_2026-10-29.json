@@ -1,0 +1,83 @@
+{
+  "platform": {
+    "os": "Darwin",
+    "os_version": "27.2",
+    "machine": "arm64"
+  },
+  "device": {
+    "device_name": "Apple M5 Ultra",
+    "memory_size": 274877906944,
+    "max_recommended_working_set_size": 257698037760
+  },
+  "versions": {
+    "mlx": "0.32.4",
+    "mlx-lm": "0.32.2",
+    "torch": "2.13.0",
+    "transformers": "5.19.0"
+  },
+  "server": {
+    "model_path": "mlx-community/GLM-5.3-Flash-4bit",
+    "context_length": 4096,
+    "max_total_tokens": 4096,
+    "max_running_requests": 1,
+    "chunked_prefill_size": 256,
+    "disable_radix_cache": true,
+    "disable_overlap_schedule": true,
+    "mlx_enable_sampling": true
+  },
+  "server_mlx_enable_tf32": 1,
+  "input_source": "repeated synthetic English passage, raw token IDs",
+  "warmup": {
+    "input_tokens": 256,
+    "output_tokens": 8,
+    "first_event_tokens": 1,
+    "ttft_s": 3.0039026250015013,
+    "e2e_s": 7.0824091249960475,
+    "decode_tokens_per_s": 1.7163304768600078,
+    "tpot_ms": 582.6383749995979,
+    "cached_tokens": 0
+  },
+  "trials": [
+    {
+      "input_tokens": 256,
+      "output_tokens": 2,
+      "first_event_tokens": 1,
+      "ttft_s": 0.9674899579986231,
+      "e2e_s": 1.554684292001184,
+      "decode_tokens_per_s": 1.703098425661404,
+      "tpot_ms": 587.1651250054128,
+      "cached_tokens": 0,
+      "repeat": 1
+    },
+    {
+      "input_tokens": 1024,
+      "output_tokens": 2,
+      "first_event_tokens": 1,
+      "ttft_s": 3.647174041994731,
+      "e2e_s": 4.231646125001134,
+      "decode_tokens_per_s": 1.7110302357928397,
+      "tpot_ms": 584.4432080048136,
+      "cached_tokens": 0,
+      "repeat": 1
+    }
+  ],
+  "medians": [
+    {
+      "input_tokens": 256,
+      "output_tokens": 2,
+      "ttft_s": 0.9674899579986231,
+      "e2e_s": 1.554684292001184,
+      "decode_tokens_per_s": 1.703098425661404,
+      "tpot_ms": 587.1651250054128
+    },
+    {
+      "input_tokens": 1024,
+      "output_tokens": 2,
+      "ttft_s": 3.647174041994731,
+      "e2e_s": 4.231646125001134,
+      "decode_tokens_per_s": 1.7110302357928397,
+      "tpot_ms": 584.4432080048136
+    }
+  ],
+  "comparison_note": "Single trial per input with two output tokens; cumulative Glimmer-style fusion, sorting, dense prefill, compiled mHC and final-row logits changes. Baseline already includes absorbed MLA, sparse DSA and grouped async evaluation. KDA block solver is not enabled. Decode rate uses one interval; no steady-state throughput claim."
+}

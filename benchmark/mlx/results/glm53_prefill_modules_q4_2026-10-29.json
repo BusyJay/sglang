@@ -1,0 +1,109 @@
+{
+  "method": "Random BF16 production shapes, identical weights/inputs, one warmup pair then alternating timed calls with a warm 1 GiB allocator cache. MLA uses an empty cache. No full-model TTFT or quality claim.",
+  "model_id": "mlx-community/GLM-5.3-Flash-4bit",
+  "reference_ref": null,
+  "reference_source_sha256": "b44227bd36dfa2e97918df684bbf4041cfa4c796abb0154d6688ab0b379acad9",
+  "current_source_sha256": "5bb3dad9b3df91e395c341abf7bae426319f7ad8985f3c003e04df84ce50da4a",
+  "mlx_enable_tf32": "1",
+  "repeats": 3,
+  "quantization_bits": 4,
+  "quantization_group_size": 64,
+  "trials": [
+    {
+      "component": "mla",
+      "implementation": "before",
+      "query_tokens": 256,
+      "samples_s": [
+        0.0035800829937215894,
+        0.002959332996397279,
+        0.003551458998117596
+      ],
+      "median_s": 0.003551458998117596,
+      "median_extra_peak_MiB": 103.43945693969727
+    },
+    {
+      "component": "mla",
+      "implementation": "after",
+      "query_tokens": 256,
+      "samples_s": [
+        0.0031243749981513247,
+        0.0024370000028284267,
+        0.0029837500042049214
+      ],
+      "median_s": 0.0029837500042049214,
+      "median_extra_peak_MiB": 55.439456939697266
+    },
+    {
+      "component": "mhc",
+      "implementation": "before",
+      "query_tokens": 256,
+      "samples_s": [
+        0.002098082986776717,
+        0.0020238330034771934,
+        0.0020922499970765784
+      ],
+      "median_s": 0.0020922499970765784,
+      "median_extra_peak_MiB": 47.015811920166016
+    },
+    {
+      "component": "mhc",
+      "implementation": "after",
+      "query_tokens": 256,
+      "samples_s": [
+        0.0017893339972943068,
+        0.0017953750066226348,
+        0.001778292004019022
+      ],
+      "median_s": 0.0017893339972943068,
+      "median_extra_peak_MiB": 46.9941520690918
+    },
+    {
+      "component": "mla",
+      "implementation": "before",
+      "query_tokens": 1024,
+      "samples_s": [
+        0.010125000000698492,
+        0.009991166996769607,
+        0.009952791006071493
+      ],
+      "median_s": 0.009991166996769607,
+      "median_extra_peak_MiB": 271.5
+    },
+    {
+      "component": "mla",
+      "implementation": "after",
+      "query_tokens": 1024,
+      "samples_s": [
+        0.008571416008635424,
+        0.00862145799328573,
+        0.008713875009561889
+      ],
+      "median_s": 0.00862145799328573,
+      "median_extra_peak_MiB": 143.5
+    },
+    {
+      "component": "mhc",
+      "implementation": "before",
+      "query_tokens": 1024,
+      "samples_s": [
+        0.002943542000139132,
+        0.0029260829905979335,
+        0.002946209002402611
+      ],
+      "median_s": 0.002943542000139132,
+      "median_extra_peak_MiB": 188.02362442016602
+    },
+    {
+      "component": "mhc",
+      "implementation": "after",
+      "query_tokens": 1024,
+      "samples_s": [
+        0.0026049580046674237,
+        0.002556499995989725,
+        0.0025079580082092434
+      ],
+      "median_s": 0.002556499995989725,
+      "median_extra_peak_MiB": 187.9453239440918
+    }
+  ]
+}

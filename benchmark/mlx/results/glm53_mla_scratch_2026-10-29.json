@@ -1,0 +1,40 @@
+{
+  "method": "Isolated random BF16 MLA, production shapes, identical weights/prefix, one warmup then timed calls. Extra active-memory peak excludes resident weights/inputs. No full-model performance attribution.",
+  "reference_ref": "0585d3180b",
+  "repeats": 3,
+  "heads": 64,
+  "latent_rank": 512,
+  "topk": 2048,
+  "mlx_enable_tf32": "1",
+  "trials": [
+    {
+      "implementation": "before",
+      "context_tokens": 3072,
+      "query_tokens": 1,
+      "median_s": 0.013288415997521952,
+      "median_extra_peak_MiB": 207.38724517822266
+    },
+    {
+      "implementation": "after",
+      "context_tokens": 3072,
+      "query_tokens": 1,
+      "median_s": 0.0015859580016694963,
+      "median_extra_peak_MiB": 14.116369247436523
+    },
+    {
+      "implementation": "before",
+      "context_tokens": 3072,
+      "query_tokens": 256,
+      "median_s": 0.013263500004541129,
+      "median_extra_peak_MiB": 381.4805335998535
+    },
+    {
+      "implementation": "after",
+      "context_tokens": 3072,
+      "query_tokens": 256,
+      "median_s": 0.0365665830031503,
+      "median_extra_peak_MiB": 714.4588775634766
+    }
+  ],
+  "timing_note": "Probe overlapped a separate generation request. Do not use these latencies as isolated speedup estimates; per-process active-memory measurements are retained."
+}

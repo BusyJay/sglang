@@ -1,0 +1,42 @@
+{
+  "method": "Random Q4 affine head (4096 -> 154880, group size 64), BF16 activations, alternating timed pairs after one warmup pair. No full-model claim.",
+  "mlx_enable_tf32": "1",
+  "trials": [
+    {
+      "query_tokens": 256,
+      "max_abs_error": 0.015625,
+      "full_samples_s": [
+        0.006582874993910082,
+        0.003468583003268577,
+        0.003468583003268577
+      ],
+      "full_median_s": 0.003468583003268577,
+      "full_extra_peak_MiB": 75.625,
+      "last_samples_s": [
+        0.0005616669950541109,
+        0.0005006669962313026,
+        0.0004653750074794516
+      ],
+      "last_median_s": 0.0005006669962313026,
+      "last_extra_peak_MiB": 0.296875
+    },
+    {
+      "query_tokens": 1024,
+      "max_abs_error": 0.015625,
+      "full_samples_s": [
+        0.018108333009877242,
+        0.012006125005427748,
+        0.012014666994218715
+      ],
+      "full_median_s": 0.012014666994218715,
+      "full_extra_peak_MiB": 302.5,
+      "last_samples_s": [
+        0.0004518329951679334,
+        0.0004802920011570677,
+        0.00048666700604371727
+      ],
+      "last_median_s": 0.0004802920011570677,
+      "last_extra_peak_MiB": 0.296875
+    }
+  ]
+}

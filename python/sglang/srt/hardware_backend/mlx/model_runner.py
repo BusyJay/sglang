@@ -589,6 +589,11 @@ class MlxModelRunner:
                     f"{bytes_after / 1024**3:.2f} GB ({pct_reduction:.1f}% reduction)"
                 )
 
+        if checkpoint_config.get("model_type") == "glm5_next":
+            prepare_for_inference = getattr(self.model, "prepare_for_inference", None)
+            if callable(prepare_for_inference):
+                prepare_for_inference()
+
         # Force-evaluate weights so mx.get_active_memory() reflects
         # actual usage before attention KV pool sizing.
         mx.eval(self.model.parameters())
@@ -1199,7 +1204,8 @@ class MlxModelRunner:
             model_output = self.model(input_ids, cache=cache)
             logits = self._extract_logits(model_output)
             return mx.argmax(logits[:, -1, :], axis=-1), None
-        model_output = self.model(input_ids, cache=cache)
+        forward = getattr(self.model, "forward_last_logits", self.model)
+        model_output = forward(input_ids, cache=cache)
         logits = self._extract_logits(model_output)
         edits = logit_edit_row[None, :] if logit_edit_row is not None else None
         return self._select_tokens_with_logprobs(
