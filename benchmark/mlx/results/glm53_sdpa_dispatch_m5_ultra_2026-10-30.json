@@ -1,0 +1,697 @@
+{
+  "mlx_version": "0.32.4",
+  "device": {
+    "device_name": "Apple M5 Ultra",
+    "max_recommended_working_set_size": 257698037760,
+    "memory_size": 274877906944,
+    "architecture": "applegpu_g17d",
+    "max_buffer_length": 193273528320,
+    "resource_limit": 499000
+  },
+  "mlx_enable_tf32": "1",
+  "method": "Identical random inputs, compiled calls, three warmups; alternating candidate order across rounds, asynchronous submissions followed by synchronization. Measures amortized operator latency, not serving throughput.",
+  "shapes": {
+    "query": [
+      1,
+      64,
+      1,
+      512
+    ],
+    "kv_heads": 1,
+    "sparse_padded_width": 2051
+  },
+  "rounds": 5,
+  "iterations": 100,
+  "dispatch": [
+    {
+      "dtype": "mlx.core.bfloat16",
+      "key_length": 32,
+      "eligibility": {
+        "original": "accepted",
+        "fused_original": "[scaled_dot_product_attention] force_fused=True but no fused kernel is available: the vector attention kernel requires the query length times the GQA factor to be at most 32; got query length 1 and GQA factor 64.",
+        "fused_vector": "[scaled_dot_product_attention] force_fused=True but no fused kernel is available: the vector attention kernel for head dim 512 requires at least 1024 keys; got key length 32.",
+        "fused_matrix": "accepted"
+      },
+      "median_ms": {
+        "original": 0.025559159985277802,
+        "fused_matrix": 0.024274580064229667
+      },
+      "trials_ms": {
+        "original": [
+          0.040789589984342456,
+          0.030869170150253922,
+          0.02400540979579091,
+          0.024563749902881682,
+          0.025559159985277802
+        ],
+        "fused_matrix": [
+          0.03262208978412673,
+          0.029146670131012797,
+          0.024274580064229667,
+          0.022857500007376075,
+          0.021686660184059292
+        ]
+      },
+      "max_abs_difference_from_original": {
+        "original": 0.0,
+        "fused_matrix": 0.0234375
+      }
+    },
+    {
+      "dtype": "mlx.core.bfloat16",
+      "key_length": 1024,
+      "eligibility": {
+        "original": "accepted",
+        "fused_original": "[scaled_dot_product_attention] force_fused=True but no fused kernel is available: the vector attention kernel requires the query length times the GQA factor to be at most 32; got query length 1 and GQA factor 64.",
+        "fused_vector": "accepted",
+        "fused_matrix": "accepted"
+      },
+      "median_ms": {
+        "original": 0.028913750138599426,
+        "fused_vector": 0.13706958008697256,
+        "fused_matrix": 0.09691166982520372
+      },
+      "trials_ms": {
+        "original": [
+          0.028913750138599426,
+          0.04394375020638108,
+          0.03507957997499034,
+          0.027342500106897205,
+          0.02779583999654278
+        ],
+        "fused_vector": [
+          0.14592792023904622,
+          0.13652374997036532,
+          0.13857249985449016,
+          0.13679416006198153,
+          0.13706958008697256
+        ],
+        "fused_matrix": [
+          0.09702165989438072,
+          0.0968808401376009,
+          0.09729291981784627,
+          0.09689792001154274,
+          0.09691166982520372
+        ]
+      },
+      "max_abs_difference_from_original": {
+        "original": 0.0,
+        "fused_vector": 0.009765625,
+        "fused_matrix": 0.009765625
+      }
+    },
+    {
+      "dtype": "mlx.core.bfloat16",
+      "key_length": 2048,
+      "eligibility": {
+        "original": "accepted",
+        "fused_original": "[scaled_dot_product_attention] force_fused=True but no fused kernel is available: the vector attention kernel requires the query length times the GQA factor to be at most 32; got query length 1 and GQA factor 64.",
+        "fused_vector": "accepted",
+        "fused_matrix": "accepted"
+      },
+      "median_ms": {
+        "original": 0.02984417020343244,
+        "fused_vector": 0.22166000009747222,
+        "fused_matrix": 0.1844620899646543
+      },
+      "trials_ms": {
+        "original": [
+          0.02903916989453137,
+          0.02868874988052994,
+          0.0328958299360238,
+          0.02984417020343244,
+          0.032637499971315265
+        ],
+        "fused_vector": [
+          0.22189666982740164,
+          0.22229665977647528,
+          0.22129125020001084,
+          0.22166000009747222,
+          0.22165791015140712
+        ],
+        "fused_matrix": [
+          0.18457333993865177,
+          0.18428750016028062,
+          0.1844620899646543,
+          0.1841441701981239,
+          0.18456292018527165
+        ]
+      },
+      "max_abs_difference_from_original": {
+        "original": 0.0,
+        "fused_vector": 0.0234375,
+        "fused_matrix": 0.0234375
+      }
+    },
+    {
+      "dtype": "mlx.core.bfloat16",
+      "key_length": 2051,
+      "eligibility": {
+        "original": "accepted",
+        "fused_original": "[scaled_dot_product_attention] force_fused=True but no fused kernel is available: the vector attention kernel requires the query length times the GQA factor to be at most 32; got query length 1 and GQA factor 64.",
+        "fused_vector": "accepted",
+        "fused_matrix": "accepted"
+      },
+      "median_ms": {
+        "original": 0.05221375002292916,
+        "fused_vector": 0.22191167023265734,
+        "fused_matrix": 0.20899833994917572
+      },
+      "trials_ms": {
+        "original": [
+          0.05131415993673727,
+          0.05285916005959734,
+          0.0504420799552463,
+          0.05221375002292916,
+          0.05261208018055186
+        ],
+        "fused_vector": [
+          0.22479042003396899,
+          0.22243665996938944,
+          0.22140916989883408,
+          0.22191167023265734,
+          0.22189874987816438
+        ],
+        "fused_matrix": [
+          0.20901333016809076,
+          0.20888208993710577,
+          0.20899833994917572,
+          0.2085337499738671,
+          0.2096058300230652
+        ]
+      },
+      "max_abs_difference_from_original": {
+        "original": 0.0,
+        "fused_vector": 0.03125,
+        "fused_matrix": 0.03125
+      }
+    },
+    {
+      "dtype": "mlx.core.bfloat16",
+      "key_length": 4096,
+      "eligibility": {
+        "original": "accepted",
+        "fused_original": "[scaled_dot_product_attention] force_fused=True but no fused kernel is available: the vector attention kernel requires the query length times the GQA factor to be at most 32; got query length 1 and GQA factor 64.",
+        "fused_vector": "accepted",
+        "fused_matrix": "accepted"
+      },
+      "median_ms": {
+        "original": 0.05301042023347691,
+        "fused_vector": 0.38392624992411584,
+        "fused_matrix": 0.3641120801330544
+      },
+      "trials_ms": {
+        "original": [
+          0.05485125002451241,
+          0.052900000009685755,
+          0.0522383299539797,
+          0.053341670136433095,
+          0.05301042023347691
+        ],
+        "fused_vector": [
+          0.38273415993899107,
+          0.3843733298708685,
+          0.38392624992411584,
+          0.38373083982151,
+          0.3852970799198374
+        ],
+        "fused_matrix": [
+          0.3641120801330544,
+          0.3640316700330004,
+          0.3641908400459215,
+          0.363714590203017,
+          0.3645391599275172
+        ]
+      },
+      "max_abs_difference_from_original": {
+        "original": 0.0,
+        "fused_vector": 0.01171875,
+        "fused_matrix": 0.01171875
+      }
+    },
+    {
+      "dtype": "mlx.core.float32",
+      "key_length": 32,
+      "eligibility": {
+        "original": "accepted",
+        "fused_original": "[scaled_dot_product_attention] force_fused=True but no fused kernel is available: the vector attention kernel requires the query length times the GQA factor to be at most 32; got query length 1 and GQA factor 64.",
+        "fused_vector": "[scaled_dot_product_attention] force_fused=True but no fused kernel is available: the vector attention kernel for head dim 512 requires at least 1024 keys; got key length 32.",
+        "fused_matrix": "accepted"
+      },
+      "median_ms": {
+        "original": 0.028540420171339065,
+        "fused_matrix": 0.017021250096149743
+      },
+      "trials_ms": {
+        "original": [
+          0.02992666995851323,
+          0.02796082990244031,
+          0.029252920066937804,
+          0.028540420171339065,
+          0.028480410110205412
+        ],
+        "fused_matrix": [
+          0.024857920070644468,
+          0.019276250095572323,
+          0.017021250096149743,
+          0.014960420085117221,
+          0.016997090133372694
+        ]
+      },
+      "max_abs_difference_from_original": {
+        "original": 0.0,
+        "fused_matrix": 0.0018444061279296875
+      }
+    },
+    {
+      "dtype": "mlx.core.float32",
+      "key_length": 1024,
+      "eligibility": {
+        "original": "accepted",
+        "fused_original": "[scaled_dot_product_attention] force_fused=True but no fused kernel is available: the vector attention kernel requires the query length times the GQA factor to be at most 32; got query length 1 and GQA factor 64.",
+        "fused_vector": "accepted",
+        "fused_matrix": "accepted"
+      },
+      "median_ms": {
+        "original": 0.040004579932428896,
+        "fused_vector": 0.1947775000007823,
+        "fused_matrix": 0.15519457985647023
+      },
+      "trials_ms": {
+        "original": [
+          0.039403339906129986,
+          0.03954584011808038,
+          0.040140410128515214,
+          0.040004579932428896,
+          0.0400437499047257
+        ],
+        "fused_vector": [
+          0.2539120797882788,
+          0.1936354101053439,
+          0.1937129200086929,
+          0.1947775000007823,
+          0.19528375007212162
+        ],
+        "fused_matrix": [
+          0.1557749998755753,
+          0.155162499868311,
+          0.15575166995404288,
+          0.15519457985647023,
+          0.15512790996581316
+        ]
+      },
+      "max_abs_difference_from_original": {
+        "original": 0.0,
+        "fused_vector": 0.004781126976013184,
+        "fused_matrix": 0.0014001131057739258
+      }
+    },
+    {
+      "dtype": "mlx.core.float32",
+      "key_length": 2048,
+      "eligibility": {
+        "original": "accepted",
+        "fused_original": "[scaled_dot_product_attention] force_fused=True but no fused kernel is available: the vector attention kernel requires the query length times the GQA factor to be at most 32; got query length 1 and GQA factor 64.",
+        "fused_vector": "accepted",
+        "fused_matrix": "accepted"
+      },
+      "median_ms": {
+        "original": 0.04379833000712097,
+        "fused_vector": 0.36311208008555695,
+        "fused_matrix": 0.2996345900464803
+      },
+      "trials_ms": {
+        "original": [
+          0.04344292014138773,
+          0.04481624986510724,
+          0.044478340132627636,
+          0.04379833000712097,
+          0.04343540989793837
+        ],
+        "fused_vector": [
+          0.36311208008555695,
+          0.36493249994236976,
+          0.3636908301268704,
+          0.3616837499430403,
+          0.3624154199496843
+        ],
+        "fused_matrix": [
+          0.2996345900464803,
+          0.29914708982687443,
+          0.30010709015186876,
+          0.29976541991345584,
+          0.29943083005491644
+        ]
+      },
+      "max_abs_difference_from_original": {
+        "original": 0.0,
+        "fused_vector": 0.0038186311721801758,
+        "fused_matrix": 0.0007598996162414551
+      }
+    },
+    {
+      "dtype": "mlx.core.float32",
+      "key_length": 2051,
+      "eligibility": {
+        "original": "accepted",
+        "fused_original": "[scaled_dot_product_attention] force_fused=True but no fused kernel is available: the vector attention kernel requires the query length times the GQA factor to be at most 32; got query length 1 and GQA factor 64.",
+        "fused_vector": "accepted",
+        "fused_matrix": "accepted"
+      },
+      "median_ms": {
+        "original": 0.06726541992975399,
+        "fused_vector": 0.3658470799564384,
+        "fused_matrix": 0.34689084015553817
+      },
+      "trials_ms": {
+        "original": [
+          0.06698374985717237,
+          0.06807083991589025,
+          0.06684166990453377,
+          0.06773959001293406,
+          0.06726541992975399
+        ],
+        "fused_vector": [
+          0.3658470799564384,
+          0.3696120801032521,
+          0.3684662500745617,
+          0.3657566598849371,
+          0.3647175000514835
+        ],
+        "fused_matrix": [
+          0.34714499983238056,
+          0.34666791994823143,
+          0.34689084015553817,
+          0.34656083007575944,
+          0.34695165988523513
+        ]
+      },
+      "max_abs_difference_from_original": {
+        "original": 0.0,
+        "fused_vector": 0.0052596330642700195,
+        "fused_matrix": 0.0011641979217529297
+      }
+    },
+    {
+      "dtype": "mlx.core.float32",
+      "key_length": 4096,
+      "eligibility": {
+        "original": "accepted",
+        "fused_original": "[scaled_dot_product_attention] force_fused=True but no fused kernel is available: the vector attention kernel requires the query length times the GQA factor to be at most 32; got query length 1 and GQA factor 64.",
+        "fused_vector": "accepted",
+        "fused_matrix": "accepted"
+      },
+      "median_ms": {
+        "original": 0.06394875003024936,
+        "fused_vector": 0.7286462499178015,
+        "fused_matrix": 0.589784579933621
+      },
+      "trials_ms": {
+        "original": [
+          0.05953790998319164,
+          0.06411875016056001,
+          0.06367417023284361,
+          0.06458334013586864,
+          0.06394875003024936
+        ],
+        "fused_vector": [
+          0.7264300002134405,
+          0.7320233402424492,
+          0.7298683299450204,
+          0.7286462499178015,
+          0.726238340139389
+        ],
+        "fused_matrix": [
+          0.589784579933621,
+          0.5888133400003426,
+          0.5903299999772571,
+          0.5884945800062269,
+          0.5899641700671054
+        ]
+      },
+      "max_abs_difference_from_original": {
+        "original": 0.0,
+        "fused_vector": 0.003517746925354004,
+        "fused_matrix": 0.0008907318115234375
+      }
+    }
+  ],
+  "padding": [
+    {
+      "dtype": "mlx.core.bfloat16",
+      "valid_key_length": 2048,
+      "eligibility": {
+        "original": "accepted",
+        "trimmed": "accepted"
+      },
+      "median_ms": {
+        "original": 0.05516125005669892,
+        "trimmed": 0.03342665993841365
+      },
+      "trials_ms": {
+        "original": [
+          0.05516125005669892,
+          0.055231250007636845,
+          0.05534208990866318,
+          0.054383749957196414,
+          0.05379917012760416
+        ],
+        "trimmed": [
+          0.03342665993841365,
+          0.03323042008560151,
+          0.033448330068495125,
+          0.03978833003202453,
+          0.03175624995492399
+        ]
+      },
+      "max_abs_difference_from_original": {
+        "original": 0.0,
+        "trimmed": 0.001953125
+      }
+    },
+    {
+      "dtype": "mlx.core.bfloat16",
+      "valid_key_length": 2049,
+      "eligibility": {
+        "original": "accepted",
+        "trimmed": "accepted"
+      },
+      "median_ms": {
+        "original": 0.054562500154133886,
+        "trimmed": 0.05201541993301362
+      },
+      "trials_ms": {
+        "original": [
+          0.05407874996308237,
+          0.054818749777041376,
+          0.054562500154133886,
+          0.05476541991811246,
+          0.054473749769385904
+        ],
+        "trimmed": [
+          0.05184541980270296,
+          0.052313749911263585,
+          0.05179750005481765,
+          0.05218124977545813,
+          0.05201541993301362
+        ]
+      },
+      "max_abs_difference_from_original": {
+        "original": 0.0,
+        "trimmed": 0.0
+      }
+    },
+    {
+      "dtype": "mlx.core.bfloat16",
+      "valid_key_length": 2050,
+      "eligibility": {
+        "original": "accepted",
+        "trimmed": "accepted"
+      },
+      "median_ms": {
+        "original": 0.054640840098727494,
+        "trimmed": 0.052003340097144246
+      },
+      "trials_ms": {
+        "original": [
+          0.05401500005973503,
+          0.05537499993806705,
+          0.05470709002111107,
+          0.054640840098727494,
+          0.05400583992013708
+        ],
+        "trimmed": [
+          0.05242292012553662,
+          0.05190791009226814,
+          0.052003340097144246,
+          0.051688750099856406,
+          0.05266208987450227
+        ]
+      },
+      "max_abs_difference_from_original": {
+        "original": 0.0,
+        "trimmed": 0.0
+      }
+    },
+    {
+      "dtype": "mlx.core.bfloat16",
+      "valid_key_length": 2051,
+      "eligibility": {
+        "original": "accepted",
+        "trimmed": "accepted"
+      },
+      "median_ms": {
+        "original": 0.0546308298362419,
+        "trimmed": 0.05223790998570621
+      },
+      "trials_ms": {
+        "original": [
+          0.054709999822080135,
+          0.05446916999062523,
+          0.054227499931585044,
+          0.056784169864840806,
+          0.0546308298362419
+        ],
+        "trimmed": [
+          0.05255750002106652,
+          0.0515429099323228,
+          0.05318833980709314,
+          0.05221458995947614,
+          0.05223790998570621
+        ]
+      },
+      "max_abs_difference_from_original": {
+        "original": 0.0,
+        "trimmed": 0.0
+      }
+    },
+    {
+      "dtype": "mlx.core.float32",
+      "valid_key_length": 2048,
+      "eligibility": {
+        "original": "accepted",
+        "trimmed": "accepted"
+      },
+      "median_ms": {
+        "original": 0.06984582985751331,
+        "trimmed": 0.04391750000650063
+      },
+      "trials_ms": {
+        "original": [
+          0.07868499989854172,
+          0.07073166983900592,
+          0.06975374999456108,
+          0.06964625004911795,
+          0.06984582985751331
+        ],
+        "trimmed": [
+          0.0530683301622048,
+          0.04301624983781949,
+          0.04375083983177319,
+          0.04391750000650063,
+          0.04397874989081174
+        ]
+      },
+      "max_abs_difference_from_original": {
+        "original": 0.0,
+        "trimmed": 7.748603820800781e-07
+      }
+    },
+    {
+      "dtype": "mlx.core.float32",
+      "valid_key_length": 2049,
+      "eligibility": {
+        "original": "accepted",
+        "trimmed": "accepted"
+      },
+      "median_ms": {
+        "original": 0.06960375001654029,
+        "trimmed": 0.06684374995529652
+      },
+      "trials_ms": {
+        "original": [
+          0.0702929199906066,
+          0.06960375001654029,
+          0.06957667006645352,
+          0.07071291998727247,
+          0.06926832982571796
+        ],
+        "trimmed": [
+          0.06644958019023761,
+          0.06618000013986602,
+          0.06684374995529652,
+          0.06700375000946224,
+          0.06739042000845075
+        ]
+      },
+      "max_abs_difference_from_original": {
+        "original": 0.0,
+        "trimmed": 0.0
+      }
+    },
+    {
+      "dtype": "mlx.core.float32",
+      "valid_key_length": 2050,
+      "eligibility": {
+        "original": "accepted",
+        "trimmed": "accepted"
+      },
+      "median_ms": {
+        "original": 0.06960208993405104,
+        "trimmed": 0.06530750019010156
+      },
+      "trials_ms": {
+        "original": [
+          0.06983541999943554,
+          0.06973333976930007,
+          0.06959624995943159,
+          0.06919874984305352,
+          0.06960208993405104
+        ],
+        "trimmed": [
+          0.06549624988110736,
+          0.06513791013276204,
+          0.06562417023815215,
+          0.06508166989078745,
+          0.06530750019010156
+        ]
+      },
+      "max_abs_difference_from_original": {
+        "original": 0.0,
+        "trimmed": 0.0
+      }
+    },
+    {
+      "dtype": "mlx.core.float32",
+      "valid_key_length": 2051,
+      "eligibility": {
+        "original": "accepted",
+        "trimmed": "accepted"
+      },
+      "median_ms": {
+        "original": 0.0695058298879303,
+        "trimmed": 0.06670749979093671
+      },
+      "trials_ms": {
+        "original": [
+          0.06936624995432794,
+          0.06976999982725829,
+          0.0695058298879303,
+          0.06988750013988465,
+          0.06945999979507178
+        ],
+        "trimmed": [
+          0.06664666987489909,
+          0.06680249993223697,
+          0.06653332995483652,
+          0.06670749979093671,
+          0.06699666992062703
+        ]
+      },
+      "max_abs_difference_from_original": {
+        "original": 0.0,
+        "trimmed": 0.0
+      }
+    }
+  ]
+}

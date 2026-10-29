@@ -293,15 +293,19 @@ class TestGlm5NextMlx(CustomTestCase):
 
         from sglang.srt.hardware_backend.mlx.models.glm5_next import MLA, NativeCache
 
-        for rank, dtype, quantized in (
-            (16, mx.float32, False),
-            (512, mx.float32, False),
-            (512, mx.bfloat16, False),
-            (32, mx.float32, True),
+        for rank, dtype, quantized, select_tail in (
+            (16, mx.float32, False, True),
+            (512, mx.float32, False, True),
+            (512, mx.bfloat16, False, True),
+            (32, mx.float32, True, True),
+            (16, mx.float32, False, False),
         ):
-            with self.subTest(rank=rank, dtype=dtype, quantized=quantized):
+            with self.subTest(
+                rank=rank, dtype=dtype, quantized=quantized, select_tail=select_tail
+            ):
                 args = copy.deepcopy(self.model.args)
                 args.kv_lora_rank = rank
+                args.index_kpool_always_select_tail = select_tail
                 attn = MLA(args)
                 attn.set_dtype(dtype)
                 if quantized:
@@ -309,11 +313,19 @@ class TestGlm5NextMlx(CustomTestCase):
                         attn.kv_b_proj, group_size=32, bits=5
                     )
                 # Different rows and queries select different pools. The latter
-                # chunks cross the sparse budget and end inside a k-pool.
+                # chunks cross the sparse budget. Single-token steps exercise
+                # every tail length, including no tail at a pool boundary;
+                # the final chunk must still mask future pools per query.
                 mx.random.seed(19)
                 inputs = mx.random.normal((2, 17, args.hidden_size)).astype(dtype)
                 actual_cache, expected_cache = NativeCache(3), NativeCache(3)
-                for start, end in ((0, 3), (3, 7), (7, 10), (10, 11), (11, 17)):
+                chunks = [(0, 3), (3, 7), (7, 10)]
+                chunks += [(start, start + 1) for start in range(10, 14)]
+                chunks += [(14, 17)]
+                for start, end in chunks:
+                    # Bootstrap with a visible tail: the expanded SDPA oracle
+                    # has undefined all-masked rows before the first full pool.
+                    args.index_kpool_always_select_tail = select_tail or start == 0
                     x = inputs[:, start:end]
                     actual = attn(x, actual_cache)
                     expected = self._expanded_mla_reference(attn, x, expected_cache)

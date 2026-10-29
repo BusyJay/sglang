@@ -486,6 +486,16 @@ class MLA(nn.Module):
             axis=1,
         )
         latent_q = q @ wk
+        if indices is not None and t == 1:
+            # Every selected complete pool is visible to the final query.
+            # Only the fixed-width tail has padding. Trim it before gathering
+            # so decode needs neither dummy KV rows nor an array mask. At pool
+            # boundaries this also restores an aligned attention key length.
+            pool = a.index_kpool
+            width = min(a.index_topk // pool, kv.shape[1] // pool) * pool
+            if a.index_kpool_always_select_tail:
+                width += kv.shape[1] % pool
+            indices = indices[..., :width]
         if indices is None:
             latent_kv = kv[:, None]
             latent_out = mx.fast.scaled_dot_product_attention(
@@ -519,7 +529,9 @@ class MLA(nn.Module):
                     selected_kv,
                     selected_kv,
                     scale=scale,
-                    mask=(indices >= 0).reshape(b * t, 1, 1, width),
+                    mask=(
+                        None if t == 1 else (indices >= 0).reshape(b * t, 1, 1, width)
+                    ),
                 )
                 .reshape(b, t, a.num_attention_heads, a.kv_lora_rank)
                 .transpose(0, 2, 1, 3)

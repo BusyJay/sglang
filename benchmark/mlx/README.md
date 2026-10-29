@@ -340,6 +340,82 @@ Current limits and costs:
   cached continuation, mixed-bit loading and request isolation. They are not a
   full-model quality or long-context evaluation.
 
+## GLM MLX shape and dispatch audit
+
+The 2026-10-30 audit used MLX 0.32.4 on M5 Ultra. Absorbed MLA decode
+passes Q `[1,64,1,512]` and shared KV `[1,1,L,512]`. Calling the installed
+SDPA API with `force_fused=True` rejects this layout because query length times
+GQA factor is 64, above the vector kernel limit of 32. D512 vector attention
+also defaults to GQA=8, no array mask, and at least 1024 keys. This is a
+fallback to Metal matrix operations, not CPU execution.
+
+Equivalent layouts were benchmarked before changing dispatch: split query heads
+into eight batches of eight with broadcast KV, or fold heads into 64 independent
+query rows for full fused attention. Neither is enabled: at BF16 L=2048,
+original SDPA took **0.0298 ms**, fused vector **0.2217 ms**, and fused full
+attention **0.1845 ms**. The fused kernels are substantially slower here.
+These are compiled, amortized operator measurements with resident random inputs;
+they do not establish end-to-end model throughput. The backend's
+[eligibility and dispatch implementation](https://github.com/ml-explore/mlx/blob/v0.32.4/mlx/backend/metal/scaled_dot_product_attention.cpp)
+explains the shape limits and deliberate fallback heuristics.
+
+Quantized expert inputs were also checked against the
+[MLX gather-QMM dispatch](https://github.com/ml-explore/mlx/blob/v0.32.4/mlx/backend/metal/quantized.cpp):
+up/gate K=4096, N=2048, 4-bit and down K=2048, N=4096, 5-bit meet fast
+quantized-matvec alignment requirements. Their singleton dimensions do not by
+themselves imply a slow path. KDA's vector-valued forget gate intentionally uses
+mlx-lm's vector-gated recurrent kernel; substituting its scalar-gate packed
+kernel would change the model equations.
+
+One unnecessary shape cost is fixed by default: single-token sparse MLA trims
+the padded tail before gathering and omits the resulting all-valid mask. All
+selected complete pools are visible to that final query. Multi-token prefill
+retains its per-query causal selection mask. At a pool boundary the selected
+length becomes 2048 instead of 2051, allowing aligned matrix dimensions.
+BF16 SDPA then measured **0.0552 → 0.0334 ms** at that boundary; with one to
+three tail tokens the reduction was approximately 4–5%. This is a small
+operator optimization, not a claim of substantial serving acceleration.
+
+Reproduce eligibility checks, both fused alternatives, and all four sparse-tail
+lengths with:
+
+```bash
+SGLANG_USE_MLX=1 MLX_ENABLE_TF32=1 python benchmark/mlx/bench_glm5_next_sdpa_dispatch.py \
+  --output /tmp/glm-sdpa-dispatch.json
+```
+
+[Dispatch and padding measurements](results/glm53_sdpa_dispatch_m5_ultra_2026-10-30.json)
+include every timing round, dtype, device, maximum output difference and native
+eligibility error. Expanded-KV oracle tests cover every tail length, tail
+selection disabled, quantized projections, BF16, multi-row decode and
+multi-token causal continuation.
+
+Full-weight HTTP validation compared the GLM module from `6c391abebf` with the
+padding fix, using checkpoint revision
+`fa04cbc3622b16aa7475404060b05e506d81bd4e`, TF32=1, one active request,
+4352-token context/budget, 256-token prefill chunks, sampling enabled, and
+disabled radix caching/scheduler overlap. Each input length generated 24 greedy
+tokens in three timed trials after warmup; the two model processes ran
+sequentially without another GPU workload. Decode rate excludes the first token.
+
+| Input tokens | Decode before/after (tokens/s) | TPOT before/after (ms) | TTFT before/after (s) |
+| ---: | ---: | ---: | ---: |
+| 32 | 2.697 / 2.728 | 370.8 / 366.6 | 0.659 / 0.655 |
+| 1024 | 2.723 / 2.740 | 367.2 / 364.9 | 3.621 / 3.703 |
+| 4096 | 2.698 / 2.709 | 370.6 / 369.2 | 19.450 / 19.800 |
+
+The sparse 4096-token case changed by only **+0.4%**, below the observed
+trial-to-trial variation. The unchanged dense cases also drifted upward slightly;
+**no measurable end-to-end throughput improvement is established**. Keep the
+small padding/mask simplification enabled, without forcing slower fused kernels.
+A separate 4096-input/8-output greedy continuation produced identical token IDs.
+The 63 relevant GLM, attention-adapter and worker-routing tests passed, including
+20 parametrized subtests.
+
+[Serving before](results/glm53_sdpa_padding_serving_before_2026-10-30.json),
+[after](results/glm53_sdpa_padding_serving_after_2026-10-30.json),
+[greedy-token parity](results/glm53_sdpa_padding_serving_parity_2026-10-30.json).
+
 ## Quantized expert decode throughput
 
 GLM single-token decode now evaluates each quantized routed projection output
@@ -601,6 +677,10 @@ runner was unavailable because its virtualenv dependency was not cached.
       whether the workload is limited by submission, bandwidth or computation.
       MLX supports these accelerators, but the current port has no kernel-level
       utilization measurements. See [Apple's MLX/M5 discussion](https://machinelearning.apple.com/research/exploring-llms-mlx-m5).
+- [x] Audit production decode shapes against MLX SDPA and quantized-matvec
+      dispatch rules. Reproduce D512 fusion rejection locally and benchmark
+      equivalent fused layouts; retain faster matrix attention. Shader-level
+      utilization attribution remains part of the timeline work above.
 - [ ] Add full-weight accuracy/logprob and realistic chat checks, including
       prefill/decode continuation and inputs crossing the DSA top-k budget.
 - [ ] Fix the GLM mixed extend/decode CPU/MPS mismatch in `FutureMap.stash`,
@@ -616,6 +696,8 @@ runner was unavailable because its virtualenv dependency was not cached.
       absorbed attention; preserve cached causal alignment.
 - [x] Implement selected-KV DSA execution with correct complete-pool and
       incomplete-tail behavior. Keep expanded dense masking as a test oracle.
+- [x] Remove padded sparse KV rows and the unnecessary single-query mask during
+      decode; restore aligned key length at complete-pool boundaries.
 - [ ] Tile prefill query gathers or fuse indexed latent attention to reduce
       prefill scratch and avoid materializing a per-query selected-KV buffer
       (deferred while prioritizing throughput).
