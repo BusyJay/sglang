@@ -171,6 +171,9 @@ alternatives can be inventoried and compared:
   (`"<group>.<name>"`), a backend, and an import path (`"module:attr"`). No
   `torch` or kernel backend is imported, and no JIT compilation is triggered,
   until a kernel is actually called.
+- `KernelBackend.MLX` describes custom kernels compiled through MLX's Metal
+  API; `DeviceType.MPS` records their Metal device requirement. They are
+  imported lazily like the other implementations.
 - `select_kernel(op, backend=None)` resolves an op to its fixed call path.
   There is **no** priority ranking or heuristic auto-selection: an op with a
   single backend resolves to it; an op with several backends must be resolved

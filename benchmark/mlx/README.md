@@ -316,7 +316,10 @@ Current limits and costs:
   generic gather/SDPA operations rather than a fused indexed Metal kernel.
   Prefill gather scratch scales with query count times selected count times
   latent rank; the measured increase is documented above.
-- The indexer retains raw key/gate history and rebuilds pooled candidates.
+- The indexer caches completed pooled keys in a geometrically grown buffer.
+  Raw indexer keys/gates retain only the incomplete pool (at most three tokens
+  for the checkpoint's pool size of four). Latent MLA KV still grows by
+  concatenation; this optimization does not change that buffer.
 - Compatible KDA Q/K/V projections are fused at load time. Short convolutions,
   gates and gated normalization still execute as separate operations. mHC's
   internal calculations compile together, while the final block-output gate/add
@@ -332,11 +335,175 @@ Current limits and costs:
   cached continuation, mixed-bit loading and request isolation. They are not a
   full-model quality or long-context evaluation.
 
+## Incremental pooled indexer cache
+
+Completed indexer pools now keep their original weighted means instead of
+recomputing them from all historical keys/gates every decode step. The fourth
+MLA cache array stores the pooled-key buffer; its valid length comes from the
+sequence offset. It participates in normal cache evaluation and state transfer.
+This implementation is enabled directly on the GLM5-Next path.
+
+Reproduce the paired production-shape probe with the same BF16 weights, raw
+prefix and advancing decode inputs on each side:
+
+```bash
+SGLANG_USE_MLX=1 MLX_ENABLE_TF32=1 python benchmark/mlx/bench_glm5_next_indexer.py \
+  --reference-ref 26c029a9affacc97df528d37eda7d37d90792631 \
+  --repeats 31 \
+  --output benchmark/mlx/results/glm53_indexer_incremental_m5_ultra_2026-10-29.json
+```
+
+Apple M5 Ultra, MLX 0.32.4, mlx-lm 0.32.2, batch one. Four warmup steps precede
+31 interleaved timed decode steps. The reference is the same GLM implementation
+before this change. Indexer measurements include only the indexer; MLA includes
+all attention projections, index selection, selected-latent attention and cache
+writes. These are single-layer probes with random weights.
+
+| Prefix tokens | Indexer before/after (ms) | Indexer speedup | MLA before/after (ms) | MLA speedup | Indexer cache before/after (MiB) |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1024 | 0.201 / 0.220 | 0.91x | 0.881 / 0.935 | 0.94x | 0.517 / 0.126 |
+| 4096 | 0.404 / 0.363 | 1.11x | 0.739 / 0.708 | 1.04x | 2.017 / 0.501 |
+| 16384 | 0.467 / 0.387 | 1.21x | 0.884 / 0.777 | 1.14x | 8.017 / 2.001 |
+
+[Raw timings](results/glm53_indexer_incremental_m5_ultra_2026-10-29.json) include
+every trial and source provenance. Sparse index sets match exactly, and sampled
+MLA outputs have zero observed difference. Cache sizes count indexer arrays
+after the stream, including spare pooled capacity; they exclude latent KV,
+weights and allocator cache. Dense short-context steps do more pooling work
+than before and show a small latency regression. This table does not establish
+full-model serving speedup.
+
+Validation: 62 GLM/reference, attention-adapter and worker-routing tests passed,
+including weighted pool equivalence across growth, partial tails and cache-state
+round trips, FP32/BF16/quantized MLA, chunked continuation and request isolation.
+
+The full `mlx-community/GLM-5.3-Flash-4bit` checkpoint (revision
+`fa04cbc3622b16aa7475404060b05e506d81bd4e`) was also measured sequentially before
+and after. Both servers used `MLX_ENABLE_TF32=1`, concurrency one, a 4352-token
+context/scheduling budget, 256-token prefill chunks, sampling enabled, and the
+model's default disabled prefix caching and scheduler overlap. Only the GLM
+module changed; the reference module came from the revision named above. Each
+row is the median of two requests with 16 greedy output tokens after a
+1024-input/8-output warmup. No other GPU benchmark ran alongside these requests.
+
+| Input tokens | TTFT before/after (s) | Decode before/after (tokens/s) | TPOT before/after (ms) |
+| ---: | ---: | ---: | ---: |
+| 1024 | 3.981 / 3.916 | 1.666 / 1.714 | 600.4 / 583.6 |
+| 4096 | 20.528 / 20.199 | 1.634 / 1.635 | 612.1 / 612.1 |
+
+Serving data: [before](results/glm53_incremental_indexer_serving_before_2026-10-29.json),
+[after](results/glm53_incremental_indexer_serving_after_2026-10-29.json).
+The 4K decode rate is effectively unchanged. The roughly 3% short-context
+difference and small TTFT differences are within the scope of a two-trial smoke
+comparison, not evidence of a stable full-model speedup. The demonstrated gains
+are the indexer cache reduction and isolated sparse indexer/MLA latency above.
+A separate 4096-token synthetic input produced
+[identical eight-token greedy continuations](results/glm53_incremental_indexer_serving_parity_2026-10-29.json).
+This checks full-weight sparse continuation parity, not model quality.
+
 ## Optimization roadmap
 
 Priorities below are hypotheses from code inspection until traces establish the
 actual contribution of each operation. Keep this baseline configuration available
 for before/after comparisons; do not combine optimizations into one measurement.
+
+### Shared MLX backend: reference review (2026-10-29)
+
+Local reference revisions: vllm-metal `93562f1`, Strata `46c152a1`.
+These priorities supplement the GLM-specific work below. Ordinary GQA/MHA pool
+attention does not accelerate GLM5-Next's native compressed MLA/DSA cache.
+
+1. **P0: direct shared-pool decode attention (in progress).** Replace the
+   ordinary attention wrapper's per-request KV padding/concatenation with a Metal
+   kernel reading SGLang's token-slot mapping directly. Start with one query per
+   request, uniform FP16/BF16/FP32 GQA/MHA, and full-attention layers. Keep the
+   existing allocator and radix ownership. Retain contiguous request caches for
+   fallback and lookahead steps without scheduler-owned slots. Enable supported
+   decode configurations by default; retain an explicit switch for comparisons.
+   - [x] Implement the kernel, shared batch metadata and wrapper integration.
+   - [x] Verify fragmented slots, unequal lengths, GQA, prefix reuse, batch
+     changes and lazy write/read ordering against the existing SDPA path.
+   - [x] Measure B=1/4/16 with equal and mixed lengths; record warmed attention
+     latency and transient MLX memory (results below).
+   - [x] Check real HTTP serving with eight concurrent requests, repeated
+     prefixes and overlap scheduling on a random tiny Llama model.
+   - [ ] Measure full-model serving throughput and TPOT on a representative
+     GQA/MHA checkpoint to quantify end-to-end impact.
+   - [ ] Extend to varlen prefill/mixed batches; evaluate M5 NAX after the
+     ordinary decode path is established. Reference: vllm-metal's
+     `attention/impls/sdpa.py` and `metal/paged_attention.cpp`.
+2. **P1: memory accounting.** Include process footprint, request-cache mirrors,
+   transient workspaces and desktop headroom; recheck available memory during
+   growth. Reference: Strata `metal/src/engine/arena_budget.h`. Recalibrate its
+   constants on our workloads rather than copying them.
+3. **P1: bounded expert streaming.** Start with safetensors expert ranges and a
+   byte-bounded cache including stacking scratch (vllm-metal `moe_offload.py`).
+   Evaluate direct reads into shared Metal slots, urgent/prefetch queues and
+   in-flight slot protection (Strata `metal/src/engine/stream.h`) separately.
+4. **P2: compressed KV reads.** Couple packed KV storage to attention-side
+   dequantization; account for scale metadata and prefill scratch. Reference:
+   vllm-metal TurboQuant. Validate quality before claiming a capacity benefit.
+5. **P2: cost-aware speculation.** Extend existing adaptive speculation with
+   measured committed-tokens/time, including a no-draft choice. Reference:
+   Strata `include/strata/spec/controller.hpp`; its measured cost constants are
+   not portable defaults.
+
+### Direct-pool decode: first implementation and measurements
+
+The path is enabled by default; set `SGLANG_MLX_USE_POOL_ATTENTION=0` to use
+the previous padded SDPA path for comparisons. Pool attention requires
+the shared attention pool (radix caching enabled, no sliding-window layers).
+Supported decode heads have dimensions divisible by 32 up to 256, matching
+FP16/BF16/FP32 Q/K/V, and no attention sinks. Other shapes and native-cache
+models retain their existing attention path. Lookahead steps use request caches
+because they have no newly allocated scheduler slot; fused RoPE pool writes are
+also disabled on those steps. Unsynced lookahead KV is flushed before the next
+admitted pool decode. Request-cache mirrors remain allocated, so this change
+does not eliminate duplicate persistent KV storage.
+
+Reproduce the attention microbenchmark from the MLX environment:
+
+```bash
+SGLANG_USE_MLX=1 MLX_ENABLE_TF32=0 python benchmark/mlx/bench_pool_decode.py \
+  --repeats 31 \
+  --output benchmark/mlx/results/pool_decode_m5_ultra_2026-10-29.json
+```
+
+Measured on Apple M5 Ultra, MLX 0.32.4, mlx-lm 0.32.2, PyTorch 2.13.0.
+Random BF16 attention weights use 16 query heads, 4 KV heads and head dimension
+128. Each sample includes projections, RoPE, per-step slot metadata, mirror
+writes and output/cache evaluation. Timings are medians of 31 interleaved trials
+after warmup. Mixed batches cycle lengths 4096/2048/1365/1024. The memory columns
+are one warmed sample of MLX peak active bytes minus active bytes before the
+call; they exclude allocator cache and system footprint.
+
+| Batch | Lengths | Padded SDPA (ms) | Pool (ms) | Speedup | SDPA extra peak (MiB) | Pool extra peak (MiB) |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | 4096 | 0.266 | 0.399 | 0.67x | 0.53 | 0.54 |
+| 4 | equal 4096 | 0.445 | 0.450 | 0.99x | 34.12 | 2.16 |
+| 4 | mixed | 0.470 | 0.381 | 1.23x | 73.74 | 2.16 |
+| 16 | equal 4096 | 0.731 | 0.626 | 1.17x | 136.47 | 8.63 |
+| 16 | mixed | 1.077 | 0.543 | 1.98x | 294.92 | 8.63 |
+
+[Raw trials and all 512-token cases](results/pool_decode_m5_ultra_2026-10-29.json)
+show small-batch regressions. The default favors the measured mixed-batch and
+temporary-memory improvements; the B=1 4K case adds about 0.13 ms per attention
+layer. End-to-end impact still depends on layer count and the workload. These are
+single-layer attention measurements, not full-model throughput or GLM results.
+The [eight-request HTTP smoke](results/pool_decode_http_smoke_m5_ultra_2026-10-29.json)
+produced identical greedy tokens with the feature
+on/off, including a repeated-prefix request; random weights establish scheduler
+and cache parity, not model quality or serving performance.
+The same check passed with the environment variable unset (default pool
+attention) versus an explicit `SGLANG_MLX_USE_POOL_ATTENTION=0`.
+
+Validation: 218 selected namespace/MLX/kernel tests and 25 parametrized subtests
+passed. The unfiltered run had 219 passes and one existing failure:
+`test_amx_backend_probe_is_lazy[srt/utils/common.py]` imports unavailable Triton
+when loading that module outside the Apple platform stubs. The same failure
+reproduced using the test file from the pre-change HEAD. Formatting, import
+sorting, Ruff checks and the registered-test lint passed. The full pre-commit
+runner was unavailable because its virtualenv dependency was not cached.
 
 ### P0: establish attribution and quality guardrails
 
@@ -362,7 +529,7 @@ for before/after comparisons; do not combine optimizations into one measurement.
       incomplete-tail behavior. Keep expanded dense masking as a test oracle.
 - [ ] Tile prefill query gathers or fuse indexed latent attention to reduce
       prefill scratch and avoid materializing a per-query selected-KV buffer.
-- [ ] Update pooled indexer state incrementally instead of rebuilding old pools
+- [x] Update pooled indexer state incrementally instead of rebuilding old pools
       and copying all key/gate history on every decode step.
 
 ### P2: improve matrix utilization, fusion and serving throughput

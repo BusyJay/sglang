@@ -270,6 +270,66 @@ class Indexer(nn.Module):
             (args.index_head_dim, args.hidden_size)
         )
 
+    def _update_pool_cache(self, keys, gates, cache, offset):
+        """Append completed pools once; retain raw keys/gates only for the tail.
+
+        Slot 3 is a geometrically grown pooled-key buffer. Its valid prefix is
+        determined by the sequence offset, so every state array remains in the
+        cache's normal evaluation/serialization protocol. Three-slot caches
+        with a full raw prefix can be upgraded on their first call.
+        """
+        a = self.args
+        if len(cache.cache) == 3:
+            cache.cache.append(None)
+        pooled = cache[3]
+        old_pools = offset // a.index_kpool if pooled is not None else 0
+        length = offset + keys.shape[1]
+        expected_tail = offset % a.index_kpool if pooled is not None else offset
+        cached_length = cache[1].shape[1] if cache[1] is not None else 0
+        if cached_length != expected_tail:
+            raise ValueError("GLM indexer cache length does not match its offset")
+        if cache[1] is not None:
+            keys = mx.concatenate([cache[1], keys], axis=1)
+            gates = mx.concatenate([cache[2], gates], axis=1)
+        b, raw_length, dim = keys.shape
+        added = raw_length // a.index_kpool
+        count = old_pools + added
+        if count != length // a.index_kpool:
+            raise ValueError("GLM indexer cache length does not match its offset")
+        if added:
+            grouped = keys[:, : added * a.index_kpool].reshape(
+                b, added, a.index_kpool, dim
+            )
+            logits = gates[:, : added * a.index_kpool].reshape(grouped.shape)
+            probs = mx.softmax(
+                logits.astype(mx.float32)
+                + self.index_kpool_compress_ape.astype(mx.float32),
+                axis=2,
+            ).astype(keys.dtype)
+            new_pooled = (probs * grouped).sum(axis=2)
+            capacity = pooled.shape[1] if pooled is not None else 0
+            if count > capacity:
+                grown = mx.zeros((b, max(64, count, 2 * capacity), dim), keys.dtype)
+                if old_pools:
+                    grown[:, :old_pools] = pooled[:, :old_pools]
+                pooled = grown
+            pooled[:, old_pools:count] = new_pooled
+            cache[3] = pooled
+        tail_start = added * a.index_kpool
+        if tail_start < raw_length:
+            # Gather a compact tail: a slice could keep the whole prefill's
+            # raw key/gate allocation alive through a small view.
+            positions = mx.arange(tail_start, raw_length)
+            cache[1] = mx.take(keys, positions, axis=1)
+            cache[2] = mx.take(gates, positions, axis=1)
+        else:
+            cache[1], cache[2] = None, None
+        return (
+            pooled[:, :count]
+            if pooled is not None
+            else mx.zeros((b, 0, dim), keys.dtype)
+        )
+
     def __call__(self, x, qr, cache, offset):
         """Return selected raw KV indices, or None for dense causal attention.
 
@@ -281,22 +341,13 @@ class Indexer(nn.Module):
         b, t, _ = x.shape
         keys = self.k_norm(self.wk(x))
         gates = x @ self.index_kpool_compress_gate.T
-        if cache[1] is not None:
-            keys = mx.concatenate([cache[1], keys], axis=1)
-            gates = mx.concatenate([cache[2], gates], axis=1)
-        cache[1], cache[2] = keys, gates
-        length, pool = keys.shape[1], a.index_kpool
+        pooled = self._update_pool_cache(keys, gates, cache, offset)
+        length, pool = offset + t, a.index_kpool
         # Below the sparse budget every complete pool and its causal tail
         # are selected. Still retain indexer state for future sparse steps.
         if length <= a.index_topk and a.index_kpool_always_select_tail:
             return None
         n = length // pool
-        grouped = keys[:, : n * pool].reshape(b, n, pool, a.index_head_dim)
-        logits = gates[:, : n * pool].reshape(grouped.shape).astype(mx.float32)
-        probs = mx.softmax(
-            logits + self.index_kpool_compress_ape.astype(mx.float32), axis=2
-        ).astype(keys.dtype)
-        pooled = (probs * grouped).sum(axis=2)
         q = self.wq_b(qr).reshape(b, t, a.index_n_heads, a.index_head_dim)
         scores = mx.maximum(
             q.astype(mx.float32) @ pooled.astype(mx.float32).swapaxes(-1, -2)[:, None],
@@ -569,7 +620,9 @@ class Model(nn.Module):
         return self.model.layers
 
     def make_cache(self):
-        return [NativeCache(4 if layer.is_linear else 3) for layer in self.layers]
+        # KDA stores conv/recurrent state; MLA stores latent KV, raw indexer
+        # tail keys/gates and the completed pooled-key buffer.
+        return [NativeCache(4) for _ in self.layers]
 
     def __call__(self, inputs, cache=None):
         return self.lm_head(self.model(inputs, cache or self.make_cache()))

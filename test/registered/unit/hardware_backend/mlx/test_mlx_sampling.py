@@ -531,7 +531,7 @@ class TestRunnerSelectTokens(CustomTestCase):
         runner._req_token_ids = {"a": [1]}
         # token 2 dominates; the edit row bans it -> argmax must fall to 1
         logits = mx.array([[0.0, 3.0, 5.0, 0.0]])
-        runner._decode_with_batched_attention = lambda caches, x, rids: logits
+        runner._decode_with_batched_attention = lambda caches, x, rids, **kwargs: logits
         edits = mx.array([[0.0, 0.0, -float("inf"), 0.0]])
 
         fresh = runner.decode_batch_start(["a"], edit_rows=edits)

@@ -388,7 +388,10 @@ class TestMlxAuxiliaryStateRunnerCache(unittest.TestCase):
         )
         calls = []
 
-        def fake_batched(caches, batched_input, helper_req_ids):
+        def fake_batched(
+            caches, batched_input, helper_req_ids, *, allow_pool_attention
+        ):
+            self.assertFalse(allow_pool_attention)
             calls.append((len(caches), batched_input.tolist(), list(helper_req_ids)))
             # Last-token logits whose argmax is token 8.
             return mx.arange(9, dtype=mx.float32)[None, :]

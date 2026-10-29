@@ -442,6 +442,63 @@ class TestGlm5NextMlx(CustomTestCase):
                 ).any(-2)
             np.testing.assert_array_equal(actual_mask, expected_mask)
 
+    def test_incremental_indexer_pool_growth_and_state_roundtrip(self):
+        """Completed pools survive growth/restoration; raw history stays bounded."""
+        import mlx.core as mx
+        import numpy as np
+
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import NativeCache
+
+        indexer = self.model.layers[3].self_attn.indexer
+        cache = NativeCache(4)
+        values = (
+            np.random.default_rng(21)
+            .normal(size=(2, 275, self.config.hidden_size))
+            .astype(np.float32)
+        )
+        for start, end in (
+            (0, 3),
+            (3, 5),
+            (5, 255),
+            (255, 259),
+            (259, 260),
+            (260, 275),
+        ):
+            x = mx.array(values[:, start:end])
+            qr = mx.zeros((2, end - start, self.config.q_lora_rank))
+            indices = indexer(x, qr, cache, start)
+            mx.eval(cache.state, *([] if indices is None else [indices]))
+            tail_length = end % self.config.index_kpool
+            self.assertEqual(
+                cache[1].shape[1] if cache[1] is not None else 0, tail_length
+            )
+            self.assertEqual(
+                cache[2].shape[1] if cache[2] is not None else 0, tail_length
+            )
+            # Reusing old pools must preserve their original weighted means,
+            # including after moving them into a larger allocation.
+            n = end // self.config.index_kpool
+            if n == 0:
+                self.assertIsNone(cache[3])
+                continue
+            all_x = mx.array(values[:, : n * self.config.index_kpool])
+            keys = indexer.k_norm(indexer.wk(all_x))
+            gates = all_x @ indexer.index_kpool_compress_gate.T
+            shape = (2, n, self.config.index_kpool, self.config.index_head_dim)
+            probabilities = mx.softmax(
+                gates.reshape(shape).astype(mx.float32)
+                + indexer.index_kpool_compress_ape.astype(mx.float32),
+                axis=2,
+            ).astype(keys.dtype)
+            pooled = (probabilities * keys.reshape(shape)).sum(axis=2)
+            np.testing.assert_allclose(
+                np.array(cache[3][:, :n]), np.array(pooled), rtol=2e-5, atol=2e-6
+            )
+            restored = NativeCache(4)
+            restored.state = cache.state
+            restored.offset = end
+            cache = restored
+
     def test_async_layer_groups_preserve_chunked_state(self):
         """Group boundaries and a final partial group must preserve every layer's state."""
         import mlx.core as mx

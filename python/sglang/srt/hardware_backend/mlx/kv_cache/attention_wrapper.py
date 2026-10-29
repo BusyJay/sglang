@@ -24,6 +24,7 @@ from sglang.srt.hardware_backend.mlx.kv_cache.attention_kv_cache import (
     ContiguousAttentionKVCache,
     WindowedAttentionKVCache,
 )
+from sglang.srt.hardware_backend.mlx.kv_cache.pool_decode import MlxPoolDecodeContext
 
 _thread_local = threading.local()
 
@@ -49,6 +50,7 @@ class BatchedDecodeContext:
     # MLX decode path so future AOT kernels can be added without growing this
     # context one field at a time.
     aot: MlxAOTKernelContext = field(default_factory=MlxAOTKernelContext)
+    pool_attention: Optional[MlxPoolDecodeContext] = None
 
     # Derived tensors/metadata, shared across all layers in one forward pass.
     offsets: mx.array = field(init=False)
@@ -301,6 +303,45 @@ class MLXAttentionWrapper(nn.Module):
             keys = inner.rope(keys, offset=offsets)
 
         layer_caches = ctx.attention_layer_caches[cache_idx]
+        pool_ctx = ctx.pool_attention
+        if (
+            pool_ctx is not None
+            and window is None
+            and self._sinks is None
+            and 32 <= head_dim <= 256
+            and head_dim % 32 == 0
+            and n_heads % n_kv_heads == 0
+            and queries.dtype == keys.dtype == values.dtype == pool_ctx.pool.dtype
+        ):
+            from sglang.kernels.ops.attention.mlx_pool_decode import (
+                mlx_pool_decode_attention,
+            )
+
+            pool_idx = ctx.full_kv_pool_index_by_layer[layer_idx]
+            # Keep mirrors for chunk continuation, prefix insertion and
+            # lookahead steps, which have no newly allocated scheduler slots.
+            for i in range(B):
+                layer_caches[i].write_token(keys[i : i + 1], values[i : i + 1])
+            if ctx.aot.rope is None or ctx.aot.rope.new_token_slots is None:
+                pool_ctx.pool.set_kv(
+                    pool_idx,
+                    pool_ctx.new_token_slots,
+                    keys[:, :, 0, :],
+                    values[:, :, 0, :],
+                )
+            output = mlx_pool_decode_attention(
+                queries,
+                pool_ctx.pool.k_buffer[pool_idx],
+                pool_ctx.pool.v_buffer[pool_idx],
+                pool_ctx.slots,
+                pool_ctx.lengths,
+                scale=self._scale,
+            )
+            output = output.transpose(0, 2, 1, 3).reshape(B, 1, -1)
+            if gate is not None:
+                output = output * mx.sigmoid(gate)
+            return inner.o_proj(output)
+
         # A sliding-window layer reads only the trailing ``window`` keys, so its
         # padded width differs from the unwindowed one.  Both are memoised on
         # the context and shared by every layer of their kind.

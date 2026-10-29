@@ -15,12 +15,22 @@ from sglang.kernels.selector import get_kernel
 from sglang.kernels.spec import (
     CUDA_ONLY,
     CapabilityRequirement,
+    DeviceType,
     KernelBackend,
     KernelSpec,
 )
 
 if TYPE_CHECKING:
     import torch
+
+register_kernel(
+    KernelSpec(
+        op="attention.mlx_pool_decode_attention",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.attention.mlx_pool_decode:mlx_pool_decode_attention",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)
 
 # (module, public_fn) migrated from layers/attention/triton_ops + model_executor.
 _TRITON_KERNELS = [

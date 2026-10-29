@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import importlib.util
 import unittest
+from contextlib import nullcontext
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from sglang.test.ci.ci_register import register_mlx_ci
 from sglang.test.test_utils import CustomTestCase
@@ -22,8 +24,10 @@ if _HAS_MLX:
     import torch
     from mlx_lm.models import llama
 
-    from sglang.srt.hardware_backend.mlx.aot import MlxAOTKernelSet
+    from sglang.srt.environ import envs
+    from sglang.srt.hardware_backend.mlx.aot import MlxAOTKernelSet, MlxAOTRoPEKernel
     from sglang.srt.hardware_backend.mlx.kv_cache import (
+        ContiguousAttentionKVCache,
         find_attention_layers,
         get_layer_window_sizes,
         patch_model_attention,
@@ -39,17 +43,17 @@ OWN_SLOTS = [1, 2, 3, 4, 5, 6]  # prompt slots + the one allocated decode slot
 FOREIGN_SLOTS = [20, 21, 22, 23]  # stale row entries left by a previous owner
 
 
-def _runner(req_to_token_pool):
+def _runner(req_to_token_pool, *, head_dim=16, pool_size=32):
     model = llama.Model(
         llama.ModelArgs(
             model_type="llama",
-            hidden_size=32,
+            hidden_size=head_dim * 2,
             num_hidden_layers=2,
             intermediate_size=64,
             num_attention_heads=2,
             rms_norm_eps=1e-5,
             vocab_size=64,
-            head_dim=16,
+            head_dim=head_dim,
             num_key_value_heads=1,
         )
     )
@@ -72,7 +76,7 @@ def _runner(req_to_token_pool):
     runner._decode_step_ct = 0
     runner._clear_steps = 0
     runner._aot_kernels = MlxAOTKernelSet()
-    runner._pool_size = 32
+    runner._pool_size = pool_size
     runner.init_cache_pools(req_to_token_pool)
     return runner
 
@@ -134,6 +138,128 @@ class TestDecodeKvRelease(CustomTestCase):
         runner = self._decoded_runner()
         runner.remove_request("r")
         self._assert_foreign_slots_untouched(runner)
+
+
+@unittest.skipUnless(_HAS_MLX, "requires mlx + mlx_lm")
+class TestPoolAttentionLifecycle(CustomTestCase):
+    def _run_schedule(self, enabled):
+        mx.random.seed(42)
+        table = ReqToTokenPool(
+            size=3, max_context_len=64, device="cpu", enable_memory_saver=False
+        )
+        # Non-contiguous slots, including valid-looking stale row tails.
+        table.req_to_token[0, :16] = torch.arange(1, 33, 2)
+        table.req_to_token[1, :16] = torch.arange(2, 34, 2)
+        runner = _runner(table, head_dim=32, pool_size=64)
+        outputs = []
+        with (
+            nullcontext()
+            if enabled is None
+            else envs.SGLANG_MLX_USE_POOL_ATTENTION.override(enabled)
+        ):
+            use_pool = envs.SGLANG_MLX_USE_POOL_ATTENTION.get()
+            if enabled is None:
+                self.assertTrue(use_pool)
+            for rid, row, prompt in (("a", 0, [3, 14, 15, 9, 2]), ("b", 1, [2, 7])):
+                outputs.append(
+                    runner.prefill(
+                        req_id=rid,
+                        new_token_ids=prompt,
+                        full_token_ids=prompt,
+                        prefix_slot_ids=[],
+                        new_slot_ids=table.req_to_token[row, : len(prompt)].tolist(),
+                        req_pool_idx=row,
+                    )
+                )
+            # Reordered batch; build two lazy steps before evaluating either.
+            if use_pool:
+                # Prove the supported decode does not gather request mirrors;
+                # parity alone would also pass after an accidental fallback.
+                with patch.object(
+                    ContiguousAttentionKVCache,
+                    "get_kv",
+                    side_effect=AssertionError(
+                        "pool decode must not gather request KV"
+                    ),
+                ):
+                    first = runner.decode_batch_start(["b", "a"])
+            else:
+                first = runner.decode_batch_start(["b", "a"])
+            if use_pool:
+                stale = table.req_to_token[0, 6].item()
+                before = runner._attention_kv_pool.k_buffer[0][stale]
+                # The native fused RoPE boundary must also be disabled for
+                # lookahead; its scatter cannot use a stale scheduler tail.
+                runner._aot_kernels.rope = MlxAOTRoPEKernel(
+                    base=10000.0,
+                    config={"head_dim": 32},
+                    rope_pool_fused=lambda *args, **kwargs: self.fail(
+                        "lookahead must not scatter through fused RoPE"
+                    ),
+                )
+            chained = runner.decode_batch_start_chained(first)
+            runner._aot_kernels = MlxAOTKernelSet()
+            runner.eval_pending(chained)
+            outputs.append(runner.decode_batch_finalize(first))
+            outputs.append(runner.decode_batch_finalize(chained))
+            if use_pool:
+                # The second step has no owned slot, even though its row tail
+                # contains a valid ID. It must only update the request mirror.
+                after = runner._attention_kv_pool.k_buffer[0][stale]
+                self.assertTrue(mx.array_equal(before, after).item())
+            # A normal admitted step must flush the lookahead's KV first.
+            outputs.append(runner.decode_batch(["a", "b"]))
+            # Share a cached prefix with a new request, then drop a batch row.
+            table.req_to_token[2, :3] = table.req_to_token[0, :3]
+            table.req_to_token[2, 3:8] = torch.arange(40, 45)
+            prompt = [3, 14, 15, 11]
+            outputs.append(
+                runner.prefill(
+                    req_id="c",
+                    new_token_ids=prompt[3:],
+                    full_token_ids=prompt,
+                    prefix_slot_ids=table.req_to_token[2, :3].tolist(),
+                    new_slot_ids=[40],
+                    req_pool_idx=2,
+                )
+            )
+            runner.release_request_row("b", 5)
+            runner.remove_request("b")
+            outputs.append(runner.decode_batch(["c", "a"]))
+            outputs.append(runner.decode_batch(["c"]))
+            states = [runner._req_caches[rid][0].get_kv()[0] for rid in ("a", "c")]
+            mx.eval(*states)
+        return outputs, states
+
+    def test_pool_decode_matches_sdpa_through_batch_and_prefix_changes(self):
+        reference, ref_states = self._run_schedule(False)
+        actual, states = self._run_schedule(None)
+        self.assertEqual(actual, reference)
+        for result, expected in zip(states, ref_states):
+            self.assertTrue(mx.allclose(result, expected, atol=2e-5, rtol=2e-5).item())
+
+    def test_pool_metadata_rejects_unallocated_or_aliased_write_slots(self):
+        from sglang.srt.hardware_backend.mlx.kv_cache.pool_decode import (
+            MlxPoolDecodeContext,
+        )
+
+        table = ReqToTokenPool(
+            size=2, max_context_len=8, device="cpu", enable_memory_saver=False
+        )
+        table.req_to_token[:2, :2] = torch.tensor([[1, 3], [2, 3]])
+        runner = _runner(table, head_dim=32)
+        args = dict(
+            pool=runner._attention_kv_pool,
+            req_ids=["a", "b"],
+            seq_lens=[1, 1],
+            req_pool_idx={"a": 0, "b": 1},
+            req_to_token_pool=table,
+        )
+        with self.assertRaisesRegex(ValueError, "distinct write slots"):
+            MlxPoolDecodeContext.from_requests(**args)
+        table.req_to_token[1, 1] = 0
+        with self.assertRaisesRegex(ValueError, "invalid owned slots"):
+            MlxPoolDecodeContext.from_requests(**args)
 
 
 if __name__ == "__main__":

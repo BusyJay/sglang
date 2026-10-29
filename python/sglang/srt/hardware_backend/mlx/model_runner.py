@@ -59,6 +59,7 @@ from sglang.srt.hardware_backend.mlx.kv_cache import (
     set_context,
     uses_sliding_window_attention,
 )
+from sglang.srt.hardware_backend.mlx.kv_cache.pool_decode import MlxPoolDecodeContext
 from sglang.srt.hardware_backend.mlx.remote_code_gate import (
     ensure_remote_code_allowed,
     resolve_model_directory,
@@ -1372,6 +1373,8 @@ class MlxModelRunner:
         caches: list[list[Any]],
         batched_input: mx.array,
         req_ids: list[str],
+        *,
+        allow_pool_attention: bool = True,
     ) -> mx.array:
         """Layer-by-layer hybrid decode; returns [B, vocab] last-token logits.
 
@@ -1384,7 +1387,9 @@ class MlxModelRunner:
 
         hidden_states = self._model_embed(batched_input)
 
-        ctx = self._build_batched_decode_context(caches, req_ids)
+        ctx = self._build_batched_decode_context(
+            caches, req_ids, allow_pool_attention=allow_pool_attention
+        )
         seq_lens = ctx.seq_lens
         max_offset = max(seq_lens)
 
@@ -1559,8 +1564,12 @@ class MlxModelRunner:
         caches: list[list[Any]],
         batched_input: mx.array,
         req_ids: list[str],
+        *,
+        allow_pool_attention: bool = True,
     ) -> mx.array:
-        ctx = self._build_batched_decode_context(caches, req_ids)
+        ctx = self._build_batched_decode_context(
+            caches, req_ids, allow_pool_attention=allow_pool_attention
+        )
         seq_lens = ctx.seq_lens
         set_context(ctx)
         try:
@@ -1579,13 +1588,17 @@ class MlxModelRunner:
         self,
         caches: list[list[Any]],
         req_ids: list[str],
+        *,
+        allow_pool_attention: bool = True,
     ) -> BatchedDecodeContext:
         """Build the shared attention/AOT context for one decode step."""
-        return BatchedDecodeContext.from_decode(
+        ctx = BatchedDecodeContext.from_decode(
             caches=caches,
             req_ids=req_ids,
             aot_kernels=self._aot_kernels,
-            kv_pool=self._attention_kv_pool,
+            # A lookahead step owns no new slot. This also prevents the
+            # optional fused RoPE kernel from scattering through stale tails.
+            kv_pool=self._attention_kv_pool if allow_pool_attention else None,
             req_pool_idx=self._req_pool_idx,
             req_to_token_pool=self._req_to_token_pool,
             attention_layer_indices=self._cache_layout.attention_layer_indices,
@@ -1594,6 +1607,26 @@ class MlxModelRunner:
             ),
             full_kv_pool_index_by_layer=self._cache_layout.full_kv_pool_index_by_layer,
         )
+        if (
+            allow_pool_attention
+            and envs.SGLANG_MLX_USE_POOL_ATTENTION.get()
+            and self._attention_kv_pool is not None
+            and 32 <= self._attention_kv_pool.head_dim <= 256
+            and self._attention_kv_pool.head_dim % 32 == 0
+            and self._req_to_token_pool is not None
+        ):
+            ctx.pool_attention = MlxPoolDecodeContext.from_requests(
+                pool=self._attention_kv_pool,
+                req_ids=req_ids,
+                seq_lens=ctx.seq_lens,
+                req_pool_idx=self._req_pool_idx,
+                req_to_token_pool=self._req_to_token_pool,
+            )
+            # Lookahead and unsupported layers still update request mirrors.
+            # Flush their unsynced prefix before a pool-reading forward.
+            for rid in req_ids:
+                self._sync_decode_kv_to_pool(rid)
+        return ctx
 
     def decode_batch_start(
         self,
@@ -1680,11 +1713,11 @@ class MlxModelRunner:
             )
         elif self._cache_layout.has_auxiliary_state:
             last_logits = self._decode_with_hybrid_batching(
-                caches, batched_input, prev.req_ids
+                caches, batched_input, prev.req_ids, allow_pool_attention=False
             )
         else:
             last_logits = self._decode_with_batched_attention(
-                caches, batched_input, prev.req_ids
+                caches, batched_input, prev.req_ids, allow_pool_attention=False
             )
 
         lazy_tokens, lazy_logprobs = self._select_tokens_with_logprobs(
