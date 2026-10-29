@@ -327,6 +327,40 @@ class TestGlm5NextMlx(CustomTestCase):
                     )
                 self.assertEqual(actual_cache[0].shape, (2, 17, rank))
 
+    def test_quantized_expert_decode_checkpoints_preserve_switch_glu(self):
+        """Projection checkpoints preserve clamping, mixed bits and batch layout."""
+        import copy
+
+        import mlx.core as mx
+        import numpy as np
+        from mlx_lm.models.switch_layers import SwitchGLU
+
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import ClampedSwitchGLU
+
+        args = copy.deepcopy(self.model.args)
+        args.moe_intermediate_size = 32
+        for dtype in (mx.float32, mx.bfloat16):
+            switch = ClampedSwitchGLU(args)
+            switch.set_dtype(dtype)
+            for name, bits in (("up_proj", 4), ("gate_proj", 4), ("down_proj", 5)):
+                projection = getattr(switch, name)
+                setattr(switch, name, projection.to_quantized(group_size=32, bits=bits))
+            for batch, tokens in ((1, 1), (2, 1), (1, 40)):
+                with self.subTest(dtype=dtype, batch=batch, tokens=tokens):
+                    x = (
+                        mx.random.normal((batch, tokens, args.hidden_size)) * 4
+                    ).astype(dtype)
+                    indices = (
+                        mx.arange(batch * tokens * 2) % args.n_routed_experts
+                    ).reshape(batch, tokens, 2)
+                    actual = switch(x, indices)
+                    expected = SwitchGLU.__call__(switch, x, indices)
+                    mx.eval(actual, expected)
+                    np.testing.assert_array_equal(
+                        np.array(actual.astype(mx.float32)),
+                        np.array(expected.astype(mx.float32)),
+                    )
+
     def test_compiled_mhc_matches_reference_with_twenty_sinkhorn_rounds(self):
         """Fusing reductions must preserve stream orientation and BF16 cast points."""
         import copy

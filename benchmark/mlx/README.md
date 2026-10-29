@@ -304,6 +304,9 @@ Current limits and costs:
 - Only the NoPE, independent-indexer GLM5-Next configuration is supported.
 - Prefix caching and CPU/GPU overlap are disabled. Multiple requests, if enabled,
   execute separately rather than through a native batched decode kernel.
+  A four-active-request GLM throughput probe hit an existing CPU/MPS device
+  mismatch in `FutureMap.stash`; current serving measurements use the default
+  single active request, with concurrent clients queued at the server.
 - Decoder layers submit groups of four asynchronously, including their updated
   cache state; the caller evaluates the final output. Scheduler-level overlap
   remains disabled. Group size is not yet tuned from profiling.
@@ -324,6 +327,8 @@ Current limits and costs:
   gates and gated normalization still execute as separate operations. mHC's
   internal calculations compile together, while the final block-output gate/add
   remains separate. MoE uses mlx-lm's sorting path with the clamped activation.
+  Quantized single-token decode checkpoints the up/gate/down projection outputs
+  individually; larger batches retain mlx-lm's original execution path.
 - The automatic logical token budget is capped at 32768; it is not derived from
   native-cache bytes and request-state memory. This baseline explicitly uses 4096.
 - Allocation reuse is conservatively capped at 1 GiB by default on this loader
@@ -334,6 +339,86 @@ Current limits and costs:
   checks. The small numerical tests cover reference parity, sparse selection,
   cached continuation, mixed-bit loading and request isolation. They are not a
   full-model quality or long-context evaluation.
+
+## Quantized expert decode throughput
+
+GLM single-token decode now evaluates each quantized routed projection output
+before building the next projection's graph. Up/gate remain 4-bit and down
+remains 5-bit on this checkpoint; routing, weights and clamped SwiGLU are
+unchanged. Prefill, multi-row inputs and unquantized projections use mlx-lm's
+original path. This evaluation policy is enabled by default.
+
+Full-weight probes first established that synchronizing entire layers or simply
+changing async layer-group size did not improve throughput. With identical
+restored request state and token inputs, the projection-output boundaries gave
+the following medians on M5 Ultra (`MLX_ENABLE_TF32=1`):
+
+| Evaluation policy | Decode time (ms/token) |
+| --- | ---: |
+| Original four-layer async groups | 571.9 |
+| Checkpoint up/gate/down outputs | 344.2 |
+| Checkpoint projection inputs only | 622.3 |
+| Checkpoint whole MoE inputs/outputs | 912.8 |
+
+Each policy used three alternating-order trials of five decode steps, excluding
+the first step's timing, with exact greedy-token parity. This is a measurement
+of evaluation policy, not a kernel-level explanation of the backend behavior.
+Raw evidence: [module attribution](results/glm53_decode_module_attribution_m5_ultra_2026-10-29.json),
+[layer groups](results/glm53_decode_eval_groups_m5_ultra_2026-10-29.json),
+[projection boundaries](results/glm53_decode_projection_boundaries_m5_ultra_2026-10-29.json).
+The module-attribution rows overlap (MoE includes expert QMM); they must not be
+added together. Instrumentation changes execution timing.
+
+The change passed 63 GLM/reference, attention-adapter and worker-routing tests,
+including exact FP32/BF16 expert output parity for mixed 4/5-bit projections,
+clamping, sorted prefill and multi-row fallback.
+
+Full HTTP serving was measured across 2026-10-29/30 with the cached
+`mlx-community/GLM-5.3-Flash-4bit` checkpoint, revision
+`fa04cbc3622b16aa7475404060b05e506d81bd4e`. Both implementations used TF32=1,
+one active request, a 4352-token context/scheduling budget, 256-token prefill
+chunks, sampling enabled, and disabled radix caching/scheduler overlap. The
+reference GLM module is from `65bf6e3b70`; the rest of the runtime is identical.
+Two timed trials followed warmup. Every request generated 16 greedy tokens with
+`ignore_eos=True`; no other GPU benchmark ran alongside the servers.
+
+| Input tokens | Decode before/after (tokens/s) | Decode speedup | TPOT before/after (ms) | TTFT before/after (s) |
+| ---: | ---: | ---: | ---: | ---: |
+| 32 | 1.718 / 2.974 | 1.73x | 582.2 / 336.4 | 0.674 / 0.687 |
+| 1024 | 1.695 / 3.150 | 1.86x | 590.0 / 317.8 | 3.810 / 3.954 |
+| 4096 | 1.656 / 2.979 | 1.80x | 604.0 / 335.7 | 20.058 / 20.373 |
+
+[Serial serving before](results/glm53_projection_eval_serving_before_2026-10-29.json),
+[after](results/glm53_projection_eval_serving_after_2026-10-29.json). TTFT did not
+improve; the change targets decode execution. The reported decode rate excludes
+the first output token.
+
+Four concurrent HTTP clients, each sending 32 input tokens and requesting 16
+output tokens, measured aggregate output throughput of **1.637 → 2.823 tokens/s
+(1.72x)**. Clients queued behind the default single active GLM request; this is
+not a four-active-request native batch. The rate includes prefill, queueing and
+HTTP, measured as all 64 completed output tokens divided by total wall time.
+[Queued throughput before](results/glm53_projection_eval_concurrent_before_2026-10-29.json),
+[after](results/glm53_projection_eval_concurrent_after_2026-10-29.json).
+
+Reproduce the client workloads against each running server:
+
+```bash
+python benchmark/mlx/bench_glm5_next.py \
+  --input-lengths 32 1024 4096 --output-length 16 --repeats 2 \
+  --server-mlx-enable-tf32 1 --output serial.json
+python benchmark/mlx/bench_glm5_next_concurrent.py \
+  --concurrency 4 --input-length 32 --output-length 16 --repeats 2 \
+  --output queued-throughput.json
+```
+
+[Full-weight parity](results/glm53_projection_eval_serving_parity_2026-10-29.json)
+includes identical eight-token continuations after a 4096-token input and exact
+output IDs for every queued request in both trials. This is a synthetic serving
+comparison, not a saturation curve or a model-quality evaluation. An earlier
+attempt with four active requests failed on the baseline's
+[CPU/MPS device mismatch](results/glm53_projection_eval_max4_failure_2026-10-29.json);
+no concurrent throughput result is claimed for that unsupported configuration.
 
 ## Incremental pooled indexer cache
 
@@ -406,6 +491,8 @@ This checks full-weight sparse continuation parity, not model quality.
 Priorities below are hypotheses from code inspection until traces establish the
 actual contribution of each operation. Keep this baseline configuration available
 for before/after comparisons; do not combine optimizations into one measurement.
+The current focus is measured serving throughput. Memory-only work, including
+query-gather tiling and capacity sizing, is deferred while this is the priority.
 
 ### Shared MLX backend: reference review (2026-10-29)
 
@@ -516,6 +603,8 @@ runner was unavailable because its virtualenv dependency was not cached.
       utilization measurements. See [Apple's MLX/M5 discussion](https://machinelearning.apple.com/research/exploring-llms-mlx-m5).
 - [ ] Add full-weight accuracy/logprob and realistic chat checks, including
       prefill/decode continuation and inputs crossing the DSA top-k budget.
+- [ ] Fix the GLM mixed extend/decode CPU/MPS mismatch in `FutureMap.stash`,
+      then measure throughput with multiple active native-cache requests.
 
 ### P1: reduce avoidable work and synchronization
 
@@ -528,7 +617,8 @@ runner was unavailable because its virtualenv dependency was not cached.
 - [x] Implement selected-KV DSA execution with correct complete-pool and
       incomplete-tail behavior. Keep expanded dense masking as a test oracle.
 - [ ] Tile prefill query gathers or fuse indexed latent attention to reduce
-      prefill scratch and avoid materializing a per-query selected-KV buffer.
+      prefill scratch and avoid materializing a per-query selected-KV buffer
+      (deferred while prioritizing throughput).
 - [x] Update pooled indexer state incrementally instead of rebuilding old pools
       and copying all key/gate history on every decode step.
 
@@ -547,6 +637,8 @@ runner was unavailable because its virtualenv dependency was not cached.
 - [x] Restore mlx-lm expert token sorting/grouping with clamped SwiGLU.
 - [ ] Evaluate fused gate/up projections and an M5-aware mixed-bit expert path
       without changing routing or silently requantizing the checkpoint.
+- [x] Measure GLM decode evaluation boundaries and checkpoint quantized routed
+      projection outputs where full-model token throughput improves.
 - [ ] Evaluate the FP32 reduced-precision path separately, preferably with local
       precision control where supported. Compare quality and routing stability;
       do not infer its benefit from peak hardware specifications.

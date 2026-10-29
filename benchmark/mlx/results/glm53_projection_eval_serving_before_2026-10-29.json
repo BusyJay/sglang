@@ -1,0 +1,143 @@
+{
+  "platform": {
+    "os": "Darwin",
+    "os_version": "27.2",
+    "machine": "arm64"
+  },
+  "device": {
+    "device_name": "Apple M5 Ultra",
+    "memory_size": 274877906944,
+    "max_recommended_working_set_size": 257698037760
+  },
+  "versions": {
+    "mlx": "0.32.4",
+    "mlx-lm": "0.32.2",
+    "torch": "2.13.0",
+    "transformers": "5.19.0"
+  },
+  "server": {
+    "model_path": "<custom-model>",
+    "context_length": 4352,
+    "max_total_tokens": 4352,
+    "max_running_requests": 1,
+    "chunked_prefill_size": 256,
+    "disable_radix_cache": true,
+    "disable_overlap_schedule": true,
+    "mlx_enable_sampling": true
+  },
+  "server_mlx_enable_tf32": 1,
+  "input_source": "repeated synthetic English passage, raw token IDs",
+  "warmup": {
+    "input_tokens": 32,
+    "output_tokens": 8,
+    "first_event_tokens": 1,
+    "ttft_s": 2.404318749991944,
+    "e2e_s": 6.5252228749741334,
+    "decode_tokens_per_s": 1.6986688290784004,
+    "tpot_ms": 588.6962678549545,
+    "cached_tokens": 0
+  },
+  "trials": [
+    {
+      "input_tokens": 32,
+      "output_tokens": 16,
+      "first_event_tokens": 1,
+      "ttft_s": 0.6497242079931311,
+      "e2e_s": 9.329598957992857,
+      "decode_tokens_per_s": 1.728141425497092,
+      "tpot_ms": 578.6563444669204,
+      "cached_tokens": 0,
+      "repeat": 1
+    },
+    {
+      "input_tokens": 32,
+      "output_tokens": 16,
+      "first_event_tokens": 1,
+      "ttft_s": 0.6977277089899871,
+      "e2e_s": 9.485045624984195,
+      "decode_tokens_per_s": 1.7070113505747597,
+      "tpot_ms": 585.8191860665102,
+      "cached_tokens": 0,
+      "repeat": 2
+    },
+    {
+      "input_tokens": 1024,
+      "output_tokens": 16,
+      "first_event_tokens": 1,
+      "ttft_s": 3.88914879199001,
+      "e2e_s": 12.74543124999036,
+      "decode_tokens_per_s": 1.693718965605648,
+      "tpot_ms": 590.4167221994916,
+      "cached_tokens": 0,
+      "repeat": 1
+    },
+    {
+      "input_tokens": 1024,
+      "output_tokens": 16,
+      "first_event_tokens": 1,
+      "ttft_s": 3.730199499987066,
+      "e2e_s": 12.575271374982549,
+      "decode_tokens_per_s": 1.6958655057383203,
+      "tpot_ms": 589.6694028012765,
+      "cached_tokens": 0,
+      "repeat": 2
+    },
+    {
+      "input_tokens": 4096,
+      "output_tokens": 16,
+      "first_event_tokens": 1,
+      "ttft_s": 20.09147899999516,
+      "e2e_s": 29.069021791015984,
+      "decode_tokens_per_s": 1.6708413644332134,
+      "tpot_ms": 598.5008638681999,
+      "cached_tokens": 0,
+      "repeat": 1
+    },
+    {
+      "input_tokens": 4096,
+      "output_tokens": 16,
+      "first_event_tokens": 1,
+      "ttft_s": 20.025224374985555,
+      "e2e_s": 29.166570875007892,
+      "decode_tokens_per_s": 1.6409011756898912,
+      "tpot_ms": 609.4212222010052,
+      "cached_tokens": 0,
+      "repeat": 2
+    }
+  ],
+  "medians": [
+    {
+      "input_tokens": 32,
+      "output_tokens": 16,
+      "ttft_s": 0.6737259584915591,
+      "e2e_s": 9.407322291488526,
+      "decode_tokens_per_s": 1.7175763880359258,
+      "tpot_ms": 582.2377652667153
+    },
+    {
+      "input_tokens": 1024,
+      "output_tokens": 16,
+      "ttft_s": 3.809674145988538,
+      "e2e_s": 12.660351312486455,
+      "decode_tokens_per_s": 1.6947922356719842,
+      "tpot_ms": 590.043062500384
+    },
+    {
+      "input_tokens": 4096,
+      "output_tokens": 16,
+      "ttft_s": 20.058351687490358,
+      "e2e_s": 29.11779633301194,
+      "decode_tokens_per_s": 1.6558712700615523,
+      "tpot_ms": 603.9610430346025
+    }
+  ],
+  "comparison_implementation": "before",
+  "checkpoint_revision": "fa04cbc3622b16aa7475404060b05e506d81bd4e",
+  "reference_ref": "65bf6e3b708b2897108c0c9b9ae04a3597d5459f",
+  "working_source_sha256": "be1bdc3a5f3e09a767363b2dbf6b6a9230e0edb0380efd771ffaab70f802e1f7",
+  "implementation_source_sha256": "f078802e706af2783339c8d36b07fce4d24065b70ebf0a0b9d727e89742d08ee",
+  "measurement_local_dates": [
+    "2026-10-29",
+    "2026-10-30"
+  ]
+}

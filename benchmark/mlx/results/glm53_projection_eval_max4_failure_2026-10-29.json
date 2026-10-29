@@ -1,0 +1,8 @@
+{
+  "implementation": "baseline 65bf6e3b70",
+  "max_running_requests": 4,
+  "client_concurrency": 4,
+  "status": "failed during concurrent warmup; no throughput samples",
+  "signature": "RuntimeError: Expected all tensors to be on the same device, but found at least two devices, mps:0 and cpu!",
+  "location": "scheduler._relay_forward_payload -> FutureMap.stash -> output_tokens_buf[indices] = payload.bonus_tokens.to(...)"
+}

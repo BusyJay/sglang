@@ -1,0 +1,57 @@
+{
+  "scope": "full-weight GLM synchronized module attribution; nested MoE/qmm rows overlap; host synchronization distorts normal overlap",
+  "normal_decode_ms": [
+    589.0368330001365,
+    569.2545409838203,
+    592.8533749829512,
+    593.9870419970248
+  ],
+  "instrumented_decode_ms": [
+    386.4911670098081,
+    361.8124170170631,
+    380.9282910078764
+  ],
+  "rows": [
+    {
+      "component": "MoE_including_qmm",
+      "calls": 126,
+      "sum_ms": 422.3585017025471,
+      "mean_ms": 3.3520516008138657
+    },
+    {
+      "component": "KDA",
+      "calls": 102,
+      "sum_ms": 272.22441995400004,
+      "mean_ms": 2.668866862294118
+    },
+    {
+      "component": "expert_qmm_bits4_4096x2048",
+      "calls": 252,
+      "sum_ms": 240.9042840008624,
+      "mean_ms": 0.9559693809558031
+    },
+    {
+      "component": "expert_qmm_bits5_2048x4096",
+      "calls": 126,
+      "sum_ms": 106.45020901574753,
+      "mean_ms": 0.844842928696409
+    },
+    {
+      "component": "MLA",
+      "calls": 33,
+      "sum_ms": 29.200788063462824,
+      "mean_ms": 0.8848723655594795
+    }
+  ],
+  "device": {
+    "device_name": "Apple M5 Ultra",
+    "max_recommended_working_set_size": 257698037760,
+    "memory_size": 274877906944,
+    "architecture": "applegpu_g17d",
+    "max_buffer_length": 193273528320,
+    "resource_limit": 499000
+  },
+  "reference_ref": "65bf6e3b70",
+  "mlx_enable_tf32": 1,
+  "checkpoint_revision": "fa04cbc3622b16aa7475404060b05e506d81bd4e"
+}

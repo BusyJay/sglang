@@ -1,0 +1,37 @@
+{
+  "input": "[10,11,12,13] repeated to 4096 raw tokens",
+  "exact_greedy_token_parity": true,
+  "runs": [
+    {
+      "implementation": "before",
+      "output_ids": [
+        10,
+        11,
+        12,
+        13,
+        10,
+        11,
+        12,
+        13
+      ],
+      "completion_tokens": 8
+    },
+    {
+      "implementation": "after",
+      "output_ids": [
+        10,
+        11,
+        12,
+        13,
+        10,
+        11,
+        12,
+        13
+      ],
+      "completion_tokens": 8
+    }
+  ],
+  "concurrent_exact_token_parity": true,
+  "concurrent_clients": 4,
+  "max_running_requests": 1
+}

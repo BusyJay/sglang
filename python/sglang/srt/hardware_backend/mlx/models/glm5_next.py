@@ -16,7 +16,7 @@ from mlx_lm.models.base import BaseModelArgs
 from mlx_lm.models.cache import ArraysCache
 from mlx_lm.models.gated_delta import gated_delta_update, normalize_qk
 from mlx_lm.models.kimi_linear import ShortConv1d, _group_expert_select
-from mlx_lm.models.switch_layers import SwitchGLU
+from mlx_lm.models.switch_layers import QuantizedSwitchLinear, SwitchGLU
 
 logger = logging.getLogger(__name__)
 
@@ -74,14 +74,38 @@ class ClampedSwiGLU(nn.Module):
 
 class ClampedSwitchGLU(SwitchGLU):
     def __init__(self, args):
-        # Keep mlx-lm's sorting/grouped matmul path for larger token batches;
-        # the model-specific difference is only the clamped activation.
+        # Keep mlx-lm's sorting/grouped matmul path for larger token batches,
+        # with GLM's clamped activation.
         super().__init__(
             args.hidden_size,
             args.moe_intermediate_size,
             args.n_routed_experts,
             activation=ClampedSwiGLU(args.swiglu_limit),
         )
+
+    def __call__(self, x, indices):
+        if (
+            x.shape[:2] != (1, 1)
+            or indices.size >= 64
+            or not all(
+                isinstance(proj, QuantizedSwitchLinear)
+                for proj in (self.up_proj, self.gate_proj, self.down_proj)
+            )
+        ):
+            return super().__call__(x, indices)
+
+        # Checkpoint each routed projection before building the next graph.
+        # Full-weight GLM decode measurements favor these boundaries over
+        # evaluating all three gather_qmm projections in the layer group.
+        x = mx.expand_dims(x, (-2, -3))
+        indices = mx.stop_gradient(indices)
+        up = self.up_proj(x, indices)
+        mx.eval(up)
+        gate = self.gate_proj(x, indices)
+        mx.eval(gate)
+        out = self.down_proj(self.activation(up, gate), indices)
+        mx.eval(out)
+        return out.squeeze(-2)
 
 
 class MoE(nn.Module):

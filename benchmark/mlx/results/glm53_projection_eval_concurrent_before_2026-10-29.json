@@ -1,0 +1,284 @@
+{
+  "method": "Measure aggregate output throughput of concurrent synthetic GLM requests.\n\nUse with an already running server. Raw token inputs, greedy decoding and\nignore_eos keep every request's input/output lengths fixed. Report end-to-end\naggregate throughput, including prefill and HTTP; this is not decode-only TPOT.\n",
+  "input_tokens_per_request": 32,
+  "output_tokens_per_request": 16,
+  "warmup": {
+    "concurrency": 4,
+    "total_output_tokens": 16,
+    "elapsed_s": 9.971189917006996,
+    "output_tokens_per_s": 1.6046229319842946,
+    "requests": [
+      {
+        "request": 0,
+        "output_ids": [
+          10,
+          4999,
+          13,
+          44403
+        ],
+        "completion_tokens": 4,
+        "cached_tokens": 0,
+        "e2e_s": 9.970570791978389
+      },
+      {
+        "request": 1,
+        "output_ids": [
+          4999,
+          13,
+          1057,
+          4999
+        ],
+        "completion_tokens": 4,
+        "cached_tokens": 0,
+        "e2e_s": 2.469671250000829
+      },
+      {
+        "request": 2,
+        "output_ids": [
+          12,
+          1725,
+          15,
+          12
+        ],
+        "completion_tokens": 4,
+        "cached_tokens": 0,
+        "e2e_s": 7.43509549999726
+      },
+      {
+        "request": 3,
+        "output_ids": [
+          13,
+          14,
+          15,
+          98886
+        ],
+        "completion_tokens": 4,
+        "cached_tokens": 0,
+        "e2e_s": 4.960619416000554
+      }
+    ]
+  },
+  "trials": [
+    {
+      "concurrency": 4,
+      "total_output_tokens": 64,
+      "elapsed_s": 39.15006600000197,
+      "output_tokens_per_s": 1.6347354305864203,
+      "requests": [
+        {
+          "request": 0,
+          "output_ids": [
+            10,
+            4999,
+            13,
+            44403,
+            48612,
+            10,
+            4999,
+            13,
+            44403,
+            48612,
+            10,
+            4999,
+            13,
+            44403,
+            48612,
+            10
+          ],
+          "completion_tokens": 16,
+          "cached_tokens": 0,
+          "e2e_s": 19.568239291984355
+        },
+        {
+          "request": 1,
+          "output_ids": [
+            4999,
+            13,
+            1057,
+            4999,
+            13,
+            1057,
+            4999,
+            13,
+            1057,
+            4999,
+            13,
+            1057,
+            4999,
+            13,
+            1057,
+            4999
+          ],
+          "completion_tokens": 16,
+          "cached_tokens": 0,
+          "e2e_s": 39.14977579200058
+        },
+        {
+          "request": 2,
+          "output_ids": [
+            12,
+            1725,
+            15,
+            12,
+            1725,
+            15,
+            12,
+            1725,
+            15,
+            12,
+            1725,
+            15,
+            12,
+            1725,
+            15,
+            12
+          ],
+          "completion_tokens": 16,
+          "cached_tokens": 0,
+          "e2e_s": 9.778498250001576
+        },
+        {
+          "request": 3,
+          "output_ids": [
+            13,
+            14,
+            15,
+            98886,
+            18,
+            100461,
+            21,
+            100928,
+            24,
+            25,
+            34884,
+            2179,
+            30,
+            31,
+            25333,
+            13640
+          ],
+          "completion_tokens": 16,
+          "cached_tokens": 0,
+          "e2e_s": 29.36233150001499
+        }
+      ],
+      "trial": 1
+    },
+    {
+      "concurrency": 4,
+      "total_output_tokens": 64,
+      "elapsed_s": 39.06189675000496,
+      "output_tokens_per_s": 1.638425302529424,
+      "requests": [
+        {
+          "request": 0,
+          "output_ids": [
+            10,
+            4999,
+            13,
+            44403,
+            48612,
+            10,
+            4999,
+            13,
+            44403,
+            48612,
+            10,
+            4999,
+            13,
+            44403,
+            48612,
+            10
+          ],
+          "completion_tokens": 16,
+          "cached_tokens": 0,
+          "e2e_s": 29.313994291995186
+        },
+        {
+          "request": 1,
+          "output_ids": [
+            4999,
+            13,
+            1057,
+            4999,
+            13,
+            1057,
+            4999,
+            13,
+            1057,
+            4999,
+            13,
+            1057,
+            4999,
+            13,
+            1057,
+            4999
+          ],
+          "completion_tokens": 16,
+          "cached_tokens": 0,
+          "e2e_s": 9.824642374995165
+        },
+        {
+          "request": 2,
+          "output_ids": [
+            12,
+            1725,
+            15,
+            12,
+            1725,
+            15,
+            12,
+            1725,
+            15,
+            12,
+            1725,
+            15,
+            12,
+            1725,
+            15,
+            12
+          ],
+          "completion_tokens": 16,
+          "cached_tokens": 0,
+          "e2e_s": 19.576714583003195
+        },
+        {
+          "request": 3,
+          "output_ids": [
+            13,
+            14,
+            15,
+            98886,
+            18,
+            100461,
+            21,
+            100928,
+            24,
+            25,
+            34884,
+            2179,
+            30,
+            31,
+            25333,
+            13640
+          ],
+          "completion_tokens": 16,
+          "cached_tokens": 0,
+          "e2e_s": 39.06144433398731
+        }
+      ],
+      "trial": 2
+    }
+  ],
+  "median_output_tokens_per_s": 1.6365803665579222,
+  "reference_ref": "65bf6e3b708b2897108c0c9b9ae04a3597d5459f",
+  "implementation": "before",
+  "mlx_enable_tf32": 1,
+  "max_running_requests": 1,
+  "context_tokens": 4352,
+  "interpretation": "Four concurrent HTTP clients queued behind one active GLM request; aggregate output throughput includes prefill and HTTP.",
+  "measurement_local_dates": [
+    "2026-10-29",
+    "2026-10-30"
+  ]
+}
