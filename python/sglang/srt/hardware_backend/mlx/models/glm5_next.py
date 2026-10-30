@@ -48,7 +48,25 @@ def clamped_swiglu(gate, up, limit):
     return nn.silu(gate) * up
 
 
+def _uses_fp16_affine_ffn(x, projections):
+    # BF16 + FP16 affine metadata promotes QMM to FP32, including casts of
+    # every expert's scales/biases in gather_qmm. Match the activation inside
+    # the FFN only; keep BF16 in attention and the residual stream.
+    return x.dtype == mx.bfloat16 and all(
+        isinstance(proj, (nn.QuantizedLinear, QuantizedSwitchLinear))
+        and proj.mode == "affine"
+        and proj.scales.dtype == mx.float16
+        and proj.biases is not None
+        and proj.biases.dtype == mx.float16
+        for proj in projections
+    )
+
+
 class MLP(nn.Module):
+    compile_decode = False
+    compile_activation = False
+    match_affine_dtype = False
+
     def __init__(self, args, intermediate_size=None):
         super().__init__()
         dim = intermediate_size or args.intermediate_size
@@ -58,21 +76,42 @@ class MLP(nn.Module):
         self.limit = args.swiglu_limit
 
     def __call__(self, x):
-        return self.down_proj(
-            clamped_swiglu(self.gate_proj(x), self.up_proj(x), self.limit)
+        restore_dtype = self.match_affine_dtype and _uses_fp16_affine_ffn(
+            x, (self.gate_proj, self.up_proj, self.down_proj)
         )
+        dtype = x.dtype
+        if restore_dtype:
+            x = x.astype(mx.float16)
+        if self.compile_decode and x.dtype != mx.float32 and x.shape[:2] == (1, 1):
+            out = _compiled_quantized_ffn(self, x)
+            if out is not None:
+                return out.astype(dtype) if restore_dtype else out
+        out = self.down_proj(
+            (_compiled_swiglu if self.compile_activation else clamped_swiglu)(
+                self.gate_proj(x), self.up_proj(x), self.limit
+            )
+        )
+        return out.astype(dtype) if restore_dtype else out
 
 
 class ClampedSwiGLU(nn.Module):
+    compile_activation = False
+
     def __init__(self, limit):
         super().__init__()
         self.limit = limit
 
     def __call__(self, up, gate):
-        return clamped_swiglu(gate, up, self.limit)
+        return (_compiled_swiglu if self.compile_activation else clamped_swiglu)(
+            gate, up, self.limit
+        )
 
 
 class ClampedSwitchGLU(SwitchGLU):
+    compile_decode = False
+    fuse_gate_up = False
+    match_affine_dtype = False
+
     def __init__(self, args):
         # Keep mlx-lm's sorting/grouped matmul path for larger token batches,
         # with GLM's clamped activation.
@@ -82,8 +121,80 @@ class ClampedSwitchGLU(SwitchGLU):
             args.n_routed_experts,
             activation=ClampedSwiGLU(args.swiglu_limit),
         )
+        self._fused_gate_up = None
+        self._gate_up_sources = ()
+
+    def _current_gate_up_sources(self):
+        return tuple(
+            value
+            for p in (self.gate_proj, self.up_proj)
+            for value in (p, p.weight, p.get("scales"), p.get("biases"))
+        )
+
+    def prepare_for_inference(self):
+        if not self.fuse_gate_up:
+            return False
+        if self._fused_gate_up is not None and all(
+            old is new
+            for old, new in zip(self._gate_up_sources, self._current_gate_up_sources())
+        ):
+            return True
+        self._fused_gate_up = None
+        gate, up = self.gate_proj, self.up_proj
+        if not all(
+            type(p) is QuantizedSwitchLinear
+            and "bias" not in p
+            and p.global_scale is None
+            for p in (gate, up)
+        ):
+            return False
+        if gate.mode != "affine" or (gate.bits, gate.group_size, gate.mode) != (
+            up.bits,
+            up.group_size,
+            up.mode,
+        ):
+            return False
+        fields = ("weight", "scales", "biases")
+        if any(
+            gate[f] is None
+            or up[f] is None
+            or gate[f].shape != up[f].shape
+            or gate[f].dtype != up[f].dtype
+            for f in fields
+        ):
+            return False
+        fused = copy.copy(gate)
+        for field in fields:
+            fused[field] = mx.concatenate([gate[field], up[field]], axis=1)
+        mx.eval([fused[f] for f in fields])
+        for field in fields:
+            gate[field], up[field] = mx.split(fused[field], 2, axis=1)
+        self._fused_gate_up = fused
+        self._gate_up_sources = self._current_gate_up_sources()
+        return True
 
     def __call__(self, x, indices):
+        if self._fused_gate_up is not None and not all(
+            old is new
+            for old, new in zip(self._gate_up_sources, self._current_gate_up_sources())
+        ):
+            self._fused_gate_up = None
+            self._gate_up_sources = ()
+        restore_dtype = self.match_affine_dtype and _uses_fp16_affine_ffn(
+            x, (self.gate_proj, self.up_proj, self.down_proj)
+        )
+        dtype = x.dtype
+        if restore_dtype:
+            x = x.astype(mx.float16)
+        if (
+            self.compile_decode
+            and x.dtype != mx.float32
+            and x.shape[:2] == (1, 1)
+            and indices.size < 64
+        ):
+            out = _compiled_quantized_ffn(self, x, indices)
+            if out is not None:
+                return out.astype(dtype) if restore_dtype else out
         if (
             x.shape[:2] != (1, 1)
             or indices.size >= 64
@@ -92,20 +203,109 @@ class ClampedSwitchGLU(SwitchGLU):
                 for proj in (self.up_proj, self.gate_proj, self.down_proj)
             )
         ):
-            return super().__call__(x, indices)
+            out = super().__call__(x, indices)
+            return out.astype(dtype) if restore_dtype else out
 
         # Checkpoint each routed projection before building the next graph.
         # Full-weight GLM decode measurements favor these boundaries over
         # evaluating all three gather_qmm projections in the layer group.
         x = mx.expand_dims(x, (-2, -3))
         indices = mx.stop_gradient(indices)
-        up = self.up_proj(x, indices)
-        mx.eval(up)
-        gate = self.gate_proj(x, indices)
-        mx.eval(gate)
+        if (
+            self.fuse_gate_up
+            and x.dtype != mx.float32
+            and self._fused_gate_up is not None
+            and all(
+                old is new
+                for old, new in zip(
+                    self._gate_up_sources, self._current_gate_up_sources()
+                )
+            )
+        ):
+            gate_up = self._fused_gate_up(x, indices)
+            mx.eval(gate_up)
+            gate, up = mx.split(gate_up, 2, axis=-1)
+        else:
+            up = self.up_proj(x, indices)
+            mx.eval(up)
+            gate = self.gate_proj(x, indices)
+            mx.eval(gate)
         out = self.down_proj(self.activation(up, gate), indices)
         mx.eval(out)
-        return out.squeeze(-2)
+        out = out.squeeze(-2)
+        return out.astype(dtype) if restore_dtype else out
+
+
+def _compiled_quantized_ffn(block, x, indices=None):
+    projections = (block.gate_proj, block.up_proj, block.down_proj)
+    cls = QuantizedSwitchLinear if indices is not None else nn.QuantizedLinear
+    if not all(
+        type(p) is cls
+        and p.mode == "affine"
+        and "bias" not in p
+        and getattr(p, "global_scale", None) is None
+        for p in projections
+    ):
+        return None
+    limit = block.activation.limit if indices is not None else block.limit
+    spec = tuple((p.group_size, p.bits) for p in projections) + (limit,)
+    # Trace only scalar configuration. All weight arrays are explicit inputs,
+    # avoiding retained checkpoint constants and stale weight-update traces.
+    if getattr(block, "_compiled_ffn_spec", None) != spec:
+        configs = spec[:3]
+        routed = indices is not None
+
+        def forward(x, arrays, indices):
+            if routed:
+                x = mx.expand_dims(x, (-2, -3))
+                indices = mx.stop_gradient(indices)
+
+            def project(value, i):
+                weight, scales, biases = arrays[i]
+                group_size, bits = configs[i]
+                if routed:
+                    return mx.gather_qmm(
+                        value,
+                        weight,
+                        scales,
+                        biases,
+                        rhs_indices=indices,
+                        transpose=True,
+                        group_size=group_size,
+                        bits=bits,
+                    )
+                return mx.quantized_matmul(
+                    value,
+                    weight,
+                    scales,
+                    biases,
+                    transpose=True,
+                    group_size=group_size,
+                    bits=bits,
+                )
+
+            out = project(clamped_swiglu(project(x, 0), project(x, 1), limit), 2)
+            return out.squeeze(-2) if routed else out
+
+        block._compiled_ffn = mx.compile(forward)
+        block._compiled_ffn_spec = spec
+    arrays = [(p.weight, p.scales, p.biases) for p in projections]
+    return block._compiled_ffn(x, arrays, indices)
+
+
+@mx.compile
+def _compiled_swiglu(gate, up, limit):
+    return clamped_swiglu(gate, up, limit)
+
+
+@mx.compile
+def _compiled_residual(residual, post, branch):
+    return residual + post[..., None] * branch[..., None, :]
+
+
+@mx.compile
+def _compiled_kda_gate(out, gate, reference):
+    return (out * mx.sigmoid(gate.astype(mx.float32))).astype(reference.dtype)
 
 
 class MoE(nn.Module):
@@ -118,9 +318,23 @@ class MoE(nn.Module):
         self.shared_experts = MLP(
             args, args.moe_intermediate_size * args.n_shared_experts
         )
+        self._router_weight = None
+        self._router_sources = ()
 
-    def __call__(self, x):
-        # The router uses FP32, including the matrix multiplication.
+    def _current_router_sources(self):
+        return tuple(
+            self.gate.get(field) for field in ("weight", "scales", "biases")
+        ) + tuple(
+            getattr(self.gate, field, None) for field in ("bits", "group_size", "mode")
+        )
+
+    def prepare_for_inference(self):
+        """Materialize the small FP32 router once, with update invalidation."""
+        sources = self._current_router_sources()
+        if self._router_weight is not None and all(
+            old is new for old, new in zip(self._router_sources, sources)
+        ):
+            return
         weight = self.gate.weight
         if isinstance(self.gate, nn.QuantizedLinear):
             weight = mx.dequantize(
@@ -131,6 +345,30 @@ class MoE(nn.Module):
                 bits=self.gate.bits,
                 mode=self.gate.mode,
             )
+        self._router_weight = weight.astype(mx.float32)
+        mx.eval(self._router_weight)
+        self._router_sources = sources
+
+    def __call__(self, x):
+        # The router uses FP32, including the matrix multiplication.
+        weight = self.gate.weight
+        if self._router_weight is not None and all(
+            old is new
+            for old, new in zip(self._router_sources, self._current_router_sources())
+        ):
+            weight = self._router_weight
+        else:
+            self._router_weight = None
+            self._router_sources = ()
+            if isinstance(self.gate, nn.QuantizedLinear):
+                weight = mx.dequantize(
+                    weight,
+                    self.gate.scales,
+                    self.gate.biases,
+                    group_size=self.gate.group_size,
+                    bits=self.gate.bits,
+                    mode=self.gate.mode,
+                )
         scores = x.astype(mx.float32) @ weight.astype(mx.float32).T
         a = self.args
         indices, weights = _group_expert_select(
@@ -149,6 +387,8 @@ class MoE(nn.Module):
 
 
 class KDA(nn.Module):
+    compile_gate = False
+
     def __init__(self, args):
         super().__init__()
         cfg = args.linear_attn_config
@@ -174,12 +414,15 @@ class KDA(nn.Module):
         self.o_norm = nn.RMSNorm(self.head_dim, eps=args.rms_norm_eps)
         self.o_proj = nn.Linear(self.dim, args.hidden_size, bias=False)
         self._fused_qkv = None
+        self._fused_qkv3 = None
         self._fused_qkv_sources = ()
+        self._fused_input_names = ("q_proj", "k_proj", "v_proj")
+        self._fused_input_splits = (self.dim, 2 * self.dim)
 
     def _qkv_sources(self):
         return tuple(
             value
-            for p in (self.q_proj, self.k_proj, self.v_proj)
+            for p in (getattr(self, name) for name in self._fused_input_names)
             for value in (p, p.weight, p.get("scales"), p.get("biases"))
         )
 
@@ -189,7 +432,7 @@ class KDA(nn.Module):
         )
 
     def prepare_for_inference(self):
-        """Fuse compatible Q/K/V once, following Glimmer's load-time fusion.
+        """Fuse compatible KDA inputs once, including the gate projections.
 
         Canonical checkpoint parameters become views of the fused storage;
         saving a model still uses its original names and mixed-bit metadata.
@@ -198,8 +441,17 @@ class KDA(nn.Module):
         if self._fused_qkv_is_current():
             return True
         self._fused_qkv = None
+        self._fused_qkv3 = None
         self._fused_qkv_sources = ()
-        projections = (self.q_proj, self.k_proj, self.v_proj)
+        # Six projections consume the same input. Prefer one matmul when their
+        # storage formats match; otherwise retain the compatible Q/K/V path.
+        names = ("q_proj", "k_proj", "v_proj", "f_a_proj", "g_a_proj", "b_proj")
+        if not self._prepare_input_fusion(names):
+            return self._prepare_input_fusion(names[:3])
+        return True
+
+    def _prepare_input_fusion(self, names):
+        projections = tuple(getattr(self, name) for name in names)
         first = projections[0]
         if type(first) not in (nn.Linear, nn.QuantizedLinear):
             return False
@@ -216,7 +468,7 @@ class KDA(nn.Module):
             fields += ("scales", "biases")
         if any(
             any(
-                p[field].shape != first[field].shape
+                p[field].shape[1:] != first[field].shape[1:]
                 or p[field].dtype != first[field].dtype
                 for p in projections
             )
@@ -227,24 +479,50 @@ class KDA(nn.Module):
         for field in fields:
             fused[field] = mx.concatenate([p[field] for p in projections], axis=0)
         mx.eval([fused[field] for field in fields])
+        splits, size = [], 0
+        for projection in projections[:-1]:
+            size += projection.weight.shape[0]
+            splits.append(size)
         for field in fields:
             for projection, value in zip(
-                projections, mx.split(fused[field], 3, axis=0)
+                projections, mx.split(fused[field], splits, axis=0)
             ):
                 projection[field] = value
         self._fused_qkv = fused
+        self._fused_qkv3 = None
+        if len(names) == 6:
+            # The wider FP32 matmul regresses on the full M5 checkpoint.
+            # A three-way view shares storage and keeps the original dispatch.
+            qkv3 = copy.copy(fused)
+            for field in fields:
+                qkv3[field] = fused[field][: 3 * self.dim]
+            self._fused_qkv3 = qkv3
+        self._fused_input_names = names
+        self._fused_input_splits = tuple(splits)
         self._fused_qkv_sources = self._qkv_sources()
         return True
 
     def __call__(self, x, cache):
         b, t, _ = x.shape
         if self._fused_qkv_is_current():
-            projected = mx.split(self._fused_qkv(x), 3, axis=-1)
+            if x.dtype == mx.float32 and self._fused_qkv3 is not None:
+                inputs = mx.split(
+                    self._fused_qkv3(x), (self.dim, 2 * self.dim), axis=-1
+                )
+            else:
+                inputs = mx.split(self._fused_qkv(x), self._fused_input_splits, axis=-1)
+            projected = inputs[:3]
+            if len(inputs) == 6:
+                f_a, g_a, beta = inputs[3:]
+            else:
+                f_a, g_a, beta = self.f_a_proj(x), self.g_a_proj(x), self.b_proj(x)
         else:
             if self._fused_qkv is not None:
                 self._fused_qkv = None
+                self._fused_qkv3 = None
                 self._fused_qkv_sources = ()
             projected = [self.q_proj(x), self.k_proj(x), self.v_proj(x)]
+            f_a, g_a, beta = self.f_a_proj(x), self.g_a_proj(x), self.b_proj(x)
         projections = []
         for i, (name, value) in enumerate(zip(("q", "k", "v"), projected)):
             value, state = getattr(self, name + "_conv")(value, cache[i], None, None)
@@ -252,20 +530,20 @@ class KDA(nn.Module):
             projections.append(value.reshape(b, t, self.num_heads, self.head_dim))
         q, k, v = projections
         q, k = normalize_qk(q, k, inv_scale=self.head_dim**-0.5, eps=1e-6)
-        a = self.f_b_proj(self.f_a_proj(x)).reshape(b, t, self.num_heads, self.head_dim)
+        a = self.f_b_proj(f_a).reshape(b, t, self.num_heads, self.head_dim)
         out, cache[3] = gated_delta_update(
             q,
             k,
             v,
             a,
-            self.b_proj(x),
+            beta,
             self.A_log.reshape(self.num_heads, 1),
             self.dt_bias.reshape(self.num_heads, self.head_dim),
             state=cache[3],
             lower_bound=self.lower_bound,
         )
         cache.offset += t
-        gate = self.g_b_proj(self.g_a_proj(x)).reshape(out.shape)
+        gate = self.g_b_proj(g_a).reshape(out.shape)
         # GLM's gated norm multiplies the FP32 normalized result and gate
         # before casting back to the activation dtype.
         normed = mx.fast.rms_norm(
@@ -273,7 +551,11 @@ class KDA(nn.Module):
             self.o_norm.weight.astype(mx.float32),
             self.o_norm.eps,
         )
-        out = (normed * mx.sigmoid(gate.astype(mx.float32))).astype(x.dtype)
+        out = (
+            _compiled_kda_gate(normed, gate, x)
+            if self.compile_gate
+            else (normed * mx.sigmoid(gate.astype(mx.float32))).astype(x.dtype)
+        )
         return self.o_proj(out.reshape(b, t, -1))
 
 
@@ -574,6 +856,9 @@ def _hyper_connection(x, fn, base, scale, h, norm_eps, eps, sinkhorn_iters):
 
 
 class DecoderLayer(nn.Module):
+    compile_residual = False
+    preserve_residual_dtype = False
+
     def __init__(self, args, index):
         super().__init__()
         self.args = args
@@ -608,9 +893,19 @@ class DecoderLayer(nn.Module):
                     getattr(self, f"hc_{name}_scale"),
                     self.args,
                 )
-                x = residual + post[..., None] * block(norm(collapsed))[..., None, :]
+                branch = block(norm(collapsed))
+                if self.preserve_residual_dtype:
+                    branch = branch.astype(residual.dtype)
+                x = (
+                    _compiled_residual(residual, post, branch)
+                    if self.compile_residual
+                    else residual + post[..., None] * branch[..., None, :]
+                )
             else:
-                x = x + block(norm(x))
+                branch = block(norm(x))
+                if self.preserve_residual_dtype:
+                    branch = branch.astype(x.dtype)
+                x = x + branch
         return x
 
 
@@ -674,7 +969,57 @@ class Model(nn.Module):
             for layer in self.layers
             if layer.is_linear
         )
-        logger.info("Fused GLM5-Next KDA Q/K/V projections in %d layers", count)
+        logger.info("Fused GLM5-Next KDA input projections in %d layers", count)
+        for layer in self.layers:
+            if isinstance(layer.mlp, MoE):
+                if getattr(self, "_optimization_profile", "router") != "base":
+                    layer.mlp.prepare_for_inference()
+                layer.mlp.switch_mlp.prepare_for_inference()
+
+    def configure_optimizations(self, profile):
+        """Select independent decode candidates before load-time preparation."""
+        if profile not in (
+            "base",
+            "router",
+            "pointwise",
+            "compile_ffn",
+            "gate_up",
+            "all",
+            "affine_fp16",
+            "affine_all",
+            "affine_gate_up",
+        ):
+            raise ValueError(f"Unknown GLM MLX optimization profile: {profile}")
+        self._optimization_profile = profile
+        affine = profile in ("affine_fp16", "affine_all", "affine_gate_up")
+        pointwise = profile in ("pointwise", "all", "affine_all")
+        for layer in self.layers:
+            layer.compile_residual = pointwise
+            # Real checkpoints also quantize MLA projections. FFN-only matching
+            # lets the first MLA promote every later residual back to FP32.
+            # This rounding-changing path must be selected explicitly.
+            layer.preserve_residual_dtype = affine
+            if layer.is_linear:
+                layer.self_attn.compile_gate = pointwise
+            mlps = (
+                (layer.mlp.switch_mlp, layer.mlp.shared_experts)
+                if isinstance(layer.mlp, MoE)
+                else (layer.mlp,)
+            )
+            if isinstance(layer.mlp, MoE) and profile == "base":
+                layer.mlp._router_weight = None
+                layer.mlp._router_sources = ()
+            for mlp in mlps:
+                mlp.match_affine_dtype = affine
+                mlp.compile_decode = profile in ("compile_ffn", "all", "affine_all")
+                if isinstance(mlp, MLP):
+                    mlp.compile_activation = pointwise
+                else:
+                    mlp.activation.compile_activation = pointwise
+                    mlp.fuse_gate_up = profile in ("gate_up", "affine_gate_up")
+                    if not mlp.fuse_gate_up:
+                        mlp._fused_gate_up = None
+                        mlp._gate_up_sources = ()
 
     def sanitize(self, weights):
         result = {}

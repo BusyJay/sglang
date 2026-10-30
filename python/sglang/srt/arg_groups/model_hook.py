@@ -171,7 +171,19 @@ def handle_model_specific_adjustments(server_args: Any):
         and cfg.device == "mps"
         and use_mlx()
     ):
-        defaults = dict(disable_radix_cache=True, disable_overlap_schedule=True)
+        defaults = dict(disable_overlap_schedule=True)
+        if not cfg.disable_radix_cache:
+            if cfg.mamba_radix_cache_strategy not in ("auto", "no_buffer"):
+                raise ValueError("GLM MLX prefix caching currently requires no_buffer")
+            if cfg.page_size not in (None, 1):
+                raise ValueError(
+                    "GLM MLX no_buffer prefix caching requires page_size=1"
+                )
+            defaults.update(
+                uses_mamba_radix_cache=True,
+                mamba_radix_cache_strategy="no_buffer",
+                page_size=1,
+            )
         if cfg.max_running_requests is None:
             defaults["max_running_requests"] = 1
         if cfg.chunked_prefill_size is None or cfg.chunked_prefill_size > 256:

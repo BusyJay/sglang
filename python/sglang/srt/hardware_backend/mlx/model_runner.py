@@ -229,8 +229,6 @@ class MlxModelRunner:
 
         self._native_cache = getattr(self.model, "native_cache", False)
         if self._native_cache:
-            if not self.disable_radix_cache:
-                raise ValueError("Native MLX caches require --disable-radix-cache")
             layer_list = self.model.layers
             attn_attrs = [None] * len(layer_list)
         else:
@@ -591,6 +589,9 @@ class MlxModelRunner:
                 )
 
         if checkpoint_config.get("model_type") == "glm5_next":
+            self.model.configure_optimizations(
+                envs.SGLANG_MLX_GLM_OPTIMIZATION_PROFILE.get()
+            )
             prepare_for_inference = getattr(self.model, "prepare_for_inference", None)
             if callable(prepare_for_inference):
                 prepare_for_inference()
@@ -975,6 +976,20 @@ class MlxModelRunner:
                 lazy_logprobs=lazy_logprobs,
             )
 
+        if self._native_cache:
+            return self._prefill_native_prefix(
+                req_id,
+                new_token_ids,
+                full_token_ids,
+                prefix_len,
+                new_slot_ids,
+                req_pool_idx,
+                req,
+                needs_logits,
+                logit_edit_row,
+                logprob_spec,
+            )
+
         # A pool is required only where one can actually be read: a model with
         # full-attention layers and no sliding-window layers.  init_cache_pools
         # skips it otherwise, and the gather path below is unreachable then.
@@ -1093,6 +1108,67 @@ class MlxModelRunner:
             lazy_logprobs=lazy_logprobs,
         )
 
+    def _prefill_native_prefix(
+        self,
+        req_id,
+        new_token_ids,
+        full_token_ids,
+        prefix_len,
+        new_slot_ids,
+        req_pool_idx,
+        req,
+        needs_logits,
+        logit_edit_row,
+        logprob_spec,
+    ):
+        """Restore all KDA/MLA state from the unified tree's state slot."""
+        cache = self._acquire_cache()
+        restored = prefix_len > 0 and self._restore_auxiliary_state(req_pool_idx, cache)
+        if restored:
+            restored = all(c.offset == prefix_len for c in cache)
+        # Recurrent state cannot be rewound to recompute last-token logits.
+        # The scheduler normally leaves one token to run; fall back if it does
+        # supply an exact hit or an unavailable/inconsistent state checkpoint.
+        if not restored or not new_token_ids:
+            cache = self._acquire_cache()
+            run_tokens = list(full_token_ids[:prefix_len]) + list(new_token_ids)
+            run_prefix = 0
+        else:
+            run_tokens = list(new_token_ids)
+            run_prefix = prefix_len
+        track_len = self._select_auxiliary_state_track_len(
+            prefix_len=run_prefix,
+            new_token_count=len(run_tokens),
+            full_len=run_prefix + len(run_tokens),
+            req=req,
+        )
+        split = track_len - run_prefix if track_len is not None else None
+        if split is not None and 0 < split < len(run_tokens):
+            inputs = mx.array([run_tokens[:split]], mx.int32)
+            if self._trunk_forward(inputs, cache) is None:
+                self.model(inputs, cache=cache)
+            self._store_tracked_auxiliary_state(req, cache, track_len)
+            run_tokens = run_tokens[split:]
+        lazy_token, lazy_logprobs = self._forward_lazy_token(
+            mx.array([run_tokens], mx.int32),
+            cache,
+            needs_logits,
+            req_id,
+            logit_edit_row,
+            logprob_spec,
+        )
+        if track_len is not None and all(c.offset == track_len for c in cache):
+            self._store_tracked_auxiliary_state(req, cache, track_len)
+        return MlxPendingPrefill(
+            lazy_token=lazy_token,
+            cache=cache,
+            req_id=req_id,
+            full_token_ids=list(full_token_ids),
+            req_pool_idx=req_pool_idx,
+            synced_offset=prefix_len + len(new_slot_ids),
+            lazy_logprobs=lazy_logprobs,
+        )
+
     def prefill_finalize(self, pending: MlxPendingPrefill) -> int:
         """Materialise a pending prefill and commit per-request state.
 
@@ -1131,6 +1207,15 @@ class MlxModelRunner:
 
         cache = self._req_caches[req_id]
 
+        if self._native_cache and not self.disable_radix_cache:
+            return self._extend_native_prefix(
+                req_id,
+                new_token_ids,
+                new_slot_ids,
+                needs_logits,
+                logit_edit_row,
+                logprob_spec,
+            )
         input_ids = mx.array([new_token_ids], dtype=mx.int32)
         lazy_token, lazy_logprobs = self._forward_lazy_token(
             input_ids, cache, needs_logits, req_id, logit_edit_row, logprob_spec
@@ -1149,6 +1234,35 @@ class MlxModelRunner:
             req_id=req_id,
             new_token_ids=list(new_token_ids),
             new_synced_offset=new_synced_offset,
+            lazy_logprobs=lazy_logprobs,
+        )
+
+    def _extend_native_prefix(
+        self,
+        req_id,
+        new_token_ids,
+        new_slot_ids,
+        needs_logits,
+        logit_edit_row,
+        logprob_spec,
+    ):
+        cache = self._req_caches[req_id]
+        # Chunked handoff publishes the live all-layer state at the end of
+        # this chunk through extend_finalize. No attention pool scatter.
+        lazy_token, lazy_logprobs = self._forward_lazy_token(
+            mx.array([new_token_ids], mx.int32),
+            cache,
+            needs_logits,
+            req_id,
+            logit_edit_row,
+            logprob_spec,
+        )
+        return MlxPendingExtend(
+            lazy_token=lazy_token,
+            cache=cache,
+            req_id=req_id,
+            new_token_ids=list(new_token_ids),
+            new_synced_offset=cache[0].offset,
             lazy_logprobs=lazy_logprobs,
         )
 

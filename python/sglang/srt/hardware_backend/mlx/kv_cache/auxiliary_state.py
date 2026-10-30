@@ -18,7 +18,6 @@ import torch
 from sglang.srt.mem_cache.base_prefix_cache import EvictParams, InsertResult
 from sglang.srt.mem_cache.kv.state_storage import StateStorage
 from sglang.srt.mem_cache.memory_pool import ReqToTokenPool
-from sglang.srt.mem_cache.unified_cache.components.base import TreeComponent
 from sglang.srt.mem_cache.unified_cache.components.mamba import (
     MambaComponent,
 )
@@ -233,6 +232,12 @@ class MlxAuxiliaryStateReqToTokenPool(ReqToTokenPool):
     """Req-to-token pool with MLX auxiliary-state slot bookkeeping. It never
     frees auxiliary slots: ``MlxAuxiliaryStateComponent`` owns their release."""
 
+    holds_state_slots = True
+    state_sub_pool = "mamba"
+    # Native tracking is allocated lazily by the MLX runner, one snapshot at a time.
+    mamba_initial_tracking_slots = 0
+    mamba_ping_pong_track_buffer_size = 1
+
     def __init__(
         self,
         *,
@@ -339,9 +344,8 @@ class MlxAuxiliaryStateComponent(MambaComponent):
                 "MlxAuxiliaryStateComponent requires MlxAuxiliaryStatePool, "
                 f"got {type(pool)}"
             )
-        TreeComponent.__init__(self, cache, params, slot)
+        super().__init__(cache, params, slot)
         self.enable_mamba_extra_buffer = False
-        self._mamba_pool_host = None
 
     @staticmethod
     def _tracked_value(req) -> tuple[object | None, bool]:

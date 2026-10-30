@@ -146,7 +146,9 @@ class TestGlm5NextMlx(CustomTestCase):
                     )
                     args.resolve_once()
                     resolved = resolved_view(args)
-                    self.assertTrue(resolved.disable_radix_cache)
+                    self.assertFalse(resolved.disable_radix_cache)
+                    self.assertTrue(resolved.uses_mamba_radix_cache)
+                    self.assertEqual(resolved.mamba_radix_cache_strategy, "no_buffer")
                     self.assertTrue(resolved.disable_overlap_schedule)
                     self.assertEqual(resolved.page_size, 1)
                     self.assertNotEqual(resolved.attention_backend, "dsa")
@@ -373,6 +375,226 @@ class TestGlm5NextMlx(CustomTestCase):
                         np.array(expected.astype(mx.float32)),
                     )
 
+    def test_fp16_affine_ffn_preserves_bf16_residual_dtype(self):
+        """Mixed-bit FP16 metadata must not promote dense/shared/routed FFNs."""
+        import copy
+
+        import mlx.core as mx
+        import numpy as np
+        from mlx_lm.models.switch_layers import SwitchGLU
+
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import (
+            MLP,
+            ClampedSwitchGLU,
+            clamped_swiglu,
+        )
+
+        args = copy.deepcopy(self.model.args)
+        args.moe_intermediate_size = 32
+        for kind in ("dense", "shared", "routed"):
+            block = (
+                ClampedSwitchGLU(args)
+                if kind == "routed"
+                else MLP(args, 32 if kind == "shared" else 64)
+            )
+            block.match_affine_dtype = True
+            block.set_dtype(mx.float16)
+            for name, bits in (("up_proj", 4), ("gate_proj", 4), ("down_proj", 5)):
+                proj = getattr(block, name)
+                setattr(block, name, proj.to_quantized(group_size=32, bits=bits))
+            for batch, tokens in ((1, 1), (2, 1), (1, 40)):
+                with self.subTest(kind=kind, batch=batch, tokens=tokens):
+                    x = mx.random.normal((batch, tokens, args.hidden_size)).astype(
+                        mx.bfloat16
+                    )
+                    indices = (
+                        mx.arange(batch * tokens * 2) % args.n_routed_experts
+                    ).reshape(batch, tokens, 2)
+                    fp16 = x.astype(mx.float16)
+                    if kind == "routed":
+                        actual = block(x, indices)
+                        expected = SwitchGLU.__call__(block, fp16, indices)
+                    else:
+                        actual = block(x)
+                        expected = block.down_proj(
+                            clamped_swiglu(
+                                block.gate_proj(fp16), block.up_proj(fp16), block.limit
+                            )
+                        )
+                    expected = expected.astype(mx.bfloat16)
+                    mx.eval(actual, expected)
+                    self.assertEqual(actual.dtype, mx.bfloat16)
+                    residual = x + (actual.sum(-2) if kind == "routed" else actual)
+                    self.assertEqual(residual.dtype, mx.bfloat16)
+                    np.testing.assert_array_equal(
+                        np.array(actual.astype(mx.float32)),
+                        np.array(expected.astype(mx.float32)),
+                    )
+
+        # Incompatible metadata retains the original mixed-dtype semantics.
+        block = MLP(args, 64)
+        block.match_affine_dtype = True
+        block.set_dtype(mx.float16)
+        for name in ("up_proj", "gate_proj", "down_proj"):
+            proj = getattr(block, name)
+            setattr(block, name, proj.to_quantized(group_size=32, bits=4))
+        block.down_proj.scales = block.down_proj.scales.astype(mx.bfloat16)
+        block.down_proj.biases = block.down_proj.biases.astype(mx.bfloat16)
+        x = mx.ones((1, 1, args.hidden_size), mx.bfloat16)
+        actual = block(x)
+        expected = block.down_proj(
+            clamped_swiglu(block.gate_proj(x), block.up_proj(x), block.limit)
+        )
+        mx.eval(actual, expected)
+        self.assertEqual(actual.dtype, mx.float32)
+        np.testing.assert_array_equal(np.array(actual), np.array(expected))
+
+    def test_decode_ffn_candidates_preserve_updates_and_batch_fallback(self):
+        """Compilation/fused gate-up preserve mixed bits and observe new arrays."""
+        import copy
+
+        import mlx.core as mx
+        import numpy as np
+
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import ClampedSwitchGLU
+
+        mx.random.seed(20261030)
+        args = copy.deepcopy(self.model.args)
+        args.moe_intermediate_size = 32
+        original = ClampedSwitchGLU(args)
+        original.set_dtype(mx.float16)
+        for name, bits in (("gate_proj", 4), ("up_proj", 4), ("down_proj", 5)):
+            p = getattr(original, name)
+            setattr(original, name, p.to_quantized(group_size=32, bits=bits))
+        for mode in ("compile", "gate_up"):
+            block = copy.deepcopy(original)
+            block.compile_decode = mode == "compile"
+            block.fuse_gate_up = mode == "gate_up"
+            block.prepare_for_inference()
+            reference = copy.deepcopy(original)
+            for batch, tokens in ((1, 1), (2, 1), (1, 40)):
+                x = mx.random.normal((batch, tokens, args.hidden_size)).astype(
+                    mx.bfloat16
+                )
+                indices = (
+                    mx.arange(batch * tokens * 2) % args.n_routed_experts
+                ).reshape(batch, tokens, 2)
+                actual, expected = block(x, indices), reference(x, indices)
+                mx.eval(actual, expected)
+                self.assertTrue(
+                    mx.all(mx.isfinite(actual)).item(),
+                    f"{mode=}, {batch=}, {tokens=}: candidate is non-finite",
+                )
+                self.assertTrue(
+                    mx.all(mx.isfinite(expected)).item(),
+                    f"{mode=}, {batch=}, {tokens=}: reference is non-finite",
+                )
+                np.testing.assert_allclose(
+                    np.array(actual.astype(mx.float32)),
+                    np.array(expected.astype(mx.float32)),
+                    rtol=0.01,
+                    atol=0.002,
+                )
+            block.gate_proj.scales = block.gate_proj.scales * 1.01
+            reference.gate_proj.scales = reference.gate_proj.scales * 1.01
+            x = x[:, :1]
+            indices = indices[:, :1]
+            actual, expected = block(x, indices), reference(x, indices)
+            mx.eval(actual, expected)
+            if mode == "gate_up":
+                self.assertIsNone(block._fused_gate_up)
+            np.testing.assert_allclose(
+                np.array(actual.astype(mx.float32)),
+                np.array(expected.astype(mx.float32)),
+                rtol=0.01,
+                atol=0.002,
+            )
+
+    def test_affine_profile_preserves_residual_with_quantized_mla(self):
+        """Quantized MLA must not undo the default BF16 residual path."""
+        import copy
+
+        import mlx.core as mx
+
+        from sglang.srt.environ import envs
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import Model
+
+        args = copy.deepcopy(self.model.args)
+        args.moe_intermediate_size = 32
+        model = Model(args)
+        model.set_dtype(mx.bfloat16)
+        for layer in model.layers:
+            if not layer.is_linear:
+                for name in ("q_a_proj", "kv_a_proj_with_mqa", "o_proj"):
+                    p = getattr(layer.self_attn, name)
+                    p.set_dtype(mx.float16)
+                    setattr(layer.self_attn, name, p.to_quantized(group_size=32))
+        for profile, dtype in (
+            ("base", mx.float32),
+            ("affine_fp16", mx.bfloat16),
+            (envs.SGLANG_MLX_GLM_OPTIMIZATION_PROFILE.default, mx.bfloat16),
+        ):
+            with self.subTest(profile=profile):
+                model.configure_optimizations(profile)
+                model.prepare_for_inference()
+                cache = model.make_cache()
+                for tokens in (self.tokens[:4], self.tokens[4:5]):
+                    result = model.model(mx.array([tokens]), cache)
+                    mx.eval(result, [c.state for c in cache])
+                    self.assertEqual(result.dtype, dtype)
+                    self.assertTrue(mx.all(mx.isfinite(result)).item())
+                self.assertTrue(all(c.offset == 5 for c in cache))
+
+    def test_router_preparation_preserves_scores_and_invalidates_updates(self):
+        """Prepared FP32 router must preserve routing and track weight replacement."""
+        import copy
+
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import MoE
+
+        reference = MoE(self.model.args)
+        reference.set_dtype(mx.bfloat16)
+        prepared = copy.deepcopy(reference)
+        prepared.prepare_for_inference()
+        x = mx.random.normal((1, 1, self.model.args.hidden_size)).astype(mx.bfloat16)
+        for update in (False, True):
+            if update:
+                reference.gate.weight = reference.gate.weight * 1.01
+                prepared.gate.weight = prepared.gate.weight * 1.01
+            actual, expected = prepared(x), reference(x)
+            mx.eval(actual, expected)
+            self.assertTrue(mx.array_equal(actual, expected).item())
+        self.assertIsNone(prepared._router_weight)
+
+    def test_native_prefix_snapshot_restores_kda_and_mla_together(self):
+        """A prefix fork must isolate recurrent, conv, latent KV and indexer state."""
+        import copy
+
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.kv_cache.auxiliary_state import (
+            _restore_cache,
+            _snapshot_cache,
+        )
+
+        model = copy.deepcopy(self.model)
+        cache = model.make_cache()
+        tokens = mx.array([self.tokens[:8]])
+        model.forward_last_logits(tokens[:, :4], cache)
+        snapshots = [_snapshot_cache(c) for c in cache]
+        expected = model.forward_last_logits(tokens[:, 4:], cache)
+        mx.eval(expected, [c.state for c in cache])
+        for _ in range(2):
+            fork = model.make_cache()
+            for c, snapshot in zip(fork, snapshots):
+                _restore_cache(c, snapshot)
+            self.assertTrue(all(c.offset == 4 for c in fork))
+            actual = model.forward_last_logits(tokens[:, 4:], fork)
+            mx.eval(actual, [c.state for c in fork])
+            self.assertTrue(mx.array_equal(actual, expected).item())
+            self.assertTrue(all(c.offset == 8 for c in fork))
+
     def test_compiled_mhc_matches_reference_with_twenty_sinkhorn_rounds(self):
         """Fusing reductions must preserve stream orientation and BF16 cast points."""
         import copy
@@ -579,13 +801,16 @@ class TestGlm5NextMlx(CustomTestCase):
 
         from sglang.srt.hardware_backend.mlx.models.glm5_next import NativeCache
 
-        for policy in ("fp32", "bf16", "q4", "mixed"):
+        for policy in ("fp32", "bf16", "q4", "q4_all", "mixed"):
             with self.subTest(policy=policy):
                 reference = copy.deepcopy(self.model.layers[0].self_attn)
                 if policy == "bf16":
                     reference.set_dtype(mx.bfloat16)
-                elif policy in ("q4", "mixed"):
-                    for name in ("q_proj", "k_proj", "v_proj"):
+                elif policy in ("q4", "q4_all", "mixed"):
+                    names = ("q_proj", "k_proj", "v_proj")
+                    if policy == "q4_all":
+                        names += ("f_a_proj", "g_a_proj", "b_proj")
+                    for name in names:
                         bits = 5 if policy == "mixed" and name == "k_proj" else 4
                         setattr(
                             reference,
@@ -597,6 +822,11 @@ class TestGlm5NextMlx(CustomTestCase):
                 prepared = copy.deepcopy(reference)
                 expected_weights = dict(tree_flatten(reference.parameters()))
                 self.assertEqual(prepared.prepare_for_inference(), policy != "mixed")
+                if policy != "mixed":
+                    self.assertEqual(
+                        len(prepared._fused_input_names),
+                        6 if policy in ("fp32", "bf16", "q4_all") else 3,
+                    )
                 actual_weights = dict(tree_flatten(prepared.parameters()))
                 self.assertEqual(set(actual_weights), set(expected_weights))
                 for key, expected in expected_weights.items():
@@ -622,9 +852,15 @@ class TestGlm5NextMlx(CustomTestCase):
                         atol=tolerance[1],
                     )
                 # A later parameter replacement must not serve stale fused data.
-                if policy in ("q4", "mixed"):
+                if policy == "q4_all":
+                    prepared.g_a_proj.scales = prepared.g_a_proj.scales * 1.01
+                    reference.g_a_proj.scales = reference.g_a_proj.scales * 1.01
+                elif policy in ("q4", "mixed"):
                     prepared.q_proj.scales = prepared.q_proj.scales * 1.01
                     reference.q_proj.scales = reference.q_proj.scales * 1.01
+                elif policy == "bf16":
+                    prepared.g_a_proj.weight = prepared.g_a_proj.weight + 0.01
+                    reference.g_a_proj.weight = reference.g_a_proj.weight + 0.01
                 else:
                     prepared.q_proj.weight = prepared.q_proj.weight + 0.01
                     reference.q_proj.weight = reference.q_proj.weight + 0.01
@@ -636,23 +872,27 @@ class TestGlm5NextMlx(CustomTestCase):
                 )
 
     def test_kda_fusion_does_not_retain_duplicate_projection_storage(self):
-        """Canonical Q/K/V parameters must share the fused buffer after preparation."""
+        """Canonical inputs share fused storage, with bounded alignment overhead."""
+        import copy
         import gc
 
         import mlx.core as mx
 
         from sglang.srt.hardware_backend.mlx.models.glm5_next import KDA
 
-        attention = KDA(self.model.args)
+        args = copy.deepcopy(self.model.args)
+        args.hidden_size = 1024
+        args.linear_attn_config = dict(args.linear_attn_config, head_dim=128)
+        attention = KDA(args)
         mx.eval(attention.parameters())
         gc.collect()
         before = mx.get_active_memory()
         self.assertTrue(attention.prepare_for_inference())
         mx.eval(attention.parameters())
         gc.collect()
-        # Three FP32 64x32 matrices occupy 24 KiB. Keeping those plus a
-        # concatenated copy would exceed this allocator bookkeeping allowance.
-        self.assertLessEqual(mx.get_active_memory() - before, 4096)
+        # Inputs occupy multiple MiB; a second resident copy exceeds this
+        # allowance for alignment/materialization of unequal-width slices.
+        self.assertLessEqual(mx.get_active_memory() - before, 16384)
 
     def test_moe_sorted_batch_matches_reference(self):
         """Cross the SwitchGLU sorting threshold while preserving clamp and row order."""

@@ -14,7 +14,13 @@ import unittest
 from types import SimpleNamespace
 
 from sglang.srt.managers.schedule_batch import ReqKvInfo
+from sglang.srt.mem_cache.allocation import ensure_mamba_capacity
+from sglang.srt.mem_cache.base_prefix_cache import MatchResult
+from sglang.srt.mem_cache.cache_init_params import CacheInitParams
+from sglang.srt.mem_cache.kv.plan import TreeSlot
 from sglang.srt.mem_cache.static_kv_storage import acquire_rows
+from sglang.srt.mem_cache.unified_cache.components.base import ComponentData
+from sglang.srt.runtime_context import get_context
 from sglang.test.ci.ci_register import register_mlx_ci
 from sglang.test.test_utils import CustomTestCase
 
@@ -24,6 +30,7 @@ _HAS_MLX = importlib.util.find_spec("mlx") is not None
 
 if _HAS_MLX:
     from sglang.srt.hardware_backend.mlx.kv_cache.auxiliary_state import (
+        MlxAuxiliaryStateComponent,
         MlxAuxiliaryStateReqToTokenPool,
     )
 
@@ -65,6 +72,32 @@ class TestMlxAuxiliaryStateAcquire(CustomTestCase):
         self.assertEqual(
             int(self.table.get_auxiliary_state_indices(rows)[0]), int(held)
         )
+
+    def test_admission_checks_auxiliary_capacity(self):
+        self.slots.alloc(4)
+        self.assertFalse(
+            ensure_mamba_capacity(self.table, self.table.state, [_req()], None)
+        )
+
+    def test_first_prefix_match_uses_initialized_checkpoint_grid(self):
+        params = CacheInitParams(
+            disable=False,
+            req_to_token_pool=self.table,
+            token_to_kv_pool_allocator=None,
+            page_size=1,
+        )
+        with get_context().override_server_args():
+            component = MlxAuxiliaryStateComponent(
+                SimpleNamespace(req_to_token_pool=self.table),
+                params,
+                TreeSlot(component="MAMBA", family="state", checkpoint_interval=4),
+            )
+        node = SimpleNamespace(
+            component_data={component.component_type: ComponentData()}
+        )
+        result = MatchResult(0, node, node, node, full_kv_hit_length=7)
+        matched = component.finalize_match_result_in_tree_core(result, None, [], 0)
+        self.assertEqual(matched.mamba_branching_seqlen, 4)
 
 
 if __name__ == "__main__":

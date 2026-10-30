@@ -1116,6 +1116,8 @@ class Envs:
     # Apple Silicon and MLX
     # ===================================================================
     SGLANG_USE_MLX = EnvBool(False)
+    # GLM decode defaults to BF16 residuals, local affine FP16 and FFN compilation.
+    SGLANG_MLX_GLM_OPTIMIZATION_PROFILE = EnvStr("affine_all")
     SGLANG_MLX_USE_CUSTOM_ROPE = EnvBool(False)
     SGLANG_MLX_USE_POOL_ATTENTION = EnvBool(True)
     SGLANG_MLX_FUSE_SWIGLU = EnvBool(False)
