@@ -361,6 +361,21 @@ class TestMlxExtendRouting(CustomTestCase):
         self.assertEqual(runner.ops_for("d1"), ["decode_start"])
         self.assertIsNotNone(launch.decode)  # pending mixed decode present
 
+    def test_cpu_token_relay_handles_two_mps_requests(self):
+        """MLX returns CPU tokens; multi-row MPS scatter requires device conversion."""
+        from sglang.srt.managers.overlap_utils import FutureMap, RelayPayload
+        from sglang.srt.mem_cache.memory_pool import ReqToTokenPool
+        from sglang.srt.speculative.spec_info import SpeculativeAlgorithm
+
+        with get_context().override_server_args(device="mps"):
+            pool = ReqToTokenPool(2, 8, "mps", False)
+            relay = FutureMap(torch.device("mps"), SpeculativeAlgorithm.NONE, pool)
+            indices = torch.tensor([1, 2], device="mps")
+            relay.stash(indices, RelayPayload(bonus_tokens=torch.tensor([17, 23])))
+            self.assertEqual(relay.output_tokens_buf[indices].cpu().tolist(), [17, 23])
+            relay.stash_bonus_tokens(indices, torch.tensor([29, 31]))
+            self.assertEqual(relay.output_tokens_buf[indices].cpu().tolist(), [29, 31])
+
 
 if __name__ == "__main__":
     unittest.main()

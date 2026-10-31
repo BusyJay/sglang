@@ -46,6 +46,7 @@ class NativeCache(ArraysCache):
     def __init__(self, size):
         super().__init__(size=size)
         self.offset = 0
+        self.mlx_mtp = None
 
 
 def clamped_swiglu(gate, up, limit):
@@ -1028,16 +1029,48 @@ class DecoderLayer(nn.Module):
         return x
 
 
+class MTPHead(DecoderLayer):
+    """Checkpoint's plain MLA/MoE prediction layer (no hyper-connections).
+
+    The head consumes final-normalized target hidden states paired with the
+    following tokens. Its output normalization and the target LM head are
+    shared across recursive draft steps, while its attention cache is private.
+    """
+
+    def __init__(self, args):
+        args = copy.copy(args)
+        args.mhc = False
+        index = args.num_hidden_layers
+        args.layer_types = list(args.layer_types) + ["deepseek_sparse_attention"]
+        args.mlp_layer_types = list(args.mlp_layer_types) + ["sparse"]
+        super().__init__(args, index)
+        self.enorm = nn.RMSNorm(args.hidden_size, eps=args.rms_norm_eps)
+        self.hnorm = nn.RMSNorm(args.hidden_size, eps=args.rms_norm_eps)
+        self.eh_proj = nn.Linear(2 * args.hidden_size, args.hidden_size, bias=False)
+        self.shared_head = nn.Module()
+        self.shared_head.norm = nn.RMSNorm(args.hidden_size, eps=args.rms_norm_eps)
+
+    def __call__(self, hidden, embeddings, cache):
+        if hidden.shape != embeddings.shape or hidden.ndim != 3:
+            raise ValueError("MTP hidden states must match following-token embeddings")
+        x = self.eh_proj(
+            mx.concatenate([self.enorm(embeddings), self.hnorm(hidden)], -1)
+        )
+        return super().__call__(x, cache)
+
+
 class TextModel(nn.Module):
     # Submit one KDA/MLA period at a time. Async evaluation bounds the lazy
     # graph without making the host wait after each individual decoder layer.
     _eval_group_size = 4
 
-    def __init__(self, args):
+    def __init__(self, args, enable_mtp=False):
         super().__init__()
         self.args = args
         self.embed_tokens = nn.Embedding(args.vocab_size, args.hidden_size)
         self.layers = [DecoderLayer(args, i) for i in range(args.num_hidden_layers)]
+        if enable_mtp:
+            self.layers.append(MTPHead(args))
         self.norm = nn.RMSNorm(args.hidden_size, eps=args.rms_norm_eps)
 
     def __call__(self, inputs, cache):
@@ -1045,9 +1078,12 @@ class TextModel(nn.Module):
         if self.args.mhc:
             x = mx.repeat(x[..., None, :], self.args.hc_mult, axis=-2)
         group_start = 0
-        for i, (layer, state) in enumerate(zip(self.layers, cache)):
+        for i, (layer, state) in enumerate(
+            zip(self.layers[: self.args.num_hidden_layers], cache)
+        ):
             x = layer(x, cache=state)
-            if (i + 1) % self._eval_group_size == 0 or i + 1 == len(self.layers):
+            final_layer = i + 1 == self.args.num_hidden_layers
+            if (i + 1) % self._eval_group_size == 0 or final_layer:
                 mx.async_eval(x, [c.cache for c in cache[group_start : i + 1]])
                 group_start = i + 1
         if self.args.mhc:
@@ -1059,15 +1095,80 @@ class Model(nn.Module):
     # Consumed by SGLang's runner: no ordinary q/k/v attention cache adapter.
     native_cache = True
 
-    def __init__(self, args):
+    def __init__(self, args, *, enable_mtp=False):
         super().__init__()
         self.args = args
-        self.model = TextModel(args)
+        if enable_mtp and getattr(args, "num_nextn_predict_layers", 0) != 1:
+            raise ValueError("GLM MLX MTP requires exactly one prediction layer")
+        self.model = TextModel(args, enable_mtp=enable_mtp)
         self.lm_head = nn.Linear(args.hidden_size, args.vocab_size, bias=False)
 
     @property
     def layers(self):
-        return self.model.layers
+        return self.model.layers[: self.args.num_hidden_layers]
+
+    @property
+    def mtp(self):
+        layers = self.model.layers
+        return layers[-1] if len(layers) > self.args.num_hidden_layers else None
+
+    def forward_with_hidden(self, inputs, cache=None):
+        hidden = self.model(inputs, cache if cache is not None else self.make_cache())
+        return self.lm_head(hidden), hidden
+
+    def forward_mtp(self, following_tokens, hidden, cache):
+        if self.mtp is None:
+            raise ValueError("Load the model with enable_mtp=True before drafting")
+        out = self.mtp(hidden, self.model.embed_tokens(following_tokens), cache)
+        return self.lm_head(self.mtp.shared_head.norm(out)), out
+
+    def verify_mtp(self, root, draft, cache):
+        """Two-row compatibility API; return the state after consuming root."""
+        if root.shape != (1, 1) or draft.shape != (1, 1):
+            raise ValueError("GLM MTP verification requires singleton token rows")
+        logits, hidden, snapshots = self.verify_mtp_rows(
+            mx.concatenate([root, draft], axis=1), cache
+        )
+        return logits, hidden, snapshots[0]
+
+    def verify_mtp_rows(self, inputs, cache):
+        """Verify a draft chain with serial arithmetic and per-position state.
+
+        Each layer processes rows separately to preserve singleton GEMM,
+        attention and recurrent rounding. Immutable cache arrays after each
+        row allow publishing exactly the consumed prefix, including KDA
+        convolution/recurrence and MLA/indexer state, without replay.
+        """
+        if len(cache) != len(self.layers):
+            raise ValueError("MTP verification requires one cache per target layer")
+        if inputs.ndim != 2 or inputs.shape[0] != 1 or not 1 <= inputs.shape[1] <= 17:
+            raise ValueError("GLM MTP verification requires one chain of 1-17 rows")
+        count = inputs.shape[1]
+        x = self.model.embed_tokens(inputs)
+        if self.args.mhc:
+            x = mx.repeat(x[..., None, :], self.args.hc_mult, axis=-2)
+        snapshots = [[] for _ in range(count)]
+        for i, (layer, state) in enumerate(zip(self.layers, cache)):
+            rows = []
+            for j in range(count):
+                rows.append(layer(x[:, j : j + 1], state))
+                snapshot = NativeCache(4)
+                snapshot.cache = [
+                    v.view(v.dtype) if v is not None else None for v in state.cache
+                ]
+                snapshot.offset = state.offset
+                snapshots[j].append(snapshot)
+            x = mx.concatenate(rows, axis=1)
+            if (i + 1) % self.model._eval_group_size == 0 or i + 1 == len(cache):
+                mx.async_eval(x, [c.cache for c in cache])
+        if self.args.mhc:
+            x = x.mean(axis=-2)
+        hidden_rows = [self.model.norm(x[:, j : j + 1]) for j in range(count)]
+        return (
+            mx.concatenate([self.lm_head(row) for row in hidden_rows], axis=1),
+            mx.concatenate(hidden_rows, axis=1),
+            snapshots,
+        )
 
     def make_cache(self):
         # KDA stores conv/recurrent state; MLA stores latent KV, raw indexer
@@ -1085,11 +1186,11 @@ class Model(nn.Module):
         # Run after checkpoint loading and optional quantization, before serving.
         count = sum(
             layer.self_attn.prepare_for_inference()
-            for layer in self.layers
+            for layer in self.model.layers
             if layer.is_linear
         )
         logger.info("Fused GLM5-Next KDA input projections in %d layers", count)
-        for layer in self.layers:
+        for layer in self.model.layers:
             if isinstance(layer.mlp, MoE):
                 if getattr(self, "_optimization_profile", "router") != "base":
                     layer.mlp.prepare_for_inference()
@@ -1117,7 +1218,7 @@ class Model(nn.Module):
         affine = profile.startswith("affine_")
         fused = profile in ("affine_hc", "affine_kda", "affine_moe", "affine_fused")
         pointwise = profile in ("pointwise", "all", "affine_all") or fused
-        for layer in self.layers:
+        for layer in self.model.layers:
             layer.fuse_hc = profile in ("affine_hc", "affine_fused")
             layer.compile_residual = pointwise
             # Real checkpoints also quantize MLA projections. FFN-only matching
@@ -1161,9 +1262,12 @@ class Model(nn.Module):
             value = weights.pop(original_key)
             if key.startswith("model.language_model."):
                 key = key.replace("model.language_model.", "model.", 1)
-            if key.startswith(("model.visual.", "visual.", "model.mtp.", "mtp.")):
+            ignored_prefixes = ("model.visual.", "visual.", "model.mtp.", "mtp.")
+            if key.startswith(ignored_prefixes):
                 continue
-            if key.startswith(f"model.layers.{self.args.num_hidden_layers}."):
+            if self.mtp is None and key.startswith(
+                f"model.layers.{self.args.num_hidden_layers}."
+            ):
                 # The checkpoint's extra decoder is the MTP prediction head.
                 continue
             if "_conv1d.weight" in key:
@@ -1173,7 +1277,7 @@ class Model(nn.Module):
             if key.endswith(".A_log"):
                 value = value.reshape(-1)
             result[key] = value
-        for i, layer in enumerate(self.layers):
+        for i, layer in enumerate(self.model.layers):
             if not isinstance(layer.mlp, MoE):
                 continue
             p = f"model.layers.{i}.mlp"
@@ -1197,6 +1301,6 @@ class Model(nn.Module):
             logger.info(
                 "Prepared GLM5-Next MLX experts for layer %d/%d",
                 i + 1,
-                len(self.layers),
+                len(self.model.layers),
             )
         return result

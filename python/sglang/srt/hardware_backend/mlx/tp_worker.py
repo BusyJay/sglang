@@ -95,6 +95,7 @@ class MlxTpModelWorker(TpModelWorker):
             quantization=get_model().quantization,
             revision=get_model().revision,
             enable_sampling=get_device().mlx_enable_sampling,
+            mtp_num_steps=get_device().mlx_mtp_num_steps,
             sampling_rng_seed=get_device().random_seed,
             deterministic_seeding=(
                 get_exec().deterministic.enable_deterministic_inference
@@ -437,6 +438,11 @@ class MlxTpModelWorker(TpModelWorker):
 
         self._cleanup_stale_rids(forward_mode, {req.rid for req in reqs})
 
+        if get_device().mlx_mtp_num_steps:
+            for req in reqs:
+                self._mlx_runner._mtp.set_remaining(
+                    req.rid, req.sampling_params.max_new_tokens - len(req.output_ids)
+                )
         if forward_mode.is_decode():
             req_ids = [req.rid for req in reqs]
             pending_decode = self._mlx_runner.decode_batch_start(

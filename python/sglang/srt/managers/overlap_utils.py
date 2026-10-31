@@ -538,7 +538,9 @@ class FutureMap:
     ) -> None:
         """Write only output_tokens_buf rows; for relays carrying no draft
         extras (stash() would lazy-init the spec bufs from the payload)."""
-        self.output_tokens_buf[indices] = bonus_tokens.to(self.output_tokens_buf.dtype)
+        self.output_tokens_buf[indices] = bonus_tokens.to(
+            device=self.output_tokens_buf.device, dtype=self.output_tokens_buf.dtype
+        )
 
     def resolve_mixed_spec_tails(self, batch: ScheduleBatch) -> None:
         """Late-bind a spec mixed batch's decode tails (overlap): schedule-time
@@ -693,8 +695,10 @@ class FutureMap:
         if relay is not None and payload.bonus_tokens is relay.published_bonus:
             relay.published_bonus = None
         else:
+            # MLX produces CPU tokens even when the relay lives on MPS.
             self.output_tokens_buf[indices] = payload.bonus_tokens.to(
-                self.output_tokens_buf.dtype
+                device=self.output_tokens_buf.device,
+                dtype=self.output_tokens_buf.dtype,
             )
 
         # Staging transitions refresh only the bonus token. Preserve top-k and

@@ -63,6 +63,16 @@ class Device(msgspec.Struct):
             "only). Penalties are not applied."
         ),
     ] = False
+    mlx_mtp_num_steps: A[
+        int,
+        (
+            "GLM5-Next MLX MTP lookahead: 0 disables, 1-16 fixes the number "
+            "of draft tokens per verification, -1 adapts between 0 and 8 "
+            "using measured committed-token throughput. Requires native "
+            "GLM5-Next weights with one MTP layer. Normal sampling, logprobs "
+            "and per-token stopping remain in the serving pipeline."
+        ),
+    ] = 0
     watchdog_timeout: A[
         float,
         "Set watchdog timeout in seconds. If a forward batch takes longer than this, the server will crash to prevent hanging.",

@@ -164,6 +164,8 @@ class MlxModelRunner:
     _sanitize_nan = False
     _deterministic_seeding = False
     _native_cache = False
+    _mtp = None
+    _mtp_num_steps = 0
 
     def __init__(
         self,
@@ -177,7 +179,11 @@ class MlxModelRunner:
         enable_sampling: bool = False,
         sampling_rng_seed: int = 0,
         deterministic_seeding: bool = False,
+        mtp_num_steps: int = 0,
     ):
+        if not -1 <= mtp_num_steps <= 16:
+            raise ValueError("mtp_num_steps must be -1 (auto), or 0-16")
+        self._mtp_num_steps = mtp_num_steps
         self.model_path = model_path
         self.trust_remote_code = trust_remote_code
         self.revision = revision
@@ -227,6 +233,10 @@ class MlxModelRunner:
             mx.set_wired_limit(max_wired)
             logger.info(f"Wired memory limit set to {max_wired / (1024**3):.1f} GB")
 
+        if mtp_num_steps:
+            from sglang.srt.hardware_backend.mlx.mtp_serving import MlxMTPServing
+
+            self._mtp = MlxMTPServing(self.model, mtp_num_steps)
         self._native_cache = getattr(self.model, "native_cache", False)
         if self._native_cache:
             layer_list = self.model.layers
@@ -522,6 +532,8 @@ class MlxModelRunner:
         # layout. return_config=True is cheap and ignored when no quantization is requested.
         with open(model_dir / "config.json") as handle:
             checkpoint_config = json.load(handle)
+        if self._mtp_num_steps and checkpoint_config.get("model_type") != "glm5_next":
+            raise ValueError("MLX MTP currently requires a native GLM5-Next checkpoint")
         if checkpoint_config.get("model_type") == "glm5_next":
             if envs.SGLANG_MLX_CACHE_LIMIT_GB.get() is None:
                 # Expert stacking releases shard arrays as it goes. Keep the
@@ -537,7 +549,10 @@ class MlxModelRunner:
             self.model, config = load_model(
                 model_dir,
                 lazy=True,
-                get_model_classes=lambda config: (Model, ModelArgs),
+                get_model_classes=lambda config: (
+                    lambda args: Model(args, enable_mtp=bool(self._mtp_num_steps)),
+                    ModelArgs,
+                ),
             )
         else:
             self.model, _tokenizer, config = mlx_lm_load(
@@ -915,6 +930,8 @@ class MlxModelRunner:
         if not self.disable_radix_cache:
             self._sync_decode_kv_to_pool(req_id, end=owned_len)
         self._req_pool_idx.pop(req_id, None)
+        if self._mtp is not None and self._mtp.remove(req_id):
+            logger.info("MLX MTP stats: %s", self._mtp.stats())
 
     def decode_batch(self, req_ids: list[str]) -> list[int]:
         """Decode one token per request.
@@ -1145,7 +1162,9 @@ class MlxModelRunner:
         split = track_len - run_prefix if track_len is not None else None
         if split is not None and 0 < split < len(run_tokens):
             inputs = mx.array([run_tokens[:split]], mx.int32)
-            if self._trunk_forward(inputs, cache) is None:
+            if self._mtp is not None:
+                self._mtp.prefill(req_id, inputs, cache)
+            elif self._trunk_forward(inputs, cache) is None:
                 self.model(inputs, cache=cache)
             self._store_tracked_auxiliary_state(req, cache, track_len)
             run_tokens = run_tokens[split:]
@@ -1309,6 +1328,15 @@ class MlxModelRunner:
 
         Skips the logit head for discarded-output chunks when possible.
         """
+        if self._mtp is not None:
+            hidden = self._mtp.prefill(req_id, input_ids, cache)
+            if not needs_logits:
+                return self._dummy_next_token(hidden), None
+            logits = self.model.lm_head(hidden[:, -1:, :])
+            edits = logit_edit_row[None, :] if logit_edit_row is not None else None
+            return self._select_tokens_with_logprobs(
+                logits[:, -1], [req_id], [cache], edits, logprob_spec
+            )
         if not needs_logits:
             hidden = self._trunk_forward(input_ids, cache)
             if hidden is not None:
@@ -1759,7 +1787,15 @@ class MlxModelRunner:
         last_tokens = [self._req_token_ids[rid][-1] for rid in req_ids]
         batched_input = mx.array(last_tokens, dtype=mx.int32)[:, None]
 
-        if self._native_cache:
+        if self._mtp is not None:
+            last_logits = mx.concatenate(
+                [
+                    self._mtp.decode(rid, batched_input[i : i + 1], caches[i])
+                    for i, rid in enumerate(req_ids)
+                ],
+                axis=0,
+            )
+        elif self._native_cache:
             last_logits = self._decode_with_native_cache(
                 caches, [batched_input[i : i + 1] for i in range(len(caches))]
             )
@@ -1813,6 +1849,8 @@ class MlxModelRunner:
           returned pending: state bookkeeping for step N has to happen
           before step N+1's bookkeeping.
         """
+        if self._mtp is not None:
+            raise RuntimeError("GLM MLX MTP requires non-overlap scheduling")
         caches = prev.caches
 
         # After prev's graph ran, each attention KV cache offset was
@@ -1880,6 +1918,8 @@ class MlxModelRunner:
     def remove_request(self, req_id: str):
         """Release request state without syncing: decode KV reaches the pool
         only through release_request_row, while the request owns its row."""
+        if self._mtp is not None and self._mtp.remove(req_id):
+            logger.info("MLX MTP stats: %s", self._mtp.stats())
         self._req_token_ids.pop(req_id, None)
         self._req_sampling.pop(req_id, None)
         cache = self._req_caches.pop(req_id, None)
@@ -1890,6 +1930,8 @@ class MlxModelRunner:
 
     def clear(self):
         """Clear all request states."""
+        if self._mtp is not None:
+            self._mtp.clear()
         self._req_token_ids.clear()
         self._req_sampling.clear()
         for cache in self._req_caches.values():

@@ -13,7 +13,7 @@ from unittest.mock import patch
 from sglang.test.ci.ci_register import register_mlx_ci
 from sglang.test.test_utils import CustomTestCase
 
-register_mlx_ci(est_time=6, suite="stage-a-unit-test-mlx")
+register_mlx_ci(est_time=10, suite="stage-a-unit-test-mlx")
 
 
 @unittest.skipUnless(importlib.util.find_spec("mlx"), "requires MLX")
@@ -909,6 +909,348 @@ class TestGlm5NextMlx(CustomTestCase):
         with torch.no_grad():
             expected = self.reference.layers[3].mlp(torch.from_numpy(values)).numpy()
         np.testing.assert_allclose(np.array(actual), expected, rtol=2e-4, atol=2e-5)
+
+    def _mtp_model(self):
+        import copy
+
+        import mlx.core as mx
+        from mlx.utils import tree_flatten
+
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import Model
+
+        args = copy.copy(self.model.args)
+        args.num_nextn_predict_layers = 1
+        mx.random.seed(71)
+        model = Model(args, enable_mtp=True)
+        model.load_weights(tree_flatten(self.model.parameters()), strict=False)
+        return model
+
+    def test_mtp_head_matches_plain_reference_equations(self):
+        """MTP is plain MLA and concatenates embedding before hidden."""
+        import mlx.core as mx
+        import numpy as np
+        import torch
+        from mlx.utils import tree_flatten
+
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import NativeCache
+
+        model = self._mtp_model()
+        # Reuse independently loaded HF MLA/MoE weights; discard the trunk's
+        # hyper-connection tensors, which do not belong to the MTP decoder.
+        source = self.model.layers[3]
+        model.mtp.load_weights(
+            [
+                (k, v)
+                for k, v in tree_flatten(source.parameters())
+                if not k.startswith("hc_")
+            ],
+            strict=False,
+        )
+        rng = np.random.default_rng(18)
+        for norm in (model.mtp.enorm, model.mtp.hnorm, model.mtp.shared_head.norm):
+            norm.weight = mx.array(
+                rng.uniform(0.5, 1.5, self.config.hidden_size).astype("float32")
+            )
+        tokens = mx.array([[3, 5, 7]])
+        hidden = mx.array(
+            rng.normal(size=(1, 3, self.config.hidden_size)).astype("float32")
+        )
+        logits, raw = model.forward_mtp(tokens, hidden, NativeCache(4))
+        layer = self.reference.layers[3]
+
+        def tensor(value):
+            return torch.from_numpy(np.array(value).copy())
+
+        def norm(value, weight):
+            return torch.nn.functional.rms_norm(
+                value,
+                (self.config.hidden_size,),
+                tensor(weight),
+                self.config.rms_norm_eps,
+            )
+
+        with torch.no_grad():
+            e = self.reference.embed_tokens(tensor(tokens).long())
+            joined = torch.cat(
+                [
+                    norm(e, model.mtp.enorm.weight),
+                    norm(tensor(hidden), model.mtp.hnorm.weight),
+                ],
+                -1,
+            )
+            x = joined @ tensor(model.mtp.eh_proj.weight).T
+            attn, _, _ = layer.self_attn(
+                layer.input_layernorm(x),
+                attention_mask=torch.ones((1, 3), dtype=torch.bool),
+            )
+            x = x + attn
+            x = x + layer.mlp(layer.post_attention_layernorm(x))
+            expected = (
+                norm(x, model.mtp.shared_head.norm.weight)
+                @ tensor(model.lm_head.weight).T
+            )
+        np.testing.assert_allclose(np.array(raw), x.numpy(), atol=2e-5, rtol=2e-4)
+        np.testing.assert_allclose(
+            np.array(logits), expected.numpy(), atol=2e-5, rtol=2e-4
+        )
+
+    def test_mtp_verify_preserves_both_cache_commit_paths(self):
+        """Rejection restores conv/state and indexer tails across pool boundaries."""
+        import copy
+
+        import mlx.core as mx
+        import mlx.nn as nn
+        import numpy as np
+        from mlx.utils import tree_flatten
+
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import Model
+
+        args = copy.copy(self.model.args)
+        args.num_nextn_predict_layers = 1
+        args.hc_mult = 4
+        args.moe_intermediate_size = 64
+        mx.random.seed(72)
+        model = Model(args, enable_mtp=True)
+        model.set_dtype(mx.bfloat16)
+        nn.quantize(
+            model,
+            group_size=32,
+            bits=4,
+            class_predicate=lambda path, module: (
+                {"group_size": 32, "bits": 5 if "down_proj" in path else 6}
+                if ".mlp." in path and hasattr(module, "to_quantized")
+                else False
+            ),
+        )
+        # Match the production checkpoint's BF16 residual / FP16 affine metadata.
+        model.load_weights(
+            [
+                (k, v.astype(mx.float16))
+                for k, v in tree_flatten(model.parameters())
+                if k.endswith((".scales", ".biases"))
+            ],
+            strict=False,
+        )
+        model.configure_optimizations("affine_fused")
+        for length in (3, 4, 9, 10, 13):
+            with self.subTest(prefix_length=length):
+                serial, block = model.make_cache(), model.make_cache()
+                prompt = mx.array([self.tokens[:length]])
+                mx.eval(model(prompt, serial), model(prompt, block))
+                root, draft = mx.array([[17]]), mx.array([[19]])
+                first, h1 = model.forward_with_hidden(root, serial)
+                root_expected = model.make_cache()
+                for old, new in zip(serial, root_expected):
+                    new.cache = [
+                        mx.array(v) if v is not None else None for v in old.cache
+                    ]
+                    new.offset = old.offset
+                second, h2 = model.forward_with_hidden(draft, serial)
+                logits, hidden, root_cache = model.verify_mtp(root, draft, block)
+                np.testing.assert_array_equal(
+                    np.array(logits.astype(mx.float32)),
+                    np.array(mx.concatenate([first, second], 1).astype(mx.float32)),
+                )
+                np.testing.assert_array_equal(
+                    np.array(hidden.astype(mx.float32)),
+                    np.array(mx.concatenate([h1, h2], 1).astype(mx.float32)),
+                )
+                for actual, expected in ((block, serial), (root_cache, root_expected)):
+                    for a, b in zip(actual, expected):
+                        self.assertEqual(a.offset, b.offset)
+                        for av, bv in zip(a.cache, b.cache):
+                            if av is None or bv is None:
+                                self.assertIs(av, bv)
+                            else:
+                                np.testing.assert_array_equal(
+                                    np.array(av.astype(mx.float32)),
+                                    np.array(bv.astype(mx.float32)),
+                                )
+                    np.testing.assert_array_equal(
+                        np.array(model(mx.array([[23]]), actual).astype(mx.float32)),
+                        np.array(model(mx.array([[23]]), expected).astype(mx.float32)),
+                    )
+
+    def test_mtp_generation_matches_ar_on_accept_and_reject(self):
+        """Rejection and bonus tokens preserve following-token alignment."""
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.mtp import greedy_mtp_generate
+
+        for accept_all in (False, True):
+            with self.subTest(accept_all=accept_all):
+                model = self._mtp_model()
+                if accept_all:
+                    model.lm_head.weight = mx.zeros_like(model.lm_head.weight)
+                prompt = mx.array([self.tokens])
+                cache = model.make_cache()
+                x = prompt
+                expected = []
+                for _ in range(17):
+                    logits = model.forward_last_logits(x, cache)
+                    x = mx.argmax(logits, -1)
+                    expected.append(x.item())
+                actual = greedy_mtp_generate(model, prompt, 17)
+                self.assertEqual(actual.tokens, expected)
+                if accept_all:
+                    self.assertEqual(
+                        actual.num_correct_drafts, actual.num_proposed_drafts
+                    )
+                else:
+                    self.assertGreater(
+                        actual.num_proposed_drafts, actual.num_correct_drafts
+                    )
+                for limit in (0, 1, 2, 4):
+                    self.assertEqual(
+                        greedy_mtp_generate(model, prompt, limit).tokens,
+                        expected[:limit],
+                    )
+                stop = expected[0]
+                self.assertEqual(
+                    greedy_mtp_generate(model, prompt, 17, eos_tokens=[stop]).tokens,
+                    [stop],
+                )
+
+    def test_serving_mtp_publishes_only_consumed_rows(self):
+        """Speculative state must not escape to prefix cache or output logprobs."""
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.mtp_serving import MlxMTPServing
+
+        for steps in (0, 1, 2, 4, 8, 16, -1):
+            with self.subTest(steps=steps):
+                model = self._mtp_model()
+                engine = MlxMTPServing(model, steps)
+                baseline, actual = model.make_cache(), model.make_cache()
+                prompt = mx.array([self.tokens])
+                expected = model.model(prompt, baseline)
+                hidden = engine.prefill("a", prompt, actual)
+                self.assertTrue(mx.array_equal(hidden, expected).item())
+                token = mx.argmax(model.lm_head(expected[:, -1:]), -1)
+                count = 20 if steps == 16 else 12
+                for i in range(count):
+                    # An external grammar/bias/sampler may pick a different
+                    # token than the drafter. Its actual choice must win.
+                    if i == 3:
+                        token = mx.array([[(token.item() + 7) % 64]])
+                    engine.set_remaining("a", count - i)
+                    expected, _ = model.forward_with_hidden(token, baseline)
+                    logits = engine.decode("a", token, actual)
+                    self.assertTrue(mx.array_equal(logits, expected[:, -1]).item())
+                    for a, b in zip(actual, baseline):
+                        self.assertEqual(a.offset, b.offset)
+                        for av, bv in zip(a.cache, b.cache):
+                            if av is None or bv is None:
+                                self.assertIs(av, bv)
+                            else:
+                                self.assertTrue(mx.array_equal(av, bv).item())
+                    token = mx.argmax(expected, -1)
+                engine.remove("a")
+                self.assertFalse(engine.states)
+
+    def test_serving_mtp_prefix_snapshot_and_chunk_handoff(self):
+        """Restore target and head at one committed boundary, without pending drafts."""
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.kv_cache.auxiliary_state import (
+            _restore_cache,
+            _snapshot_cache,
+        )
+        from sglang.srt.hardware_backend.mlx.mtp_serving import MlxMTPServing
+
+        model = self._mtp_model()
+        engine = MlxMTPServing(model, 3)
+        cache = model.make_cache()
+        # Chunk handoff pairs the previous chunk's hidden with the first
+        # token of the next chunk, rather than losing one head position.
+        prompt = mx.array([self.tokens])
+        engine.prefill("a", prompt[:, :4], cache)
+        hidden = engine.prefill("a", prompt[:, 4:], cache)
+        self.assertEqual(engine.states["a"].head.offset, len(self.tokens) - 1)
+        token = mx.argmax(model.lm_head(hidden[:, -1:]), -1)
+        logits = engine.decode("a", token, cache)
+        boundary = cache[0].offset
+        saved = [_snapshot_cache(c) for c in cache]
+        restored = model.make_cache()
+        for dst, snapshot in zip(restored, saved):
+            _restore_cache(dst, snapshot)
+        self.assertEqual(restored[0].mlx_mtp[3], boundary)
+        engine.remove("a")
+        token = mx.argmax(logits, -1)[:, None]
+        # Reusing the request id with a restored prefix must not reuse a
+        # previous speculative queue. Only the saved committed head survives.
+        resumed = engine.decode("a", token, restored)
+        expected, _ = model.forward_with_hidden(token, cache)
+        self.assertTrue(mx.array_equal(resumed, expected[:, -1]).item())
+        self.assertEqual(engine.states["a"].head.offset, boundary)
+        engine.clear()
+        self.assertFalse(engine.states)
+
+    def test_serving_mtp_can_resume_after_ordinary_decode(self):
+        """Adaptive zero-step mode defers head work without losing known-token pairs."""
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.mtp_serving import MlxMTPServing
+
+        model = self._mtp_model()
+        engine = MlxMTPServing(model, 0)
+        cache, baseline = model.make_cache(), model.make_cache()
+        prompt = mx.array([self.tokens])
+        hidden = engine.prefill("a", prompt, cache)
+        mx.eval(model.model(prompt, baseline))
+        token = mx.argmax(model.lm_head(hidden[:, -1:]), -1)
+        for i in range(10):
+            if i == 4:
+                engine.num_steps = 3
+            logits = engine.decode("a", token, cache)
+            expected, _ = model.forward_with_hidden(token, baseline)
+            self.assertTrue(mx.array_equal(logits, expected[:, -1]).item())
+            token = mx.argmax(expected, -1)
+        self.assertFalse(engine.states["a"].pending_hidden)
+        self.assertEqual(engine.states["a"].head.offset, cache[0].offset - 1)
+
+    def test_adaptive_mtp_scores_consumed_tokens_and_reexplores(self):
+        """Wasted drafts must reduce a budget's score; zero remains a valid choice."""
+        from sglang.srt.hardware_backend.mlx.mtp_serving import AdaptiveMTPBudget
+
+        budget = AdaptiveMTPBudget()
+        for _ in budget.candidates:
+            steps = budget.choose()
+            # Two drafts commit three rows at cost 0.1s; other windows
+            # consume one row at cost 0.1s despite their draft count.
+            budget.observe(steps, 3 if steps == 2 else 1, 0.1)
+        self.assertEqual(budget.choose(), 2)
+        budget.observe(0, 1, 0.001)
+        self.assertEqual(budget.choose(), 0)
+        # Revisit neighbors without repeatedly paying for distant losing budgets.
+        explored = set()
+        for _ in range(16 * len(budget.candidates)):
+            steps = budget.choose()
+            explored.add(steps)
+            budget.observe(steps, 1, 0.001 if steps == 0 else 0.1)
+        self.assertEqual(explored, {0, 1})
+
+    def test_mtp_snapshots_share_storage_and_isolate_slice_assignment(self):
+        """Isolate slice assignment without copying multi-MiB recurrent states."""
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import NativeCache
+        from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
+
+        cache = NativeCache(4)
+        cache[0] = mx.ones((1, 64, 128, 128), mx.float32)
+        cache[3] = mx.zeros((1, 64, 128), mx.float32)
+        mx.eval(cache.cache)
+        before = mx.get_active_memory()
+        snapshot = clone_cache(cache)
+        mx.eval(snapshot.cache)
+        self.assertLessEqual(mx.get_active_memory() - before, 4096)
+        self.assertIsNot(snapshot[0], cache[0])
+        self.assertIsNot(snapshot[3], cache[3])
+        cache[0][0, 0, 0, 0] = 3
+        cache[3][:, 0] = 7
+        self.assertEqual(snapshot[0][0, 0, 0, 0].item(), 1)
+        self.assertEqual(mx.max(snapshot[3]).item(), 0)
 
 
 if __name__ == "__main__":

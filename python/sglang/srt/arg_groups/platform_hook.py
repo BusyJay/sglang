@@ -40,6 +40,12 @@ def handle_npu_backends(server_args: Any):
 
 def handle_mps_backends(server_args: Any):
     cfg = resolving_view(server_args)
+    if not -1 <= cfg.mlx_mtp_num_steps <= 16:
+        raise ValueError("mlx_mtp_num_steps must be -1 (auto), or 0-16")
+    if cfg.mlx_mtp_num_steps and cfg.speculative_algorithm is not None:
+        raise ValueError("Native MLX MTP cannot be combined with speculative_algorithm")
+    if cfg.mlx_mtp_num_steps and (cfg.device != "mps" or not use_mlx()):
+        raise ValueError("mlx_mtp_num_steps requires the MLX MPS backend")
     if cfg.device == "mps":
         if not use_mlx():
             declare_resolution(
