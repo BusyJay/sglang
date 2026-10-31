@@ -19,7 +19,11 @@ from mlx_lm.models.kimi_linear import ShortConv1d, _group_expert_select
 from mlx_lm.models.switch_layers import QuantizedSwitchLinear, SwitchGLU
 
 from sglang.kernels.ops.attention.linear.mlx_kda import mlx_kda_decode
-from sglang.kernels.ops.gemm.mlx_affine_rows import mlx_affine_rows
+from sglang.kernels.ops.gemm.mlx_affine_rows import (
+    mlx_affine_routed_swiglu,
+    mlx_affine_rows,
+    mlx_affine_swiglu_rows,
+)
 from sglang.kernels.ops.gemm.mlx_dense_rows import mlx_dense_rows
 from sglang.kernels.ops.layernorm.mlx_hc import mlx_hc_collapse_norm
 from sglang.kernels.ops.moe.mlx_glm import (
@@ -95,10 +99,35 @@ def _row_exact_affine_ffn(block, x, indices=None, *, gate_up_only=False):
             indices=indices,
         )
 
+    limit = block.activation.limit if indices is not None else block.limit
+    if (projections[0].bits, projections[0].group_size) == (
+        projections[1].bits,
+        projections[1].group_size,
+    ):
+        fields = ("weight", "scales", "biases")
+        operands = [tuple(p[k] for k in fields) for p in projections[:2]]
+        if indices is None:
+            act = mlx_affine_swiglu_rows(
+                x,
+                *operands,
+                bits=projections[0].bits,
+                group_size=projections[0].group_size,
+                limit=limit,
+            )
+        else:
+            act = mlx_affine_routed_swiglu(
+                x,
+                *operands,
+                indices,
+                bits=projections[0].bits,
+                group_size=projections[0].group_size,
+                limit=limit,
+            )
+        if act is not None:
+            return act if gate_up_only else project(act, projections[2])
     gate, up = project(x, projections[0]), project(x, projections[1])
     if gate is None or up is None:
         return None
-    limit = block.activation.limit if indices is not None else block.limit
     act = _compiled_swiglu(gate, up, limit)
     return act if gate_up_only else project(act, projections[2])
 
@@ -194,7 +223,7 @@ class ClampedSwitchGLU(SwitchGLU):
         if not all(
             type(p) is QuantizedSwitchLinear
             and "bias" not in p
-            and p.global_scale is None
+            and getattr(p, "global_scale", None) is None
             for p in (gate, up)
         ):
             return False
@@ -236,6 +265,33 @@ class ClampedSwitchGLU(SwitchGLU):
         dtype = x.dtype
         if restore_dtype:
             x = x.astype(mx.float16)
+        gate, up = self.gate_proj, self.up_proj
+        if (
+            x.shape[1] > 1
+            and isinstance(gate, QuantizedSwitchLinear)
+            and isinstance(up, QuantizedSwitchLinear)
+            and gate.mode == up.mode == "affine"
+            and gate.bits == up.bits
+            and gate.group_size == up.group_size
+            and "bias" not in gate
+            and "bias" not in up
+            and getattr(gate, "global_scale", None) is None
+            and getattr(up, "global_scale", None) is None
+        ):
+            act = mlx_affine_routed_swiglu(
+                x,
+                (gate.weight, gate.scales, gate.biases),
+                (up.weight, up.scales, up.biases),
+                indices,
+                bits=gate.bits,
+                group_size=gate.group_size,
+                limit=self.activation.limit,
+            )
+            if act is not None:
+                out = self.down_proj(
+                    act[..., None, :], mx.stop_gradient(indices)
+                ).squeeze(-2)
+                return out.astype(dtype) if restore_dtype else out
         if (
             self.compile_decode
             and x.dtype != mx.float32
@@ -461,7 +517,7 @@ class MoE(nn.Module):
                 type(p) is QuantizedSwitchLinear
                 and p.mode == "affine"
                 and "bias" not in p
-                and p.global_scale is None
+                and getattr(p, "global_scale", None) is None
                 for p in projections
             ):
                 local = x
@@ -476,6 +532,9 @@ class MoE(nn.Module):
                     and down.weight.shape[-1] * 32 // down.bits % 512 == 0
                     and down.weight.shape[-2] % 16 == 0
                 ):
+                    # On M5 the fused multi-row epilogue helps verification,
+                    # while native compiled singleton QMV remains faster in
+                    # serving. Keep that measured one-row dispatch choice.
                     act = (
                         _row_exact_affine_ffn(sw, local, indices, gate_up_only=True)
                         if batch_fusion and x.shape[1] > 1

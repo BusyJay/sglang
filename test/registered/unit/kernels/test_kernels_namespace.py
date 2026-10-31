@@ -33,6 +33,8 @@ _MUSA = PlatformInfo(device_type="musa")
         "layernorm.mlx_hc_collapse_norm",
         "gemm.mlx_affine_rows",
         "gemm.mlx_dense_rows",
+        "gemm.mlx_affine_swiglu_rows",
+        "gemm.mlx_affine_routed_swiglu",
         "moe.mlx_glm_router",
         "moe.mlx_glm_down_combine",
     ],
