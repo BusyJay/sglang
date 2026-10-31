@@ -874,6 +874,7 @@ class TestGlm5NextMlx(CustomTestCase):
             with (
                 self.subTest(group_size=group_size),
                 patch.object(self.model.model, "_eval_group_size", group_size),
+                patch.object(self.model.model, "_decode_eval_group_size", group_size),
             ):
                 cache = self.model.make_cache()
                 parts = [self.model.model(mx.array([self.tokens[:9]]), cache)]
@@ -886,6 +887,59 @@ class TestGlm5NextMlx(CustomTestCase):
                 self.assertTrue(
                     all(state.offset == len(self.tokens) for state in cache)
                 )
+
+    def test_verification_submission_has_independent_bounds_and_cache_scope(self):
+        """Verification publishes only its current layer group, including a partial tail."""
+        import mlx.core as mx
+
+        trunk = self.model.model
+        decode = trunk._decode_eval_group_size
+        prefill = trunk._eval_group_size
+        verification = trunk._verification_eval_group_size
+        baseline = self.model.make_cache()
+        mx.eval(self.model(mx.array([[1, 2, 3, 4]]), baseline))
+        from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
+
+        expected = None
+        real_eval = mx.async_eval
+        try:
+            for group in (1, 3, 8):
+                submitted = []
+                group_sizes = []
+                cache = [clone_cache(c) for c in baseline]
+                self.model.configure_eval_groups(
+                    decode=8, prefill=2, verification=group
+                )
+
+                def capture(
+                    value, states, group_sizes=group_sizes, submitted=submitted
+                ):
+                    group_sizes.append(len(states))
+                    submitted.extend(states)
+                    return real_eval(value, states)
+
+                with patch.object(mx, "async_eval", capture):
+                    result = self.model.verify_mtp_rows(mx.array([[5, 6]]), cache)
+                mx.eval(result[:2], [c.cache for c in cache])
+                self.assertEqual(
+                    group_sizes,
+                    [
+                        min(group, len(cache) - start)
+                        for start in range(0, len(cache), group)
+                    ],
+                )
+                self.assertEqual(len(submitted), len(cache))
+                for published, state in zip(submitted, cache):
+                    self.assertIs(published, state.cache)
+                if expected is None:
+                    expected = result[:2]
+                else:
+                    for actual, want in zip(result[:2], expected):
+                        self.assertTrue(mx.array_equal(actual, want).item())
+        finally:
+            self.model.configure_eval_groups(
+                decode=decode, prefill=prefill, verification=verification
+            )
 
     def test_compiled_joint_gate_up_observes_weight_and_limit_updates(self):
         """A cached producer graph must read replacement checkpoint arrays each call."""
@@ -919,6 +973,44 @@ class TestGlm5NextMlx(CustomTestCase):
             actual = _compiled_routed_gate_up(block, x, indices)
             expected = _compiled_quantized_ffn(block, x, indices, gate_up_only=True)
             self.assertTrue(mx.array_equal(actual, expected).item())
+
+    def test_phase_submission_groups_preserve_partial_group_cache(self):
+        """A final partial group must publish all layer states at twelve layers."""
+        import mlx.core as mx
+
+        trunk = self.model.model
+        original_decode = trunk._decode_eval_group_size
+        original_prefill = trunk._eval_group_size
+        variants = []
+        try:
+            with (
+                patch.object(trunk, "layers", trunk.layers[:4] * 3),
+                patch.object(trunk.args, "num_hidden_layers", 12),
+            ):
+                for group in (1, 4, 8):
+                    self.model.configure_eval_groups(decode=group, prefill=4)
+                    cache = self.model.make_cache()
+                    outputs = []
+                    for inputs in ([[1, 2, 3, 4]], [[5]], [[6]]):
+                        outputs.append(self.model(mx.array(inputs), cache))
+                        mx.eval(outputs[-1], [c.cache for c in cache])
+                    variants.append((outputs, cache))
+                for outputs, cache in variants[1:]:
+                    for actual, expected in zip(outputs, variants[0][0]):
+                        self.assertTrue(mx.array_equal(actual, expected).item())
+                    for actual, expected in zip(cache, variants[0][1]):
+                        self.assertEqual(actual.offset, 6)
+                        for i in range(4):
+                            if actual[i] is None:
+                                self.assertIsNone(expected[i])
+                            else:
+                                self.assertTrue(
+                                    mx.array_equal(actual[i], expected[i]).item()
+                                )
+        finally:
+            self.model.configure_eval_groups(
+                decode=original_decode, prefill=original_prefill
+            )
 
     def test_kda_qkv_fusion_preserves_quantization_and_canonical_weights(self):
         """Load-time fusion must preserve mixed-bit fallback, state and save format."""

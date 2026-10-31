@@ -1724,6 +1724,8 @@ class TextModel(nn.Module):
     # Submit one KDA/MLA period at a time. Async evaluation bounds the lazy
     # graph without making the host wait after each individual decoder layer.
     _eval_group_size = 4
+    _decode_eval_group_size = 4
+    _verification_eval_group_size = 4
 
     def __init__(self, args, enable_mtp=False):
         super().__init__()
@@ -1738,13 +1740,18 @@ class TextModel(nn.Module):
         x = self.embed_tokens(inputs)
         if self.args.mhc:
             x = mx.repeat(x[..., None, :], self.args.hc_mult, axis=-2)
+        group_size = (
+            self._decode_eval_group_size
+            if inputs.shape[1] == 1
+            else self._eval_group_size
+        )
         group_start = 0
         for i, (layer, state) in enumerate(
             zip(self.layers[: self.args.num_hidden_layers], cache)
         ):
             x = layer(x, cache=state)
             final_layer = i + 1 == self.args.num_hidden_layers
-            if (i + 1) % self._eval_group_size == 0 or final_layer:
+            if (i + 1) % group_size == 0 or final_layer:
                 mx.async_eval(x, [c.cache for c in cache[group_start : i + 1]])
                 group_start = i + 1
         if self.args.mhc:
@@ -1804,6 +1811,24 @@ class Model(nn.Module):
             raise ValueError(f"Unknown GLM MTP verification mode: {mode}")
         self._mtp_verification_mode = mode
 
+    def configure_eval_groups(self, *, decode=4, prefill=4, verification=4):
+        """Bound submission graphs by phase, before serving any requests.
+
+        Decode, prefill and MTP verification each default to four layers.
+        Larger singleton groups can amortize submissions across KDA/MLA periods.
+        Explicit arguments allow same-model submission A/B without global state.
+        """
+        if (
+            type(decode) is not int
+            or type(prefill) is not int
+            or type(verification) is not int
+            or min(decode, prefill, verification) < 1
+        ):
+            raise ValueError("MLX layer submission groups must be positive integers")
+        self.model._decode_eval_group_size = decode
+        self.model._eval_group_size = prefill
+        self.model._verification_eval_group_size = verification
+
     def configure_latent_projection_cache(self, enabled):
         for layer in self.model.layers:
             if not layer.is_linear:
@@ -1831,6 +1856,7 @@ class Model(nn.Module):
         if self.args.mhc:
             x = mx.repeat(x[..., None, :], self.args.hc_mult, axis=-2)
         snapshots = [[] for _ in range(count)]
+        group_start = 0
         for i, (layer, state) in enumerate(zip(self.layers, cache)):
             if mode == "ffn" and count > 1:
                 x, layer_snapshots = layer.verify_ffn_rows(x, state)
@@ -1847,8 +1873,11 @@ class Model(nn.Module):
                     snapshot.offset = state.offset
                     snapshots[j].append(snapshot)
                 x = mx.concatenate(rows, axis=1)
-            if (i + 1) % self.model._eval_group_size == 0 or i + 1 == len(cache):
-                mx.async_eval(x, [c.cache for c in cache])
+            if (i + 1) % self.model._verification_eval_group_size == 0 or i + 1 == len(
+                cache
+            ):
+                mx.async_eval(x, [c.cache for c in cache[group_start : i + 1]])
+                group_start = i + 1
         if self.args.mhc:
             x = x.mean(axis=-2)
         hidden_rows = [self.model.norm(x[:, j : j + 1]) for j in range(count)]
