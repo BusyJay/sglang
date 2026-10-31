@@ -11,6 +11,51 @@ register_mlx_ci(est_time=3, suite="stage-a-unit-test-mlx")
 
 @unittest.skipUnless(importlib.util.find_spec("mlx"), "requires MLX")
 class TestMlxGlmMoe(CustomTestCase):
+    def test_parallel_experts_preserve_serial_weighted_order(self):
+        """Concurrent down projections retain local casts and routing order."""
+        import mlx.core as mx
+
+        from sglang.kernels.ops.moe.mlx_glm import _kernel, mlx_glm_down_combine
+
+        mx.random.seed(29)
+        for bits in (4, 5, 6, 8):
+            for topk in (4, 8):
+                act = mx.random.normal((1, 1, topk, 512)).astype(mx.float16)
+                weights = mx.quantize(
+                    (mx.random.normal((8, 1024, 512)) * 0.03).astype(mx.float16),
+                    bits=bits,
+                    group_size=64,
+                )
+                indices = mx.arange(topk)[None, None].astype(mx.uint32)
+                scores = mx.linspace(-0.75, 0.75, topk)[None, None]
+                shared = mx.random.normal((1, 1, 1024)).astype(mx.bfloat16)
+                actual = mlx_glm_down_combine(
+                    act,
+                    indices,
+                    scores,
+                    *weights,
+                    shared,
+                    bits=bits,
+                    group_size=64,
+                )
+                expected = _kernel("down")(
+                    inputs=[act, indices, scores, *weights, shared],
+                    template=[
+                        ("T", act.dtype),
+                        ("R", shared.dtype),
+                        ("K", 512),
+                        ("N", 1024),
+                        ("TOPK", topk),
+                        ("BITS", bits),
+                        ("GS", 64),
+                    ],
+                    grid=(128 * 64, 1, 1),
+                    threadgroup=(128, 1, 1),
+                    output_shapes=[shared.shape],
+                    output_dtypes=[shared.dtype],
+                )[0]
+                self.assertTrue(mx.array_equal(actual, expected).item())
+
     def test_multirow_fusions_match_independent_rows(self):
         """Token offsets must isolate routing, experts and shared output."""
         import mlx.core as mx

@@ -355,6 +355,33 @@ _DOWN = r"""
     }
 """
 
+_DOWN_PARALLEL = r"""
+    const uint lane = thread_index_in_simdgroup;
+    const uint expert = simdgroup_index_in_threadgroup;
+    const uint row = threadgroup_position_in_grid.x * 4;
+    const uint tok = threadgroup_position_in_grid.y;
+    const size_t base = size_t(indices[tok * TOPK + expert]) * N + row;
+    float value[4] = {0};
+    glm_qmv_rows<T, K, GS, BITS, 4>(
+        (const device uint8_t*)w + base * (K * BITS / 8),
+        s + base * (K / GS), b + base * (K / GS),
+        act + (size_t(tok) * TOPK + expert) * K, lane, value);
+    threadgroup float weighted[TOPK * 4];
+    for (uint j = 0; j < 4; ++j) {
+        float v = float(R(T(simd_sum(value[j]))));
+        volatile float product = v * scores[tok * TOPK + expert];
+        if (lane == 0) weighted[expert * 4 + j] = product;
+    }
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    if (expert == 0 && lane < 4) {
+        float total = 0;
+        // Keep the original routing order and both local-output casts.
+        for (uint r = 0; r < TOPK; ++r) total += weighted[r * 4 + lane];
+        out[size_t(tok) * N + row + lane] =
+            R(total) + shared[size_t(tok) * N + row + lane];
+    }
+"""
+
 
 @cache
 def _kernel(kind):
@@ -365,7 +392,7 @@ def _kernel(kind):
         outputs, source = ["indices", "scores"], _SELECT
     else:
         inputs = ["act", "indices", "scores", "w", "s", "b", "shared"]
-        outputs, source = ["out"], _DOWN
+        outputs, source = ["out"], _DOWN_PARALLEL if kind == "down_parallel" else _DOWN
     return mx.fast.metal_kernel(
         name="sglang_moe_" + kind,
         input_names=inputs,
@@ -453,7 +480,12 @@ def mlx_glm_down_combine(
         or scores.shape != indices.shape
     ):
         return None
-    return _kernel("down")(
+    # Independent experts compute concurrently; the final four lanes retain
+    # the original routing reduction order. Small top-k keeps native geometry.
+    parallel = count == 1 and top_k >= 4 and out_dim >= 1024
+    threads = 32 * top_k if parallel else 128
+    rows = 4 if parallel else 16
+    return _kernel("down_parallel" if parallel else "down")(
         inputs=[act, indices, scores, weight, scales, biases, shared],
         template=[
             ("T", act.dtype),
@@ -464,8 +496,8 @@ def mlx_glm_down_combine(
             ("BITS", bits),
             ("GS", group_size),
         ],
-        grid=(128 * (out_dim // 16), count, 1),
-        threadgroup=(128, 1, 1),
+        grid=(threads * (out_dim // rows), count, 1),
+        threadgroup=(threads, 1, 1),
         output_shapes=[shared.shape],
         output_dtypes=[shared.dtype],
     )[0]
