@@ -607,6 +607,9 @@ class MlxModelRunner:
             self.model.configure_optimizations(
                 envs.SGLANG_MLX_GLM_OPTIMIZATION_PROFILE.get()
             )
+            self.model.configure_latent_projection_cache(
+                envs.SGLANG_MLX_GLM_CACHE_LATENT_PROJECTION.get()
+            )
             prepare_for_inference = getattr(self.model, "prepare_for_inference", None)
             if callable(prepare_for_inference):
                 prepare_for_inference()

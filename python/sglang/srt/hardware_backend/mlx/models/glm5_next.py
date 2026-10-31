@@ -784,6 +784,63 @@ class Indexer(nn.Module):
 
 
 class MLA(nn.Module):
+    cache_latent_projection = False
+
+    def _latent_matrices(self, activation_dtype):
+        """Retain the operands at their original matmul promotion boundary.
+
+        Dense BF16 KV-B weights also promote for FP32 queries. Pack/cast
+        each sliced operand separately, matching the uncached operation's
+        layout rather than changing it by casting the interleaved parent.
+        """
+        projection = self.kv_b_proj
+        quantized = isinstance(projection, nn.QuantizedLinear)
+        sources = (
+            tuple(projection.get(k) for k in ("weight", "scales", "biases"))
+            if quantized
+            else (projection.weight,)
+        )
+        spec = (
+            getattr(projection, "group_size", None),
+            getattr(projection, "bits", None),
+            getattr(projection, "mode", None),
+            activation_dtype,
+        )
+        saved = getattr(self, "_latent_projection", None)
+        if (
+            self.cache_latent_projection
+            and saved is not None
+            and saved[1] == spec
+            and len(saved[0]) == len(sources)
+            and all(a is b for a, b in zip(saved[0], sources))
+        ):
+            return saved[2]
+        weight = (
+            mx.dequantize(
+                *sources,
+                group_size=projection.group_size,
+                bits=projection.bits,
+                mode=projection.mode,
+            )
+            if quantized
+            else projection.weight
+        )
+        a = self.args
+        wk, wv = mx.split(
+            weight.reshape(a.num_attention_heads, -1, a.kv_lora_rank),
+            [a.qk_nope_head_dim],
+            axis=1,
+        )
+        wv = wv.swapaxes(-1, -2)
+        if self.cache_latent_projection:
+            dtype = mx.result_type(weight.dtype, activation_dtype)
+            matrices = (wk.astype(dtype), wv.astype(dtype))
+            mx.eval(matrices)
+            self._latent_projection = (sources, spec, matrices)
+            return matrices
+        self._latent_projection = None
+        return wk, wv
+
     def __init__(self, args):
         super().__init__()
         self.args = args
@@ -850,21 +907,7 @@ class MLA(nn.Module):
         # W_k and W_v map the shared latent to a head's K/V. Associate the
         # products as (Q W_k) C^T and (P C) W_v^T, rather than expanding every
         # historical latent C into all heads on each step.
-        weight = self.kv_b_proj.weight
-        if isinstance(self.kv_b_proj, nn.QuantizedLinear):
-            weight = mx.dequantize(
-                weight,
-                self.kv_b_proj.scales,
-                self.kv_b_proj.biases,
-                group_size=self.kv_b_proj.group_size,
-                bits=self.kv_b_proj.bits,
-                mode=self.kv_b_proj.mode,
-            )
-        wk, wv = mx.split(
-            weight.reshape(a.num_attention_heads, -1, a.kv_lora_rank),
-            [a.qk_nope_head_dim],
-            axis=1,
-        )
+        wk, wv = self._latent_matrices(q.dtype)
         latent_q = q @ wk
         if indices is not None and t == 1:
             # Every selected complete pool is visible to the final query.
@@ -916,7 +959,7 @@ class MLA(nn.Module):
                 .reshape(b, t, a.num_attention_heads, a.kv_lora_rank)
                 .transpose(0, 2, 1, 3)
             )
-        out = latent_out @ wv.swapaxes(-1, -2)
+        out = latent_out @ wv
         return self.o_proj(out.transpose(0, 2, 1, 3).reshape(b, t, -1))
 
 
@@ -1130,6 +1173,12 @@ class Model(nn.Module):
             mx.concatenate([root, draft], axis=1), cache
         )
         return logits, hidden, snapshots[0]
+
+    def configure_latent_projection_cache(self, enabled):
+        for layer in self.model.layers:
+            if not layer.is_linear:
+                layer.self_attn.cache_latent_projection = enabled
+                layer.self_attn._latent_projection = None
 
     def verify_mtp_rows(self, inputs, cache):
         """Verify a draft chain with serial arithmetic and per-position state.

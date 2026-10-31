@@ -1071,6 +1071,68 @@ class TestGlm5NextMlx(CustomTestCase):
                         np.array(model(mx.array([[23]]), expected).astype(mx.float32)),
                     )
 
+    def test_dense_latent_cache_tracks_dtype_and_weight_replacement(self):
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import MLA
+
+        attn = MLA(self.model.args)
+        attn.kv_b_proj.weight = attn.kv_b_proj.weight.astype(mx.bfloat16)
+        reference = attn._latent_matrices(mx.float32)
+        attn.cache_latent_projection = True
+        promoted = attn._latent_matrices(mx.float32)
+        self.assertIs(promoted, attn._latent_matrices(mx.float32))
+        self.assertTrue(all(v.dtype == mx.float32 for v in promoted))
+        for actual, expected in zip(promoted, reference):
+            self.assertTrue(mx.array_equal(actual, expected.astype(mx.float32)).item())
+        narrow = attn._latent_matrices(mx.bfloat16)
+        self.assertIsNot(narrow, promoted)
+        self.assertTrue(all(v.dtype == mx.bfloat16 for v in narrow))
+        attn.kv_b_proj.weight = attn.kv_b_proj.weight + mx.array(0.25, mx.bfloat16)
+        updated = attn._latent_matrices(mx.bfloat16)
+        self.assertIsNot(updated, narrow)
+        self.assertFalse(mx.array_equal(updated[0], narrow[0]).item())
+        attn.cache_latent_projection = False
+        attn._latent_matrices(mx.float32)
+        self.assertIsNone(attn._latent_projection)
+
+    def test_mla_retained_projection_invalidates_quantization_updates(self):
+        import copy
+
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import MLA
+
+        args = copy.copy(self.model.args)
+        args.kv_lora_rank = 32
+        attn = MLA(args)
+        attn.kv_b_proj = attn.kv_b_proj.to_quantized(group_size=32, bits=4)
+        attn.cache_latent_projection = True
+        first = attn._latent_matrices(mx.float32)
+        self.assertIs(first, attn._latent_matrices(mx.float32))
+        attn.kv_b_proj.scales = attn.kv_b_proj.scales * 1.01
+        second = attn._latent_matrices(mx.float32)
+        self.assertIsNot(first, second)
+        p = attn.kv_b_proj
+        expected = mx.dequantize(
+            p.weight,
+            p.scales,
+            p.biases,
+            group_size=p.group_size,
+            bits=p.bits,
+            mode=p.mode,
+        ).astype(mx.float32)
+        wk, wv = mx.split(
+            expected.reshape(args.num_attention_heads, -1, args.kv_lora_rank),
+            [args.qk_nope_head_dim],
+            axis=1,
+        )
+        self.assertTrue(mx.array_equal(second[0], wk).item())
+        self.assertTrue(mx.array_equal(second[1], wv.swapaxes(-1, -2)).item())
+        attn.cache_latent_projection = False
+        attn._latent_matrices(mx.float32)
+        self.assertIsNone(attn._latent_projection)
+
     def test_mtp_generation_matches_ar_on_accept_and_reject(self):
         """Rejection and bonus tokens preserve following-token alignment."""
         import mlx.core as mx

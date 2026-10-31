@@ -1118,6 +1118,9 @@ class Envs:
     SGLANG_USE_MLX = EnvBool(False)
     # BF16 residuals and local affine FP16, with fused HC/KDA/MoE decode kernels.
     SGLANG_MLX_GLM_OPTIMIZATION_PROFILE = EnvStr("affine_fused")
+    # Retain split/promoted MLA KV-B operands, including dense BF16 projections.
+    # Lazy, identity/dtype-invalidated storage trades resident memory for casts.
+    SGLANG_MLX_GLM_CACHE_LATENT_PROJECTION = EnvBool(True)
     SGLANG_MLX_USE_CUSTOM_ROPE = EnvBool(False)
     SGLANG_MLX_USE_POOL_ATTENTION = EnvBool(True)
     SGLANG_MLX_FUSE_SWIGLU = EnvBool(False)
