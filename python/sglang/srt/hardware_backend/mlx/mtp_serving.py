@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 def clone_cache(cache):
-    result = NativeCache(4)
+    result = type(cache)(4)
     # A distinct array object protects slice assignment; view shares storage.
     # mx.array(value) instead copies every multi-MiB recurrent state.
     result.cache = [v.view(v.dtype) if v is not None else None for v in cache.cache]

@@ -18,6 +18,103 @@ register_mlx_ci(est_time=10, suite="stage-a-unit-test-mlx")
 
 @unittest.skipUnless(importlib.util.find_spec("mlx"), "requires MLX")
 class TestGlm5NextMlx(CustomTestCase):
+    def test_latent_append_snapshots_restore_inside_and_across_blocks(self):
+        """Rejected suffixes cannot overwrite a retained prefix or append block."""
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import MLACache
+        from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
+
+        cache = MLACache(4)
+        expected = mx.arange(259 * 128).reshape(1, 259, 128).astype(mx.float32)
+        cache.append_latent(expected[:, :1])
+        cache.offset = 1
+        snapshots = []
+        for start, stop in ((1, 255), (255, 256), (256, 257), (257, 259)):
+            snapshots.append(clone_cache(cache))
+            cache.append_latent(expected[:, start:stop])
+            cache.offset = stop
+            self.assertTrue(mx.array_equal(cache[0], expected[:, :stop]).item())
+        for snapshot in snapshots:
+            self.assertTrue(
+                mx.array_equal(snapshot[0], expected[:, : snapshot.offset]).item()
+            )
+            restored = clone_cache(snapshot)
+            suffix = mx.full((1, 2, 128), -7.0)
+            restored.append_latent(suffix)
+            restored.offset += 2
+            self.assertTrue(mx.array_equal(restored[0][:, -2:], suffix).item())
+            self.assertTrue(
+                mx.array_equal(snapshot[0], expected[:, : snapshot.offset]).item()
+            )
+            roundtrip = MLACache(4)
+            roundtrip.state = snapshot.state
+            roundtrip.offset = snapshot.offset
+            self.assertTrue(mx.array_equal(roundtrip[0], snapshot[0]).item())
+
+    def test_segmented_mla_verification_seal_and_rejected_suffix(self):
+        """Sealing an append block must hide later verified rows after rejection."""
+        import copy
+
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import (
+            MLA,
+            MLACache,
+            NativeCache,
+        )
+        from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
+
+        args = copy.copy(self.model.args)
+        mx.random.seed(39)
+        for rank in (256, 512):
+            args.kv_lora_rank = rank
+            attn = MLA(args)
+            for length in (255, 511):
+                native = NativeCache(4)
+                mx.eval(
+                    attn(mx.random.normal((1, length, args.hidden_size)), native),
+                    native.cache,
+                )
+                segmented = MLACache(4)
+                segmented.cache = [
+                    v.view(v.dtype) if v is not None else None for v in native.cache
+                ]
+                segmented.offset = length
+                if length > 256:
+                    segmented.cache[0] = native[0][:, :256]
+                    segmented.cache.append(
+                        mx.pad(native[0][:, 256:], [(0, 0), (0, 1), (0, 0)])
+                    )
+                x = mx.random.normal((1, 5, args.hidden_size))
+                expected, states = [], []
+                for j in range(5):
+                    expected.append(attn(x[:, j : j + 1], native))
+                    states.append(clone_cache(native))
+                actual, snapshots = attn.verify_rows(x, segmented)
+                self.assertLess(
+                    mx.max(mx.abs(actual - mx.concatenate(expected, 1))).item(), 2e-5
+                )
+                for snapshot, state in zip(snapshots, states):
+                    self.assertEqual(snapshot.offset, state.offset)
+                    for i in range(4):
+                        if state[i] is None:
+                            self.assertIsNone(snapshot[i])
+                        else:
+                            self.assertTrue(
+                                mx.array_equal(snapshot[i], state[i]).item()
+                            )
+                    continuation = mx.random.normal((1, 1, args.hidden_size))
+                    self.assertLess(
+                        mx.max(
+                            mx.abs(
+                                attn(continuation, clone_cache(snapshot))
+                                - attn(continuation, clone_cache(state))
+                            )
+                        ).item(),
+                        2e-5,
+                    )
+
     @classmethod
     def setUpClass(cls):
         # M5 defaults to reduced-precision FP32 GEMM. The oracle here is

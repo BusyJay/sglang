@@ -12,6 +12,84 @@ register_mlx_ci(est_time=5, suite="stage-a-unit-test-mlx")
 
 @unittest.skipUnless(importlib.util.find_spec("mlx"), "requires MLX")
 class TestMlxRagged(CustomTestCase):
+    def test_segmented_kv_preserves_native_reduction_and_visibility(self):
+        """Index slots cross sealed/append boundaries without reading poisoned tails."""
+        import mlx.core as mx
+
+        from sglang.kernels.ops.attention.mlx_ragged import mlx_ragged_latent_attention
+
+        mx.random.seed(817)
+        for dtype in (mx.float16, mx.bfloat16, mx.float32):
+            q = mx.random.normal((1, 64, 3, 512)).astype(dtype)
+            kv = mx.random.normal((1, 513, 512)).astype(dtype)
+            lengths = [0, 17, 257]
+            indices = (mx.arange(3 * 257).reshape(1, 3, 257) * 7 % 513).astype(mx.int32)
+            for row, length in enumerate(lengths):
+                indices[:, row, length:] = -9999
+            expected = mlx_ragged_latent_attention(
+                q, kv, indices, lengths, scale=128**-0.5
+            )
+            for split in (0, 1, 255, 256, 511, 513):
+                actual = mlx_ragged_latent_attention(
+                    q,
+                    kv[:, :split],
+                    indices,
+                    lengths,
+                    scale=128**-0.5,
+                    tail=kv[:, split:],
+                )
+                self.assertTrue(mx.array_equal(actual, expected).item())
+
+    def test_empty_segments_and_zero_visibility_preserve_attention(self):
+        """An empty prefix must compile and attend to its tail at unchanged indices."""
+        import mlx.core as mx
+
+        from sglang.kernels.ops.attention.mlx_ragged import mlx_ragged_latent_attention
+
+        mx.random.seed(818)
+        for dtype, kv_dtype in (
+            (mx.float16, mx.float16),
+            (mx.bfloat16, mx.bfloat16),
+            (mx.float32, mx.float32),
+            (mx.float32, mx.bfloat16),
+        ):
+            kv = mx.random.normal((1, 17, 512)).astype(kv_dtype)
+            empty = kv[:, :0]
+            for rows in (1, 3):
+                q = mx.random.normal((1, 64, rows, 512)).astype(dtype)
+                lengths = [17] if rows == 1 else [0, 1, 17]
+                indices = mx.broadcast_to(mx.arange(17, dtype=mx.int32), (1, rows, 17))
+                for row, length in enumerate(lengths):
+                    indices[:, row, length:] = -9999
+                expected = mlx_ragged_latent_attention(
+                    q, kv, indices, lengths, scale=128**-0.5
+                )
+                for split in (0, 1, 16, 17):
+                    with self.subTest(dtype=dtype, rows=rows, split=split):
+                        actual = mlx_ragged_latent_attention(
+                            q,
+                            kv[:, :split],
+                            indices,
+                            lengths,
+                            scale=128**-0.5,
+                            tail=kv[:, split:],
+                        )
+                        self.assertIsNotNone(actual)
+                        self.assertTrue(mx.array_equal(actual, expected).item())
+                for width in (0, 17):
+                    padding = mx.full((1, rows, width), -9999, mx.int32)
+                    for prefix, tail in ((empty, empty), (empty, kv), (kv, empty)):
+                        actual = mlx_ragged_latent_attention(
+                            q,
+                            prefix,
+                            padding,
+                            [0] * rows,
+                            scale=128**-0.5,
+                            tail=tail,
+                        )
+                        self.assertIsNotNone(actual)
+                        self.assertTrue(mx.array_equal(actual, mx.zeros_like(q)).item())
+
     def test_sparse_rows_empty_sets_and_poisoned_tails(self):
         import mlx.core as mx
 

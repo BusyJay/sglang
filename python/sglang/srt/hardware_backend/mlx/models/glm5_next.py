@@ -31,6 +31,7 @@ from sglang.kernels.ops.gemm.mlx_dense_rows import (
     mlx_dense_rows,
     mlx_headed_dense_rows,
 )
+from sglang.kernels.ops.kvcache.mlx_latent import mlx_latent_gather_cast
 from sglang.kernels.ops.layernorm.mlx_hc import mlx_hc_collapse_norm
 from sglang.kernels.ops.layernorm.mlx_hc_mix import mlx_hc_rms_mix
 from sglang.kernels.ops.moe.mlx_glm import (
@@ -60,6 +61,73 @@ class NativeCache(ArraysCache):
         super().__init__(size=size)
         self.offset = 0
         self.mlx_mtp = None
+
+
+class MLACache(NativeCache):
+    """Immutable latent prefix plus a bounded append block in normal state.
+
+    Slot four holds at most 256 new rows. Retained snapshots share the sealed
+    prefix; slice-update copying is bounded to the append block, including
+    speculative rollback. Dense prefill can request a contiguous logical view.
+    """
+
+    block_size = 256
+
+    def __getitem__(self, index):
+        value = super().__getitem__(index)
+        if index != 0:
+            return value
+        if value is None:
+            return None
+        prefix = min(self.offset, value.shape[1])
+        tail = self.cache[4] if len(self.cache) > 4 else None
+        if self.offset <= prefix or tail is None:
+            return value if prefix == value.shape[1] else value[:, :prefix]
+        return mx.concatenate([value[:, :prefix], tail[:, : self.offset - prefix]], 1)
+
+    def latent_segments(self):
+        prefix = self.cache[0]
+        count = min(self.offset, prefix.shape[1])
+        tail = self.cache[4] if len(self.cache) > 4 else None
+        if tail is None:
+            tail = prefix[:, :0]
+        return prefix[:, :count], tail[:, : max(0, self.offset - count)]
+
+    def append_latent(self, value, *, materialize=True):
+        if len(self.cache) == 4:
+            self.cache.append(None)
+        prefix, tail = self.cache[0], self.cache[4]
+        if prefix is None:
+            self.cache[0] = value
+            return value
+        if self.offset < prefix.shape[1]:
+            prefix = prefix[:, : self.offset]
+            tail = None
+        dtype = mx.result_type(prefix.dtype, value.dtype)
+        prefix, value = prefix.astype(dtype), value.astype(dtype)
+        if tail is not None:
+            tail = tail.astype(dtype)
+        used = self.offset - prefix.shape[1]
+        length = used + value.shape[1]
+        if self.offset + value.shape[1] <= self.block_size:
+            self.cache[0] = mx.concatenate([prefix, value], 1)
+            self.cache[4] = None
+            return self.cache[0]
+        if length > self.block_size:
+            parts = [prefix]
+            if used:
+                parts.append(tail[:, :used])
+            parts.append(value)
+            self.cache[0] = mx.concatenate(parts, 1)
+            self.cache[4] = None
+            return self.cache[0]
+        if tail is None:
+            tail = mx.zeros(
+                (value.shape[0], self.block_size, value.shape[2]), value.dtype
+            )
+        tail[:, used:length] = value
+        self.cache[0], self.cache[4] = prefix, tail
+        return mx.concatenate([prefix, tail[:, :length]], 1) if materialize else None
 
 
 def clamped_swiglu(gate, up, limit):
@@ -831,7 +899,7 @@ class KDA(nn.Module):
             out, conv, states = result
             outputs.append(out)
             for j in range(count):
-                snapshot = NativeCache(4)
+                snapshot = type(cache)(4)
                 snapshot.cache = [v[j : j + 1] for v in conv] + [states[j : j + 1]]
                 snapshot.offset = cache.offset + j + 1
                 snapshots.append(snapshot)
@@ -1180,7 +1248,15 @@ class MLA(nn.Module):
             self.project_verify_rows(x) if projected is None else projected
         )
         offset = cache.offset
-        kv = mx.concatenate([cache[0], new_kv], 1) if cache[0] is not None else new_kv
+        if isinstance(cache, MLACache):
+            cache.append_latent(new_kv, materialize=False)
+            kv = cache.cache[0]
+        else:
+            kv = (
+                mx.concatenate([cache[0], new_kv], 1)
+                if cache[0] is not None
+                else new_kv
+            )
         snapshots, selected = [], []
         for j in range(count):
             length = offset + j + 1
@@ -1202,8 +1278,9 @@ class MLA(nn.Module):
                     width += length % a.index_kpool
                 indices = indices[..., :width]
             selected.append(indices)
-            snapshot = NativeCache(4)
-            snapshot.cache = [kv[:, :length]] + [
+            snapshot = type(cache)(4)
+            prefix = cache.cache[0] if isinstance(cache, MLACache) else kv[:, :length]
+            snapshot.cache = [prefix] + [
                 v.view(v.dtype) if v is not None else None for v in cache.cache[1:]
             ]
             snapshot.offset = length
@@ -1234,17 +1311,29 @@ class MLA(nn.Module):
                 ],
                 axis=1,
             )
+            prefix, tail = (
+                cache.latent_segments() if isinstance(cache, MLACache) else (kv, None)
+            )
             latent_out = mlx_ragged_latent_attention(
                 latent_q,
-                kv,
+                prefix,
                 indices.astype(mx.int32),
                 [v.shape[-1] for v in selected],
                 scale=a.qk_nope_head_dim**-0.5,
+                tail=tail,
             )
             if latent_out is None:
-                selected_kv = mx.take_along_axis(
-                    kv[:, None], mx.maximum(indices, 0)[..., None], axis=2
-                ).reshape(b * count, 1, width, a.kv_lora_rank)
+                selected_kv = mlx_latent_gather_cast(
+                    prefix,
+                    indices.astype(mx.int32),
+                    mx.result_type(prefix.dtype, latent_q.dtype),
+                    tail=tail,
+                )
+                if selected_kv is None:
+                    kv = cache[0] if isinstance(cache, MLACache) else kv
+                    selected_kv = mx.take_along_axis(
+                        kv[:, None], mx.maximum(indices, 0)[..., None], axis=2
+                    ).reshape(b * count, 1, width, a.kv_lora_rank)
                 selected_q = latent_q.transpose(0, 2, 1, 3).reshape(
                     b * count,
                     a.num_attention_heads,
@@ -1293,11 +1382,16 @@ class MLA(nn.Module):
             .transpose(0, 2, 1, 3)
         )
         kv = self.kv_a_layernorm(self.kv_a_proj_with_mqa(x))
-        if cache[0] is not None:
+        if isinstance(cache, MLACache):
+            cache.append_latent(kv, materialize=False)
+        elif cache[0] is not None:
             kv = mx.concatenate([cache[0], kv], axis=1)
-        cache[0] = kv
+        if not isinstance(cache, MLACache):
+            cache[0] = kv
         indices = self.indexer(x, qr, cache, cache.offset)
         cache.offset += t
+        if isinstance(cache, MLACache) and indices is None:
+            kv = cache[0]
         scale = a.qk_nope_head_dim**-0.5
         if indices is None and t > 1:
             # Dense prefill reuses the expanded K/V across all queries. Its
@@ -1329,9 +1423,9 @@ class MLA(nn.Module):
             # so decode needs neither dummy KV rows nor an array mask. At pool
             # boundaries this also restores an aligned attention key length.
             pool = a.index_kpool
-            width = min(a.index_topk // pool, kv.shape[1] // pool) * pool
+            width = min(a.index_topk // pool, cache.offset // pool) * pool
             if a.index_kpool_always_select_tail:
-                width += kv.shape[1] % pool
+                width += cache.offset % pool
             indices = indices[..., :width]
         if indices is None:
             latent_kv = kv[:, None]
@@ -1349,11 +1443,27 @@ class MLA(nn.Module):
             # selected compressed KV; do not tile it across heads. QK/PV now
             # scale with the selected budget, not the full history length.
             width = indices.shape[-1]
-            selected_kv = mx.take_along_axis(
-                kv[:, None],
-                mx.maximum(indices, 0)[..., None],
-                axis=2,
-            ).reshape(b * t, 1, width, a.kv_lora_rank)
+            prefix, tail = (
+                cache.latent_segments() if isinstance(cache, MLACache) else (kv, None)
+            )
+            selected_kv = (
+                mlx_latent_gather_cast(
+                    prefix,
+                    indices,
+                    mx.result_type(prefix.dtype, latent_q.dtype),
+                    tail=tail,
+                )
+                if a.kv_lora_rank >= 256
+                else None
+            )
+            if selected_kv is None:
+                if isinstance(cache, MLACache):
+                    kv = cache[0]
+                selected_kv = mx.take_along_axis(
+                    kv[:, None],
+                    mx.maximum(indices, 0)[..., None],
+                    axis=2,
+                ).reshape(b * t, 1, width, a.kv_lora_rank)
             selected_q = latent_q.transpose(0, 2, 1, 3).reshape(
                 b * t,
                 a.num_attention_heads,
@@ -1567,7 +1677,7 @@ class DecoderLayer(nn.Module):
             for normed, post, residual in attention_inputs:
                 branch = self.self_attn(normed, cache)
                 attended.append(self._branch_output(branch, post, residual))
-                snapshot = NativeCache(4)
+                snapshot = type(cache)(4)
                 snapshot.cache = [
                     v.view(v.dtype) if v is not None else None for v in cache.cache
                 ]
@@ -1730,7 +1840,7 @@ class Model(nn.Module):
                 rows = []
                 for j in range(count):
                     rows.append(layer(x[:, j : j + 1], state))
-                    snapshot = NativeCache(4)
+                    snapshot = type(state)(4)
                     snapshot.cache = [
                         v.view(v.dtype) if v is not None else None for v in state.cache
                     ]
@@ -1778,7 +1888,12 @@ class Model(nn.Module):
     def make_cache(self):
         # KDA stores conv/recurrent state; MLA stores latent KV, raw indexer
         # tail keys/gates and the completed pooled-key buffer.
-        return [NativeCache(4) for _ in self.layers]
+        return [
+            MLACache(4)
+            if not layer.is_linear and self.args.kv_lora_rank >= 256
+            else NativeCache(4)
+            for layer in self.layers
+        ]
 
     def __call__(self, inputs, cache=None):
         return self.lm_head(self.model(inputs, cache or self.make_cache()))

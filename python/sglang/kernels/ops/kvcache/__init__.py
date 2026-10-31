@@ -11,7 +11,21 @@ from typing import TYPE_CHECKING, Optional
 
 from sglang.kernels.registry import register_kernel
 from sglang.kernels.selector import get_kernel
-from sglang.kernels.spec import KernelBackend, KernelSpec
+from sglang.kernels.spec import (
+    CapabilityRequirement,
+    DeviceType,
+    KernelBackend,
+    KernelSpec,
+)
+
+register_kernel(
+    KernelSpec(
+        op="kvcache.mlx_latent_gather_cast",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.kvcache.mlx_latent:mlx_latent_gather_cast",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)
 
 if TYPE_CHECKING:
     import torch

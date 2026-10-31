@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """Indexed latent attention, with the MLX singleton matrix reduction order.
 
-Only compact score/probability arrays are allocated. Historical KV remains one
-shared buffer; invalid index-table tails are never read. The reduction policy
+Only compact score/probability arrays are allocated. Historical KV remains in
+shared prefix/append buffers; invalid index-table tails are never read. The reduction policy
 matches MLX 0.32.4 SIMD or M5 MPP matmul, including its TF32 policy.
 """
 
@@ -60,7 +60,7 @@ _NAX_SCORES = r"""
             auto coord = b.get_multidimensional_index(i);
             uint p = col + coord[1];
             uint slot = p < length ? indices[size_t(r) * WIDTH + p] : 0;
-            b[i] = p < length ? T(kv[size_t(slot) * D + k + coord[0]]) : T(0);
+            b[i] = p < length ? T(glm_latent_row(kv, kv_tail, slot, KV_SPLIT, D)[k + coord[0]]) : T(0);
         }
         op.run(a, b, c);
       }
@@ -119,7 +119,7 @@ _NAX_VALUES = r"""
                 auto coord = b.get_multidimensional_index(i);
                 uint p = k + coord[1];
                 uint slot = p < end ? indices[size_t(r) * WIDTH + p] : 0;
-                b[i] = p < end ? T(kv[size_t(slot) * D + col + coord[0]]) : T(0);
+                b[i] = p < end ? T(glm_latent_row(kv, kv_tail, slot, KV_SPLIT, D)[col + coord[0]]) : T(0);
             }
             op.run(a, b, c);
         }
@@ -158,7 +158,7 @@ _NAX_SCORES_REGULAR = r"""
                 auto coord = b.get_multidimensional_index(i);
                 uint p = col + coord[1];
                 uint slot = p < length ? indices[size_t(r) * WIDTH + p] : 0;
-                b[i] = p < length ? T(kv[size_t(slot) * D + k + coord[0]]) : T(0);
+                b[i] = p < length ? T(glm_latent_row(kv, kv_tail, slot, KV_SPLIT, D)[k + coord[0]]) : T(0);
             }
             op.run(a, b, c);
         }
@@ -210,7 +210,7 @@ _SCORES = r"""
                 for (uint j = 0; j < 4; ++j) left[h * 32 + col_k + j] = v[j];
                 const uint pos = col + h;
                 const uint slot = i < 128 ? slot0 : slot1;
-                const vec<V, 4> key = pos < length ? *((const device vec<V, 4>*)(kv + (size_t(r / ROWS) * KV_LENGTH + slot) * D + k + col_k)) : vec<V, 4>(0);
+                const vec<V, 4> key = pos < length ? *((const device vec<V, 4>*)(glm_latent_row(kv, kv_tail, slot, KV_SPLIT, D) + k + col_k)) : vec<V, 4>(0);
                 for (uint j = 0; j < 4; ++j) right[(col_k + j) * 32 + h] = key[j];
             }
             threadgroup_barrier(mem_flags::mem_threadgroup);
@@ -334,7 +334,7 @@ _VALUES = r"""
                 const uint key = k + i / 8;
                 const uint cv = (i % 8) * 4;
                 const uint slot = key < length && key < end ? indices[size_t(r) * WIDTH + key] : 0;
-                const vec<V, 4> v = key < length && key < end ? *((const device vec<V, 4>*)(kv + (size_t(r / ROWS) * KV_LENGTH + slot) * D + col + cv)) : vec<V, 4>(0);
+                const vec<V, 4> v = key < length && key < end ? *((const device vec<V, 4>*)(glm_latent_row(kv, kv_tail, slot, KV_SPLIT, D) + col + cv)) : vec<V, 4>(0);
                 for (uint j = 0; j < 4; ++j) right[(i / 8) * 32 + cv + j] = v[j];
             }
             threadgroup_barrier(mem_flags::mem_threadgroup);
@@ -371,18 +371,29 @@ _VALUES = r"""
 
 @cache
 def _kernels(nax=False, fp32=False):
-    header = "#include <metal_simdgroup_matrix>\n"
+    header = (
+        "#include <metal_simdgroup_matrix>\n"
+        + r"""
+        template <typename V>
+        inline const device V* glm_latent_row(
+            const device V* prefix, const device V* tail,
+            uint slot, uint split, uint dim) {
+            return slot < split ? prefix + size_t(slot) * dim
+                                : tail + size_t(slot - split) * dim;
+        }
+    """
+    )
     if nax:
         header += "#include <MetalPerformancePrimitives/MetalPerformancePrimitives.h>\n"
     # Context length changes every decode. Keep strides in a tiny device
     # argument instead of compiling a new program for each cache boundary.
     layout = (
-        "const uint WIDTH = lengths[ROWS];\nconst uint KV_LENGTH = lengths[ROWS + 1];\n"
+        "const uint WIDTH = lengths[ROWS];\nconst uint KV_SPLIT = lengths[ROWS + 1];\n"
     )
     return (
         mx.fast.metal_kernel(
             name="sglang_ragged_scores_nax" if nax else "sglang_ragged_scores",
-            input_names=["queries", "kv", "indices", "lengths"],
+            input_names=["queries", "kv", "kv_tail", "indices", "lengths"],
             output_names=["scores"],
             source=layout
             + ((_NAX_SCORES_REGULAR if fp32 else _NAX_SCORES) if nax else _SCORES),
@@ -396,7 +407,7 @@ def _kernels(nax=False, fp32=False):
         ),
         mx.fast.metal_kernel(
             name="sglang_ragged_values_nax" if nax else "sglang_ragged_values",
-            input_names=["probs", "kv", "indices", "lengths"],
+            input_names=["probs", "kv", "kv_tail", "indices", "lengths"],
             output_names=["out"],
             source=layout + (_NAX_VALUES if nax else _VALUES),
             header=header,
@@ -404,11 +415,12 @@ def _kernels(nax=False, fp32=False):
     )
 
 
-def mlx_ragged_latent_attention(queries, kv, indices, lengths, *, scale):
+def mlx_ragged_latent_attention(queries, kv, indices, lengths, *, scale, tail=None):
     """Q [1,64,R,512], shared KV [1,L,512], index table [1,R,W].
 
-    Lengths are explicit host shape metadata. Valid indices must be in [0,L);
-    tails are never read. Retains MLX 0.32.4 singleton promotion and reduction
+    Optional tail follows the sealed prefix without materializing a concat.
+    Lengths are explicit host metadata; valid indices address both KV segments.
+    Invalid index padding is never read. Retains singleton promotion and reduction
     for legal lengths 1..4096, including empty rows. Other geometries use the
     caller's general batch attention. No per-token SDPA or KV copies occur.
     """
@@ -433,10 +445,27 @@ def mlx_ragged_latent_attention(queries, kv, indices, lengths, *, scale):
         or indices.dtype not in (mx.int32, mx.uint32)
     ):
         return None
+    if tail is None:
+        tail = kv
+    elif (
+        tail.ndim != 3
+        or tail.shape[0] != batch
+        or tail.shape[2] != dim
+        or tail.dtype != kv.dtype
+    ):
+        return None
     if any(length < 0 or length > width for length in lengths):
         raise ValueError("ragged lengths must be within the index table width")
-    if not width:
+    if not any(lengths):
         return mx.zeros_like(queries)
+    split = kv.shape[1]
+    # Empty MLX inputs use constant pointers, but both row-loader arguments
+    # require device pointers. Alias the nonempty segment for the unreachable
+    # argument, preserving the original split and every valid slot address.
+    if not split:
+        kv = tail
+    if not tail.shape[1]:
+        tail = kv
     template = [
         ("T", queries.dtype),
         ("V", kv.dtype),
@@ -448,7 +477,7 @@ def mlx_ragged_latent_attention(queries, kv, indices, lengths, *, scale):
             32 if queries.dtype == mx.float32 and _matmul_policy()[2] else 16,
         ),
     ]
-    lens = mx.array([*lengths, width, kv.shape[1]], mx.uint32)
+    lens = mx.array([*lengths, width, split], mx.uint32)
     has_nax, tf32, _ = _matmul_policy()
     nax = has_nax and (queries.dtype != mx.float32 or tf32)
     scores_kernel, softmax_kernel, values_kernel = _kernels(
@@ -456,7 +485,7 @@ def mlx_ragged_latent_attention(queries, kv, indices, lengths, *, scale):
     )
     scaled_q = (queries * mx.array(scale, queries.dtype)).transpose(0, 2, 1, 3)
     scores = scores_kernel(
-        inputs=[scaled_q, kv, indices, lens],
+        inputs=[scaled_q, kv, tail, indices, lens],
         template=template,
         grid=(
             128
@@ -481,7 +510,7 @@ def mlx_ragged_latent_attention(queries, kv, indices, lengths, *, scale):
         output_dtypes=[queries.dtype],
     )[0]
     out = values_kernel(
-        inputs=[probs, kv, indices, lens],
+        inputs=[probs, kv, tail, indices, lens],
         template=template,
         grid=(128 * (dim // (64 if nax else 32)), rows * (heads // 32), 1),
         threadgroup=(128, 1, 1),
