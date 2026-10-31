@@ -1,0 +1,70 @@
+{
+  "base_commit": "a7a39c8b3d4a363f097b5971bb5a9a2ec7b377e5",
+  "implementation_commit": "bb0c3db355e6f901c176e35b7e57880691bfd634",
+  "source_patch_sha256": "76208fc5194685a8c6fc81165b4fc09ef5a67734c16c2f4e9950d154145528a2",
+  "source_archive_sha256": "c7c926ee8b123a21b1aa3fc56965bb81f3d68f454e5850b24db937b79033afc6",
+  "patch_base_hashes_and_apply_check_verified": true,
+  "device": {
+    "device_name": "Apple M5 Ultra",
+    "max_recommended_working_set_size": 257698037760,
+    "memory_size": 274877906944,
+    "architecture": "applegpu_g17d",
+    "max_buffer_length": 193273528320,
+    "resource_limit": 499000
+  },
+  "mlx": "0.32.4",
+  "mlx_lm": "0.32.2",
+  "checkpoint_revision": "fa04cbc3622b16aa7475404060b05e506d81bd4e",
+  "defaults": {
+    "verification": "ffn",
+    "retained_latent_projection": true,
+    "cli_draft_steps": 0,
+    "best_measured_draft_steps": 1
+  },
+  "model_forced_panels": 16,
+  "model_generation_panels": 8,
+  "model_logits_hidden_row_snapshots_bitwise_equal": true,
+  "model_generation_tokens_and_acceptance_equal": true,
+  "model_peak_bytes": 209416390116,
+  "estimated_fp32_latent_operand_bytes": 805306368,
+  "http_timing_comparisons": 66,
+  "http_contract_comparisons": 154,
+  "http_all_output_hashes_equal": true,
+  "tests": {
+    "device_and_model": 38,
+    "device_subtests": 130,
+    "kernel_namespace": 105,
+    "excluded_amx_probes": 2
+  },
+  "known_baseline_failure": "AMX srt/utils/common.py import probe requires unavailable Triton; unchanged from baseline",
+  "source_sha256": {
+    "AGENTS.md": "2c7edd4db1331c383325ed0097593bb03fb7eb5d2f6753a681102fe90c7075ee",
+    "python/sglang/kernels/ops/gemm/__init__.py": "36e82a706703bf5b6bcac260e51f43f3f93cfb6d9d98d2536418a36aa2cde254",
+    "python/sglang/kernels/ops/gemm/mlx_affine_rows.py": "53981692ff6957f7c2af8680bb59890bf321b44eecd24e91818a98d746396799",
+    "python/sglang/kernels/ops/layernorm/mlx_hc.py": "7ef610c37bec4287c0a03bb2ded405e401e0b724161920dd38c939e9adaf45e2",
+    "python/sglang/kernels/ops/moe/mlx_glm.py": "6d29d5fcd4cc52b5a4c871ae2bd7e15ff9c0f8ac61e428519cbfdefc80e6ff2f",
+    "python/sglang/srt/environ.py": "a9b02070c73fe07fff3bb434bda410d4b9ffee0d154b482a3a5a0473e503fca5",
+    "python/sglang/srt/hardware_backend/mlx/model_runner.py": "e1bbe071dc207a8229ee78fedd58714c188885d1645f08865541fe77f4b3bb2e",
+    "python/sglang/srt/hardware_backend/mlx/models/glm5_next.py": "82c6fa6a1b4c576bdbe5edde8ef4ad8773a31fcf47a651cac21b0806570b18e8",
+    "python/sglang/srt/hardware_backend/mlx/mtp.py": "ab50af440d98a1d922437bfd9cc3ff42bf022997d871cd3606caec476e483cbf",
+    "test/registered/kernels/ops/gemm/test_mlx_affine_rows.py": "888e0d46f818834a3075793202231f5d8fc6201fd02fef8cc31f0b7019c47d75",
+    "test/registered/kernels/ops/layernorm/test_mlx_hc.py": "1ee9f0a2357ed69d4eb3a6f72c3a25ccf9e1b545fa08e050492ef5df8c14aa4d",
+    "test/registered/kernels/ops/moe/test_mlx_glm.py": "958c8c89b0d045f729a967d296839730160dda01d7a709430a541e5cc033a210",
+    "test/registered/unit/hardware_backend/mlx/test_glm5_next_mlx.py": "b6e45b7f0e5526f8773cf49a0bbc43ccb32cd94302194e107b202d0df9134390",
+    "test/registered/unit/kernels/test_kernels_namespace.py": "e065573d8921c385e6f15588243b926d8329aab2b25d3728ae46d451b1302b1c",
+    "benchmark/mlx/bench_glm5_next_mtp_diagnose.py": "cd6cddb69a2936768418e163f537c94088ecc6edc37b2dd2bc54d310a22e94ac",
+    "benchmark/mlx/bench_glm5_next_mtp_verify_ab.py": "e8c9228e1bdf750b91e7b57184d547ddcc14f30a4b3eb1e483081f1dd4ef6274",
+    "benchmark/mlx/mtp_review_20261031/compare.py": "64fe27c06001206c9aaa0fc32cc451292701f61960526b6f28e3790393c1c8e2",
+    "benchmark/mlx/mtp_review_20261031/m5/localize.py": "621b8da97929388b13ad8e893cede8b39f7e19dc4a12e730c8a38907cef1a54f"
+  },
+  "evidence_sha256": {
+    "m5/improved_ab.json": "f3879db71ba0f5c63bfa76122a0b9c1917d4ccd5ba0ae21bfd2c1a864c838a02",
+    "m5/http_final.json": "e7a5d3d04ab15402f01b68243078938bc53136fa9c9ca92a3f4d986260a381ff",
+    "m5/http_serial_after.json": "50957ac1c22ef241b435d187548c035e97487d85c724f81f97732c64a182f688",
+    "m5/http_defaults_after.json": "9cb81b97923b3e57a81c67019b36fa2ffde6495cbcaf26d247584e0f447ab7c1",
+    "m5/http_comparison.json": "dfb9249a9ad93eb520f10905a307d69413e44cf045affa5c830c05bd8a10ea53",
+    "m5/tests_final.log": "3752bb091a110b9834a638822b380f6adcf685edb32c602fefa848ae5e411ba4",
+    "m5/registry_supported.log": "69b395dccec2af8e7a75fa65cae7bba661900fa6dfbdcb9dfadbfdea35e5dd3e"
+  },
+  "test_logs_normalized": "Trailing whitespace removed for repository checks; test outcomes unchanged."
+}

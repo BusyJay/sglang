@@ -21,6 +21,10 @@ def main():
     parser.add_argument("--model-dir", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--steps", type=int, nargs="+", default=[0, 1, 2, 3, 4, 6, 8])
+    parser.add_argument(
+        "--verify-mode", choices=("serial", "head", "ffn"), default="serial"
+    )
+    parser.add_argument("--cache-latent", action="store_true")
     args = parser.parse_args()
     import mlx.core as mx
     from transformers import AutoTokenizer
@@ -29,8 +33,12 @@ def main():
     from sglang.srt.hardware_backend.mlx.mtp import load_mtp_model
     from sglang.srt.hardware_backend.mlx.mtp_serving import MlxMTPServing, clone_cache
 
-    mx.set_wired_limit(240 * 1024**3)
-    model = load_mtp_model(args.model_dir)
+    recommended = mx.device_info().get("max_recommended_working_set_size", 0)
+    if recommended:
+        mx.set_wired_limit(recommended)
+    model = load_mtp_model(
+        args.model_dir, verify_mode=args.verify_mode, cache_latent=args.cache_latent
+    )
     tokenizer = AutoTokenizer.from_pretrained(args.model_dir, local_files_only=True)
     prompt = mx.array(
         [
@@ -50,7 +58,14 @@ def main():
             )
         ]
     )
-    report = dict(acceptance=[], forced_chain=[], paths=[], attribution=[])
+    report = dict(
+        verify_mode=args.verify_mode,
+        cache_latent=args.cache_latent,
+        acceptance=[],
+        forced_chain=[],
+        paths=[],
+        attribution=[],
+    )
     baseline = None
 
     def save():

@@ -1,0 +1,72 @@
+......F..                                                                [100%]
+=================================== FAILURES ===================================
+_____________ test_amx_backend_probe_is_lazy[srt/utils/common.py] ______________
+
+relative_path = 'srt/utils/common.py'
+
+    @pytest.mark.parametrize(
+        "relative_path",
+        (
+            "srt/utils/common.py",
+            "multimodal_gen/runtime/utils/common.py",
+        ),
+    )
+    def test_amx_backend_probe_is_lazy(relative_path):
+        loader = (
+            "package = importlib.util.find_spec('sglang'); "
+            "path = pathlib.Path(next(iter(package.submodule_search_locations))) / "
+            f"{relative_path!r}; "
+            "spec = importlib.util.spec_from_file_location('_common_under_test', path); "
+            "module = importlib.util.module_from_spec(spec); "
+            "sys.modules[spec.name] = module; "
+            "spec.loader.exec_module(module)"
+        )
+        code = "; ".join(
+            (
+                "import builtins, importlib.util, pathlib, sys",
+                "from unittest import mock",
+                "real_import = builtins.__import__",
+                "import_mock = mock.Mock(wraps=real_import)",
+                "builtins.__import__ = import_mock",
+                loader,
+                "builtins.__import__ = real_import",
+                "attempted = any(call.args and call.args[0] == 'sgl_kernel' "
+                "for call in import_mock.call_args_list)",
+                "print('DIRTY' if attempted else 'CLEAN')",
+            )
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", code], capture_output=True, text=True
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: Traceback (most recent call last):
+E           File "<string>", line 1, in <module>
+E           File "<frozen importlib._bootstrap_external>", line 999, in exec_module
+E           File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+E           File "/Users/jay/workspace/sglang/python/sglang/srt/utils/common.py", line 91, in <module>
+E             import triton
+E           File "/Users/jay/.local/share/uv/python/cpython-3.12.16-macos-aarch64-none/lib/python3.12/unittest/mock.py", line 1139, in __call__
+E             return self._mock_call(*args, **kwargs)
+E                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           File "/Users/jay/.local/share/uv/python/cpython-3.12.16-macos-aarch64-none/lib/python3.12/unittest/mock.py", line 1143, in _mock_call
+E             return self._execute_mock_call(*args, **kwargs)
+E                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           File "/Users/jay/.local/share/uv/python/cpython-3.12.16-macos-aarch64-none/lib/python3.12/unittest/mock.py", line 1216, in _execute_mock_call
+E             return self._mock_wraps(*args, **kwargs)
+E                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E         ModuleNotFoundError: No module named 'triton'
+E
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/Users/jay/workspace/prod/common/sglang-metal/bin/python', '-c', "import builtins, importlib.u...aps(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nModuleNotFoundError: No module named \'triton\'\n').returncode
+
+test/registered/unit/kernels/test_kernels_namespace.py:223: AssertionError
+=============================== warnings summary ===============================
+../prod/common/sglang-metal/lib/python3.12/site-packages/_pytest/config/__init__.py:1636
+  /Users/jay/workspace/prod/common/sglang-metal/lib/python3.12/site-packages/_pytest/config/__init__.py:1636: PytestConfigWarning: Unknown config option: asyncio_mode
+
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED test/registered/unit/kernels/test_kernels_namespace.py::test_amx_backend_probe_is_lazy[srt/utils/common.py]
+1 failed, 8 passed, 98 deselected, 1 warning in 10.90s
