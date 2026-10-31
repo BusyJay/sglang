@@ -82,6 +82,67 @@ class TestMlxKda(CustomTestCase):
                     state_norm = mx.maximum(mx.linalg.norm(caches[0][3]), 1e-6)
                     self.assertLess((state_error / state_norm).item(), 0.025)
 
+    def test_verify_snapshots_match_serial_and_resume_every_prefix(self):
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import (
+            KDA,
+            ModelArgs,
+            NativeCache,
+        )
+        from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
+
+        args = ModelArgs(
+            model_type="glm5_next",
+            text_config=dict(
+                hidden_size=256,
+                qk_rope_head_dim=0,
+                rms_norm_eps=1e-6,
+                linear_attn_config=dict(
+                    num_heads=2,
+                    head_dim=128,
+                    short_conv_kernel_size=4,
+                    gate_lower_bound=-5.0,
+                ),
+            ),
+        )
+        for dtype in (mx.bfloat16, mx.float16):
+            mx.random.seed(19)
+            attn = KDA(args)
+            attn.set_dtype(dtype)
+            attn.A_log = attn.A_log.astype(mx.float32)
+            attn.dt_bias = attn.dt_bias.astype(mx.float32)
+            attn.fuse_decode = True
+            attn.prepare_for_inference()
+            base = NativeCache(4)
+            mx.eval(
+                attn(mx.random.normal((1, 12, 256)).astype(dtype), base), base.cache
+            )
+            for count in (2, 3, 5, 9, 17):
+                with self.subTest(dtype=dtype, count=count):
+                    x = mx.random.normal((1, count, 256)).astype(dtype)
+                    serial, shared = clone_cache(base), clone_cache(base)
+                    rows, states = [], []
+                    for j in range(count):
+                        rows.append(attn(x[:, j : j + 1], serial))
+                        states.append(clone_cache(serial))
+                    actual, snapshots = attn.verify_rows(x, shared)
+                    mx.eval(actual, rows, [c.cache for c in snapshots])
+                    self.assertTrue(
+                        mx.array_equal(actual, mx.concatenate(rows, 1)).item()
+                    )
+                    for got, want in zip(snapshots, states):
+                        self.assertEqual(got.offset, want.offset)
+                        for a, b in zip(got.cache, want.cache):
+                            self.assertTrue(mx.array_equal(a, b).item())
+                        continuation = mx.random.normal((1, 1, 256)).astype(dtype)
+                        self.assertTrue(
+                            mx.array_equal(
+                                attn(continuation, clone_cache(got)),
+                                attn(continuation, clone_cache(want)),
+                            ).item()
+                        )
+
 
 if __name__ == "__main__":
     unittest.main()

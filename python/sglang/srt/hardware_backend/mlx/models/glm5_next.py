@@ -733,13 +733,54 @@ class KDA(nn.Module):
         _, _, _, fa_end, ga_end = self._fused_input_splits
         a_input = proj[..., 3 * self.dim : fa_end]
         gate_input = proj[..., fa_end:ga_end]
-        a = mx.concatenate(
-            [self.f_b_proj(a_input[:, j : j + 1]) for j in range(x.shape[1])], 1
-        )
-        gate = mx.concatenate(
-            [self.g_b_proj(gate_input[:, j : j + 1]) for j in range(x.shape[1])], 1
-        )
+        a = _project_rows(self.f_b_proj, a_input)
+        gate = _project_rows(self.g_b_proj, gate_input)
         return proj, a, gate
+
+    def verify_rows(self, x, cache):
+        projected = self.project_verify_rows(x)
+        if projected is None:
+            return None
+        outputs, snapshots = [], []
+        for start in range(0, x.shape[1], 8):
+            count = min(8, x.shape[1] - start)
+            proj, a, gate = (v[:, start : start + count] for v in projected)
+            result = mlx_kda_decode(
+                proj,
+                tuple(
+                    getattr(self, name + "_conv").conv.weight
+                    for name in ("q", "k", "v")
+                ),
+                tuple(cache[i] for i in range(3)),
+                cache[3],
+                a,
+                gate,
+                self.A_log,
+                self.dt_bias,
+                self.o_norm.weight,
+                heads=self.num_heads,
+                norm_eps=self.o_norm.eps,
+                lower_bound=self.lower_bound,
+                snapshots=True,
+            )
+            if result is None:
+                if start == 0:
+                    # Projection coverage is wider than the current recurrent
+                    # kernel (e.g. FP32 activations). No cache was changed.
+                    return None
+                raise ValueError(
+                    "Prepared KDA verification operands do not match the fused recurrence"
+                )
+            out, conv, states = result
+            outputs.append(out)
+            for j in range(count):
+                snapshot = NativeCache(4)
+                snapshot.cache = [v[j : j + 1] for v in conv] + [states[j : j + 1]]
+                snapshot.offset = cache.offset + j + 1
+                snapshots.append(snapshot)
+            cache.cache = [v.view(v.dtype) for v in snapshots[-1].cache]
+            cache.offset += count
+        return _project_rows(self.o_proj, mx.concatenate(outputs, 1)), snapshots
 
     def __call__(self, x, cache, *, projected=None):
         b, t, _ = x.shape
@@ -1446,12 +1487,7 @@ class DecoderLayer(nn.Module):
             for j in range(x.shape[1])
         ]
         normed_rows = mx.concatenate([v[0] for v in attention_inputs], 1)
-        projected = (
-            self.self_attn.project_verify_rows(normed_rows) if self.is_linear else None
-        )
-        batched = (
-            None if self.is_linear else self.self_attn.verify_rows(normed_rows, cache)
-        )
+        batched = self.self_attn.verify_rows(normed_rows, cache)
         if batched is not None:
             branches, snapshots = batched
             for j, (_, post, residual) in enumerate(attention_inputs):
@@ -1459,16 +1495,8 @@ class DecoderLayer(nn.Module):
                     self._branch_output(branches[:, j : j + 1], post, residual)
                 )
         else:
-            for j, (normed, post, residual) in enumerate(attention_inputs):
-                branch = (
-                    self.self_attn(
-                        normed,
-                        cache,
-                        projected=tuple(v[:, j : j + 1] for v in projected),
-                    )
-                    if projected is not None
-                    else self.self_attn(normed, cache)
-                )
+            for normed, post, residual in attention_inputs:
+                branch = self.self_attn(normed, cache)
                 attended.append(self._branch_output(branch, post, residual))
                 snapshot = NativeCache(4)
                 snapshot.cache = [
@@ -1599,7 +1627,8 @@ class Model(nn.Module):
     def verify_mtp_rows(self, inputs, cache):
         """Verify a draft chain with per-position attention state.
 
-        Attention and recurrence retain per-row state. Serving batches stateless
+        Fused recurrence emits every row boundary; MLA batches explicit projected
+        inputs with legal latent indices. Serving batches stateless
         FFN work with singleton QMV reductions on covered affine tiles; mHC mix
         and residual GEMVs retain their original reduction order. Immutable row
         snapshots publish exactly the consumed prefix without attention replay.
@@ -1645,7 +1674,11 @@ class Model(nn.Module):
             and isinstance(self.lm_head, nn.QuantizedLinear)
         ):
             p = self.lm_head
-            if p.mode == "affine" and "bias" not in p and p.global_scale is None:
+            if (
+                p.mode == "affine"
+                and "bias" not in p
+                and getattr(p, "global_scale", None) is None
+            ):
                 logits = mlx_affine_rows(
                     hidden,
                     p.weight,

@@ -80,9 +80,12 @@ _SOURCE = r"""
         vs[t][i] = sv;
       }
     }
-    for (int r = 0; r < CK - 1; r++) {
-      device T* history = part == 0 ? next_q : (part == 1 ? next_k : next_v);
-      history[r * QKV + h * DK + i] = win[TOK + r];
+    for (int t = 0; t < (SNAPSHOTS ? TOK : 1); t++) {
+      for (int r = 0; r < CK - 1; r++) {
+        device T* history = part == 0 ? next_q : (part == 1 ? next_k : next_v);
+        history[(t * (CK - 1) + r) * QKV + h * DK + i] =
+            win[(SNAPSHOTS ? t + 1 : TOK) + r];
+      }
     }
   }
 
@@ -164,6 +167,9 @@ _SOURCE = r"""
       for (int i = 0; i < n_per_t; ++i) {
         auto s_idx = n_per_t * dk_idx + i;
         state[i] = state[i] + ks[t][s_idx] * delta;
+#if SNAPSHOTS
+        state_out[((size_t(t) * HEADS + h) * DK + dv_idx) * DK + s_idx] = state[i];
+#endif
         out += state[i] * qs[t][s_idx];
       }
       out = simd_sum(out);
@@ -171,7 +177,7 @@ _SOURCE = r"""
         ys[t][dv_idx] = static_cast<T>(out);
       }
     }
-    for (int i = 0; i < n_per_t; ++i) {
+    if (!SNAPSHOTS) for (int i = 0; i < n_per_t; ++i) {
       auto s_idx = n_per_t * dk_idx + i;
       state_out[(size_t(h) * DK + dv_idx) * DK + s_idx] = static_cast<float>(state[i]);
     }
@@ -208,13 +214,14 @@ _SOURCE = r"""
 
 
 @cache
-def _kernel(has_conv, has_state):
+def _kernel(has_conv, has_state, snapshots=False):
     source = (
         f"#define HAS_CONV_STATE {int(has_conv)}\n"
-        f"#define HAS_STATE {int(has_state)}\n" + _SOURCE
+        f"#define HAS_STATE {int(has_state)}\n"
+        f"#define SNAPSHOTS {int(snapshots)}\n" + _SOURCE
     )
     return mx.fast.metal_kernel(
-        name=f"sglang_kda_c{int(has_conv)}_s{int(has_state)}",
+        name=f"sglang_kda_c{int(has_conv)}_s{int(has_state)}_p{int(snapshots)}",
         input_names=[
             "proj",
             "conv_q",
@@ -251,9 +258,12 @@ def mlx_kda_decode(
     heads,
     norm_eps,
     lower_bound,
+    snapshots=False,
 ):
     """Return (gated output, three conv states, FP32 recurrence), or None.
 
+    With snapshots=True, states have a leading token axis and contain the
+    exact boundary after each row; recurrence stays in registers across rows.
     Inputs are immutable. Unsupported shape/dtype combinations leave all
     caller-owned cache state untouched for the ordinary MLX path.
     """
@@ -295,7 +305,7 @@ def mlx_kda_decode(
     # A weight is a harmless dummy pointer for a compile-time absent state.
     conv = conv_states if has_conv else conv_weights
     params = mx.array([128**-0.5, 1e-6, norm_eps, lower_bound, 1 / 128], mx.float32)
-    out = _kernel(has_conv, state is not None)(
+    out = _kernel(has_conv, state is not None, snapshots)(
         inputs=[
             proj,
             *conv_weights,
@@ -312,13 +322,18 @@ def mlx_kda_decode(
             ("T", proj.dtype),
             ("TOK", tokens),
             ("DK", 128),
+            ("HEADS", heads),
             ("QKV", dim),
             ("PROJ_W", proj.shape[-1]),
             ("OFF_B", proj.shape[-1] - heads),
         ],
         grid=(1024 * heads, 1, 1),
         threadgroup=(1024, 1, 1),
-        output_shapes=[(1, tokens, dim), *[(1, 3, dim)] * 3, (1, heads, 128, 128)],
+        output_shapes=[
+            (1, tokens, dim),
+            *[(tokens if snapshots else 1, 3, dim)] * 3,
+            (tokens if snapshots else 1, heads, 128, 128),
+        ],
         output_dtypes=[proj.dtype] * 4 + [mx.float32],
     )
     return out[0], out[1:4], out[4]
