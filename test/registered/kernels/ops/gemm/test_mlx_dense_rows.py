@@ -49,8 +49,6 @@ class TestMlxDenseRows(CustomTestCase):
         expected = mx.concatenate([x[:, j : j + 1] @ weight.T for j in range(3)], 1)
         self.assertTrue(mx.array_equal(actual, expected).item())
         for value, matrix in (
-            (x.astype(mx.float32), weight),
-            (x, weight.astype(mx.float16)),
             (x, weight[:, :128]),
             (mx.zeros((1, 18, 256), mx.bfloat16), weight),
             (mx.zeros((2, 3, 256), mx.bfloat16), weight),
@@ -60,6 +58,29 @@ class TestMlxDenseRows(CustomTestCase):
                 shape=value.shape, matrix=matrix.shape, dtype=value.dtype
             ):
                 self.assertIsNone(mlx_dense_rows(value, matrix))
+
+    def test_mixed_projection_and_latent_singleton_reductions(self):
+        import mlx.core as mx
+
+        from sglang.kernels.ops.gemm.mlx_dense_rows import (
+            mlx_dense_rows,
+            mlx_headed_dense_rows,
+        )
+
+        mx.random.seed(711)
+        for dtype in (mx.float16, mx.bfloat16, mx.float32):
+            x = mx.random.normal((1, 3, 1536)).astype(dtype)
+            w = mx.random.normal((4096, 1536)).astype(mx.bfloat16)
+            expected = mx.concatenate([x[:, j : j + 1] @ w.T for j in range(3)], 1)
+            actual = mlx_dense_rows(x, w)
+            self.assertEqual(actual.dtype, expected.dtype)
+            self.assertTrue(mx.array_equal(actual, expected).item())
+            for k, n in ((256, 512), (512, 256)):
+                x = mx.random.normal((1, 8, 3, k)).astype(dtype)
+                w = mx.random.normal((8, k, n)).astype(dtype)
+                expected = mx.concatenate([x[:, :, j : j + 1] @ w for j in range(3)], 2)
+                actual = mlx_headed_dense_rows(x, w, transposed=True)
+                self.assertTrue(mx.array_equal(actual, expected).item())
 
 
 if __name__ == "__main__":

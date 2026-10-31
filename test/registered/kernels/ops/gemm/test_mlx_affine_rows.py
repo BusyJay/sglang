@@ -190,6 +190,39 @@ class TestMlxAffineRows(CustomTestCase):
                             (dtype, bits, count, limit),
                         )
 
+    def test_mixed_metadata_preserves_native_promotion(self):
+        import mlx.core as mx
+
+        from sglang.kernels.ops.gemm.mlx_affine_rows import mlx_affine_mixed_rows
+
+        mx.random.seed(712)
+        for dtype in (mx.float16, mx.bfloat16, mx.float32):
+            for bits in (4, 5, 6, 8):
+                w, sc, bi = mx.quantize(
+                    mx.random.normal((256, 512)).astype(mx.float16),
+                    bits=bits,
+                    group_size=64,
+                )
+                x = mx.random.normal((1, 3, 512)).astype(dtype)
+                expected = mx.concatenate(
+                    [
+                        mx.quantized_matmul(
+                            x[:, j : j + 1],
+                            w,
+                            sc,
+                            bi,
+                            bits=bits,
+                            group_size=64,
+                            transpose=True,
+                        )
+                        for j in range(3)
+                    ],
+                    1,
+                )
+                actual = mlx_affine_mixed_rows(x, w, sc, bi, bits=bits, group_size=64)
+                self.assertEqual(actual.dtype, expected.dtype)
+                self.assertTrue(mx.array_equal(actual, expected).item())
+
     def test_routed_gate_up_epilogue_and_weight_replacement(self):
         import mlx.core as mx
 

@@ -577,3 +577,13 @@ register_kernel(
         ),
     )
 )
+
+
+register_kernel(
+    KernelSpec(
+        op="attention.mlx_ragged_latent_attention",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.attention.mlx_ragged:mlx_ragged_latent_attention",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)

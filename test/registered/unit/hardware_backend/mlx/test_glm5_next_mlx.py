@@ -1157,6 +1157,133 @@ class TestGlm5NextMlx(CustomTestCase):
                         mx.max(mx.abs(got_logits - want_logits)).item(), 0.04
                     )
 
+    def test_mla_verify_rows_match_legal_prefixes_and_index_pool_growth(self):
+        import copy
+
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import MLA, NativeCache
+        from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
+
+        args = copy.copy(self.model.args)
+        mx.random.seed(29)
+        attn = MLA(args)
+        for prefix in (0, 3, 7, 8, 9, 255, 259):
+            base = NativeCache(4)
+            if prefix:
+                mx.eval(
+                    attn(mx.random.normal((1, prefix, args.hidden_size)), base),
+                    base.cache,
+                )
+            for count in (2, 3, 5, 9):
+                x = mx.random.normal((1, count, args.hidden_size))
+                serial, shared = clone_cache(base), clone_cache(base)
+                rows, states = [], []
+                for j in range(count):
+                    rows.append(attn(x[:, j : j + 1], serial))
+                    states.append(clone_cache(serial))
+                actual, snapshots = attn.verify_rows(x, shared)
+                self.assertLess(
+                    mx.max(mx.abs(actual - mx.concatenate(rows, 1))).item(), 2e-5
+                )
+                for got, want in zip(snapshots, states):
+                    self.assertEqual(got.offset, want.offset)
+                    for a, b in zip(got.cache, want.cache):
+                        if a is None or b is None:
+                            self.assertIs(a, b)
+                        else:
+                            self.assertTrue(mx.array_equal(a, b).item())
+                    continuation = mx.random.normal((1, 1, args.hidden_size))
+                    self.assertLess(
+                        mx.max(
+                            mx.abs(
+                                attn(continuation, clone_cache(got))
+                                - attn(continuation, clone_cache(want))
+                            )
+                        ).item(),
+                        2e-5,
+                    )
+
+    def test_mla_verify_empty_sparse_rows_are_zero_and_causal(self):
+        import copy
+
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import MLA, NativeCache
+
+        args = copy.copy(self.model.args)
+        args.index_kpool_always_select_tail = False
+        attn = MLA(args)
+        x = mx.random.normal((1, 5, args.hidden_size))
+        serial = NativeCache(4)
+        expected = mx.concatenate([attn(x[:, j : j + 1], serial) for j in range(5)], 1)
+        actual, _ = attn.verify_rows(x, NativeCache(4))
+        self.assertTrue(mx.all(mx.isfinite(actual)).item())
+        self.assertLess(mx.max(mx.abs(actual - expected)).item(), 2e-5)
+
+    def test_affine_mla_verify_and_rejected_prefix_resume(self):
+        """Real affine modules must batch without missing attributes or stale KV."""
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import (
+            MLA,
+            ModelArgs,
+            NativeCache,
+        )
+        from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
+
+        args = ModelArgs(
+            model_type="glm5_next",
+            text_config=dict(
+                hidden_size=512,
+                rms_norm_eps=1e-5,
+                attention_bias=False,
+                num_attention_heads=64,
+                q_lora_rank=512,
+                kv_lora_rank=512,
+                qk_nope_head_dim=256,
+                qk_rope_head_dim=0,
+                v_head_dim=256,
+                index_head_dim=128,
+                index_n_heads=4,
+                index_topk=512,
+                index_kpool=16,
+                index_kpool_always_select_tail=True,
+            ),
+        )
+        attn = MLA(args)
+        attn.set_dtype(mx.bfloat16)
+        for name in ("q_a_proj", "q_b_proj", "kv_a_proj_with_mqa", "o_proj"):
+            projection = getattr(attn, name).to_quantized(bits=4, group_size=64)
+            projection.scales = projection.scales.astype(mx.float16)
+            projection.biases = projection.biases.astype(mx.float16)
+            setattr(attn, name, projection)
+        attn.cache_latent_projection = True
+        base = NativeCache(4)
+        mx.eval(
+            attn(mx.random.normal((1, 512, 512)).astype(mx.bfloat16), base), base.cache
+        )
+        x = mx.random.normal((1, 3, 512)).astype(mx.bfloat16)
+        serial = clone_cache(base)
+        outputs, refs = [], []
+        for j in range(3):
+            outputs.append(attn(x[:, j : j + 1], serial))
+            refs.append(clone_cache(serial))
+        actual, snapshots = attn.verify_rows(x, clone_cache(base))
+        self.assertTrue(mx.array_equal(actual, mx.concatenate(outputs, 1)).item())
+        for got, want in zip(snapshots, refs):
+            self.assertEqual(got.offset, want.offset)
+            for gv, wv in zip(got.cache, want.cache):
+                if gv is None or wv is None:
+                    self.assertIs(gv, wv)
+                else:
+                    self.assertTrue(mx.array_equal(gv, wv).item())
+        follow = mx.random.normal((1, 1, 512)).astype(mx.bfloat16)
+        for consumed in (1, 2):
+            got = attn(follow, clone_cache(snapshots[consumed - 1]))
+            want = attn(follow, clone_cache(refs[consumed - 1]))
+            self.assertTrue(mx.array_equal(got, want).item())
+
     def test_dense_latent_cache_tracks_dtype_and_weight_replacement(self):
         import mlx.core as mx
 

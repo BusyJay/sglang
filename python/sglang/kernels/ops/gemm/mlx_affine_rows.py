@@ -232,6 +232,106 @@ def mlx_affine_swiglu_rows(x, gate, up, *, bits, group_size, limit=None):
     return outputs[0] if len(outputs) == 1 else mx.concatenate(outputs, axis=1)
 
 
+_MIXED_SOURCE = r"""
+    const uint lane = thread_index_in_simdgroup;
+    const uint sg = simdgroup_index_in_threadgroup;
+    const int row = int(threadgroup_position_in_grid.x) * 4 + int(sg);
+    constexpr int PACK = glm_pack_factor<BITS>();
+    constexpr int BYTES = glm_bytes_per_pack<BITS>();
+    constexpr int VPT = 2 * PACK;
+    constexpr int BLOCK = 32 * VPT;
+    float value[ROWS] = {0};
+    for (int k = 0; k < K; k += BLOCK) {
+        float inputs[ROWS][VPT], sums[ROWS];
+        #pragma clang loop unroll(full)
+        for (int t = 0; t < ROWS; ++t)
+            sums[t] = glm_load_vector<X,VPT,BITS>(x+size_t(t)*K+k+lane*VPT,inputs[t]);
+        uchar packed[2*BYTES];
+        const device uchar* src=(const device uchar*)w+size_t(row)*(K*BITS/8)+(k/PACK+lane*2)*BYTES;
+        for(int i=0;i<2*BYTES;++i) packed[i]=src[i];
+        float scale=float(s[size_t(row)*(K/GS)+k/GS+lane/(GS/VPT)]);
+        float bias=float(b[size_t(row)*(K/GS)+k/GS+lane/(GS/VPT)]);
+        #pragma clang loop unroll(full)
+        for(int t=0;t<ROWS;++t)
+            value[t]+=glm_qdot_shared<VPT,BITS>(packed,inputs[t],scale,bias,sums[t]);
+    }
+    #pragma clang loop unroll(full)
+    for(int t=0;t<ROWS;++t) {
+        O result=O(simd_sum(value[t]));
+        if(lane==0) out[size_t(t)*N+row]=result;
+    }
+"""
+
+
+@cache
+def _mixed_kernel():
+    return mx.fast.metal_kernel(
+        name="sglang_affine_mixed_shared_rows",
+        input_names=["x", "w", "s", "b"],
+        output_names=["out"],
+        source=_MIXED_SOURCE,
+        header=_SHARED_HEADER,
+    )
+
+
+def mlx_affine_mixed_rows(x, weight, scales, biases, *, bits, group_size):
+    """Share packed weights without changing native activation/metadata promotion.
+
+    No dequantized weight or promoted metadata allocation is retained. Input
+    values and affine metadata convert to float in the QMV accumulation only.
+    """
+    if (
+        x.ndim != 3
+        or x.shape[0] != 1
+        or not 1 <= x.shape[1] <= 17
+        or x.dtype not in (mx.float16, mx.bfloat16, mx.float32)
+        or weight.ndim != 2
+        or weight.dtype != mx.uint32
+        or scales is None
+        or biases is None
+        or scales.shape != biases.shape
+        or scales.dtype != biases.dtype
+        or scales.dtype not in (mx.float16, mx.bfloat16, mx.float32)
+        or bits not in (4, 5, 6, 8)
+        or group_size not in (32, 64, 128)
+    ):
+        return None
+    count, dim = x.shape[1:]
+    out_dim = weight.shape[0]
+    pack = 8 if bits == 5 else 4 if bits == 6 else 32 // bits
+    if (
+        weight.shape[1] * 32 != dim * bits
+        or dim % (64 * pack)
+        or dim % group_size
+        or out_dim % 4
+        or scales.shape != (out_dim, dim // group_size)
+    ):
+        return None
+    dtype = mx.result_type(x.dtype, scales.dtype, biases.dtype)
+    outputs = []
+    for start in range(0, count, 3):
+        rows = min(3, count - start)
+        outputs.append(
+            _mixed_kernel()(
+                inputs=[x[:, start : start + rows], weight, scales, biases],
+                template=[
+                    ("X", x.dtype),
+                    ("O", dtype),
+                    ("K", dim),
+                    ("N", out_dim),
+                    ("GS", group_size),
+                    ("BITS", bits),
+                    ("ROWS", rows),
+                ],
+                grid=(128 * (out_dim // 4), 1, 1),
+                threadgroup=(128, 1, 1),
+                output_shapes=[(1, rows, out_dim)],
+                output_dtypes=[dtype],
+            )[0]
+        )
+    return outputs[0] if len(outputs) == 1 else mx.concatenate(outputs, 1)
+
+
 _ROUTED_GATE_UP = r"""
     const uint lane = thread_index_in_simdgroup;
     const uint sg = simdgroup_index_in_threadgroup;

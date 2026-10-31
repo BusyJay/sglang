@@ -19,12 +19,14 @@ from mlx_lm.models.kimi_linear import ShortConv1d, _group_expert_select
 from mlx_lm.models.switch_layers import QuantizedSwitchLinear, SwitchGLU
 
 from sglang.kernels.ops.attention.linear.mlx_kda import mlx_kda_decode
+from sglang.kernels.ops.attention.mlx_ragged import mlx_ragged_latent_attention
 from sglang.kernels.ops.gemm.mlx_affine_rows import (
+    mlx_affine_mixed_rows,
     mlx_affine_routed_swiglu,
     mlx_affine_rows,
     mlx_affine_swiglu_rows,
 )
-from sglang.kernels.ops.gemm.mlx_dense_rows import mlx_dense_rows
+from sglang.kernels.ops.gemm.mlx_dense_rows import mlx_dense_rows, mlx_headed_dense_rows
 from sglang.kernels.ops.layernorm.mlx_hc import mlx_hc_collapse_norm
 from sglang.kernels.ops.moe.mlx_glm import (
     mlx_glm_down_combine,
@@ -74,6 +76,41 @@ def _uses_fp16_affine_ffn(x, projections):
         and proj.biases.dtype == mx.float16
         for proj in projections
     )
+
+
+def _project_weight_rows(weight, x):
+    out = mlx_dense_rows(x, weight)
+    if out is None:
+        out = mx.concatenate(
+            [x[:, j : j + 1] @ weight.T for j in range(x.shape[1])], axis=1
+        )
+    return out
+
+
+def _project_rows(projection, x):
+    """Use singleton reductions with shared weights on covered row tiles."""
+    out = None
+    if type(projection) is nn.Linear and "bias" not in projection:
+        out = mlx_dense_rows(x, projection.weight)
+    elif (
+        type(projection) is nn.QuantizedLinear
+        and projection.mode == "affine"
+        and "bias" not in projection
+        and getattr(projection, "global_scale", None) is None
+    ):
+        out = mlx_affine_mixed_rows(
+            x,
+            projection.weight,
+            projection.scales,
+            projection.biases,
+            bits=projection.bits,
+            group_size=projection.group_size,
+        )
+    if out is None:
+        out = mx.concatenate(
+            [projection(x[:, j : j + 1]) for j in range(x.shape[1])], axis=1
+        )
+    return out
 
 
 def _row_exact_affine_ffn(block, x, indices=None, *, gate_up_only=False):
@@ -878,7 +915,15 @@ class Indexer(nn.Module):
             else mx.zeros((b, 0, dim), keys.dtype)
         )
 
-    def __call__(self, x, qr, cache, offset):
+    def project_verify_rows(self, x, qr):
+        return (
+            self.k_norm(_project_rows(self.wk, x)),
+            _project_rows(self.wq_b, qr),
+            _project_rows(self.weights_proj, x),
+            _project_weight_rows(self.index_kpool_compress_gate, x),
+        )
+
+    def __call__(self, x, qr, cache, offset, *, projected=None):
         """Return selected raw KV indices, or None for dense causal attention.
 
         Invalid complete pools and padded tail positions carry -1. Keeping
@@ -887,8 +932,11 @@ class Indexer(nn.Module):
         """
         a = self.args
         b, t, _ = x.shape
-        keys = self.k_norm(self.wk(x))
-        gates = x @ self.index_kpool_compress_gate.T
+        if projected is None:
+            keys = self.k_norm(self.wk(x))
+            gates = x @ self.index_kpool_compress_gate.T
+        else:
+            keys, _, _, gates = projected
         pooled = self._update_pool_cache(keys, gates, cache, offset)
         length, pool = offset + t, a.index_kpool
         # Below the sparse budget every complete pool and its causal tail
@@ -896,13 +944,20 @@ class Indexer(nn.Module):
         if length <= a.index_topk and a.index_kpool_always_select_tail:
             return None
         n = length // pool
-        q = self.wq_b(qr).reshape(b, t, a.index_n_heads, a.index_head_dim)
+        q = (self.wq_b(qr) if projected is None else projected[1]).reshape(
+            b,
+            t,
+            a.index_n_heads,
+            a.index_head_dim,
+        )
         scores = mx.maximum(
             q.astype(mx.float32) @ pooled.astype(mx.float32).swapaxes(-1, -2)[:, None],
             0,
         )
         scores *= a.index_head_dim**-0.5
-        weights = self.weights_proj(x).astype(mx.float32) * a.index_n_heads**-0.5
+        weights = (self.weights_proj(x) if projected is None else projected[2]).astype(
+            mx.float32
+        ) * a.index_n_heads**-0.5
         scores = (scores * weights[..., None]).sum(axis=2)
         pool_ends = mx.arange(n) * pool + pool - 1
         valid = pool_ends[None, :] <= (offset + mx.arange(t))[:, None]
@@ -1012,6 +1067,123 @@ class MLA(nn.Module):
             bias=args.attention_bias,
         )
         self.indexer = Indexer(args)
+
+    def project_verify_rows(self, x):
+        qr = self.q_a_layernorm(_project_rows(self.q_a_proj, x))
+        q = _project_rows(self.q_b_proj, qr)
+        kv = self.kv_a_layernorm(_project_rows(self.kv_a_proj_with_mqa, x))
+        return qr, q, kv, self.indexer.project_verify_rows(x, qr)
+
+    def verify_rows(self, x, cache, *, projected=None):
+        """Batch projections and latent attention with explicit per-row visibility."""
+        a = self.args
+        b, count, _ = x.shape
+        qr, q, new_kv, index_projection = (
+            self.project_verify_rows(x) if projected is None else projected
+        )
+        offset = cache.offset
+        kv = mx.concatenate([cache[0], new_kv], 1) if cache[0] is not None else new_kv
+        snapshots, selected = [], []
+        for j in range(count):
+            length = offset + j + 1
+            indices = self.indexer(
+                x[:, j : j + 1],
+                qr[:, j : j + 1],
+                cache,
+                offset + j,
+                projected=tuple(v[:, j : j + 1] for v in index_projection),
+            )
+            if indices is None:
+                indices = mx.arange(length)[None, None, :]
+            else:
+                width = (
+                    min(a.index_topk // a.index_kpool, length // a.index_kpool)
+                    * a.index_kpool
+                )
+                if a.index_kpool_always_select_tail:
+                    width += length % a.index_kpool
+                indices = indices[..., :width]
+            selected.append(indices)
+            snapshot = NativeCache(4)
+            snapshot.cache = [kv[:, :length]] + [
+                v.view(v.dtype) if v is not None else None for v in cache.cache[1:]
+            ]
+            snapshot.offset = length
+            snapshots.append(snapshot)
+        cache.cache = [
+            v.view(v.dtype) if v is not None else None for v in snapshots[-1].cache
+        ]
+        cache.offset = offset + count
+        width = max(v.shape[-1] for v in selected)
+        q = q.reshape(b, count, a.num_attention_heads, a.qk_nope_head_dim).transpose(
+            0, 2, 1, 3
+        )
+        wk, wv = self._latent_matrices(q.dtype)
+        latent_q = mlx_headed_dense_rows(q, wk, transposed=True)
+        if latent_q is None:
+            latent_q = q @ wk
+        if width == 0:
+            latent_out = mx.zeros(latent_q.shape, latent_q.dtype)
+        else:
+            indices = mx.concatenate(
+                [
+                    mx.pad(
+                        v,
+                        [(0, 0), (0, 0), (0, width - v.shape[-1])],
+                        constant_values=-1,
+                    )
+                    for v in selected
+                ],
+                axis=1,
+            )
+            latent_out = mlx_ragged_latent_attention(
+                latent_q,
+                kv,
+                indices.astype(mx.int32),
+                [v.shape[-1] for v in selected],
+                scale=a.qk_nope_head_dim**-0.5,
+            )
+            if latent_out is None:
+                selected_kv = mx.take_along_axis(
+                    kv[:, None], mx.maximum(indices, 0)[..., None], axis=2
+                ).reshape(b * count, 1, width, a.kv_lora_rank)
+                selected_q = latent_q.transpose(0, 2, 1, 3).reshape(
+                    b * count,
+                    a.num_attention_heads,
+                    1,
+                    a.kv_lora_rank,
+                )
+                latent_out = mx.fast.scaled_dot_product_attention(
+                    selected_q,
+                    selected_kv,
+                    selected_kv,
+                    scale=a.qk_nope_head_dim**-0.5,
+                    mask=(indices >= 0).reshape(b * count, 1, 1, width),
+                )
+                # A row with no completed pool and tail selection disabled has an
+                # empty legal set. SDPA's fully masked row must match serial zero.
+                latent_out = mx.where(
+                    mx.any(indices >= 0, axis=-1).reshape(b * count, 1, 1, 1),
+                    latent_out,
+                    mx.zeros_like(latent_out),
+                )
+                latent_out = latent_out.reshape(
+                    b, count, a.num_attention_heads, a.kv_lora_rank
+                ).transpose(
+                    0,
+                    2,
+                    1,
+                    3,
+                )
+        # FP32 promotion packs each sliced operand row-major in MLX. With
+        # the original BF16 slice, Wv retains its transposed GEMV layout.
+        transposed = latent_out.dtype == mx.float32
+        operand = wv if transposed else wv.swapaxes(-1, -2)
+        out = mlx_headed_dense_rows(latent_out, operand, transposed=transposed)
+        if out is None:
+            out = latent_out @ wv
+        out = out.transpose(0, 2, 1, 3).reshape(b, count, -1)
+        return _project_rows(self.o_proj, out), snapshots
 
     def __call__(self, x, cache):
         a = self.args
@@ -1277,24 +1449,33 @@ class DecoderLayer(nn.Module):
         projected = (
             self.self_attn.project_verify_rows(normed_rows) if self.is_linear else None
         )
-        for j in range(x.shape[1]):
-            normed, post, residual = attention_inputs[j]
-            branch = (
-                self.self_attn(
-                    normed,
-                    cache,
-                    projected=tuple(v[:, j : j + 1] for v in projected),
+        batched = (
+            None if self.is_linear else self.self_attn.verify_rows(normed_rows, cache)
+        )
+        if batched is not None:
+            branches, snapshots = batched
+            for j, (_, post, residual) in enumerate(attention_inputs):
+                attended.append(
+                    self._branch_output(branches[:, j : j + 1], post, residual)
                 )
-                if projected is not None
-                else self.self_attn(normed, cache)
-            )
-            attended.append(self._branch_output(branch, post, residual))
-            snapshot = NativeCache(4)
-            snapshot.cache = [
-                v.view(v.dtype) if v is not None else None for v in cache.cache
-            ]
-            snapshot.offset = cache.offset
-            snapshots.append(snapshot)
+        else:
+            for j, (normed, post, residual) in enumerate(attention_inputs):
+                branch = (
+                    self.self_attn(
+                        normed,
+                        cache,
+                        projected=tuple(v[:, j : j + 1] for v in projected),
+                    )
+                    if projected is not None
+                    else self.self_attn(normed, cache)
+                )
+                attended.append(self._branch_output(branch, post, residual))
+                snapshot = NativeCache(4)
+                snapshot.cache = [
+                    v.view(v.dtype) if v is not None else None for v in cache.cache
+                ]
+                snapshot.offset = cache.offset
+                snapshots.append(snapshot)
         normed, post, residual = self._branch_inputs(
             mx.concatenate(attended, axis=1), "ffn", self.post_attention_layernorm
         )

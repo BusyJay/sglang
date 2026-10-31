@@ -583,9 +583,29 @@ register_kernel(
 
 register_kernel(
     KernelSpec(
+        op="gemm.mlx_affine_mixed_rows",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.gemm.mlx_affine_rows:mlx_affine_mixed_rows",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)
+
+
+register_kernel(
+    KernelSpec(
         op="gemm.mlx_affine_routed_swiglu",
         backend=KernelBackend.MLX,
         target="sglang.kernels.ops.gemm.mlx_affine_rows:mlx_affine_routed_swiglu",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)
+
+
+register_kernel(
+    KernelSpec(
+        op="gemm.mlx_headed_dense_rows",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.gemm.mlx_dense_rows:mlx_headed_dense_rows",
         capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
     )
 )
