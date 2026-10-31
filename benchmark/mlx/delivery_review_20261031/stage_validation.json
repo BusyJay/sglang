@@ -1,0 +1,100 @@
+[
+  {
+    "stage": 1,
+    "exit_code": 0,
+    "log": "tests_stage1.log",
+    "pytest_summary": "157 passed, 2 deselected, 19 warnings, 208 subtests passed in 10.03s",
+    "changed_source_sha256": {
+      "python/sglang/kernels/ops/gemm/__init__.py": "a77421d1f2d4799189f8f76009de5619c3c667e83905f8b9849416dcf5420adb",
+      "python/sglang/kernels/ops/gemm/mlx_affine_rows.py": "e64c0b9175b7f3655b950442f7812229b2573370c414350c88bf7b118ecde3ba",
+      "python/sglang/srt/hardware_backend/mlx/models/glm5_next.py": "5003f696d8a1766690b7cff041a6921dcebd76cd62caf07acc27cad341abcb9b",
+      "test/registered/kernels/ops/gemm/test_mlx_affine_rows.py": "c234107cac0c44f0308d1f13a0707c8a85d516cf124d91f0ba6042ed105133b7",
+      "test/registered/unit/kernels/test_kernels_namespace.py": "1cdc38b60d4d1b45069188a8dd18db48679b64f1dae66f6de31ee11ec3dc4765"
+    }
+  },
+  {
+    "stage": 2,
+    "exit_code": 0,
+    "log": "tests_stage2.log",
+    "pytest_summary": "166 passed, 2 deselected, 19 warnings, 266 subtests passed in 8.52s",
+    "changed_source_sha256": {
+      "python/sglang/kernels/ops/attention/__init__.py": "4b129dffeb5bc029ea26dd0d7b2c5e728e57595ae4ef14c48616789d75364127",
+      "python/sglang/kernels/ops/attention/mlx_ragged.py": "c207b9204d5ada7ac51ed13b7b6dd59ec3a500d8d21796aeb9b7e8c50e842b03",
+      "python/sglang/kernels/ops/gemm/__init__.py": "c107c7f491d9191728d1eaf7cb859d6848e16cccc908cb40409cfb2e8367b1aa",
+      "python/sglang/kernels/ops/gemm/mlx_affine_rows.py": "288bff1b1ba5c8fa3db4c1cc6b89dbe7689e9dee4a760ddd8d2668e1a6ba649f",
+      "python/sglang/kernels/ops/gemm/mlx_dense_rows.py": "440c32a2a51da197dba0ce28494ed8d931c1cd26fde6e05da2ba9120823ad789",
+      "python/sglang/srt/hardware_backend/mlx/models/glm5_next.py": "5fba7a21173c7c179af3bdc501ae698863adffb780642006b86553aa70b40724",
+      "test/registered/kernels/ops/attention/test_mlx_ragged.py": "68da16c9f43bbc430d7fc94950dc07eb1e2be870649b4930573335ea4b9c54d3",
+      "test/registered/kernels/ops/gemm/test_mlx_affine_rows.py": "61143f1331ed5504c7c3aa14b8c2fddc40d0b036d89ece64c8406d4b189380df",
+      "test/registered/kernels/ops/gemm/test_mlx_dense_rows.py": "02660f5a77c5a148bcb93230ce8413e02f7f384c340572175dfbc106f6f5686a",
+      "test/registered/unit/hardware_backend/mlx/test_glm5_next_mlx.py": "f578dd2432cc7018a605323856528a90b63516fd69605ea5d898fd0139c64b68",
+      "test/registered/unit/kernels/test_kernels_namespace.py": "1d5890862e1cb8dd2e5e47879c1f1e1cea9cc60aaa83a4082146b9617f5d60d2"
+    }
+  },
+  {
+    "stage": 3,
+    "exit_code": 0,
+    "log": "tests_stage3.log",
+    "pytest_summary": "167 passed, 2 deselected, 19 warnings, 276 subtests passed in 8.69s",
+    "changed_source_sha256": {
+      "python/sglang/kernels/ops/attention/__init__.py": "4b129dffeb5bc029ea26dd0d7b2c5e728e57595ae4ef14c48616789d75364127",
+      "python/sglang/kernels/ops/attention/linear/mlx_kda.py": "1e1316d42e4e461a7cd5023720b822ddcb86372f7f23caf79512c67def20057a",
+      "python/sglang/kernels/ops/attention/mlx_ragged.py": "c207b9204d5ada7ac51ed13b7b6dd59ec3a500d8d21796aeb9b7e8c50e842b03",
+      "python/sglang/kernels/ops/gemm/__init__.py": "c107c7f491d9191728d1eaf7cb859d6848e16cccc908cb40409cfb2e8367b1aa",
+      "python/sglang/kernels/ops/gemm/mlx_affine_rows.py": "288bff1b1ba5c8fa3db4c1cc6b89dbe7689e9dee4a760ddd8d2668e1a6ba649f",
+      "python/sglang/kernels/ops/gemm/mlx_dense_rows.py": "440c32a2a51da197dba0ce28494ed8d931c1cd26fde6e05da2ba9120823ad789",
+      "python/sglang/srt/hardware_backend/mlx/models/glm5_next.py": "04812feb570284900983dc4f56a38c4004a8864562a10ddda61b08bed024bf5e",
+      "test/registered/kernels/ops/attention/linear/test_mlx_kda.py": "a412802118313d88c3b52798f482eb398dcbd9626263287046048f29c97bb326",
+      "test/registered/kernels/ops/attention/test_mlx_ragged.py": "68da16c9f43bbc430d7fc94950dc07eb1e2be870649b4930573335ea4b9c54d3",
+      "test/registered/kernels/ops/gemm/test_mlx_affine_rows.py": "61143f1331ed5504c7c3aa14b8c2fddc40d0b036d89ece64c8406d4b189380df",
+      "test/registered/kernels/ops/gemm/test_mlx_dense_rows.py": "02660f5a77c5a148bcb93230ce8413e02f7f384c340572175dfbc106f6f5686a",
+      "test/registered/unit/hardware_backend/mlx/test_glm5_next_mlx.py": "f578dd2432cc7018a605323856528a90b63516fd69605ea5d898fd0139c64b68",
+      "test/registered/unit/kernels/test_kernels_namespace.py": "1d5890862e1cb8dd2e5e47879c1f1e1cea9cc60aaa83a4082146b9617f5d60d2"
+    }
+  },
+  {
+    "stage": 4,
+    "exit_code": 0,
+    "log": "tests_stage4.log",
+    "pytest_summary": "169 passed, 2 deselected, 19 warnings, 276 subtests passed in 8.33s",
+    "changed_source_sha256": {
+      "python/sglang/kernels/ops/attention/__init__.py": "4b129dffeb5bc029ea26dd0d7b2c5e728e57595ae4ef14c48616789d75364127",
+      "python/sglang/kernels/ops/attention/linear/mlx_kda.py": "1e1316d42e4e461a7cd5023720b822ddcb86372f7f23caf79512c67def20057a",
+      "python/sglang/kernels/ops/attention/mlx_ragged.py": "c207b9204d5ada7ac51ed13b7b6dd59ec3a500d8d21796aeb9b7e8c50e842b03",
+      "python/sglang/kernels/ops/gemm/__init__.py": "3b69793af44c02a7a378e534e2024ac07065cd64ccd0bdba883630081becbf9a",
+      "python/sglang/kernels/ops/gemm/mlx_affine_rows.py": "288bff1b1ba5c8fa3db4c1cc6b89dbe7689e9dee4a760ddd8d2668e1a6ba649f",
+      "python/sglang/kernels/ops/gemm/mlx_dense_rows.py": "8aa9cc6d86bf2116f5b39d03108c70b7ee770108f564e43657219255cd340d16",
+      "python/sglang/srt/hardware_backend/mlx/models/glm5_next.py": "4203b4238dadf46ab30b772ecb7d15fe8bd3639d3f3da743d9a57ad23f5d28b3",
+      "python/sglang/srt/hardware_backend/mlx/mtp_serving.py": "482512141dff1501985f00e9769cb1697d187f3acc6ce2405efb889507daafc9",
+      "test/registered/kernels/ops/attention/linear/test_mlx_kda.py": "a412802118313d88c3b52798f482eb398dcbd9626263287046048f29c97bb326",
+      "test/registered/kernels/ops/attention/test_mlx_ragged.py": "68da16c9f43bbc430d7fc94950dc07eb1e2be870649b4930573335ea4b9c54d3",
+      "test/registered/kernels/ops/gemm/test_mlx_affine_rows.py": "61143f1331ed5504c7c3aa14b8c2fddc40d0b036d89ece64c8406d4b189380df",
+      "test/registered/kernels/ops/gemm/test_mlx_dense_rows.py": "2a384a655f62deef6a100e406b2e9123eace6dbebf74dcbc1c38c5968e3ccbc3",
+      "test/registered/unit/hardware_backend/mlx/test_glm5_next_mlx.py": "f578dd2432cc7018a605323856528a90b63516fd69605ea5d898fd0139c64b68",
+      "test/registered/unit/kernels/test_kernels_namespace.py": "80a5f15fe584369b2ac6a7bee89451b38da2e2e6e5b9fcddbcc66063d094d9f4"
+    }
+  },
+  {
+    "stage": 5,
+    "exit_code": 0,
+    "log": "tests_stage5.log",
+    "pytest_summary": "171 passed, 2 deselected, 19 warnings, 276 subtests passed in 8.80s",
+    "changed_source_sha256": {
+      "python/sglang/kernels/ops/attention/__init__.py": "4b129dffeb5bc029ea26dd0d7b2c5e728e57595ae4ef14c48616789d75364127",
+      "python/sglang/kernels/ops/attention/linear/mlx_kda.py": "1e1316d42e4e461a7cd5023720b822ddcb86372f7f23caf79512c67def20057a",
+      "python/sglang/kernels/ops/attention/mlx_ragged.py": "c207b9204d5ada7ac51ed13b7b6dd59ec3a500d8d21796aeb9b7e8c50e842b03",
+      "python/sglang/kernels/ops/gemm/__init__.py": "3b69793af44c02a7a378e534e2024ac07065cd64ccd0bdba883630081becbf9a",
+      "python/sglang/kernels/ops/gemm/mlx_affine_rows.py": "288bff1b1ba5c8fa3db4c1cc6b89dbe7689e9dee4a760ddd8d2668e1a6ba649f",
+      "python/sglang/kernels/ops/gemm/mlx_dense_rows.py": "8aa9cc6d86bf2116f5b39d03108c70b7ee770108f564e43657219255cd340d16",
+      "python/sglang/srt/hardware_backend/mlx/model_runner.py": "959d012792d0bedd88b61c53136a997f7f5cfd79a03fee3a9a4ad57901a64ecf",
+      "python/sglang/srt/hardware_backend/mlx/models/glm5_next.py": "4203b4238dadf46ab30b772ecb7d15fe8bd3639d3f3da743d9a57ad23f5d28b3",
+      "python/sglang/srt/hardware_backend/mlx/mtp_serving.py": "df0addc9634a5709c246498fbd3579a527d2a886d6eeab230bf84a14b2ab63fe",
+      "test/registered/kernels/ops/attention/linear/test_mlx_kda.py": "a412802118313d88c3b52798f482eb398dcbd9626263287046048f29c97bb326",
+      "test/registered/kernels/ops/attention/test_mlx_ragged.py": "68da16c9f43bbc430d7fc94950dc07eb1e2be870649b4930573335ea4b9c54d3",
+      "test/registered/kernels/ops/gemm/test_mlx_affine_rows.py": "61143f1331ed5504c7c3aa14b8c2fddc40d0b036d89ece64c8406d4b189380df",
+      "test/registered/kernels/ops/gemm/test_mlx_dense_rows.py": "2a384a655f62deef6a100e406b2e9123eace6dbebf74dcbc1c38c5968e3ccbc3",
+      "test/registered/unit/hardware_backend/mlx/test_glm5_next_mlx.py": "0455a76669a7b7938e475a20696e53f9f4cdfacef387ae5850c0060da0e23e8d",
+      "test/registered/unit/kernels/test_kernels_namespace.py": "80a5f15fe584369b2ac6a7bee89451b38da2e2e6e5b9fcddbcc66063d094d9f4"
+    }
+  }
+]
