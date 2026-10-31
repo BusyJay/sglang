@@ -1,0 +1,30 @@
+...................................... [ 25%]
+...................................................... [ 60%]
+............................................................             [100%]
+=============================== warnings summary ===============================
+../prod/common/sglang-metal/lib/python3.12/site-packages/_pytest/config/__init__.py:1636
+  /Users/jay/workspace/prod/common/sglang-metal/lib/python3.12/site-packages/_pytest/config/__init__.py:1636: PytestConfigWarning: Unknown config option: asyncio_mode
+
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+../prod/common/sglang-metal/lib/python3.12/site-packages/torch/jit/_script.py:365: 14 warnings
+  /Users/jay/workspace/prod/common/sglang-metal/lib/python3.12/site-packages/torch/jit/_script.py:365: DeprecationWarning: `torch.jit.script_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+    warnings.warn(
+
+python/sglang/srt/layers/quantization/awq/awq.py:53
+  /Users/jay/workspace/sglang/python/sglang/srt/layers/quantization/awq/awq.py:53: UserWarning: Only CUDA, HIP and XPU support AWQ currently.
+    warnings.warn(f"Only CUDA, HIP and XPU support AWQ currently.")
+
+python/sglang/srt/layers/quantization/gguf.py:76
+  /Users/jay/workspace/sglang/python/sglang/srt/layers/quantization/gguf.py:76: UserWarning: Only CUDA, MUSA and NPU support GGUF quantization currently.
+    warnings.warn(f"Only CUDA, MUSA and NPU support GGUF quantization currently.")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+152 passed, 2 deselected, 19 warnings, 196 subtests passed in 9.24s
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute

@@ -1,0 +1,91 @@
+{
+  "base_commit": "58a6c24e3ff9aefbc2e9e0eeb76da422e40fb62c",
+  "implementation_commit": "a54f0797af4dd8b8fae9d63a8c45d6160d3dd13c",
+  "source_patch_sha256": "0c3a13416282b11367345153c7fedff75a28143f565955a852f334133fe1ecb2",
+  "source_archive_sha256": "07b1616fe5a3b818466760569c041464bb89aac260d738a30489bbbbeefcd6f0",
+  "source_base_patch_and_all_11_file_hashes_verified": true,
+  "mechanism_commits": {
+    "dense_head": "d7ee7c9406",
+    "kda_projection": "e818e75989",
+    "profiler": "a54f0797af"
+  },
+  "device": {
+    "device_name": "Apple M5 Ultra",
+    "max_recommended_working_set_size": 257698037760,
+    "memory_size": 274877906944,
+    "architecture": "applegpu_g17d",
+    "max_buffer_length": 193273528320,
+    "resource_limit": 499000
+  },
+  "mlx": "0.32.4",
+  "mlx_lm": "0.32.2",
+  "checkpoint_revision": "fa04cbc3622b16aa7475404060b05e506d81bd4e",
+  "defaults": {
+    "dense_verify_sharing": true,
+    "mtp_verify_mode": "ffn",
+    "mtp_cli_default": 0,
+    "recommended_draft_steps": 2,
+    "profiler_opt_in": true
+  },
+  "numerical": {
+    "forced_panels": 16,
+    "generation_panels": 8,
+    "logits_hidden_and_row_caches_bitwise_equal": true,
+    "tokens_and_draft_correctness_equal": true
+  },
+  "http": {
+    "timing_outputs": 60,
+    "contract_outputs": 140,
+    "all_hashes_equal": true,
+    "baseline_checkout_import_verified": true,
+    "baseline_checkout_cleanly_removed": true
+  },
+  "tests": {
+    "passed": 152,
+    "subtests": 196,
+    "excluded_known_amx_import_probes": 2
+  },
+  "profiler": {
+    "full_model_hashes_equal": true,
+    "dropped_events": 0,
+    "swap_unchanged": true,
+    "baseline_median_ms": 45.12577099376358,
+    "host_median_ms": 46.97729152394459,
+    "sync_median_ms": 184.57093750475906,
+    "metal_record_and_export_passed": true,
+    "filtered_device_events": 254,
+    "device_evidence": "encoder/device intervals including startup/warmup, not per-shader timings"
+  },
+  "source_sha256": {
+    "benchmark/mlx/README.profile.md": "994a1f5ad33c30e86d32f4c7798647fbaf8f036c5a2f8f934439624e3f629564",
+    "benchmark/mlx/bench_glm5_next_dense_verify_ab.py": "55bb2c9c674d8f21ea184b1cf5d120c97e63e86d585db85c2aa625fe66a4067a",
+    "benchmark/mlx/mlx_metal_trace.py": "48e60ee7fe2cb325984401c7ee160290dccc490b39d7807099ae844c60d520de",
+    "benchmark/mlx/mlx_profile.py": "7562b24e1db9f37fa3515501a85e1c610b6855e1a6e391ad3e454e0e14a3ac7d",
+    "benchmark/mlx/mtp_review_20261031/README.md": "d7b83364e3102ae81e511796fe3257af3f6bad80c254173085bee290b44fffa2",
+    "benchmark/mlx/profile_glm_mlx.py": "f7a8ef481ab7c938f7d9bcaa87f3714c166555f6b2a338e6789dc8f638b954a7",
+    "python/sglang/kernels/ops/gemm/__init__.py": "f82b78a172b7eb013ffa8b3cd85c258d6b046e977af540c7951c4cc12e57e239",
+    "python/sglang/kernels/ops/gemm/mlx_dense_rows.py": "557ea1c0d7993e0e4e4fbc0d896ba50795a8453cbdfbf283ba7f7460a2bbb202",
+    "python/sglang/srt/hardware_backend/mlx/models/glm5_next.py": "9000a1aeb67f8ca4de7f21e8325bd2174bb011f03d61063e1f11751dfc3db1c5",
+    "test/registered/kernels/ops/gemm/test_mlx_dense_rows.py": "4d7e7dc73ae372abbd09e8a2ad3dd81454a23c9868b6c9355adb85327e019f37",
+    "test/registered/unit/hardware_backend/mlx/test_glm5_next_mlx.py": "1e9ab478d3c3bd9b516983a736bdefde92cc3c97bb0475e2f079a6a208a91e03",
+    "test/registered/unit/hardware_backend/mlx/test_mlx_profile.py": "6e7725b95aa195c64f05540737b4bc1dd6c59d051aea7d7e606841c89ef4fa44",
+    "test/registered/unit/kernels/test_kernels_namespace.py": "9a5fbc09e74f37683a1095b84d43779fabf186d6812528aefabd9e1354ebaec7"
+  },
+  "evidence_sha256": {
+    "m5/dense_ab_initial.json": "9d1788da3c8ca378692a581c85b2c88c85ca0aa7beb57abffed3ff424848d18a",
+    "m5/http_candidate.json": "2fc5cd7a007ef95a4de3ca063a684881f1e67808709670100708a725aeee1b31",
+    "m5/http_baseline_after.json": "76fb7542d5d3d075fdd67f37c0c90b74d73e44c8097b81a182c124f45b9f370a",
+    "m5/http_candidate_after.json": "a378b9f13536792b729dfea0fd67f62434aa6352c5c3f9b52df4c4c1e05aa3d2",
+    "m5/http_comparison.json": "83ad5d3c827caa69382bd63f2259f8e5f9b0ff5a551f2e5684c8b5ed5ba03964",
+    "m5/tests_final.log": "23deef725ba97df3fb1480e08bc898d892f12c7dd081e20e6a63df507edcccba",
+    "m5/profiler_full/results.json": "aabb67517c85c66cc94a18afe36193ad3b816d612b779fe5c462285e71a06c5e",
+    "m5/profiler_full/environment.json": "456cccff62623b0ff87bcbab11a57d64189f65f4c9dd095763054719dcf9bb8f",
+    "m5/profiler_full/weights.json": "cb2d5a3f018e4ad3e9c7ce38bd740f2578b01e0f31a5999fd6829a67a7c7b313",
+    "m5/profiler_full/host.trace.json.gz": "43a7743d22a3b3c2fc509a3c4c0adfb0eca5ab6aa6e42460ea30115ea2b8b118",
+    "m5/profiler_full/sync.trace.json.gz": "427db274e88d99b9dadb447060f71ab6e45c4203e132a7cf766754085fa616e3",
+    "m5/profiler_tiny/results.json": "1fbfb77fa40782e3a1de80fff662558200a7d1698bd91b92a2abaaed7494f6db",
+    "m5/device/device-summary.json": "a3cc7992e7531b526e4153a196135140d2a76d9af122b696c9964ef3cc0bbfc0",
+    "m5/device/device.trace.json": "514cacbaf3169965dfa0739c3a24805b559173c30ed0d00a4877ab200d5f1b0a"
+  },
+  "test_log_normalization": "Trailing whitespace removed only; outcomes unchanged"
+}

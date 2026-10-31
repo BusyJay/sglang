@@ -1,5 +1,7 @@
 # GLM MLX MTP patch evaluation — 2026-10-31
 
+> 后续 [combined-patch 测量](../combined_review_20261031/README.md) 已接入 KDA 稠密投影和 BF16 输出头共享，并重新选择 step；下文保留本次提交当时的结果。
+
 This report records the local Apple M5 Ultra evaluation and final implementation.
 [M4_REVIEW.md](M4_REVIEW.md) and [MECHANISM_REVIEW.md](MECHANISM_REVIEW.md)
 are the supplied patch's historical M4 review, not measurements of this machine.

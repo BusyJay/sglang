@@ -1,0 +1,998 @@
+[
+  {
+    "inputs": [
+      {
+        "bytes": 32768,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          1,
+          1,
+          4,
+          4096
+        ]
+      },
+      {
+        "bytes": 96,
+        "dtype": "mlx.core.float32",
+        "shape": [
+          1,
+          1,
+          24
+        ]
+      },
+      {
+        "bytes": 96,
+        "dtype": "mlx.core.float32",
+        "shape": [
+          24
+        ]
+      },
+      {
+        "bytes": 12,
+        "dtype": "mlx.core.float32",
+        "shape": [
+          3
+        ]
+      },
+      {
+        "bytes": 8192,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          4096
+        ]
+      }
+    ],
+    "op": "mlx_hc_collapse_norm",
+    "outputs": [
+      {
+        "bytes": 8192,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          1,
+          1,
+          4096
+        ]
+      },
+      {
+        "bytes": 8,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          1,
+          1,
+          4
+        ]
+      },
+      {
+        "bytes": 32768,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          1,
+          1,
+          4,
+          4096
+        ]
+      }
+    ],
+    "returned_none": false,
+    "calls": 270
+  },
+  {
+    "inputs": [
+      {
+        "bytes": 24576,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          1,
+          3,
+          4096
+        ]
+      },
+      {
+        "bytes": 203948032,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          24896,
+          4096
+        ]
+      }
+    ],
+    "op": "mlx_dense_rows",
+    "outputs": [
+      {
+        "bytes": 149376,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          1,
+          3,
+          24896
+        ]
+      }
+    ],
+    "returned_none": false,
+    "calls": 68
+  },
+  {
+    "inputs": [
+      {
+        "bytes": 49792,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          1,
+          1,
+          24896
+        ]
+      },
+      {
+        "bytes": 65536,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          8192,
+          4,
+          1
+        ]
+      },
+      {
+        "bytes": 65536,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          8192,
+          4,
+          1
+        ]
+      },
+      {
+        "bytes": 65536,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          8192,
+          4,
+          1
+        ]
+      },
+      {
+        "bytes": 49152,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          1,
+          3,
+          8192
+        ]
+      },
+      {
+        "bytes": 49152,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          1,
+          3,
+          8192
+        ]
+      },
+      {
+        "bytes": 49152,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          1,
+          3,
+          8192
+        ]
+      },
+      {
+        "bytes": 4194304,
+        "dtype": "mlx.core.float32",
+        "shape": [
+          1,
+          64,
+          128,
+          128
+        ]
+      },
+      {
+        "bytes": 16384,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          1,
+          1,
+          8192
+        ]
+      },
+      {
+        "bytes": 16384,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          1,
+          1,
+          8192
+        ]
+      },
+      {
+        "bytes": 256,
+        "dtype": "mlx.core.float32",
+        "shape": [
+          64
+        ]
+      },
+      {
+        "bytes": 32768,
+        "dtype": "mlx.core.float32",
+        "shape": [
+          8192
+        ]
+      },
+      {
+        "bytes": 256,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          128
+        ]
+      }
+    ],
+    "op": "mlx_kda_decode",
+    "outputs": [
+      {
+        "bytes": 16384,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          1,
+          1,
+          8192
+        ]
+      },
+      {
+        "bytes": 49152,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          1,
+          3,
+          8192
+        ]
+      },
+      {
+        "bytes": 49152,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          1,
+          3,
+          8192
+        ]
+      },
+      {
+        "bytes": 49152,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          1,
+          3,
+          8192
+        ]
+      },
+      {
+        "bytes": 4194304,
+        "dtype": "mlx.core.float32",
+        "shape": [
+          1,
+          64,
+          128,
+          128
+        ]
+      }
+    ],
+    "returned_none": false,
+    "calls": 204
+  },
+  {
+    "inputs": [
+      {
+        "bytes": 98304,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          1,
+          3,
+          4,
+          4096
+        ]
+      },
+      {
+        "bytes": 288,
+        "dtype": "mlx.core.float32",
+        "shape": [
+          1,
+          3,
+          24
+        ]
+      },
+      {
+        "bytes": 96,
+        "dtype": "mlx.core.float32",
+        "shape": [
+          24
+        ]
+      },
+      {
+        "bytes": 12,
+        "dtype": "mlx.core.float32",
+        "shape": [
+          3
+        ]
+      },
+      {
+        "bytes": 8192,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          4096
+        ]
+      }
+    ],
+    "op": "mlx_hc_collapse_norm",
+    "outputs": [
+      {
+        "bytes": 24576,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          1,
+          3,
+          4096
+        ]
+      },
+      {
+        "bytes": 24,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          1,
+          3,
+          4
+        ]
+      },
+      {
+        "bytes": 98304,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          1,
+          3,
+          4,
+          4096
+        ]
+      }
+    ],
+    "returned_none": false,
+    "calls": 90
+  },
+  {
+    "inputs": [
+      {
+        "bytes": 24576,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          1,
+          3,
+          4096
+        ]
+      },
+      {
+        "bytes": 25165824,
+        "dtype": "mlx.core.uint32",
+        "shape": [
+          12288,
+          512
+        ]
+      },
+      {
+        "bytes": 1572864,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          12288,
+          64
+        ]
+      },
+      {
+        "bytes": 1572864,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          12288,
+          64
+        ]
+      }
+    ],
+    "op": "mlx_affine_rows",
+    "outputs": [
+      {
+        "bytes": 73728,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          1,
+          3,
+          12288
+        ]
+      }
+    ],
+    "returned_none": false,
+    "calls": 12
+  },
+  {
+    "inputs": [
+      {
+        "bytes": 73728,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          1,
+          3,
+          12288
+        ]
+      },
+      {
+        "bytes": 31457280,
+        "dtype": "mlx.core.uint32",
+        "shape": [
+          4096,
+          1920
+        ]
+      },
+      {
+        "bytes": 1572864,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          4096,
+          192
+        ]
+      },
+      {
+        "bytes": 1572864,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          4096,
+          192
+        ]
+      }
+    ],
+    "op": "mlx_affine_rows",
+    "outputs": [
+      {
+        "bytes": 24576,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          1,
+          3,
+          4096
+        ]
+      }
+    ],
+    "returned_none": false,
+    "calls": 6
+  },
+  {
+    "inputs": [
+      {
+        "bytes": 8192,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          1,
+          1,
+          4096
+        ]
+      },
+      {
+        "bytes": 3145728,
+        "dtype": "mlx.core.uint32",
+        "shape": [
+          1536,
+          512
+        ]
+      },
+      {
+        "bytes": 196608,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          1536,
+          64
+        ]
+      },
+      {
+        "bytes": 196608,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          1536,
+          64
+        ]
+      }
+    ],
+    "op": "mx.quantized_matmul",
+    "outputs": [
+      {
+        "bytes": 6144,
+        "dtype": "mlx.core.float32",
+        "shape": [
+          1,
+          1,
+          1536
+        ]
+      }
+    ],
+    "returned_none": null,
+    "calls": 66
+  },
+  {
+    "inputs": [
+      {
+        "bytes": 6144,
+        "dtype": "mlx.core.float32",
+        "shape": [
+          1,
+          1,
+          1536
+        ]
+      },
+      {
+        "bytes": 12582912,
+        "dtype": "mlx.core.uint32",
+        "shape": [
+          16384,
+          192
+        ]
+      },
+      {
+        "bytes": 786432,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          16384,
+          24
+        ]
+      },
+      {
+        "bytes": 786432,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          16384,
+          24
+        ]
+      }
+    ],
+    "op": "mx.quantized_matmul",
+    "outputs": [
+      {
+        "bytes": 65536,
+        "dtype": "mlx.core.float32",
+        "shape": [
+          1,
+          1,
+          16384
+        ]
+      }
+    ],
+    "returned_none": null,
+    "calls": 66
+  },
+  {
+    "inputs": [
+      {
+        "bytes": 8192,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          1,
+          1,
+          4096
+        ]
+      },
+      {
+        "bytes": 1048576,
+        "dtype": "mlx.core.uint32",
+        "shape": [
+          512,
+          512
+        ]
+      },
+      {
+        "bytes": 65536,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          512,
+          64
+        ]
+      },
+      {
+        "bytes": 65536,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          512,
+          64
+        ]
+      }
+    ],
+    "op": "mx.quantized_matmul",
+    "outputs": [
+      {
+        "bytes": 2048,
+        "dtype": "mlx.core.float32",
+        "shape": [
+          1,
+          1,
+          512
+        ]
+      }
+    ],
+    "returned_none": null,
+    "calls": 66
+  },
+  {
+    "inputs": [
+      {
+        "bytes": 65536,
+        "dtype": "mlx.core.float32",
+        "shape": [
+          1,
+          1,
+          16384
+        ]
+      },
+      {
+        "bytes": 33554432,
+        "dtype": "mlx.core.uint32",
+        "shape": [
+          4096,
+          2048
+        ]
+      },
+      {
+        "bytes": 2097152,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          4096,
+          256
+        ]
+      },
+      {
+        "bytes": 2097152,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          4096,
+          256
+        ]
+      }
+    ],
+    "op": "mx.quantized_matmul",
+    "outputs": [
+      {
+        "bytes": 16384,
+        "dtype": "mlx.core.float32",
+        "shape": [
+          1,
+          1,
+          4096
+        ]
+      }
+    ],
+    "returned_none": null,
+    "calls": 66
+  },
+  {
+    "inputs": [
+      {
+        "bytes": 24576,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          1,
+          3,
+          4096
+        ]
+      },
+      {
+        "bytes": 4718592,
+        "dtype": "mlx.core.float32",
+        "shape": [
+          288,
+          4096
+        ]
+      },
+      {
+        "bytes": 1152,
+        "dtype": "mlx.core.float32",
+        "shape": [
+          288
+        ]
+      }
+    ],
+    "op": "mlx_glm_router",
+    "outputs": [
+      {
+        "bytes": 96,
+        "dtype": "mlx.core.uint32",
+        "shape": [
+          1,
+          3,
+          8
+        ]
+      },
+      {
+        "bytes": 96,
+        "dtype": "mlx.core.float32",
+        "shape": [
+          1,
+          3,
+          8
+        ]
+      }
+    ],
+    "returned_none": false,
+    "calls": 84
+  },
+  {
+    "inputs": [
+      {
+        "bytes": 24576,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          1,
+          3,
+          4096
+        ]
+      },
+      {
+        "bytes": 1207959552,
+        "dtype": "mlx.core.uint32",
+        "shape": [
+          288,
+          2048,
+          512
+        ]
+      },
+      {
+        "bytes": 75497472,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          288,
+          2048,
+          64
+        ]
+      },
+      {
+        "bytes": 75497472,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          288,
+          2048,
+          64
+        ]
+      },
+      {
+        "bytes": 96,
+        "dtype": "mlx.core.uint32",
+        "shape": [
+          1,
+          3,
+          8
+        ]
+      }
+    ],
+    "op": "mlx_affine_rows",
+    "outputs": [
+      {
+        "bytes": 98304,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          1,
+          3,
+          8,
+          2048
+        ]
+      }
+    ],
+    "returned_none": false,
+    "calls": 168
+  },
+  {
+    "inputs": [
+      {
+        "bytes": 24576,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          1,
+          3,
+          4096
+        ]
+      },
+      {
+        "bytes": 6291456,
+        "dtype": "mlx.core.uint32",
+        "shape": [
+          2048,
+          768
+        ]
+      },
+      {
+        "bytes": 262144,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          2048,
+          64
+        ]
+      },
+      {
+        "bytes": 262144,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          2048,
+          64
+        ]
+      }
+    ],
+    "op": "mlx_affine_rows",
+    "outputs": [
+      {
+        "bytes": 12288,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          1,
+          3,
+          2048
+        ]
+      }
+    ],
+    "returned_none": false,
+    "calls": 168
+  },
+  {
+    "inputs": [
+      {
+        "bytes": 12288,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          1,
+          3,
+          2048
+        ]
+      },
+      {
+        "bytes": 6291456,
+        "dtype": "mlx.core.uint32",
+        "shape": [
+          4096,
+          384
+        ]
+      },
+      {
+        "bytes": 262144,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          4096,
+          32
+        ]
+      },
+      {
+        "bytes": 262144,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          4096,
+          32
+        ]
+      }
+    ],
+    "op": "mlx_affine_rows",
+    "outputs": [
+      {
+        "bytes": 24576,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          1,
+          3,
+          4096
+        ]
+      }
+    ],
+    "returned_none": false,
+    "calls": 84
+  },
+  {
+    "inputs": [
+      {
+        "bytes": 98304,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          1,
+          3,
+          8,
+          2048
+        ]
+      },
+      {
+        "bytes": 96,
+        "dtype": "mlx.core.uint32",
+        "shape": [
+          1,
+          3,
+          8
+        ]
+      },
+      {
+        "bytes": 96,
+        "dtype": "mlx.core.float32",
+        "shape": [
+          1,
+          3,
+          8
+        ]
+      },
+      {
+        "bytes": 1509949440,
+        "dtype": "mlx.core.uint32",
+        "shape": [
+          288,
+          4096,
+          320
+        ]
+      },
+      {
+        "bytes": 75497472,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          288,
+          4096,
+          32
+        ]
+      },
+      {
+        "bytes": 75497472,
+        "dtype": "mlx.core.float16",
+        "shape": [
+          288,
+          4096,
+          32
+        ]
+      },
+      {
+        "bytes": 24576,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          1,
+          3,
+          4096
+        ]
+      }
+    ],
+    "op": "mlx_glm_down_combine",
+    "outputs": [
+      {
+        "bytes": 24576,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          1,
+          3,
+          4096
+        ]
+      }
+    ],
+    "returned_none": false,
+    "calls": 84
+  },
+  {
+    "inputs": [
+      {
+        "bytes": 24576,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          1,
+          3,
+          4096
+        ]
+      },
+      {
+        "bytes": 1268776960,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          154880,
+          4096
+        ]
+      }
+    ],
+    "op": "mlx_dense_rows",
+    "outputs": [
+      {
+        "bytes": 929280,
+        "dtype": "mlx.core.bfloat16",
+        "shape": [
+          1,
+          3,
+          154880
+        ]
+      }
+    ],
+    "returned_none": false,
+    "calls": 2
+  }
+]

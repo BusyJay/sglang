@@ -1,0 +1,2468 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "workload": "verify",
+  "revision": "unrecorded",
+  "model_dir": null,
+  "steps": 1,
+  "verify_mode": "ffn",
+  "rows": 3,
+  "tokens": 32,
+  "prompt_tokens": 9,
+  "prompt_tokens_sha256": "4d56aa724fc72496c057608ea5ac253fc27aec698c880d43e847f513e50cb398",
+  "warmup": 1,
+  "trial_order": [
+    {
+      "round": 0,
+      "mode": "baseline",
+      "elapsed_ms": 2.2229579626582563
+    },
+    {
+      "round": 0,
+      "mode": "host",
+      "elapsed_ms": 2.9023329843766987
+    },
+    {
+      "round": 0,
+      "mode": "sync",
+      "elapsed_ms": 10.486999992281199
+    },
+    {
+      "round": 1,
+      "mode": "sync",
+      "elapsed_ms": 10.90116600971669
+    },
+    {
+      "round": 1,
+      "mode": "host",
+      "elapsed_ms": 3.037167014554143
+    },
+    {
+      "round": 1,
+      "mode": "baseline",
+      "elapsed_ms": 2.0800000056624413
+    }
+  ],
+  "modes": {
+    "baseline": {
+      "first_ms": 140.41554200230166,
+      "first_trial": {
+        "elapsed_ms": 140.41554200230166,
+        "prefill_ms": 0.0,
+        "decode_ms": 140.41225000983104,
+        "generated_tokens": 0,
+        "tokens_sha256": "fa680cb8ab22fe70c2ff4746388a3481e888864715abf1e33f9603845aea0892",
+        "stats": {
+          "verify_rows": 3
+        }
+      },
+      "samples": [
+        {
+          "elapsed_ms": 2.2229579626582563,
+          "prefill_ms": 0.0,
+          "decode_ms": 2.2226250148378313,
+          "generated_tokens": 0,
+          "tokens_sha256": "fa680cb8ab22fe70c2ff4746388a3481e888864715abf1e33f9603845aea0892",
+          "stats": {
+            "verify_rows": 3
+          }
+        },
+        {
+          "elapsed_ms": 2.0800000056624413,
+          "prefill_ms": 0.0,
+          "decode_ms": 2.079708967357874,
+          "generated_tokens": 0,
+          "tokens_sha256": "fa680cb8ab22fe70c2ff4746388a3481e888864715abf1e33f9603845aea0892",
+          "stats": {
+            "verify_rows": 3
+          }
+        }
+      ],
+      "median_ms": 2.1514789841603488,
+      "median_decode_ms": 2.1511669910978526,
+      "matches_baseline": true
+    },
+    "host": {
+      "first_ms": 4.5168750220909715,
+      "first_trial": {
+        "elapsed_ms": 4.5168750220909715,
+        "prefill_ms": 0.0,
+        "decode_ms": 4.516625020187348,
+        "generated_tokens": 0,
+        "tokens_sha256": "fa680cb8ab22fe70c2ff4746388a3481e888864715abf1e33f9603845aea0892",
+        "stats": {
+          "verify_rows": 3
+        }
+      },
+      "samples": [
+        {
+          "elapsed_ms": 2.9023329843766987,
+          "prefill_ms": 0.0,
+          "decode_ms": 2.9019159846939147,
+          "generated_tokens": 0,
+          "tokens_sha256": "fa680cb8ab22fe70c2ff4746388a3481e888864715abf1e33f9603845aea0892",
+          "stats": {
+            "verify_rows": 3
+          }
+        },
+        {
+          "elapsed_ms": 3.037167014554143,
+          "prefill_ms": 0.0,
+          "decode_ms": 3.0369579908438027,
+          "generated_tokens": 0,
+          "tokens_sha256": "fa680cb8ab22fe70c2ff4746388a3481e888864715abf1e33f9603845aea0892",
+          "stats": {
+            "verify_rows": 3
+          }
+        }
+      ],
+      "median_ms": 2.969749999465421,
+      "median_decode_ms": 2.9694369877688587,
+      "matches_baseline": true,
+      "summary": {
+        "timings": [
+          {
+            "category": "submission_wait",
+            "name": "mx.async_eval",
+            "module": "",
+            "calls": 2,
+            "inclusive_ms": 2.441542,
+            "self_ms": 2.441542,
+            "median_ms": 1.220771
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer.verify_ffn_rows",
+            "module": "model.layers.0",
+            "calls": 2,
+            "inclusive_ms": 0.78475,
+            "self_ms": 0.3835,
+            "median_ms": 0.392375
+          },
+          {
+            "category": "submission_wait",
+            "name": "mx.eval",
+            "module": "",
+            "calls": 2,
+            "inclusive_ms": 0.370334,
+            "self_ms": 0.370334,
+            "median_ms": 0.185167
+          },
+          {
+            "category": "fusion",
+            "name": "mlx_hc_collapse_norm",
+            "module": "",
+            "calls": 32,
+            "inclusive_ms": 0.31762799999999997,
+            "self_ms": 0.31762799999999997,
+            "median_ms": 0.0075415000000000005
+          },
+          {
+            "category": "module",
+            "name": "MLA.__call__",
+            "module": "model.layers.3.self_attn",
+            "calls": 6,
+            "inclusive_ms": 0.297,
+            "self_ms": 0.26937600000000006,
+            "median_ms": 0.0475625
+          },
+          {
+            "category": "fusion",
+            "name": "mlx_kda_decode",
+            "module": "",
+            "calls": 18,
+            "inclusive_ms": 0.20650200000000002,
+            "self_ms": 0.20650200000000002,
+            "median_ms": 0.0110625
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer.verify_ffn_rows",
+            "module": "model.layers.1",
+            "calls": 2,
+            "inclusive_ms": 0.495708,
+            "self_ms": 0.163042,
+            "median_ms": 0.247854
+          },
+          {
+            "category": "module",
+            "name": "Model.verify_mtp_rows",
+            "module": "",
+            "calls": 2,
+            "inclusive_ms": 5.175541999999999,
+            "self_ms": 0.162249,
+            "median_ms": 2.5877709999999996
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer.verify_ffn_rows",
+            "module": "model.layers.2",
+            "calls": 2,
+            "inclusive_ms": 0.529917,
+            "self_ms": 0.15778899999999998,
+            "median_ms": 0.2649585
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer.verify_ffn_rows",
+            "module": "model.layers.3",
+            "calls": 2,
+            "inclusive_ms": 0.746501,
+            "self_ms": 0.148669,
+            "median_ms": 0.3732505
+          },
+          {
+            "category": "module",
+            "name": "KDA.__call__",
+            "module": "model.layers.0.self_attn",
+            "calls": 6,
+            "inclusive_ms": 0.192709,
+            "self_ms": 0.12062600000000001,
+            "median_ms": 0.027667
+          },
+          {
+            "category": "module",
+            "name": "KDA.__call__",
+            "module": "model.layers.1.self_attn",
+            "calls": 6,
+            "inclusive_ms": 0.154208,
+            "self_ms": 0.087457,
+            "median_ms": 0.024853999999999998
+          },
+          {
+            "category": "fusion",
+            "name": "mlx_affine_rows",
+            "module": "",
+            "calls": 22,
+            "inclusive_ms": 0.083209,
+            "self_ms": 0.083209,
+            "median_ms": 0.002104
+          },
+          {
+            "category": "module",
+            "name": "KDA.__call__",
+            "module": "model.layers.2.self_attn",
+            "calls": 6,
+            "inclusive_ms": 0.150001,
+            "self_ms": 0.082333,
+            "median_ms": 0.0240835
+          },
+          {
+            "category": "workload",
+            "name": "forced_verify",
+            "module": "",
+            "calls": 2,
+            "inclusive_ms": 5.621041999999999,
+            "self_ms": 0.075166,
+            "median_ms": 2.8105209999999996
+          },
+          {
+            "category": "module",
+            "name": "MoE.__call__",
+            "module": "model.layers.3.mlp",
+            "calls": 2,
+            "inclusive_ms": 0.222625,
+            "self_ms": 0.066125,
+            "median_ms": 0.1113125
+          },
+          {
+            "category": "fusion",
+            "name": "_compiled_quantized_ffn",
+            "module": "",
+            "calls": 8,
+            "inclusive_ms": 0.065334,
+            "self_ms": 0.065334,
+            "median_ms": 0.0065
+          },
+          {
+            "category": "fusion",
+            "name": "mlx_dense_rows",
+            "module": "",
+            "calls": 8,
+            "inclusive_ms": 0.047,
+            "self_ms": 0.047,
+            "median_ms": 0.0049169999999999995
+          },
+          {
+            "category": "module",
+            "name": "KDA.project_verify_rows",
+            "module": "model.layers.0.self_attn",
+            "calls": 2,
+            "inclusive_ms": 0.0595,
+            "self_ms": 0.044999,
+            "median_ms": 0.02975
+          },
+          {
+            "category": "module",
+            "name": "MLP.__call__",
+            "module": "model.layers.3.mlp.shared_experts",
+            "calls": 2,
+            "inclusive_ms": 0.0915,
+            "self_ms": 0.038417,
+            "median_ms": 0.04575
+          },
+          {
+            "category": "module",
+            "name": "MLP.__call__",
+            "module": "model.layers.0.mlp",
+            "calls": 2,
+            "inclusive_ms": 0.060124,
+            "self_ms": 0.037956000000000004,
+            "median_ms": 0.030062
+          },
+          {
+            "category": "module",
+            "name": "MLP.__call__",
+            "module": "model.layers.1.mlp",
+            "calls": 2,
+            "inclusive_ms": 0.054291,
+            "self_ms": 0.03425,
+            "median_ms": 0.0271455
+          },
+          {
+            "category": "module",
+            "name": "MLP.__call__",
+            "module": "model.layers.2.mlp",
+            "calls": 2,
+            "inclusive_ms": 0.050876000000000005,
+            "self_ms": 0.033001,
+            "median_ms": 0.025438000000000002
+          },
+          {
+            "category": "module",
+            "name": "KDA.project_verify_rows",
+            "module": "model.layers.1.self_attn",
+            "calls": 2,
+            "inclusive_ms": 0.041959,
+            "self_ms": 0.032876,
+            "median_ms": 0.0209795
+          },
+          {
+            "category": "module",
+            "name": "KDA.project_verify_rows",
+            "module": "model.layers.2.self_attn",
+            "calls": 2,
+            "inclusive_ms": 0.039875,
+            "self_ms": 0.031334,
+            "median_ms": 0.0199375
+          },
+          {
+            "category": "module",
+            "name": "MLA._latent_matrices",
+            "module": "model.layers.3.self_attn",
+            "calls": 6,
+            "inclusive_ms": 0.027624,
+            "self_ms": 0.027624,
+            "median_ms": 0.004083
+          },
+          {
+            "category": "fusion",
+            "name": "mlx_glm_router",
+            "module": "",
+            "calls": 2,
+            "inclusive_ms": 0.017707999999999998,
+            "self_ms": 0.017707999999999998,
+            "median_ms": 0.008853999999999999
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer._branch_output",
+            "module": "model.layers.0",
+            "calls": 8,
+            "inclusive_ms": 0.017291,
+            "self_ms": 0.017291,
+            "median_ms": 0.002021
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer._branch_output",
+            "module": "model.layers.1",
+            "calls": 8,
+            "inclusive_ms": 0.016957999999999997,
+            "self_ms": 0.016957999999999997,
+            "median_ms": 0.002021
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer._branch_output",
+            "module": "model.layers.2",
+            "calls": 8,
+            "inclusive_ms": 0.014541,
+            "self_ms": 0.014541,
+            "median_ms": 0.0017705
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer._branch_output",
+            "module": "model.layers.3",
+            "calls": 8,
+            "inclusive_ms": 0.014289999999999999,
+            "self_ms": 0.014289999999999999,
+            "median_ms": 0.0017705
+          },
+          {
+            "category": "fusion",
+            "name": "mlx_glm_down_combine",
+            "module": "",
+            "calls": 2,
+            "inclusive_ms": 0.011916,
+            "self_ms": 0.011916,
+            "median_ms": 0.005958
+          }
+        ],
+        "dispatch": [
+          {
+            "inputs": [
+              {
+                "bytes": 2048,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  4,
+                  256
+                ]
+              },
+              {
+                "bytes": 96,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  1,
+                  1,
+                  24
+                ]
+              },
+              {
+                "bytes": 96,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  24
+                ]
+              },
+              {
+                "bytes": 12,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  3
+                ]
+              },
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  256
+                ]
+              }
+            ],
+            "op": "mlx_hc_collapse_norm",
+            "outputs": [
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  256
+                ]
+              },
+              {
+                "bytes": 8,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  4
+                ]
+              },
+              {
+                "bytes": 2048,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  4,
+                  256
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 24
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 525312,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1026,
+                  256
+                ]
+              }
+            ],
+            "op": "mlx_dense_rows",
+            "outputs": [
+              {
+                "bytes": 6156,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  1026
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 6
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 2052,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  1026
+                ]
+              },
+              {
+                "bytes": 2048,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  256,
+                  4,
+                  1
+                ]
+              },
+              {
+                "bytes": 2048,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  256,
+                  4,
+                  1
+                ]
+              },
+              {
+                "bytes": 2048,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  256,
+                  4,
+                  1
+                ]
+              },
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  1,
+                  2,
+                  128,
+                  128
+                ]
+              },
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  256
+                ]
+              },
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  256
+                ]
+              },
+              {
+                "bytes": 8,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  2
+                ]
+              },
+              {
+                "bytes": 1024,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  256
+                ]
+              },
+              {
+                "bytes": 256,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  128
+                ]
+              }
+            ],
+            "op": "mlx_kda_decode",
+            "outputs": [
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  256
+                ]
+              },
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  1,
+                  2,
+                  128,
+                  128
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 18
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 6144,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  4,
+                  256
+                ]
+              },
+              {
+                "bytes": 288,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  1,
+                  3,
+                  24
+                ]
+              },
+              {
+                "bytes": 96,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  24
+                ]
+              },
+              {
+                "bytes": 12,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  3
+                ]
+              },
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  256
+                ]
+              }
+            ],
+            "op": "mlx_hc_collapse_norm",
+            "outputs": [
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 24,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  4
+                ]
+              },
+              {
+                "bytes": 6144,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  4,
+                  256
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 8
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 65536,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  512,
+                  32
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  512,
+                  4
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  512,
+                  4
+                ]
+              }
+            ],
+            "op": "mlx_affine_rows",
+            "outputs": [],
+            "returned_none": true,
+            "calls": 12
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              }
+            ],
+            "op": "_compiled_quantized_ffn",
+            "outputs": [
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 6
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 32768,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  32,
+                  256
+                ]
+              },
+              {
+                "bytes": 128,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  32
+                ]
+              }
+            ],
+            "op": "mlx_glm_router",
+            "outputs": [
+              {
+                "bytes": 96,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  1,
+                  3,
+                  8
+                ]
+              },
+              {
+                "bytes": 96,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  1,
+                  3,
+                  8
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 2
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 2097152,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  32,
+                  512,
+                  32
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  512,
+                  4
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  512,
+                  4
+                ]
+              },
+              {
+                "bytes": 96,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  1,
+                  3,
+                  8
+                ]
+              }
+            ],
+            "op": "mlx_affine_rows",
+            "outputs": [],
+            "returned_none": true,
+            "calls": 4
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 96,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  1,
+                  3,
+                  8
+                ]
+              }
+            ],
+            "op": "_compiled_quantized_ffn",
+            "outputs": [
+              {
+                "bytes": 24576,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  3,
+                  8,
+                  512
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 2
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 98304,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  512,
+                  48
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  512,
+                  4
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  512,
+                  4
+                ]
+              }
+            ],
+            "op": "mlx_affine_rows",
+            "outputs": [
+              {
+                "bytes": 3072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  3,
+                  512
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 4
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 3072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  3,
+                  512
+                ]
+              },
+              {
+                "bytes": 98304,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  256,
+                  96
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  256,
+                  8
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  256,
+                  8
+                ]
+              }
+            ],
+            "op": "mlx_affine_rows",
+            "outputs": [
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 2
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 24576,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  3,
+                  8,
+                  512
+                ]
+              },
+              {
+                "bytes": 96,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  1,
+                  3,
+                  8
+                ]
+              },
+              {
+                "bytes": 96,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  1,
+                  3,
+                  8
+                ]
+              },
+              {
+                "bytes": 2621440,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  32,
+                  256,
+                  80
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  256,
+                  8
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  256,
+                  8
+                ]
+              },
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              }
+            ],
+            "op": "mlx_glm_down_combine",
+            "outputs": [
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 2
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 262144,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  512,
+                  256
+                ]
+              }
+            ],
+            "op": "mlx_dense_rows",
+            "outputs": [
+              {
+                "bytes": 3072,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  512
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 2
+          }
+        ]
+      },
+      "dropped_events": 0
+    },
+    "sync": {
+      "first_ms": 21.819124987814575,
+      "first_trial": {
+        "elapsed_ms": 21.819124987814575,
+        "prefill_ms": 0.0,
+        "decode_ms": 21.818874985910952,
+        "generated_tokens": 0,
+        "tokens_sha256": "fa680cb8ab22fe70c2ff4746388a3481e888864715abf1e33f9603845aea0892",
+        "stats": {
+          "verify_rows": 3
+        }
+      },
+      "samples": [
+        {
+          "elapsed_ms": 10.486999992281199,
+          "prefill_ms": 0.0,
+          "decode_ms": 10.486833984032273,
+          "generated_tokens": 0,
+          "tokens_sha256": "fa680cb8ab22fe70c2ff4746388a3481e888864715abf1e33f9603845aea0892",
+          "stats": {
+            "verify_rows": 3
+          }
+        },
+        {
+          "elapsed_ms": 10.90116600971669,
+          "prefill_ms": 0.0,
+          "decode_ms": 10.90058300178498,
+          "generated_tokens": 0,
+          "tokens_sha256": "fa680cb8ab22fe70c2ff4746388a3481e888864715abf1e33f9603845aea0892",
+          "stats": {
+            "verify_rows": 3
+          }
+        }
+      ],
+      "median_ms": 10.694083000998944,
+      "median_decode_ms": 10.693708492908627,
+      "matches_baseline": true,
+      "summary": {
+        "timings": [
+          {
+            "category": "submission_wait",
+            "name": "mx.eval",
+            "module": "",
+            "calls": 102,
+            "inclusive_ms": 14.262378,
+            "self_ms": 14.262378,
+            "median_ms": 0.16306299999999999
+          },
+          {
+            "category": "submission_wait",
+            "name": "mx.synchronize",
+            "module": "",
+            "calls": 100,
+            "inclusive_ms": 2.409335,
+            "self_ms": 2.409335,
+            "median_ms": 0.0236875
+          },
+          {
+            "category": "module",
+            "name": "MLA.__call__",
+            "module": "model.layers.3.self_attn",
+            "calls": 6,
+            "inclusive_ms": 2.6395410000000004,
+            "self_ms": 0.356751,
+            "median_ms": 0.43972900000000004
+          },
+          {
+            "category": "fusion",
+            "name": "mlx_hc_collapse_norm",
+            "module": "",
+            "calls": 32,
+            "inclusive_ms": 0.296414,
+            "self_ms": 0.296414,
+            "median_ms": 0.0085625
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer.verify_ffn_rows",
+            "module": "model.layers.1",
+            "calls": 2,
+            "inclusive_ms": 4.341666999999999,
+            "self_ms": 0.278999,
+            "median_ms": 2.1708334999999996
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer.verify_ffn_rows",
+            "module": "model.layers.0",
+            "calls": 2,
+            "inclusive_ms": 4.5765839999999995,
+            "self_ms": 0.274123,
+            "median_ms": 2.2882919999999998
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer.verify_ffn_rows",
+            "module": "model.layers.2",
+            "calls": 2,
+            "inclusive_ms": 4.460291,
+            "self_ms": 0.250004,
+            "median_ms": 2.2301455
+          },
+          {
+            "category": "fusion",
+            "name": "mlx_kda_decode",
+            "module": "",
+            "calls": 18,
+            "inclusive_ms": 0.243621,
+            "self_ms": 0.243621,
+            "median_ms": 0.012666499999999999
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer.verify_ffn_rows",
+            "module": "model.layers.3",
+            "calls": 2,
+            "inclusive_ms": 6.3520010000000005,
+            "self_ms": 0.226043,
+            "median_ms": 3.1760005000000002
+          },
+          {
+            "category": "module",
+            "name": "KDA.__call__",
+            "module": "model.layers.0.self_attn",
+            "calls": 6,
+            "inclusive_ms": 1.456376,
+            "self_ms": 0.197877,
+            "median_ms": 0.2398125
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "KDA.__call__.drain_before",
+            "module": "",
+            "calls": 18,
+            "inclusive_ms": 1.0630419999999998,
+            "self_ms": 0.193874,
+            "median_ms": 0.0593335
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "KDA.__call__.drain_after",
+            "module": "",
+            "calls": 18,
+            "inclusive_ms": 3.479959,
+            "self_ms": 0.18041900000000002,
+            "median_ms": 0.1926875
+          },
+          {
+            "category": "module",
+            "name": "Model.verify_mtp_rows",
+            "module": "",
+            "calls": 2,
+            "inclusive_ms": 20.902333,
+            "self_ms": 0.176498,
+            "median_ms": 10.4511665
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "DecoderLayer.verify_ffn_rows.drain_after",
+            "module": "",
+            "calls": 8,
+            "inclusive_ms": 1.684667,
+            "self_ms": 0.125748,
+            "median_ms": 0.2053125
+          },
+          {
+            "category": "module",
+            "name": "KDA.__call__",
+            "module": "model.layers.2.self_attn",
+            "calls": 6,
+            "inclusive_ms": 1.364708,
+            "self_ms": 0.117,
+            "median_ms": 0.2272705
+          },
+          {
+            "category": "module",
+            "name": "KDA.__call__",
+            "module": "model.layers.1.self_attn",
+            "calls": 6,
+            "inclusive_ms": 1.324583,
+            "self_ms": 0.10721000000000001,
+            "median_ms": 0.2205625
+          },
+          {
+            "category": "workload",
+            "name": "forced_verify",
+            "module": "",
+            "calls": 2,
+            "inclusive_ms": 21.091082999999998,
+            "self_ms": 0.106583,
+            "median_ms": 10.545541499999999
+          },
+          {
+            "category": "module",
+            "name": "MoE.__call__",
+            "module": "model.layers.3.mlp",
+            "calls": 2,
+            "inclusive_ms": 1.174375,
+            "self_ms": 0.096876,
+            "median_ms": 0.5871875
+          },
+          {
+            "category": "module",
+            "name": "KDA.project_verify_rows",
+            "module": "model.layers.2.self_attn",
+            "calls": 2,
+            "inclusive_ms": 0.529208,
+            "self_ms": 0.080458,
+            "median_ms": 0.264604
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "MLA.__call__.drain_before",
+            "module": "",
+            "calls": 6,
+            "inclusive_ms": 1.314,
+            "self_ms": 0.077582,
+            "median_ms": 0.2188955
+          },
+          {
+            "category": "fusion",
+            "name": "mlx_affine_rows",
+            "module": "",
+            "calls": 22,
+            "inclusive_ms": 0.075835,
+            "self_ms": 0.075835,
+            "median_ms": 0.0022915
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "DecoderLayer.verify_ffn_rows.drain_before",
+            "module": "",
+            "calls": 8,
+            "inclusive_ms": 0.537418,
+            "self_ms": 0.061126999999999994,
+            "median_ms": 0.0307085
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "MLA.__call__.drain_after",
+            "module": "",
+            "calls": 6,
+            "inclusive_ms": 2.2482480000000002,
+            "self_ms": 0.060120999999999994,
+            "median_ms": 0.37558299999999994
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "MLP.__call__.drain_after",
+            "module": "",
+            "calls": 8,
+            "inclusive_ms": 1.5599569999999998,
+            "self_ms": 0.058917000000000004,
+            "median_ms": 0.200208
+          },
+          {
+            "category": "fusion",
+            "name": "_compiled_quantized_ffn",
+            "module": "",
+            "calls": 8,
+            "inclusive_ms": 0.056665,
+            "self_ms": 0.056665,
+            "median_ms": 0.006854
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "KDA.project_verify_rows.drain_after",
+            "module": "",
+            "calls": 6,
+            "inclusive_ms": 1.271626,
+            "self_ms": 0.05574899999999999,
+            "median_ms": 0.2123755
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "MLP.__call__.drain_before",
+            "module": "",
+            "calls": 8,
+            "inclusive_ms": 1.54621,
+            "self_ms": 0.05496,
+            "median_ms": 0.245167
+          },
+          {
+            "category": "fusion",
+            "name": "mlx_dense_rows",
+            "module": "",
+            "calls": 8,
+            "inclusive_ms": 0.052332000000000004,
+            "self_ms": 0.052332000000000004,
+            "median_ms": 0.006521
+          },
+          {
+            "category": "module",
+            "name": "MLP.__call__",
+            "module": "model.layers.2.mlp",
+            "calls": 2,
+            "inclusive_ms": 0.479084,
+            "self_ms": 0.048917999999999996,
+            "median_ms": 0.239542
+          },
+          {
+            "category": "module",
+            "name": "KDA.project_verify_rows",
+            "module": "model.layers.0.self_attn",
+            "calls": 2,
+            "inclusive_ms": 0.486583,
+            "self_ms": 0.045292,
+            "median_ms": 0.2432915
+          },
+          {
+            "category": "module",
+            "name": "KDA.project_verify_rows",
+            "module": "model.layers.1.self_attn",
+            "calls": 2,
+            "inclusive_ms": 0.46308299999999997,
+            "self_ms": 0.04033199999999999,
+            "median_ms": 0.23154149999999998
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "KDA.project_verify_rows.drain_before",
+            "module": "",
+            "calls": 6,
+            "inclusive_ms": 1.480167,
+            "self_ms": 0.039042,
+            "median_ms": 0.2413335
+          },
+          {
+            "category": "module",
+            "name": "MLP.__call__",
+            "module": "model.layers.3.mlp.shared_experts",
+            "calls": 2,
+            "inclusive_ms": 0.484126,
+            "self_ms": 0.038584,
+            "median_ms": 0.242063
+          },
+          {
+            "category": "module",
+            "name": "MLP.__call__",
+            "module": "model.layers.0.mlp",
+            "calls": 2,
+            "inclusive_ms": 0.44625099999999995,
+            "self_ms": 0.037251000000000006,
+            "median_ms": 0.22312549999999998
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "Model.verify_mtp_rows.drain_after",
+            "module": "",
+            "calls": 2,
+            "inclusive_ms": 0.443125,
+            "self_ms": 0.036793000000000006,
+            "median_ms": 0.2215625
+          },
+          {
+            "category": "module",
+            "name": "MLP.__call__",
+            "module": "model.layers.1.mlp",
+            "calls": 2,
+            "inclusive_ms": 0.417416,
+            "self_ms": 0.034582999999999996,
+            "median_ms": 0.208708
+          },
+          {
+            "category": "module",
+            "name": "MLA._latent_matrices",
+            "module": "model.layers.3.self_attn",
+            "calls": 6,
+            "inclusive_ms": 0.034542,
+            "self_ms": 0.034542,
+            "median_ms": 0.005771
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer._branch_output",
+            "module": "model.layers.0",
+            "calls": 8,
+            "inclusive_ms": 0.034126,
+            "self_ms": 0.034126,
+            "median_ms": 0.0038959999999999997
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "Model.verify_mtp_rows.drain_before",
+            "module": "",
+            "calls": 2,
+            "inclusive_ms": 0.076667,
+            "self_ms": 0.026750999999999997,
+            "median_ms": 0.0383335
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer._branch_output",
+            "module": "model.layers.3",
+            "calls": 8,
+            "inclusive_ms": 0.024457,
+            "self_ms": 0.024457,
+            "median_ms": 0.003125
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer._branch_output",
+            "module": "model.layers.2",
+            "calls": 8,
+            "inclusive_ms": 0.023124,
+            "self_ms": 0.023124,
+            "median_ms": 0.0028959999999999997
+          },
+          {
+            "category": "fusion",
+            "name": "mlx_glm_router",
+            "module": "",
+            "calls": 2,
+            "inclusive_ms": 0.022958,
+            "self_ms": 0.022958,
+            "median_ms": 0.011479
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer._branch_output",
+            "module": "model.layers.1",
+            "calls": 8,
+            "inclusive_ms": 0.022333,
+            "self_ms": 0.022333,
+            "median_ms": 0.0027505
+          },
+          {
+            "category": "fusion",
+            "name": "mlx_glm_down_combine",
+            "module": "",
+            "calls": 2,
+            "inclusive_ms": 0.016207,
+            "self_ms": 0.016207,
+            "median_ms": 0.0081035
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "MoE.__call__.drain_after",
+            "module": "",
+            "calls": 2,
+            "inclusive_ms": 0.472,
+            "self_ms": 0.015958,
+            "median_ms": 0.236
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "MoE.__call__.drain_before",
+            "module": "",
+            "calls": 2,
+            "inclusive_ms": 0.488918,
+            "self_ms": 0.01275,
+            "median_ms": 0.244459
+          },
+          {
+            "category": "submission_wait",
+            "name": "mx.async_eval",
+            "module": "",
+            "calls": 2,
+            "inclusive_ms": 0.0035830000000000002,
+            "self_ms": 0.0035830000000000002,
+            "median_ms": 0.0017915000000000001
+          }
+        ],
+        "dispatch": [
+          {
+            "inputs": [
+              {
+                "bytes": 2048,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  4,
+                  256
+                ]
+              },
+              {
+                "bytes": 96,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  1,
+                  1,
+                  24
+                ]
+              },
+              {
+                "bytes": 96,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  24
+                ]
+              },
+              {
+                "bytes": 12,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  3
+                ]
+              },
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  256
+                ]
+              }
+            ],
+            "op": "mlx_hc_collapse_norm",
+            "outputs": [
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  256
+                ]
+              },
+              {
+                "bytes": 8,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  4
+                ]
+              },
+              {
+                "bytes": 2048,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  4,
+                  256
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 24
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 525312,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1026,
+                  256
+                ]
+              }
+            ],
+            "op": "mlx_dense_rows",
+            "outputs": [
+              {
+                "bytes": 6156,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  1026
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 6
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 2052,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  1026
+                ]
+              },
+              {
+                "bytes": 2048,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  256,
+                  4,
+                  1
+                ]
+              },
+              {
+                "bytes": 2048,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  256,
+                  4,
+                  1
+                ]
+              },
+              {
+                "bytes": 2048,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  256,
+                  4,
+                  1
+                ]
+              },
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  1,
+                  2,
+                  128,
+                  128
+                ]
+              },
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  256
+                ]
+              },
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  256
+                ]
+              },
+              {
+                "bytes": 8,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  2
+                ]
+              },
+              {
+                "bytes": 1024,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  256
+                ]
+              },
+              {
+                "bytes": 256,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  128
+                ]
+              }
+            ],
+            "op": "mlx_kda_decode",
+            "outputs": [
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  256
+                ]
+              },
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  1,
+                  2,
+                  128,
+                  128
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 18
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 6144,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  4,
+                  256
+                ]
+              },
+              {
+                "bytes": 288,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  1,
+                  3,
+                  24
+                ]
+              },
+              {
+                "bytes": 96,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  24
+                ]
+              },
+              {
+                "bytes": 12,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  3
+                ]
+              },
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  256
+                ]
+              }
+            ],
+            "op": "mlx_hc_collapse_norm",
+            "outputs": [
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 24,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  4
+                ]
+              },
+              {
+                "bytes": 6144,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  4,
+                  256
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 8
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 65536,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  512,
+                  32
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  512,
+                  4
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  512,
+                  4
+                ]
+              }
+            ],
+            "op": "mlx_affine_rows",
+            "outputs": [],
+            "returned_none": true,
+            "calls": 12
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              }
+            ],
+            "op": "_compiled_quantized_ffn",
+            "outputs": [
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 6
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 32768,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  32,
+                  256
+                ]
+              },
+              {
+                "bytes": 128,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  32
+                ]
+              }
+            ],
+            "op": "mlx_glm_router",
+            "outputs": [
+              {
+                "bytes": 96,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  1,
+                  3,
+                  8
+                ]
+              },
+              {
+                "bytes": 96,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  1,
+                  3,
+                  8
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 2
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 2097152,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  32,
+                  512,
+                  32
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  512,
+                  4
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  512,
+                  4
+                ]
+              },
+              {
+                "bytes": 96,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  1,
+                  3,
+                  8
+                ]
+              }
+            ],
+            "op": "mlx_affine_rows",
+            "outputs": [],
+            "returned_none": true,
+            "calls": 4
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 96,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  1,
+                  3,
+                  8
+                ]
+              }
+            ],
+            "op": "_compiled_quantized_ffn",
+            "outputs": [
+              {
+                "bytes": 24576,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  3,
+                  8,
+                  512
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 2
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 98304,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  512,
+                  48
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  512,
+                  4
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  512,
+                  4
+                ]
+              }
+            ],
+            "op": "mlx_affine_rows",
+            "outputs": [
+              {
+                "bytes": 3072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  3,
+                  512
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 4
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 3072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  3,
+                  512
+                ]
+              },
+              {
+                "bytes": 98304,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  256,
+                  96
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  256,
+                  8
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  256,
+                  8
+                ]
+              }
+            ],
+            "op": "mlx_affine_rows",
+            "outputs": [
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 2
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 24576,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  3,
+                  8,
+                  512
+                ]
+              },
+              {
+                "bytes": 96,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  1,
+                  3,
+                  8
+                ]
+              },
+              {
+                "bytes": 96,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  1,
+                  3,
+                  8
+                ]
+              },
+              {
+                "bytes": 2621440,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  32,
+                  256,
+                  80
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  256,
+                  8
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  256,
+                  8
+                ]
+              },
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              }
+            ],
+            "op": "mlx_glm_down_combine",
+            "outputs": [
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 2
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 262144,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  512,
+                  256
+                ]
+              }
+            ],
+            "op": "mlx_dense_rows",
+            "outputs": [
+              {
+                "bytes": 3072,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  512
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 2
+          }
+        ]
+      },
+      "dropped_events": 0
+    }
+  },
+  "first_trial_scope": "after model preparation and base-cache prefill; not process-cold loading",
+  "capture_scope": "one replay including prefill for generate; GPU captures may retain weight buffers",
+  "capture": "not requested",
+  "memory": {
+    "active_bytes": 22429196,
+    "peak_bytes": 183600452,
+    "cache_bytes": 165258435,
+    "swap_after": {
+      "exit_code": 0,
+      "stdout": "vm.swapusage: total = 2048.00M  used = 732.44M  free = 1315.56M  (encrypted)",
+      "stderr": ""
+    }
+  }
+}

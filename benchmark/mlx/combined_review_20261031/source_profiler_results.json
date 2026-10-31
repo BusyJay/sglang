@@ -1,0 +1,4915 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "workload": "generate",
+  "revision": "unrecorded",
+  "model_dir": null,
+  "steps": 1,
+  "verify_mode": "ffn",
+  "rows": 2,
+  "prompt_tokens": 9,
+  "prompt_tokens_sha256": "4d56aa724fc72496c057608ea5ac253fc27aec698c880d43e847f513e50cb398",
+  "warmup": 2,
+  "trial_order": [
+    {
+      "round": 0,
+      "mode": "baseline",
+      "elapsed_ms": 45.120416005374864
+    },
+    {
+      "round": 0,
+      "mode": "host",
+      "elapsed_ms": 44.01550002512522
+    },
+    {
+      "round": 0,
+      "mode": "sync",
+      "elapsed_ms": 123.55662501067854
+    },
+    {
+      "round": 1,
+      "mode": "sync",
+      "elapsed_ms": 102.24249999737367
+    },
+    {
+      "round": 1,
+      "mode": "host",
+      "elapsed_ms": 38.21262501878664
+    },
+    {
+      "round": 1,
+      "mode": "baseline",
+      "elapsed_ms": 32.43983301217668
+    },
+    {
+      "round": 2,
+      "mode": "baseline",
+      "elapsed_ms": 32.41158300079405
+    },
+    {
+      "round": 2,
+      "mode": "host",
+      "elapsed_ms": 29.122334002749994
+    },
+    {
+      "round": 2,
+      "mode": "sync",
+      "elapsed_ms": 86.08050001203083
+    },
+    {
+      "round": 3,
+      "mode": "sync",
+      "elapsed_ms": 99.14254199247807
+    },
+    {
+      "round": 3,
+      "mode": "host",
+      "elapsed_ms": 38.28879099455662
+    },
+    {
+      "round": 3,
+      "mode": "baseline",
+      "elapsed_ms": 32.48883399646729
+    },
+    {
+      "round": 4,
+      "mode": "baseline",
+      "elapsed_ms": 33.7692080065608
+    },
+    {
+      "round": 4,
+      "mode": "host",
+      "elapsed_ms": 39.603083016118035
+    },
+    {
+      "round": 4,
+      "mode": "sync",
+      "elapsed_ms": 105.41816701879725
+    }
+  ],
+  "modes": {
+    "baseline": {
+      "first_ms": 23.441874975105748,
+      "first_trial": {
+        "elapsed_ms": 23.441874975105748,
+        "prefill_ms": 2.4638749891892076,
+        "decode_ms": 20.968791999621317,
+        "generated_tokens": 7,
+        "tokens_sha256": "fbc609262e46e8e3aa22b95f1f82f9ba37c9959cf5c35e08b1d8701403f26157",
+        "stats": {
+          "verify_ct": 6,
+          "num_proposed_drafts": 6,
+          "num_reuse_tokens": 0,
+          "step_histogram": {
+            "1": 6,
+            "0": 1
+          },
+          "adaptive_scores": {
+            "1": 388.82384863496225
+          },
+          "proposed_by_depth": {
+            "1": 6
+          },
+          "eligible_by_depth": {
+            "1": 6
+          },
+          "correct_by_depth": {},
+          "eligible_by_budget_depth": {
+            "1:1": 6
+          },
+          "correct_by_budget_depth": {}
+        }
+      },
+      "samples": [
+        {
+          "elapsed_ms": 45.120416005374864,
+          "prefill_ms": 6.247874989639968,
+          "decode_ms": 38.86466598487459,
+          "generated_tokens": 7,
+          "tokens_sha256": "fbc609262e46e8e3aa22b95f1f82f9ba37c9959cf5c35e08b1d8701403f26157",
+          "stats": {
+            "verify_ct": 6,
+            "num_proposed_drafts": 6,
+            "num_reuse_tokens": 0,
+            "step_histogram": {
+              "1": 6,
+              "0": 1
+            },
+            "adaptive_scores": {
+              "1": 227.1726818236317
+            },
+            "proposed_by_depth": {
+              "1": 6
+            },
+            "eligible_by_depth": {
+              "1": 6
+            },
+            "correct_by_depth": {},
+            "eligible_by_budget_depth": {
+              "1:1": 6
+            },
+            "correct_by_budget_depth": {}
+          }
+        },
+        {
+          "elapsed_ms": 32.43983301217668,
+          "prefill_ms": 4.78683301480487,
+          "decode_ms": 27.644624991808087,
+          "generated_tokens": 7,
+          "tokens_sha256": "fbc609262e46e8e3aa22b95f1f82f9ba37c9959cf5c35e08b1d8701403f26157",
+          "stats": {
+            "verify_ct": 6,
+            "num_proposed_drafts": 6,
+            "num_reuse_tokens": 0,
+            "step_histogram": {
+              "1": 6,
+              "0": 1
+            },
+            "adaptive_scores": {
+              "1": 247.498802273489
+            },
+            "proposed_by_depth": {
+              "1": 6
+            },
+            "eligible_by_depth": {
+              "1": 6
+            },
+            "correct_by_depth": {},
+            "eligible_by_budget_depth": {
+              "1:1": 6
+            },
+            "correct_by_budget_depth": {}
+          }
+        },
+        {
+          "elapsed_ms": 32.41158300079405,
+          "prefill_ms": 4.791124985786155,
+          "decode_ms": 27.613542013568804,
+          "generated_tokens": 7,
+          "tokens_sha256": "fbc609262e46e8e3aa22b95f1f82f9ba37c9959cf5c35e08b1d8701403f26157",
+          "stats": {
+            "verify_ct": 6,
+            "num_proposed_drafts": 6,
+            "num_reuse_tokens": 0,
+            "step_histogram": {
+              "1": 6,
+              "0": 1
+            },
+            "adaptive_scores": {
+              "1": 239.12912529352639
+            },
+            "proposed_by_depth": {
+              "1": 6
+            },
+            "eligible_by_depth": {
+              "1": 6
+            },
+            "correct_by_depth": {},
+            "eligible_by_budget_depth": {
+              "1:1": 6
+            },
+            "correct_by_budget_depth": {}
+          }
+        },
+        {
+          "elapsed_ms": 32.48883399646729,
+          "prefill_ms": 4.8386249982286245,
+          "decode_ms": 27.641792024951428,
+          "generated_tokens": 7,
+          "tokens_sha256": "fbc609262e46e8e3aa22b95f1f82f9ba37c9959cf5c35e08b1d8701403f26157",
+          "stats": {
+            "verify_ct": 6,
+            "num_proposed_drafts": 6,
+            "num_reuse_tokens": 0,
+            "step_histogram": {
+              "1": 6,
+              "0": 1
+            },
+            "adaptive_scores": {
+              "1": 226.10208612287929
+            },
+            "proposed_by_depth": {
+              "1": 6
+            },
+            "eligible_by_depth": {
+              "1": 6
+            },
+            "correct_by_depth": {},
+            "eligible_by_budget_depth": {
+              "1:1": 6
+            },
+            "correct_by_budget_depth": {}
+          }
+        },
+        {
+          "elapsed_ms": 33.7692080065608,
+          "prefill_ms": 4.803749994607642,
+          "decode_ms": 28.95641600480303,
+          "generated_tokens": 7,
+          "tokens_sha256": "fbc609262e46e8e3aa22b95f1f82f9ba37c9959cf5c35e08b1d8701403f26157",
+          "stats": {
+            "verify_ct": 6,
+            "num_proposed_drafts": 6,
+            "num_reuse_tokens": 0,
+            "step_histogram": {
+              "1": 6,
+              "0": 1
+            },
+            "adaptive_scores": {
+              "1": 216.79769172738528
+            },
+            "proposed_by_depth": {
+              "1": 6
+            },
+            "eligible_by_depth": {
+              "1": 6
+            },
+            "correct_by_depth": {},
+            "eligible_by_budget_depth": {
+              "1:1": 6
+            },
+            "correct_by_budget_depth": {}
+          }
+        }
+      ],
+      "median_ms": 32.48883399646729,
+      "median_decode_ms": 27.644624991808087,
+      "matches_baseline": true
+    },
+    "host": {
+      "first_ms": 22.046375001082197,
+      "first_trial": {
+        "elapsed_ms": 22.046375001082197,
+        "prefill_ms": 2.7212910063099116,
+        "decode_ms": 19.317790982313454,
+        "generated_tokens": 7,
+        "tokens_sha256": "fbc609262e46e8e3aa22b95f1f82f9ba37c9959cf5c35e08b1d8701403f26157",
+        "stats": {
+          "verify_ct": 6,
+          "num_proposed_drafts": 6,
+          "num_reuse_tokens": 0,
+          "step_histogram": {
+            "1": 6,
+            "0": 1
+          },
+          "adaptive_scores": {
+            "1": 345.498892243485
+          },
+          "proposed_by_depth": {
+            "1": 6
+          },
+          "eligible_by_depth": {
+            "1": 6
+          },
+          "correct_by_depth": {},
+          "eligible_by_budget_depth": {
+            "1:1": 6
+          },
+          "correct_by_budget_depth": {}
+        }
+      },
+      "samples": [
+        {
+          "elapsed_ms": 44.01550002512522,
+          "prefill_ms": 5.095584027003497,
+          "decode_ms": 38.90241699991748,
+          "generated_tokens": 7,
+          "tokens_sha256": "fbc609262e46e8e3aa22b95f1f82f9ba37c9959cf5c35e08b1d8701403f26157",
+          "stats": {
+            "verify_ct": 6,
+            "num_proposed_drafts": 6,
+            "num_reuse_tokens": 0,
+            "step_histogram": {
+              "1": 6,
+              "0": 1
+            },
+            "adaptive_scores": {
+              "1": 196.9510437005547
+            },
+            "proposed_by_depth": {
+              "1": 6
+            },
+            "eligible_by_depth": {
+              "1": 6
+            },
+            "correct_by_depth": {},
+            "eligible_by_budget_depth": {
+              "1:1": 6
+            },
+            "correct_by_budget_depth": {}
+          }
+        },
+        {
+          "elapsed_ms": 38.21262501878664,
+          "prefill_ms": 5.090334016131237,
+          "decode_ms": 33.115250000264496,
+          "generated_tokens": 7,
+          "tokens_sha256": "fbc609262e46e8e3aa22b95f1f82f9ba37c9959cf5c35e08b1d8701403f26157",
+          "stats": {
+            "verify_ct": 6,
+            "num_proposed_drafts": 6,
+            "num_reuse_tokens": 0,
+            "step_histogram": {
+              "1": 6,
+              "0": 1
+            },
+            "adaptive_scores": {
+              "1": 210.40882609533278
+            },
+            "proposed_by_depth": {
+              "1": 6
+            },
+            "eligible_by_depth": {
+              "1": 6
+            },
+            "correct_by_depth": {},
+            "eligible_by_budget_depth": {
+              "1:1": 6
+            },
+            "correct_by_budget_depth": {}
+          }
+        },
+        {
+          "elapsed_ms": 29.122334002749994,
+          "prefill_ms": 5.0645419978536665,
+          "decode_ms": 24.05041697784327,
+          "generated_tokens": 7,
+          "tokens_sha256": "fbc609262e46e8e3aa22b95f1f82f9ba37c9959cf5c35e08b1d8701403f26157",
+          "stats": {
+            "verify_ct": 6,
+            "num_proposed_drafts": 6,
+            "num_reuse_tokens": 0,
+            "step_histogram": {
+              "1": 6,
+              "0": 1
+            },
+            "adaptive_scores": {
+              "1": 341.03297211859945
+            },
+            "proposed_by_depth": {
+              "1": 6
+            },
+            "eligible_by_depth": {
+              "1": 6
+            },
+            "correct_by_depth": {},
+            "eligible_by_budget_depth": {
+              "1:1": 6
+            },
+            "correct_by_budget_depth": {}
+          }
+        },
+        {
+          "elapsed_ms": 38.28879099455662,
+          "prefill_ms": 5.215124983806163,
+          "decode_ms": 33.0665830115322,
+          "generated_tokens": 7,
+          "tokens_sha256": "fbc609262e46e8e3aa22b95f1f82f9ba37c9959cf5c35e08b1d8701403f26157",
+          "stats": {
+            "verify_ct": 6,
+            "num_proposed_drafts": 6,
+            "num_reuse_tokens": 0,
+            "step_histogram": {
+              "1": 6,
+              "0": 1
+            },
+            "adaptive_scores": {
+              "1": 187.15320413600324
+            },
+            "proposed_by_depth": {
+              "1": 6
+            },
+            "eligible_by_depth": {
+              "1": 6
+            },
+            "correct_by_depth": {},
+            "eligible_by_budget_depth": {
+              "1:1": 6
+            },
+            "correct_by_budget_depth": {}
+          }
+        },
+        {
+          "elapsed_ms": 39.603083016118035,
+          "prefill_ms": 5.34237502142787,
+          "decode_ms": 34.25458402489312,
+          "generated_tokens": 7,
+          "tokens_sha256": "fbc609262e46e8e3aa22b95f1f82f9ba37c9959cf5c35e08b1d8701403f26157",
+          "stats": {
+            "verify_ct": 6,
+            "num_proposed_drafts": 6,
+            "num_reuse_tokens": 0,
+            "step_histogram": {
+              "1": 6,
+              "0": 1
+            },
+            "adaptive_scores": {
+              "1": 201.8583920606469
+            },
+            "proposed_by_depth": {
+              "1": 6
+            },
+            "eligible_by_depth": {
+              "1": 6
+            },
+            "correct_by_depth": {},
+            "eligible_by_budget_depth": {
+              "1:1": 6
+            },
+            "correct_by_budget_depth": {}
+          }
+        }
+      ],
+      "median_ms": 38.28879099455662,
+      "median_decode_ms": 33.115250000264496,
+      "matches_baseline": true,
+      "summary": {
+        "timings": [
+          {
+            "category": "submission_wait",
+            "name": "mx.eval",
+            "module": "",
+            "calls": 35,
+            "inclusive_ms": 59.41141399999999,
+            "self_ms": 59.41141399999999,
+            "median_ms": 2.013
+          },
+          {
+            "category": "submission_wait",
+            "name": "mx.async_eval",
+            "module": "",
+            "calls": 45,
+            "inclusive_ms": 40.070249000000004,
+            "self_ms": 40.070249000000004,
+            "median_ms": 1.003833
+          },
+          {
+            "category": "workload",
+            "name": "prefill",
+            "module": "",
+            "calls": 5,
+            "inclusive_ms": 25.731417,
+            "self_ms": 15.268584,
+            "median_ms": 5.080457999999999
+          },
+          {
+            "category": "sampling",
+            "name": "sample_and_materialize",
+            "module": "",
+            "calls": 35,
+            "inclusive_ms": 13.523834,
+            "self_ms": 13.523834,
+            "median_ms": 0.154584
+          },
+          {
+            "category": "serving",
+            "name": "serving.decode",
+            "module": "",
+            "calls": 35,
+            "inclusive_ms": 144.198004,
+            "self_ms": 7.449002999999999,
+            "median_ms": 4.599709
+          },
+          {
+            "category": "fusion",
+            "name": "mlx_hc_collapse_norm",
+            "module": "",
+            "calls": 400,
+            "inclusive_ms": 4.196266,
+            "self_ms": 4.196266,
+            "median_ms": 0.0096665
+          },
+          {
+            "category": "module",
+            "name": "MLA.__call__",
+            "module": "model.layers.3.self_attn",
+            "calls": 70,
+            "inclusive_ms": 4.294497000000001,
+            "self_ms": 3.857747,
+            "median_ms": 0.058
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer.verify_ffn_rows",
+            "module": "model.layers.3",
+            "calls": 30,
+            "inclusive_ms": 11.612918,
+            "self_ms": 3.366589,
+            "median_ms": 0.333458
+          },
+          {
+            "category": "fusion",
+            "name": "mlx_kda_decode",
+            "module": "",
+            "calls": 195,
+            "inclusive_ms": 2.853215,
+            "self_ms": 2.853215,
+            "median_ms": 0.013959
+          },
+          {
+            "category": "module",
+            "name": "KDA.__call__",
+            "module": "model.layers.0.self_attn",
+            "calls": 70,
+            "inclusive_ms": 3.705084,
+            "self_ms": 2.667915,
+            "median_ms": 0.0344165
+          },
+          {
+            "category": "module",
+            "name": "Model.verify_mtp_rows",
+            "module": "",
+            "calls": 30,
+            "inclusive_ms": 69.303168,
+            "self_ms": 2.513335,
+            "median_ms": 2.1584795
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer.verify_ffn_rows",
+            "module": "model.layers.0",
+            "calls": 30,
+            "inclusive_ms": 8.79475,
+            "self_ms": 2.504623,
+            "median_ms": 0.2534375
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer.verify_ffn_rows",
+            "module": "model.layers.2",
+            "calls": 30,
+            "inclusive_ms": 7.6722470000000005,
+            "self_ms": 2.488536,
+            "median_ms": 0.2327495
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer.verify_ffn_rows",
+            "module": "model.layers.1",
+            "calls": 30,
+            "inclusive_ms": 7.196087,
+            "self_ms": 2.462867,
+            "median_ms": 0.22387549999999998
+          },
+          {
+            "category": "module",
+            "name": "MLA.__call__",
+            "module": "model.layers.4.self_attn",
+            "calls": 35,
+            "inclusive_ms": 2.300502,
+            "self_ms": 2.000752,
+            "median_ms": 0.065041
+          },
+          {
+            "category": "fusion",
+            "name": "_compiled_quantized_ffn",
+            "module": "",
+            "calls": 205,
+            "inclusive_ms": 1.9057439999999999,
+            "self_ms": 1.9057439999999999,
+            "median_ms": 0.007917
+          },
+          {
+            "category": "module",
+            "name": "MoE.__call__",
+            "module": "model.layers.3.mlp",
+            "calls": 40,
+            "inclusive_ms": 4.446914,
+            "self_ms": 1.5563399999999998,
+            "median_ms": 0.1113125
+          },
+          {
+            "category": "module",
+            "name": "KDA.__call__",
+            "module": "model.layers.2.self_attn",
+            "calls": 70,
+            "inclusive_ms": 2.452369,
+            "self_ms": 1.546863,
+            "median_ms": 0.031
+          },
+          {
+            "category": "module",
+            "name": "KDA.__call__",
+            "module": "model.layers.1.self_attn",
+            "calls": 70,
+            "inclusive_ms": 2.3021260000000003,
+            "self_ms": 1.391586,
+            "median_ms": 0.031521
+          },
+          {
+            "category": "submission_wait",
+            "name": "mx.synchronize",
+            "module": "",
+            "calls": 5,
+            "inclusive_ms": 1.379374,
+            "self_ms": 1.379374,
+            "median_ms": 0.022375
+          },
+          {
+            "category": "module",
+            "name": "MoE.__call__",
+            "module": "model.layers.4.mlp",
+            "calls": 35,
+            "inclusive_ms": 3.105794,
+            "self_ms": 1.348962,
+            "median_ms": 0.079417
+          },
+          {
+            "category": "fusion",
+            "name": "mlx_affine_rows",
+            "module": "",
+            "calls": 330,
+            "inclusive_ms": 1.278122,
+            "self_ms": 1.278122,
+            "median_ms": 0.002542
+          },
+          {
+            "category": "workload",
+            "name": "decode_loop",
+            "module": "",
+            "calls": 5,
+            "inclusive_ms": 163.36821000000003,
+            "self_ms": 0.976541,
+            "median_ms": 33.112084
+          },
+          {
+            "category": "module",
+            "name": "MLP.__call__",
+            "module": "model.layers.0.mlp",
+            "calls": 40,
+            "inclusive_ms": 1.5150819999999998,
+            "self_ms": 0.868202,
+            "median_ms": 0.0330415
+          },
+          {
+            "category": "module",
+            "name": "KDA.project_verify_rows",
+            "module": "model.layers.2.self_attn",
+            "calls": 30,
+            "inclusive_ms": 1.008625,
+            "self_ms": 0.852292,
+            "median_ms": 0.0220205
+          },
+          {
+            "category": "module",
+            "name": "MLP.__call__",
+            "module": "model.layers.3.mlp.shared_experts",
+            "calls": 40,
+            "inclusive_ms": 1.592997,
+            "self_ms": 0.831625,
+            "median_ms": 0.0439165
+          },
+          {
+            "category": "module",
+            "name": "MLP.__call__",
+            "module": "model.layers.1.mlp",
+            "calls": 40,
+            "inclusive_ms": 1.2248350000000001,
+            "self_ms": 0.802209,
+            "median_ms": 0.02975
+          },
+          {
+            "category": "fusion",
+            "name": "mlx_dense_rows",
+            "module": "",
+            "calls": 120,
+            "inclusive_ms": 0.785995,
+            "self_ms": 0.785995,
+            "median_ms": 0.00575
+          },
+          {
+            "category": "fusion",
+            "name": "mlx_glm_router",
+            "module": "",
+            "calls": 65,
+            "inclusive_ms": 0.762288,
+            "self_ms": 0.762288,
+            "median_ms": 0.010375
+          },
+          {
+            "category": "module",
+            "name": "MLP.__call__",
+            "module": "model.layers.2.mlp",
+            "calls": 40,
+            "inclusive_ms": 1.183294,
+            "self_ms": 0.7507569999999999,
+            "median_ms": 0.0295625
+          },
+          {
+            "category": "module",
+            "name": "KDA.project_verify_rows",
+            "module": "model.layers.0.self_attn",
+            "calls": 30,
+            "inclusive_ms": 0.772125,
+            "self_ms": 0.5900850000000001,
+            "median_ms": 0.025188000000000002
+          },
+          {
+            "category": "module",
+            "name": "KDA.project_verify_rows",
+            "module": "model.layers.1.self_attn",
+            "calls": 30,
+            "inclusive_ms": 0.71625,
+            "self_ms": 0.550169,
+            "median_ms": 0.022479
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer.__call__",
+            "module": "model.layers.4",
+            "calls": 35,
+            "inclusive_ms": 5.933917,
+            "self_ms": 0.527621,
+            "median_ms": 0.15375
+          },
+          {
+            "category": "module",
+            "name": "MTPHead.__call__",
+            "module": "model.layers.4",
+            "calls": 35,
+            "inclusive_ms": 6.451042999999999,
+            "self_ms": 0.517126,
+            "median_ms": 0.169625
+          },
+          {
+            "category": "fusion",
+            "name": "mlx_glm_down_combine",
+            "module": "",
+            "calls": 65,
+            "inclusive_ms": 0.505751,
+            "self_ms": 0.505751,
+            "median_ms": 0.007333
+          },
+          {
+            "category": "serving",
+            "name": "serving.prefill",
+            "module": "",
+            "calls": 5,
+            "inclusive_ms": 10.462833,
+            "self_ms": 0.461918,
+            "median_ms": 2.1095
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer.__call__",
+            "module": "model.layers.0",
+            "calls": 10,
+            "inclusive_ms": 1.474916,
+            "self_ms": 0.460584,
+            "median_ms": 0.151208
+          },
+          {
+            "category": "module",
+            "name": "MLA._latent_matrices",
+            "module": "model.layers.3.self_attn",
+            "calls": 70,
+            "inclusive_ms": 0.43675,
+            "self_ms": 0.43675,
+            "median_ms": 0.005875
+          },
+          {
+            "category": "module",
+            "name": "MLP.__call__",
+            "module": "model.layers.4.mlp.shared_experts",
+            "calls": 35,
+            "inclusive_ms": 0.597291,
+            "self_ms": 0.32808299999999996,
+            "median_ms": 0.015792
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer.__call__",
+            "module": "model.layers.3",
+            "calls": 10,
+            "inclusive_ms": 2.113707,
+            "self_ms": 0.323247,
+            "median_ms": 0.2073955
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer.__call__",
+            "module": "model.layers.1",
+            "calls": 10,
+            "inclusive_ms": 0.977625,
+            "self_ms": 0.309085,
+            "median_ms": 0.096354
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer.__call__",
+            "module": "model.layers.2",
+            "calls": 10,
+            "inclusive_ms": 1.0259569999999998,
+            "self_ms": 0.30775,
+            "median_ms": 0.0959375
+          },
+          {
+            "category": "module",
+            "name": "MLA._latent_matrices",
+            "module": "model.layers.4.self_attn",
+            "calls": 30,
+            "inclusive_ms": 0.29975,
+            "self_ms": 0.29975,
+            "median_ms": 0.0074585
+          },
+          {
+            "category": "module",
+            "name": "Model.forward_with_hidden",
+            "module": "",
+            "calls": 5,
+            "inclusive_ms": 5.402875,
+            "self_ms": 0.26437700000000003,
+            "median_ms": 1.0537919999999998
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer._branch_output",
+            "module": "model.layers.0",
+            "calls": 90,
+            "inclusive_ms": 0.228418,
+            "self_ms": 0.228418,
+            "median_ms": 0.0022919999999999998
+          },
+          {
+            "category": "module",
+            "name": "ClampedSwitchGLU.__call__",
+            "module": "model.layers.3.mlp.switch_mlp",
+            "calls": 5,
+            "inclusive_ms": 0.249834,
+            "self_ms": 0.215166,
+            "median_ms": 0.045
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer._branch_output",
+            "module": "model.layers.3",
+            "calls": 90,
+            "inclusive_ms": 0.20187200000000002,
+            "self_ms": 0.20187200000000002,
+            "median_ms": 0.002125
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer._branch_output",
+            "module": "model.layers.1",
+            "calls": 90,
+            "inclusive_ms": 0.198709,
+            "self_ms": 0.198709,
+            "median_ms": 0.0021665
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer._branch_output",
+            "module": "model.layers.2",
+            "calls": 90,
+            "inclusive_ms": 0.19846,
+            "self_ms": 0.19846,
+            "median_ms": 0.002125
+          },
+          {
+            "category": "module",
+            "name": "ClampedSwitchGLU.__call__",
+            "module": "model.layers.4.mlp.switch_mlp",
+            "calls": 5,
+            "inclusive_ms": 0.196667,
+            "self_ms": 0.173831,
+            "median_ms": 0.040459
+          },
+          {
+            "category": "serving",
+            "name": "serving._publish",
+            "module": "",
+            "calls": 40,
+            "inclusive_ms": 0.146166,
+            "self_ms": 0.146166,
+            "median_ms": 0.0037085
+          },
+          {
+            "category": "qmm",
+            "name": "mx.quantized_matmul",
+            "module": "",
+            "calls": 75,
+            "inclusive_ms": 0.091335,
+            "self_ms": 0.091335,
+            "median_ms": 0.001042
+          },
+          {
+            "category": "qmm",
+            "name": "mx.gather_qmm",
+            "module": "",
+            "calls": 30,
+            "inclusive_ms": 0.057504,
+            "self_ms": 0.057504,
+            "median_ms": 0.0013959999999999999
+          },
+          {
+            "category": "serving",
+            "name": "serving._flush_head",
+            "module": "",
+            "calls": 35,
+            "inclusive_ms": 0.034040999999999995,
+            "self_ms": 0.034040999999999995,
+            "median_ms": 0.000958
+          }
+        ],
+        "dispatch": [
+          {
+            "inputs": [
+              {
+                "bytes": 4608,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  9,
+                  256
+                ]
+              },
+              {
+                "bytes": 65536,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  512,
+                  32
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  512,
+                  4
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  512,
+                  4
+                ]
+              }
+            ],
+            "op": "mx.quantized_matmul",
+            "outputs": [
+              {
+                "bytes": 9216,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  9,
+                  512
+                ]
+              }
+            ],
+            "returned_none": null,
+            "calls": 30
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 9216,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  9,
+                  512
+                ]
+              },
+              {
+                "bytes": 81920,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  256,
+                  80
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  256,
+                  8
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  256,
+                  8
+                ]
+              }
+            ],
+            "op": "mx.quantized_matmul",
+            "outputs": [
+              {
+                "bytes": 4608,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  9,
+                  256
+                ]
+              }
+            ],
+            "returned_none": null,
+            "calls": 15
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 36864,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  72,
+                  1,
+                  256
+                ]
+              },
+              {
+                "bytes": 2097152,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  32,
+                  512,
+                  32
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  512,
+                  4
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  512,
+                  4
+                ]
+              },
+              {
+                "bytes": 288,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  72
+                ]
+              }
+            ],
+            "op": "mx.gather_qmm",
+            "outputs": [
+              {
+                "bytes": 73728,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  72,
+                  1,
+                  512
+                ]
+              }
+            ],
+            "returned_none": null,
+            "calls": 10
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 73728,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  72,
+                  1,
+                  512
+                ]
+              },
+              {
+                "bytes": 2621440,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  32,
+                  256,
+                  80
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  256,
+                  8
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  256,
+                  8
+                ]
+              },
+              {
+                "bytes": 288,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  72
+                ]
+              }
+            ],
+            "op": "mx.gather_qmm",
+            "outputs": [
+              {
+                "bytes": 36864,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  72,
+                  1,
+                  256
+                ]
+              }
+            ],
+            "returned_none": null,
+            "calls": 5
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 4608,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  9,
+                  256
+                ]
+              },
+              {
+                "bytes": 98304,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  512,
+                  48
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  512,
+                  4
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  512,
+                  4
+                ]
+              }
+            ],
+            "op": "mx.quantized_matmul",
+            "outputs": [
+              {
+                "bytes": 9216,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  9,
+                  512
+                ]
+              }
+            ],
+            "returned_none": null,
+            "calls": 10
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 9216,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  9,
+                  512
+                ]
+              },
+              {
+                "bytes": 98304,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  256,
+                  96
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  256,
+                  8
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  256,
+                  8
+                ]
+              }
+            ],
+            "op": "mx.quantized_matmul",
+            "outputs": [
+              {
+                "bytes": 4608,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  9,
+                  256
+                ]
+              }
+            ],
+            "returned_none": null,
+            "calls": 5
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 32768,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  64,
+                  1,
+                  256
+                ]
+              },
+              {
+                "bytes": 2097152,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  32,
+                  512,
+                  32
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  512,
+                  4
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  512,
+                  4
+                ]
+              },
+              {
+                "bytes": 256,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  64
+                ]
+              }
+            ],
+            "op": "mx.gather_qmm",
+            "outputs": [
+              {
+                "bytes": 65536,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  64,
+                  1,
+                  512
+                ]
+              }
+            ],
+            "returned_none": null,
+            "calls": 10
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 65536,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  64,
+                  1,
+                  512
+                ]
+              },
+              {
+                "bytes": 2621440,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  32,
+                  256,
+                  80
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  256,
+                  8
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  256,
+                  8
+                ]
+              },
+              {
+                "bytes": 256,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  64
+                ]
+              }
+            ],
+            "op": "mx.gather_qmm",
+            "outputs": [
+              {
+                "bytes": 32768,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  64,
+                  1,
+                  256
+                ]
+              }
+            ],
+            "returned_none": null,
+            "calls": 5
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  8,
+                  256
+                ]
+              },
+              {
+                "bytes": 98304,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  512,
+                  48
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  512,
+                  4
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  512,
+                  4
+                ]
+              }
+            ],
+            "op": "mx.quantized_matmul",
+            "outputs": [
+              {
+                "bytes": 8192,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  8,
+                  512
+                ]
+              }
+            ],
+            "returned_none": null,
+            "calls": 10
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 8192,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  8,
+                  512
+                ]
+              },
+              {
+                "bytes": 98304,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  256,
+                  96
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  256,
+                  8
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  256,
+                  8
+                ]
+              }
+            ],
+            "op": "mx.quantized_matmul",
+            "outputs": [
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  8,
+                  256
+                ]
+              }
+            ],
+            "returned_none": null,
+            "calls": 5
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  256
+                ]
+              },
+              {
+                "bytes": 32768,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  32,
+                  256
+                ]
+              },
+              {
+                "bytes": 128,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  32
+                ]
+              }
+            ],
+            "op": "mlx_glm_router",
+            "outputs": [
+              {
+                "bytes": 32,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  1,
+                  1,
+                  8
+                ]
+              },
+              {
+                "bytes": 32,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  1,
+                  1,
+                  8
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 35
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  1,
+                  256
+                ]
+              },
+              {
+                "bytes": 32,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  1,
+                  1,
+                  8
+                ]
+              }
+            ],
+            "op": "_compiled_quantized_ffn",
+            "outputs": [
+              {
+                "bytes": 8192,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  1,
+                  8,
+                  512
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 35
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  1,
+                  256
+                ]
+              }
+            ],
+            "op": "_compiled_quantized_ffn",
+            "outputs": [
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  1,
+                  256
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 50
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 8192,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  1,
+                  8,
+                  512
+                ]
+              },
+              {
+                "bytes": 32,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  1,
+                  1,
+                  8
+                ]
+              },
+              {
+                "bytes": 32,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  1,
+                  1,
+                  8
+                ]
+              },
+              {
+                "bytes": 2621440,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  32,
+                  256,
+                  80
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  256,
+                  8
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  256,
+                  8
+                ]
+              },
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  256
+                ]
+              }
+            ],
+            "op": "mlx_glm_down_combine",
+            "outputs": [
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  256
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 35
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 2048,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  4,
+                  256
+                ]
+              },
+              {
+                "bytes": 96,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  1,
+                  1,
+                  24
+                ]
+              },
+              {
+                "bytes": 96,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  24
+                ]
+              },
+              {
+                "bytes": 12,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  3
+                ]
+              },
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  256
+                ]
+              }
+            ],
+            "op": "mlx_hc_collapse_norm",
+            "outputs": [
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  256
+                ]
+              },
+              {
+                "bytes": 8,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  4
+                ]
+              },
+              {
+                "bytes": 2048,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  4,
+                  256
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 280
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1024,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  2,
+                  256
+                ]
+              },
+              {
+                "bytes": 525312,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1026,
+                  256
+                ]
+              }
+            ],
+            "op": "mlx_dense_rows",
+            "outputs": [
+              {
+                "bytes": 4104,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  2,
+                  1026
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 90
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 2052,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  1026
+                ]
+              },
+              {
+                "bytes": 2048,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  256,
+                  4,
+                  1
+                ]
+              },
+              {
+                "bytes": 2048,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  256,
+                  4,
+                  1
+                ]
+              },
+              {
+                "bytes": 2048,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  256,
+                  4,
+                  1
+                ]
+              },
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  1,
+                  2,
+                  128,
+                  128
+                ]
+              },
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  256
+                ]
+              },
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  256
+                ]
+              },
+              {
+                "bytes": 8,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  2
+                ]
+              },
+              {
+                "bytes": 1024,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  256
+                ]
+              },
+              {
+                "bytes": 256,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  128
+                ]
+              }
+            ],
+            "op": "mlx_kda_decode",
+            "outputs": [
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  256
+                ]
+              },
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  1,
+                  2,
+                  128,
+                  128
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 195
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  2,
+                  4,
+                  256
+                ]
+              },
+              {
+                "bytes": 192,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  1,
+                  2,
+                  24
+                ]
+              },
+              {
+                "bytes": 96,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  24
+                ]
+              },
+              {
+                "bytes": 12,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  3
+                ]
+              },
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  256
+                ]
+              }
+            ],
+            "op": "mlx_hc_collapse_norm",
+            "outputs": [
+              {
+                "bytes": 1024,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  2,
+                  256
+                ]
+              },
+              {
+                "bytes": 16,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  2,
+                  4
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  2,
+                  4,
+                  256
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 120
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1024,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  2,
+                  256
+                ]
+              },
+              {
+                "bytes": 65536,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  512,
+                  32
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  512,
+                  4
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  512,
+                  4
+                ]
+              }
+            ],
+            "op": "mlx_affine_rows",
+            "outputs": [],
+            "returned_none": true,
+            "calls": 180
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1024,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  2,
+                  256
+                ]
+              }
+            ],
+            "op": "_compiled_quantized_ffn",
+            "outputs": [
+              {
+                "bytes": 1024,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  2,
+                  256
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 90
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1024,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  2,
+                  256
+                ]
+              },
+              {
+                "bytes": 32768,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  32,
+                  256
+                ]
+              },
+              {
+                "bytes": 128,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  32
+                ]
+              }
+            ],
+            "op": "mlx_glm_router",
+            "outputs": [
+              {
+                "bytes": 64,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  1,
+                  2,
+                  8
+                ]
+              },
+              {
+                "bytes": 64,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  1,
+                  2,
+                  8
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 30
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1024,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  2,
+                  256
+                ]
+              },
+              {
+                "bytes": 2097152,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  32,
+                  512,
+                  32
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  512,
+                  4
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  512,
+                  4
+                ]
+              },
+              {
+                "bytes": 64,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  1,
+                  2,
+                  8
+                ]
+              }
+            ],
+            "op": "mlx_affine_rows",
+            "outputs": [],
+            "returned_none": true,
+            "calls": 60
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1024,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  2,
+                  256
+                ]
+              },
+              {
+                "bytes": 64,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  1,
+                  2,
+                  8
+                ]
+              }
+            ],
+            "op": "_compiled_quantized_ffn",
+            "outputs": [
+              {
+                "bytes": 16384,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  2,
+                  8,
+                  512
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 30
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1024,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  2,
+                  256
+                ]
+              },
+              {
+                "bytes": 98304,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  512,
+                  48
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  512,
+                  4
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  512,
+                  4
+                ]
+              }
+            ],
+            "op": "mlx_affine_rows",
+            "outputs": [
+              {
+                "bytes": 2048,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  2,
+                  512
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 60
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 2048,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  2,
+                  512
+                ]
+              },
+              {
+                "bytes": 98304,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  256,
+                  96
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  256,
+                  8
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  256,
+                  8
+                ]
+              }
+            ],
+            "op": "mlx_affine_rows",
+            "outputs": [
+              {
+                "bytes": 1024,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  2,
+                  256
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 30
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 16384,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  2,
+                  8,
+                  512
+                ]
+              },
+              {
+                "bytes": 64,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  1,
+                  2,
+                  8
+                ]
+              },
+              {
+                "bytes": 64,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  1,
+                  2,
+                  8
+                ]
+              },
+              {
+                "bytes": 2621440,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  32,
+                  256,
+                  80
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  256,
+                  8
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  256,
+                  8
+                ]
+              },
+              {
+                "bytes": 1024,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  2,
+                  256
+                ]
+              }
+            ],
+            "op": "mlx_glm_down_combine",
+            "outputs": [
+              {
+                "bytes": 1024,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  2,
+                  256
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 30
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1024,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  2,
+                  256
+                ]
+              },
+              {
+                "bytes": 262144,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  512,
+                  256
+                ]
+              }
+            ],
+            "op": "mlx_dense_rows",
+            "outputs": [
+              {
+                "bytes": 2048,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  2,
+                  512
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 30
+          }
+        ]
+      },
+      "dropped_events": 0
+    },
+    "sync": {
+      "first_ms": 85.00675001414493,
+      "first_trial": {
+        "elapsed_ms": 85.00675001414493,
+        "prefill_ms": 11.002915998687968,
+        "decode_ms": 73.99891701061279,
+        "generated_tokens": 7,
+        "tokens_sha256": "fbc609262e46e8e3aa22b95f1f82f9ba37c9959cf5c35e08b1d8701403f26157",
+        "stats": {
+          "verify_ct": 6,
+          "num_proposed_drafts": 6,
+          "num_reuse_tokens": 0,
+          "step_histogram": {
+            "1": 6,
+            "0": 1
+          },
+          "adaptive_scores": {
+            "1": 93.1216681079537
+          },
+          "proposed_by_depth": {
+            "1": 6
+          },
+          "eligible_by_depth": {
+            "1": 6
+          },
+          "correct_by_depth": {},
+          "eligible_by_budget_depth": {
+            "1:1": 6
+          },
+          "correct_by_budget_depth": {}
+        }
+      },
+      "samples": [
+        {
+          "elapsed_ms": 123.55662501067854,
+          "prefill_ms": 19.912624993594363,
+          "decode_ms": 103.63604102167301,
+          "generated_tokens": 7,
+          "tokens_sha256": "fbc609262e46e8e3aa22b95f1f82f9ba37c9959cf5c35e08b1d8701403f26157",
+          "stats": {
+            "verify_ct": 6,
+            "num_proposed_drafts": 6,
+            "num_reuse_tokens": 0,
+            "step_histogram": {
+              "1": 6,
+              "0": 1
+            },
+            "adaptive_scores": {
+              "1": 53.689707944255815
+            },
+            "proposed_by_depth": {
+              "1": 6
+            },
+            "eligible_by_depth": {
+              "1": 6
+            },
+            "correct_by_depth": {},
+            "eligible_by_budget_depth": {
+              "1:1": 6
+            },
+            "correct_by_budget_depth": {}
+          }
+        },
+        {
+          "elapsed_ms": 102.24249999737367,
+          "prefill_ms": 13.174874999094754,
+          "decode_ms": 89.06191599089652,
+          "generated_tokens": 7,
+          "tokens_sha256": "fbc609262e46e8e3aa22b95f1f82f9ba37c9959cf5c35e08b1d8701403f26157",
+          "stats": {
+            "verify_ct": 6,
+            "num_proposed_drafts": 6,
+            "num_reuse_tokens": 0,
+            "step_histogram": {
+              "1": 6,
+              "0": 1
+            },
+            "adaptive_scores": {
+              "1": 72.84035123077179
+            },
+            "proposed_by_depth": {
+              "1": 6
+            },
+            "eligible_by_depth": {
+              "1": 6
+            },
+            "correct_by_depth": {},
+            "eligible_by_budget_depth": {
+              "1:1": 6
+            },
+            "correct_by_budget_depth": {}
+          }
+        },
+        {
+          "elapsed_ms": 86.08050001203083,
+          "prefill_ms": 9.931167005561292,
+          "decode_ms": 76.14158297656104,
+          "generated_tokens": 7,
+          "tokens_sha256": "fbc609262e46e8e3aa22b95f1f82f9ba37c9959cf5c35e08b1d8701403f26157",
+          "stats": {
+            "verify_ct": 6,
+            "num_proposed_drafts": 6,
+            "num_reuse_tokens": 0,
+            "step_histogram": {
+              "1": 6,
+              "0": 1
+            },
+            "adaptive_scores": {
+              "1": 87.1101863922615
+            },
+            "proposed_by_depth": {
+              "1": 6
+            },
+            "eligible_by_depth": {
+              "1": 6
+            },
+            "correct_by_depth": {},
+            "eligible_by_budget_depth": {
+              "1:1": 6
+            },
+            "correct_by_budget_depth": {}
+          }
+        },
+        {
+          "elapsed_ms": 99.14254199247807,
+          "prefill_ms": 11.170582991326228,
+          "decode_ms": 87.9626669920981,
+          "generated_tokens": 7,
+          "tokens_sha256": "fbc609262e46e8e3aa22b95f1f82f9ba37c9959cf5c35e08b1d8701403f26157",
+          "stats": {
+            "verify_ct": 6,
+            "num_proposed_drafts": 6,
+            "num_reuse_tokens": 0,
+            "step_histogram": {
+              "1": 6,
+              "0": 1
+            },
+            "adaptive_scores": {
+              "1": 75.19838379618591
+            },
+            "proposed_by_depth": {
+              "1": 6
+            },
+            "eligible_by_depth": {
+              "1": 6
+            },
+            "correct_by_depth": {},
+            "eligible_by_budget_depth": {
+              "1:1": 6
+            },
+            "correct_by_budget_depth": {}
+          }
+        },
+        {
+          "elapsed_ms": 105.41816701879725,
+          "prefill_ms": 14.155542012304068,
+          "decode_ms": 91.25687499181367,
+          "generated_tokens": 7,
+          "tokens_sha256": "fbc609262e46e8e3aa22b95f1f82f9ba37c9959cf5c35e08b1d8701403f26157",
+          "stats": {
+            "verify_ct": 6,
+            "num_proposed_drafts": 6,
+            "num_reuse_tokens": 0,
+            "step_histogram": {
+              "1": 6,
+              "0": 1
+            },
+            "adaptive_scores": {
+              "1": 74.04646014376621
+            },
+            "proposed_by_depth": {
+              "1": 6
+            },
+            "eligible_by_depth": {
+              "1": 6
+            },
+            "correct_by_depth": {},
+            "eligible_by_budget_depth": {
+              "1:1": 6
+            },
+            "correct_by_budget_depth": {}
+          }
+        }
+      ],
+      "median_ms": 102.24249999737367,
+      "median_decode_ms": 89.06191599089652,
+      "matches_baseline": true,
+      "summary": {
+        "timings": [
+          {
+            "category": "submission_wait",
+            "name": "mx.eval",
+            "module": "",
+            "calls": 1935,
+            "inclusive_ms": 350.891235,
+            "self_ms": 350.891235,
+            "median_ms": 0.169083
+          },
+          {
+            "category": "submission_wait",
+            "name": "mx.synchronize",
+            "module": "",
+            "calls": 1905,
+            "inclusive_ms": 42.604385,
+            "self_ms": 42.604385,
+            "median_ms": 0.0215
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer.verify_ffn_rows",
+            "module": "model.layers.2",
+            "calls": 30,
+            "inclusive_ms": 77.801539,
+            "self_ms": 16.984462,
+            "median_ms": 2.1231875
+          },
+          {
+            "category": "serving",
+            "name": "serving.decode",
+            "module": "",
+            "calls": 35,
+            "inclusive_ms": 441.839624,
+            "self_ms": 7.744257999999999,
+            "median_ms": 12.907167
+          },
+          {
+            "category": "sampling",
+            "name": "sample_and_materialize",
+            "module": "",
+            "calls": 35,
+            "inclusive_ms": 5.28479,
+            "self_ms": 5.28479,
+            "median_ms": 0.146375
+          },
+          {
+            "category": "module",
+            "name": "MLA.__call__",
+            "module": "model.layers.3.self_attn",
+            "calls": 70,
+            "inclusive_ms": 42.518586000000006,
+            "self_ms": 5.23505,
+            "median_ms": 0.5934375
+          },
+          {
+            "category": "fusion",
+            "name": "mlx_hc_collapse_norm",
+            "module": "",
+            "calls": 400,
+            "inclusive_ms": 5.084084,
+            "self_ms": 5.084084,
+            "median_ms": 0.012833500000000001
+          },
+          {
+            "category": "fusion",
+            "name": "mlx_kda_decode",
+            "module": "",
+            "calls": 195,
+            "inclusive_ms": 4.537662,
+            "self_ms": 4.537662,
+            "median_ms": 0.01625
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer.verify_ffn_rows",
+            "module": "model.layers.0",
+            "calls": 30,
+            "inclusive_ms": 68.10462,
+            "self_ms": 4.074116,
+            "median_ms": 2.222562
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer.verify_ffn_rows",
+            "module": "model.layers.1",
+            "calls": 30,
+            "inclusive_ms": 65.447958,
+            "self_ms": 3.8253359999999996,
+            "median_ms": 2.136583
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "DecoderLayer.verify_ffn_rows.drain_after",
+            "module": "",
+            "calls": 120,
+            "inclusive_ms": 26.503375,
+            "self_ms": 3.528087,
+            "median_ms": 0.2025205
+          },
+          {
+            "category": "module",
+            "name": "KDA.__call__",
+            "module": "model.layers.0.self_attn",
+            "calls": 70,
+            "inclusive_ms": 20.33625,
+            "self_ms": 3.421,
+            "median_ms": 0.2535
+          },
+          {
+            "category": "module",
+            "name": "Model.verify_mtp_rows",
+            "module": "",
+            "calls": 30,
+            "inclusive_ms": 327.441957,
+            "self_ms": 3.360087,
+            "median_ms": 10.3615415
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer.verify_ffn_rows",
+            "module": "model.layers.3",
+            "calls": 30,
+            "inclusive_ms": 96.496042,
+            "self_ms": 3.141829,
+            "median_ms": 3.2447290000000004
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "KDA.__call__.drain_before",
+            "module": "",
+            "calls": 210,
+            "inclusive_ms": 20.003156999999998,
+            "self_ms": 2.951661,
+            "median_ms": 0.0646455
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "KDA.__call__.drain_after",
+            "module": "",
+            "calls": 210,
+            "inclusive_ms": 47.359042,
+            "self_ms": 2.741996,
+            "median_ms": 0.21014549999999999
+          },
+          {
+            "category": "module",
+            "name": "MoE.__call__",
+            "module": "model.layers.3.mlp",
+            "calls": 40,
+            "inclusive_ms": 35.097789,
+            "self_ms": 2.459951,
+            "median_ms": 0.7842915
+          },
+          {
+            "category": "module",
+            "name": "MLA.__call__",
+            "module": "model.layers.4.self_attn",
+            "calls": 35,
+            "inclusive_ms": 20.118498,
+            "self_ms": 2.348417,
+            "median_ms": 0.583333
+          },
+          {
+            "category": "fusion",
+            "name": "_compiled_quantized_ffn",
+            "module": "",
+            "calls": 205,
+            "inclusive_ms": 2.135047,
+            "self_ms": 2.135047,
+            "median_ms": 0.009625
+          },
+          {
+            "category": "module",
+            "name": "KDA.__call__",
+            "module": "model.layers.2.self_attn",
+            "calls": 70,
+            "inclusive_ms": 20.231744,
+            "self_ms": 2.064829,
+            "median_ms": 0.254375
+          },
+          {
+            "category": "module",
+            "name": "KDA.__call__",
+            "module": "model.layers.1.self_attn",
+            "calls": 70,
+            "inclusive_ms": 18.848501,
+            "self_ms": 2.033962,
+            "median_ms": 0.2524165
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "MLP.__call__.drain_after",
+            "module": "",
+            "calls": 195,
+            "inclusive_ms": 42.179951,
+            "self_ms": 1.9313230000000001,
+            "median_ms": 0.207291
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "MLP.__call__.drain_before",
+            "module": "",
+            "calls": 195,
+            "inclusive_ms": 44.263833,
+            "self_ms": 1.61858,
+            "median_ms": 0.265959
+          },
+          {
+            "category": "fusion",
+            "name": "mlx_affine_rows",
+            "module": "",
+            "calls": 330,
+            "inclusive_ms": 1.592124,
+            "self_ms": 1.592124,
+            "median_ms": 0.003417
+          },
+          {
+            "category": "module",
+            "name": "MoE.__call__",
+            "module": "model.layers.4.mlp",
+            "calls": 35,
+            "inclusive_ms": 26.162164,
+            "self_ms": 1.53841,
+            "median_ms": 0.64625
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "DecoderLayer.verify_ffn_rows.drain_before",
+            "module": "",
+            "calls": 120,
+            "inclusive_ms": 9.066001,
+            "self_ms": 1.328245,
+            "median_ms": 0.035729500000000004
+          },
+          {
+            "category": "module",
+            "name": "MLA._latent_matrices",
+            "module": "model.layers.4.self_attn",
+            "calls": 30,
+            "inclusive_ms": 1.2085800000000002,
+            "self_ms": 1.2085800000000002,
+            "median_ms": 0.0068745
+          },
+          {
+            "category": "module",
+            "name": "MLP.__call__",
+            "module": "model.layers.3.mlp.shared_experts",
+            "calls": 40,
+            "inclusive_ms": 11.371127,
+            "self_ms": 1.207466,
+            "median_ms": 0.27483349999999995
+          },
+          {
+            "category": "module",
+            "name": "MLP.__call__",
+            "module": "model.layers.0.mlp",
+            "calls": 40,
+            "inclusive_ms": 10.258128999999998,
+            "self_ms": 1.200085,
+            "median_ms": 0.2507505
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "MLA.__call__.drain_before",
+            "module": "",
+            "calls": 105,
+            "inclusive_ms": 24.223084999999998,
+            "self_ms": 1.190464,
+            "median_ms": 0.233417
+          },
+          {
+            "category": "module",
+            "name": "MLP.__call__",
+            "module": "model.layers.1.mlp",
+            "calls": 40,
+            "inclusive_ms": 10.877085000000001,
+            "self_ms": 1.181209,
+            "median_ms": 0.24825
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "MLA.__call__.drain_after",
+            "module": "",
+            "calls": 105,
+            "inclusive_ms": 53.175417,
+            "self_ms": 1.177708,
+            "median_ms": 0.516375
+          },
+          {
+            "category": "module",
+            "name": "MLP.__call__",
+            "module": "model.layers.2.mlp",
+            "calls": 40,
+            "inclusive_ms": 9.88571,
+            "self_ms": 1.133759,
+            "median_ms": 0.24520850000000002
+          },
+          {
+            "category": "fusion",
+            "name": "mlx_dense_rows",
+            "module": "",
+            "calls": 120,
+            "inclusive_ms": 1.0712940000000002,
+            "self_ms": 1.0712940000000002,
+            "median_ms": 0.008791499999999999
+          },
+          {
+            "category": "fusion",
+            "name": "mlx_glm_router",
+            "module": "",
+            "calls": 65,
+            "inclusive_ms": 1.050873,
+            "self_ms": 1.050873,
+            "median_ms": 0.015125
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer.__call__",
+            "module": "model.layers.4",
+            "calls": 35,
+            "inclusive_ms": 64.595417,
+            "self_ms": 1.014999,
+            "median_ms": 1.773333
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "DecoderLayer.__call__.drain_after",
+            "module": "",
+            "calls": 75,
+            "inclusive_ms": 17.000876,
+            "self_ms": 0.98363,
+            "median_ms": 0.175917
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "DecoderLayer.__call__.drain_before",
+            "module": "",
+            "calls": 75,
+            "inclusive_ms": 13.212503,
+            "self_ms": 0.913715,
+            "median_ms": 0.167584
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "KDA.project_verify_rows.drain_after",
+            "module": "",
+            "calls": 90,
+            "inclusive_ms": 19.497419999999998,
+            "self_ms": 0.881893,
+            "median_ms": 0.209458
+          },
+          {
+            "category": "workload",
+            "name": "prefill",
+            "module": "",
+            "calls": 5,
+            "inclusive_ms": 68.266082,
+            "self_ms": 0.853625,
+            "median_ms": 13.161084
+          },
+          {
+            "category": "module",
+            "name": "KDA.project_verify_rows",
+            "module": "model.layers.0.self_attn",
+            "calls": 30,
+            "inclusive_ms": 7.859669,
+            "self_ms": 0.835588,
+            "median_ms": 0.249917
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "MoE.__call__.drain_before",
+            "module": "",
+            "calls": 75,
+            "inclusive_ms": 19.062877,
+            "self_ms": 0.828121,
+            "median_ms": 0.244416
+          },
+          {
+            "category": "module",
+            "name": "KDA.project_verify_rows",
+            "module": "model.layers.2.self_attn",
+            "calls": 30,
+            "inclusive_ms": 7.398503,
+            "self_ms": 0.8145,
+            "median_ms": 0.248125
+          },
+          {
+            "category": "module",
+            "name": "KDA.project_verify_rows",
+            "module": "model.layers.1.self_attn",
+            "calls": 30,
+            "inclusive_ms": 7.536,
+            "self_ms": 0.807164,
+            "median_ms": 0.2395625
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "KDA.project_verify_rows.drain_before",
+            "module": "",
+            "calls": 90,
+            "inclusive_ms": 27.62233,
+            "self_ms": 0.79808,
+            "median_ms": 0.29514599999999996
+          },
+          {
+            "category": "workload",
+            "name": "decode_loop",
+            "module": "",
+            "calls": 5,
+            "inclusive_ms": 448.044332,
+            "self_ms": 0.79475,
+            "median_ms": 89.059416
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer.__call__",
+            "module": "model.layers.0",
+            "calls": 10,
+            "inclusive_ms": 17.155251,
+            "self_ms": 0.7597079999999999,
+            "median_ms": 1.4974789999999998
+          },
+          {
+            "category": "fusion",
+            "name": "mlx_glm_down_combine",
+            "module": "",
+            "calls": 65,
+            "inclusive_ms": 0.737085,
+            "self_ms": 0.737085,
+            "median_ms": 0.011209
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "MoE.__call__.drain_after",
+            "module": "",
+            "calls": 75,
+            "inclusive_ms": 23.725626000000002,
+            "self_ms": 0.728542,
+            "median_ms": 0.306291
+          },
+          {
+            "category": "module",
+            "name": "MTPHead.__call__",
+            "module": "model.layers.4",
+            "calls": 35,
+            "inclusive_ms": 73.353206,
+            "self_ms": 0.693747,
+            "median_ms": 2.0146669999999998
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "Model.verify_mtp_rows.drain_after",
+            "module": "",
+            "calls": 30,
+            "inclusive_ms": 6.861167,
+            "self_ms": 0.674834,
+            "median_ms": 0.22685399999999997
+          },
+          {
+            "category": "module",
+            "name": "MLA._latent_matrices",
+            "module": "model.layers.3.self_attn",
+            "calls": 70,
+            "inclusive_ms": 0.66962,
+            "self_ms": 0.66962,
+            "median_ms": 0.0075625
+          },
+          {
+            "category": "serving",
+            "name": "serving.prefill",
+            "module": "",
+            "calls": 5,
+            "inclusive_ms": 67.41245699999999,
+            "self_ms": 0.648369,
+            "median_ms": 12.986833
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer.__call__",
+            "module": "model.layers.3",
+            "calls": 10,
+            "inclusive_ms": 28.560125,
+            "self_ms": 0.5946290000000001,
+            "median_ms": 2.6455415
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer.__call__",
+            "module": "model.layers.2",
+            "calls": 10,
+            "inclusive_ms": 17.161709,
+            "self_ms": 0.5843780000000001,
+            "median_ms": 1.4144795
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer.__call__",
+            "module": "model.layers.1",
+            "calls": 10,
+            "inclusive_ms": 16.168125,
+            "self_ms": 0.5825009999999999,
+            "median_ms": 1.4650835
+          },
+          {
+            "category": "module",
+            "name": "MLP.__call__",
+            "module": "model.layers.4.mlp.shared_experts",
+            "calls": 35,
+            "inclusive_ms": 8.09671,
+            "self_ms": 0.550252,
+            "median_ms": 0.225792
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "Model.verify_mtp_rows.drain_before",
+            "module": "",
+            "calls": 30,
+            "inclusive_ms": 6.747872999999999,
+            "self_ms": 0.5486219999999999,
+            "median_ms": 0.21116649999999998
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "MTPHead.__call__.drain_after",
+            "module": "",
+            "calls": 35,
+            "inclusive_ms": 1.273998,
+            "self_ms": 0.45099700000000004,
+            "median_ms": 0.035207999999999996
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "MTPHead.__call__.drain_before",
+            "module": "",
+            "calls": 35,
+            "inclusive_ms": 5.917002999999999,
+            "self_ms": 0.412707,
+            "median_ms": 0.163209
+          },
+          {
+            "category": "module",
+            "name": "ClampedSwitchGLU.__call__",
+            "module": "model.layers.3.mlp.switch_mlp",
+            "calls": 5,
+            "inclusive_ms": 3.715375,
+            "self_ms": 0.411669,
+            "median_ms": 0.8075829999999999
+          },
+          {
+            "category": "module",
+            "name": "Model.forward_with_hidden",
+            "module": "",
+            "calls": 5,
+            "inclusive_ms": 33.937667000000005,
+            "self_ms": 0.407583,
+            "median_ms": 6.979917
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer._branch_output",
+            "module": "model.layers.0",
+            "calls": 90,
+            "inclusive_ms": 0.354665,
+            "self_ms": 0.354665,
+            "median_ms": 0.0036669999999999997
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer._branch_output",
+            "module": "model.layers.1",
+            "calls": 90,
+            "inclusive_ms": 0.335623,
+            "self_ms": 0.335623,
+            "median_ms": 0.0034795
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer._branch_output",
+            "module": "model.layers.2",
+            "calls": 90,
+            "inclusive_ms": 0.32304,
+            "self_ms": 0.32304,
+            "median_ms": 0.003375
+          },
+          {
+            "category": "module",
+            "name": "DecoderLayer._branch_output",
+            "module": "model.layers.3",
+            "calls": 90,
+            "inclusive_ms": 0.316505,
+            "self_ms": 0.316505,
+            "median_ms": 0.003375
+          },
+          {
+            "category": "module",
+            "name": "ClampedSwitchGLU.__call__",
+            "module": "model.layers.4.mlp.switch_mlp",
+            "calls": 5,
+            "inclusive_ms": 3.27475,
+            "self_ms": 0.218125,
+            "median_ms": 0.74425
+          },
+          {
+            "category": "serving",
+            "name": "serving._publish",
+            "module": "",
+            "calls": 40,
+            "inclusive_ms": 0.170624,
+            "self_ms": 0.170624,
+            "median_ms": 0.003958000000000001
+          },
+          {
+            "category": "qmm",
+            "name": "mx.quantized_matmul",
+            "module": "",
+            "calls": 75,
+            "inclusive_ms": 0.12762099999999998,
+            "self_ms": 0.12762099999999998,
+            "median_ms": 0.001416
+          },
+          {
+            "category": "submission_wait",
+            "name": "mx.async_eval",
+            "module": "",
+            "calls": 45,
+            "inclusive_ms": 0.105334,
+            "self_ms": 0.105334,
+            "median_ms": 0.002375
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "ClampedSwitchGLU.__call__.drain_after",
+            "module": "",
+            "calls": 10,
+            "inclusive_ms": 6.289707999999999,
+            "self_ms": 0.1025,
+            "median_ms": 0.7052705000000001
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "Model.forward_with_hidden.drain_after",
+            "module": "",
+            "calls": 5,
+            "inclusive_ms": 1.016709,
+            "self_ms": 0.10146000000000001,
+            "median_ms": 0.2055
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "Model.forward_with_hidden.drain_before",
+            "module": "",
+            "calls": 5,
+            "inclusive_ms": 0.227208,
+            "self_ms": 0.094332,
+            "median_ms": 0.046708
+          },
+          {
+            "category": "diagnostic_sync",
+            "name": "ClampedSwitchGLU.__call__.drain_before",
+            "module": "",
+            "calls": 10,
+            "inclusive_ms": 2.178043,
+            "self_ms": 0.08954300000000001,
+            "median_ms": 0.2226045
+          },
+          {
+            "category": "qmm",
+            "name": "mx.gather_qmm",
+            "module": "",
+            "calls": 30,
+            "inclusive_ms": 0.070623,
+            "self_ms": 0.070623,
+            "median_ms": 0.001792
+          },
+          {
+            "category": "serving",
+            "name": "serving._flush_head",
+            "module": "",
+            "calls": 35,
+            "inclusive_ms": 0.036747,
+            "self_ms": 0.036747,
+            "median_ms": 0.001
+          }
+        ],
+        "dispatch": [
+          {
+            "inputs": [
+              {
+                "bytes": 4608,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  9,
+                  256
+                ]
+              },
+              {
+                "bytes": 65536,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  512,
+                  32
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  512,
+                  4
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  512,
+                  4
+                ]
+              }
+            ],
+            "op": "mx.quantized_matmul",
+            "outputs": [
+              {
+                "bytes": 9216,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  9,
+                  512
+                ]
+              }
+            ],
+            "returned_none": null,
+            "calls": 30
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 9216,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  9,
+                  512
+                ]
+              },
+              {
+                "bytes": 81920,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  256,
+                  80
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  256,
+                  8
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  256,
+                  8
+                ]
+              }
+            ],
+            "op": "mx.quantized_matmul",
+            "outputs": [
+              {
+                "bytes": 4608,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  9,
+                  256
+                ]
+              }
+            ],
+            "returned_none": null,
+            "calls": 15
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 36864,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  72,
+                  1,
+                  256
+                ]
+              },
+              {
+                "bytes": 2097152,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  32,
+                  512,
+                  32
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  512,
+                  4
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  512,
+                  4
+                ]
+              },
+              {
+                "bytes": 288,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  72
+                ]
+              }
+            ],
+            "op": "mx.gather_qmm",
+            "outputs": [
+              {
+                "bytes": 73728,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  72,
+                  1,
+                  512
+                ]
+              }
+            ],
+            "returned_none": null,
+            "calls": 10
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 73728,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  72,
+                  1,
+                  512
+                ]
+              },
+              {
+                "bytes": 2621440,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  32,
+                  256,
+                  80
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  256,
+                  8
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  256,
+                  8
+                ]
+              },
+              {
+                "bytes": 288,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  72
+                ]
+              }
+            ],
+            "op": "mx.gather_qmm",
+            "outputs": [
+              {
+                "bytes": 36864,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  72,
+                  1,
+                  256
+                ]
+              }
+            ],
+            "returned_none": null,
+            "calls": 5
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 4608,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  9,
+                  256
+                ]
+              },
+              {
+                "bytes": 98304,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  512,
+                  48
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  512,
+                  4
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  512,
+                  4
+                ]
+              }
+            ],
+            "op": "mx.quantized_matmul",
+            "outputs": [
+              {
+                "bytes": 9216,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  9,
+                  512
+                ]
+              }
+            ],
+            "returned_none": null,
+            "calls": 10
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 9216,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  9,
+                  512
+                ]
+              },
+              {
+                "bytes": 98304,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  256,
+                  96
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  256,
+                  8
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  256,
+                  8
+                ]
+              }
+            ],
+            "op": "mx.quantized_matmul",
+            "outputs": [
+              {
+                "bytes": 4608,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  9,
+                  256
+                ]
+              }
+            ],
+            "returned_none": null,
+            "calls": 5
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 32768,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  64,
+                  1,
+                  256
+                ]
+              },
+              {
+                "bytes": 2097152,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  32,
+                  512,
+                  32
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  512,
+                  4
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  512,
+                  4
+                ]
+              },
+              {
+                "bytes": 256,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  64
+                ]
+              }
+            ],
+            "op": "mx.gather_qmm",
+            "outputs": [
+              {
+                "bytes": 65536,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  64,
+                  1,
+                  512
+                ]
+              }
+            ],
+            "returned_none": null,
+            "calls": 10
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 65536,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  64,
+                  1,
+                  512
+                ]
+              },
+              {
+                "bytes": 2621440,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  32,
+                  256,
+                  80
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  256,
+                  8
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  256,
+                  8
+                ]
+              },
+              {
+                "bytes": 256,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  64
+                ]
+              }
+            ],
+            "op": "mx.gather_qmm",
+            "outputs": [
+              {
+                "bytes": 32768,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  64,
+                  1,
+                  256
+                ]
+              }
+            ],
+            "returned_none": null,
+            "calls": 5
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  8,
+                  256
+                ]
+              },
+              {
+                "bytes": 98304,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  512,
+                  48
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  512,
+                  4
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  512,
+                  4
+                ]
+              }
+            ],
+            "op": "mx.quantized_matmul",
+            "outputs": [
+              {
+                "bytes": 8192,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  8,
+                  512
+                ]
+              }
+            ],
+            "returned_none": null,
+            "calls": 10
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 8192,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  8,
+                  512
+                ]
+              },
+              {
+                "bytes": 98304,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  256,
+                  96
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  256,
+                  8
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  256,
+                  8
+                ]
+              }
+            ],
+            "op": "mx.quantized_matmul",
+            "outputs": [
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  8,
+                  256
+                ]
+              }
+            ],
+            "returned_none": null,
+            "calls": 5
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  256
+                ]
+              },
+              {
+                "bytes": 32768,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  32,
+                  256
+                ]
+              },
+              {
+                "bytes": 128,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  32
+                ]
+              }
+            ],
+            "op": "mlx_glm_router",
+            "outputs": [
+              {
+                "bytes": 32,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  1,
+                  1,
+                  8
+                ]
+              },
+              {
+                "bytes": 32,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  1,
+                  1,
+                  8
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 35
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  1,
+                  256
+                ]
+              },
+              {
+                "bytes": 32,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  1,
+                  1,
+                  8
+                ]
+              }
+            ],
+            "op": "_compiled_quantized_ffn",
+            "outputs": [
+              {
+                "bytes": 8192,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  1,
+                  8,
+                  512
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 35
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  1,
+                  256
+                ]
+              }
+            ],
+            "op": "_compiled_quantized_ffn",
+            "outputs": [
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  1,
+                  256
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 50
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 8192,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  1,
+                  8,
+                  512
+                ]
+              },
+              {
+                "bytes": 32,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  1,
+                  1,
+                  8
+                ]
+              },
+              {
+                "bytes": 32,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  1,
+                  1,
+                  8
+                ]
+              },
+              {
+                "bytes": 2621440,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  32,
+                  256,
+                  80
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  256,
+                  8
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  256,
+                  8
+                ]
+              },
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  256
+                ]
+              }
+            ],
+            "op": "mlx_glm_down_combine",
+            "outputs": [
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  256
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 35
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 2048,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  4,
+                  256
+                ]
+              },
+              {
+                "bytes": 96,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  1,
+                  1,
+                  24
+                ]
+              },
+              {
+                "bytes": 96,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  24
+                ]
+              },
+              {
+                "bytes": 12,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  3
+                ]
+              },
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  256
+                ]
+              }
+            ],
+            "op": "mlx_hc_collapse_norm",
+            "outputs": [
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  256
+                ]
+              },
+              {
+                "bytes": 8,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  4
+                ]
+              },
+              {
+                "bytes": 2048,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  4,
+                  256
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 280
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1024,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  2,
+                  256
+                ]
+              },
+              {
+                "bytes": 525312,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1026,
+                  256
+                ]
+              }
+            ],
+            "op": "mlx_dense_rows",
+            "outputs": [
+              {
+                "bytes": 4104,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  2,
+                  1026
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 90
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 2052,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  1026
+                ]
+              },
+              {
+                "bytes": 2048,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  256,
+                  4,
+                  1
+                ]
+              },
+              {
+                "bytes": 2048,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  256,
+                  4,
+                  1
+                ]
+              },
+              {
+                "bytes": 2048,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  256,
+                  4,
+                  1
+                ]
+              },
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  1,
+                  2,
+                  128,
+                  128
+                ]
+              },
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  256
+                ]
+              },
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  256
+                ]
+              },
+              {
+                "bytes": 8,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  2
+                ]
+              },
+              {
+                "bytes": 1024,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  256
+                ]
+              },
+              {
+                "bytes": 256,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  128
+                ]
+              }
+            ],
+            "op": "mlx_kda_decode",
+            "outputs": [
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  1,
+                  256
+                ]
+              },
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 1536,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  3,
+                  256
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  1,
+                  2,
+                  128,
+                  128
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 195
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  2,
+                  4,
+                  256
+                ]
+              },
+              {
+                "bytes": 192,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  1,
+                  2,
+                  24
+                ]
+              },
+              {
+                "bytes": 96,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  24
+                ]
+              },
+              {
+                "bytes": 12,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  3
+                ]
+              },
+              {
+                "bytes": 512,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  256
+                ]
+              }
+            ],
+            "op": "mlx_hc_collapse_norm",
+            "outputs": [
+              {
+                "bytes": 1024,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  2,
+                  256
+                ]
+              },
+              {
+                "bytes": 16,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  2,
+                  4
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  2,
+                  4,
+                  256
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 120
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1024,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  2,
+                  256
+                ]
+              },
+              {
+                "bytes": 65536,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  512,
+                  32
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  512,
+                  4
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  512,
+                  4
+                ]
+              }
+            ],
+            "op": "mlx_affine_rows",
+            "outputs": [],
+            "returned_none": true,
+            "calls": 180
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1024,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  2,
+                  256
+                ]
+              }
+            ],
+            "op": "_compiled_quantized_ffn",
+            "outputs": [
+              {
+                "bytes": 1024,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  2,
+                  256
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 90
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1024,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  2,
+                  256
+                ]
+              },
+              {
+                "bytes": 32768,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  32,
+                  256
+                ]
+              },
+              {
+                "bytes": 128,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  32
+                ]
+              }
+            ],
+            "op": "mlx_glm_router",
+            "outputs": [
+              {
+                "bytes": 64,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  1,
+                  2,
+                  8
+                ]
+              },
+              {
+                "bytes": 64,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  1,
+                  2,
+                  8
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 30
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1024,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  2,
+                  256
+                ]
+              },
+              {
+                "bytes": 2097152,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  32,
+                  512,
+                  32
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  512,
+                  4
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  512,
+                  4
+                ]
+              },
+              {
+                "bytes": 64,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  1,
+                  2,
+                  8
+                ]
+              }
+            ],
+            "op": "mlx_affine_rows",
+            "outputs": [],
+            "returned_none": true,
+            "calls": 60
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1024,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  2,
+                  256
+                ]
+              },
+              {
+                "bytes": 64,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  1,
+                  2,
+                  8
+                ]
+              }
+            ],
+            "op": "_compiled_quantized_ffn",
+            "outputs": [
+              {
+                "bytes": 16384,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  2,
+                  8,
+                  512
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 30
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1024,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  2,
+                  256
+                ]
+              },
+              {
+                "bytes": 98304,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  512,
+                  48
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  512,
+                  4
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  512,
+                  4
+                ]
+              }
+            ],
+            "op": "mlx_affine_rows",
+            "outputs": [
+              {
+                "bytes": 2048,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  2,
+                  512
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 60
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 2048,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  2,
+                  512
+                ]
+              },
+              {
+                "bytes": 98304,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  256,
+                  96
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  256,
+                  8
+                ]
+              },
+              {
+                "bytes": 4096,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  256,
+                  8
+                ]
+              }
+            ],
+            "op": "mlx_affine_rows",
+            "outputs": [
+              {
+                "bytes": 1024,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  2,
+                  256
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 30
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 16384,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  1,
+                  2,
+                  8,
+                  512
+                ]
+              },
+              {
+                "bytes": 64,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  1,
+                  2,
+                  8
+                ]
+              },
+              {
+                "bytes": 64,
+                "dtype": "mlx.core.float32",
+                "shape": [
+                  1,
+                  2,
+                  8
+                ]
+              },
+              {
+                "bytes": 2621440,
+                "dtype": "mlx.core.uint32",
+                "shape": [
+                  32,
+                  256,
+                  80
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  256,
+                  8
+                ]
+              },
+              {
+                "bytes": 131072,
+                "dtype": "mlx.core.float16",
+                "shape": [
+                  32,
+                  256,
+                  8
+                ]
+              },
+              {
+                "bytes": 1024,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  2,
+                  256
+                ]
+              }
+            ],
+            "op": "mlx_glm_down_combine",
+            "outputs": [
+              {
+                "bytes": 1024,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  2,
+                  256
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 30
+          },
+          {
+            "inputs": [
+              {
+                "bytes": 1024,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  2,
+                  256
+                ]
+              },
+              {
+                "bytes": 262144,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  512,
+                  256
+                ]
+              }
+            ],
+            "op": "mlx_dense_rows",
+            "outputs": [
+              {
+                "bytes": 2048,
+                "dtype": "mlx.core.bfloat16",
+                "shape": [
+                  1,
+                  2,
+                  512
+                ]
+              }
+            ],
+            "returned_none": false,
+            "calls": 30
+          }
+        ]
+      },
+      "dropped_events": 0
+    }
+  },
+  "first_trial_scope": "after model preparation and base-cache prefill; not process-cold loading",
+  "capture_scope": "one replay including prefill for generate; GPU captures may retain weight buffers",
+  "capture": "not requested",
+  "memory": {
+    "active_bytes": 22435368,
+    "peak_bytes": 183863300,
+    "cache_bytes": 166940398,
+    "swap_after": {
+      "exit_code": 0,
+      "stdout": "vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)",
+      "stderr": ""
+    }
+  }
+}

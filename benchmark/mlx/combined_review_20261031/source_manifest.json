@@ -1,0 +1,22 @@
+{
+  "base": "58a6c24e3ff9aefbc2e9e0eeb76da422e40fb62c",
+  "scope": "combined-patch",
+  "files": {
+    "benchmark/mlx/mlx_profile.py": "7b990847e393055fc906b55b99ee4c0b5f721e5fb3b530c2d4d9cbad96496990",
+    "benchmark/mlx/mlx_metal_trace.py": "0d69ba3b27888663a42d870d1a3016f632957968db9dcba870d7dc44ad1e26a0",
+    "benchmark/mlx/profile_glm_mlx.py": "8cbe37a74fa428c44017acf329cf26f0546bea787f2312117297cc2102d794d3",
+    "benchmark/mlx/README.profile.md": "f60aec0d0ecf413c5e637eb8aad4d88a7d1b626019d1c1ea7c7828f936b74ebc",
+    "test/registered/unit/hardware_backend/mlx/test_mlx_profile.py": "29b4eb72e7b6c2d5c37df4952b4e3f22be63f5efa3853819d023f77e808f6d1c",
+    "python/sglang/kernels/ops/gemm/__init__.py": "f82b78a172b7eb013ffa8b3cd85c258d6b046e977af540c7951c4cc12e57e239",
+    "python/sglang/srt/hardware_backend/mlx/models/glm5_next.py": "7d87889a17b463d904669f63fdd2e15842a22f3d65d4565f2cb4e5d5b877436f",
+    "test/registered/unit/hardware_backend/mlx/test_glm5_next_mlx.py": "4001a2366760b1bfffa0471199a00be7acb860033865312d0acc54166a44362f",
+    "benchmark/mlx/bench_glm5_next_dense_verify_ab.py": "697dc040c1c5ea778640fca6ddbc164e0e9d0c4d56a4735df6bc07399381734f",
+    "python/sglang/kernels/ops/gemm/mlx_dense_rows.py": "7d5125c59f83bee9b78bd226d2bf546173c1f312649eb5ae66f10c27f99d61e5",
+    "test/registered/kernels/ops/gemm/test_mlx_dense_rows.py": "16b2389cddb6ffe081f85e67ec85862b261cea18b55d0e4a85bc0286a04c4f05"
+  },
+  "patch_sha256": "0c3a13416282b11367345153c7fedff75a28143f565955a852f334133fe1ecb2",
+  "reverse_apply_check": true,
+  "apply": "git apply --check candidate.patch && git apply candidate.patch",
+  "dependencies": "Existing GLM MLX implementation and its kernel imports; tool-only on updated workspace",
+  "note": "No commit or push performed; captures, weights and env excluded"
+}
