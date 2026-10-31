@@ -9,6 +9,7 @@ from sglang.kernels.selector import get_kernel
 from sglang.kernels.spec import (
     CUDA_ONLY,
     CapabilityRequirement,
+    DeviceType,
     KernelBackend,
     KernelSpec,
 )
@@ -364,5 +365,25 @@ register_kernel(
         backend=KernelBackend.TRITON,
         target="sglang.kernels.ops.moe.muse_spark_post_expert_finalize_triton:fused_post_expert_norm_weighted_sum",
         capabilities=CUDA_ONLY,
+    )
+)
+
+
+# MLX Metal decode kernels; metadata registration imports no MLX runtime.
+register_kernel(
+    KernelSpec(
+        op="moe.mlx_glm_router",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.moe.mlx_glm:mlx_glm_router",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)
+
+register_kernel(
+    KernelSpec(
+        op="moe.mlx_glm_down_combine",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.moe.mlx_glm:mlx_glm_down_combine",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
     )
 )

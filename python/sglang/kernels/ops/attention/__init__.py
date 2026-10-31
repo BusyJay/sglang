@@ -32,6 +32,15 @@ register_kernel(
     )
 )
 
+register_kernel(
+    KernelSpec(
+        op="attention.mlx_kda_decode",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.attention.linear.mlx_kda:mlx_kda_decode",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)
+
 # (module, public_fn) migrated from layers/attention/triton_ops + model_executor.
 _TRITON_KERNELS = [
     ("decode_attention", "decode_attention_fwd"),

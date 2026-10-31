@@ -4,6 +4,7 @@ from sglang.kernels.registry import register_kernel
 from sglang.kernels.spec import (
     CUDA_ONLY,
     CapabilityRequirement,
+    DeviceType,
     KernelBackend,
     KernelSpec,
 )
@@ -118,3 +119,14 @@ for _op, _target, _backends in (
             )
         )
 del _op, _target, _backends, _bk
+
+
+# MLX Metal decode kernels; metadata registration imports no MLX runtime.
+register_kernel(
+    KernelSpec(
+        op="layernorm.mlx_hc_collapse_norm",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.layernorm.mlx_hc:mlx_hc_collapse_norm",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)

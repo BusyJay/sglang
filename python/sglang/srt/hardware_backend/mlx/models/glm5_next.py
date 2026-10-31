@@ -18,6 +18,13 @@ from mlx_lm.models.gated_delta import gated_delta_update, normalize_qk
 from mlx_lm.models.kimi_linear import ShortConv1d, _group_expert_select
 from mlx_lm.models.switch_layers import QuantizedSwitchLinear, SwitchGLU
 
+from sglang.kernels.ops.attention.linear.mlx_kda import mlx_kda_decode
+from sglang.kernels.ops.layernorm.mlx_hc import mlx_hc_collapse_norm
+from sglang.kernels.ops.moe.mlx_glm import (
+    mlx_glm_down_combine,
+    mlx_glm_router,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -236,7 +243,7 @@ class ClampedSwitchGLU(SwitchGLU):
         return out.astype(dtype) if restore_dtype else out
 
 
-def _compiled_quantized_ffn(block, x, indices=None):
+def _compiled_quantized_ffn(block, x, indices=None, *, gate_up_only=False):
     projections = (block.gate_proj, block.up_proj, block.down_proj)
     cls = QuantizedSwitchLinear if indices is not None else nn.QuantizedLinear
     if not all(
@@ -248,7 +255,7 @@ def _compiled_quantized_ffn(block, x, indices=None):
     ):
         return None
     limit = block.activation.limit if indices is not None else block.limit
-    spec = tuple((p.group_size, p.bits) for p in projections) + (limit,)
+    spec = tuple((p.group_size, p.bits) for p in projections) + (limit, gate_up_only)
     # Trace only scalar configuration. All weight arrays are explicit inputs,
     # avoiding retained checkpoint constants and stale weight-update traces.
     if getattr(block, "_compiled_ffn_spec", None) != spec:
@@ -284,7 +291,8 @@ def _compiled_quantized_ffn(block, x, indices=None):
                     bits=bits,
                 )
 
-            out = project(clamped_swiglu(project(x, 0), project(x, 1), limit), 2)
+            act = clamped_swiglu(project(x, 0), project(x, 1), limit)
+            out = act if gate_up_only else project(act, 2)
             return out.squeeze(-2) if routed else out
 
         block._compiled_ffn = mx.compile(forward)
@@ -309,6 +317,8 @@ def _compiled_kda_gate(out, gate, reference):
 
 
 class MoE(nn.Module):
+    fuse_decode = False
+
     def __init__(self, args):
         super().__init__()
         self.args = args
@@ -369,18 +379,67 @@ class MoE(nn.Module):
                     bits=self.gate.bits,
                     mode=self.gate.mode,
                 )
-        scores = x.astype(mx.float32) @ weight.astype(mx.float32).T
         a = self.args
-        indices, weights = _group_expert_select(
-            scores,
-            self.e_score_correction_bias,
-            a.num_experts_per_tok,
-            a.n_group,
-            a.topk_group,
-            a.routed_scaling_factor,
-            a.norm_topk_prob,
-            a.scoring_func,
-        )
+        selected = None
+        if self.fuse_decode and a.n_group == 1 and a.scoring_func == "sigmoid":
+            selected = mlx_glm_router(
+                x,
+                weight,
+                self.e_score_correction_bias,
+                top_k=a.num_experts_per_tok,
+                scaling=a.routed_scaling_factor,
+                renormalize=a.norm_topk_prob,
+            )
+        if selected is None:
+            scores = x.astype(mx.float32) @ weight.astype(mx.float32).T
+            selected = _group_expert_select(
+                scores,
+                self.e_score_correction_bias,
+                a.num_experts_per_tok,
+                a.n_group,
+                a.topk_group,
+                a.routed_scaling_factor,
+                a.norm_topk_prob,
+                a.scoring_func,
+            )
+        indices, weights = selected
+        if self.fuse_decode and x.shape[:2] == (1, 1):
+            sw = self.switch_mlp
+            projections = (sw.gate_proj, sw.up_proj, sw.down_proj)
+            if all(
+                type(p) is QuantizedSwitchLinear
+                and p.mode == "affine"
+                and "bias" not in p
+                and p.global_scale is None
+                for p in projections
+            ):
+                local = x
+                if sw.match_affine_dtype and _uses_fp16_affine_ffn(x, projections):
+                    local = x.astype(mx.float16)
+                down = sw.down_proj
+                if (
+                    local.dtype in (mx.float16, mx.bfloat16)
+                    and down.scales.dtype == local.dtype
+                    and down.bits in (4, 5, 6, 8)
+                    and down.group_size in (32, 64, 128)
+                    and down.weight.shape[-1] * 32 // down.bits % 512 == 0
+                    and down.weight.shape[-2] % 16 == 0
+                ):
+                    act = _compiled_quantized_ffn(sw, local, indices, gate_up_only=True)
+                    shared = self.shared_experts(x)
+                    result = mlx_glm_down_combine(
+                        act,
+                        indices,
+                        weights,
+                        down.weight,
+                        down.scales,
+                        down.biases,
+                        shared,
+                        bits=down.bits,
+                        group_size=down.group_size,
+                    )
+                    if result is not None:
+                        return result
         routed = self.switch_mlp(x, indices)
         routed = (routed * weights[..., None]).sum(-2).astype(x.dtype)
         return routed + self.shared_experts(x)
@@ -388,6 +447,7 @@ class MoE(nn.Module):
 
 class KDA(nn.Module):
     compile_gate = False
+    fuse_decode = False
 
     def __init__(self, args):
         super().__init__()
@@ -504,6 +564,43 @@ class KDA(nn.Module):
 
     def __call__(self, x, cache):
         b, t, _ = x.shape
+        if (
+            self.fuse_decode
+            and b == 1
+            and 1 <= t <= 8
+            and self.head_dim == 128
+            and x.dtype in (mx.bfloat16, mx.float16)
+            and len(self._fused_input_names) == 6
+            and self._fused_qkv_is_current()
+        ):
+            proj = self._fused_qkv(x)
+            _, _, _, fa_end, ga_end = self._fused_input_splits
+            a = self.f_b_proj(proj[..., 3 * self.dim : fa_end])
+            gate = self.g_b_proj(proj[..., fa_end:ga_end])
+            result = mlx_kda_decode(
+                proj,
+                tuple(
+                    getattr(self, name + "_conv").conv.weight
+                    for name in ("q", "k", "v")
+                ),
+                tuple(cache[i] for i in range(3)),
+                cache[3],
+                a,
+                gate,
+                self.A_log,
+                self.dt_bias,
+                self.o_norm.weight,
+                heads=self.num_heads,
+                norm_eps=self.o_norm.eps,
+                lower_bound=self.lower_bound,
+            )
+            if result is not None:
+                out, conv, state = result
+                for i in range(3):
+                    cache[i] = conv[i]
+                cache[3] = state
+                cache.offset += t
+                return self.o_proj(out)
         if self._fused_qkv_is_current():
             if x.dtype == mx.float32 and self._fused_qkv3 is not None:
                 inputs = mx.split(
@@ -858,6 +955,7 @@ def _hyper_connection(x, fn, base, scale, h, norm_eps, eps, sinkhorn_iters):
 class DecoderLayer(nn.Module):
     compile_residual = False
     preserve_residual_dtype = False
+    fuse_hc = False
 
     def __init__(self, args, index):
         super().__init__()
@@ -886,6 +984,27 @@ class DecoderLayer(nn.Module):
             ("ffn", self.post_attention_layernorm, self.mlp),
         ):
             if self.args.mhc:
+                if self.fuse_hc and x.shape[:3] == (1, 1, 4):
+                    flat = x.reshape(1, 1, -1).astype(mx.float32)
+                    mix = mx.fast.rms_norm(flat, None, self.args.rms_norm_eps)
+                    mix = mix @ getattr(self, f"hc_{name}_fn").astype(mx.float32).T
+                    fused = mlx_hc_collapse_norm(
+                        x,
+                        mix,
+                        getattr(self, f"hc_{name}_base"),
+                        getattr(self, f"hc_{name}_scale"),
+                        norm.weight,
+                        eps=self.args.hc_eps,
+                        norm_eps=norm.eps,
+                        iters=self.args.hc_sinkhorn_iters,
+                    )
+                    if fused is not None:
+                        normed, post, residual = fused
+                        branch = block(normed)
+                        if self.preserve_residual_dtype:
+                            branch = branch.astype(residual.dtype)
+                        x = _compiled_residual(residual, post, branch)
+                        continue
                 collapsed, post, residual = hyper_connection(
                     x,
                     getattr(self, f"hc_{name}_fn"),
@@ -988,19 +1107,28 @@ class Model(nn.Module):
             "affine_fp16",
             "affine_all",
             "affine_gate_up",
+            "affine_hc",
+            "affine_kda",
+            "affine_moe",
+            "affine_fused",
         ):
             raise ValueError(f"Unknown GLM MLX optimization profile: {profile}")
         self._optimization_profile = profile
-        affine = profile in ("affine_fp16", "affine_all", "affine_gate_up")
-        pointwise = profile in ("pointwise", "all", "affine_all")
+        affine = profile.startswith("affine_")
+        fused = profile in ("affine_hc", "affine_kda", "affine_moe", "affine_fused")
+        pointwise = profile in ("pointwise", "all", "affine_all") or fused
         for layer in self.layers:
+            layer.fuse_hc = profile in ("affine_hc", "affine_fused")
             layer.compile_residual = pointwise
             # Real checkpoints also quantize MLA projections. FFN-only matching
             # lets the first MLA promote every later residual back to FP32.
-            # This rounding-changing path must be selected explicitly.
+            # Affine profiles keep BF16 residuals; base/router retain FP32 promotion.
             layer.preserve_residual_dtype = affine
             if layer.is_linear:
                 layer.self_attn.compile_gate = pointwise
+                layer.self_attn.fuse_decode = profile in ("affine_kda", "affine_fused")
+            if isinstance(layer.mlp, MoE):
+                layer.mlp.fuse_decode = profile in ("affine_moe", "affine_fused")
             mlps = (
                 (layer.mlp.switch_mlp, layer.mlp.shared_experts)
                 if isinstance(layer.mlp, MoE)
@@ -1011,7 +1139,9 @@ class Model(nn.Module):
                 layer.mlp._router_sources = ()
             for mlp in mlps:
                 mlp.match_affine_dtype = affine
-                mlp.compile_decode = profile in ("compile_ffn", "all", "affine_all")
+                mlp.compile_decode = (
+                    profile in ("compile_ffn", "all", "affine_all") or fused
+                )
                 if isinstance(mlp, MLP):
                     mlp.compile_activation = pointwise
                 else:

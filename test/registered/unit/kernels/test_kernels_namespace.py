@@ -25,8 +25,18 @@ _HIP = PlatformInfo(device_type="hip")
 _MUSA = PlatformInfo(device_type="musa")
 
 
-def test_mlx_pool_attention_is_inventoried_for_metal_only():
-    spec = K.select_kernel("attention.mlx_pool_decode_attention")
+@pytest.mark.parametrize(
+    "op",
+    [
+        "attention.mlx_pool_decode_attention",
+        "attention.mlx_kda_decode",
+        "layernorm.mlx_hc_collapse_norm",
+        "moe.mlx_glm_router",
+        "moe.mlx_glm_down_combine",
+    ],
+)
+def test_mlx_kernels_are_inventoried_for_metal_only(op):
+    spec = K.select_kernel(op)
     assert spec.backend is KernelBackend.MLX
     assert spec.is_available(PlatformInfo(device_type="mps"))
     for platform in (_CPU, _SM90, _HIP, _MUSA):
