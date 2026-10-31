@@ -11,6 +11,31 @@ register_mlx_ci(est_time=5, suite="stage-a-unit-test-mlx")
 
 @unittest.skipUnless(importlib.util.find_spec("mlx"), "requires MLX")
 class TestMlxHc(CustomTestCase):
+    def test_fp32_mix_fusion_preserves_singleton_reduction(self):
+        """FP32 cancellation must preserve the high-K projection's routing inputs."""
+        import mlx.core as mx
+
+        from sglang.kernels.ops.layernorm.mlx_hc_mix import mlx_hc_rms_mix
+
+        mx.random.seed(171)
+        for dtype in (mx.float16, mx.bfloat16):
+            for dim in (256, 768, 1024, 1280, 4096):
+                x = mx.random.normal((1, 3, 4, dim)).astype(dtype)
+                weight = mx.random.normal((24, 4 * dim))
+                # Alternate signs around cancellation; don't contract the
+                # normalization scale into the projection weights.
+                weight[:, 1::2] = -weight[:, ::2]
+                actual = mlx_hc_rms_mix(x, weight, eps=1e-5)
+                flat = x.reshape(1, 3, -1).astype(mx.float32)
+                expected = mx.concatenate(
+                    [
+                        mx.fast.rms_norm(flat[:, j : j + 1], None, 1e-5) @ weight.T
+                        for j in range(3)
+                    ],
+                    axis=1,
+                )
+                self.assertTrue(mx.array_equal(actual, expected).item())
+
     def test_parallel_lines_preserve_serial_coefficients_and_rounding(self):
         """A lane transpose must preserve orientation, order and cast boundaries.
 

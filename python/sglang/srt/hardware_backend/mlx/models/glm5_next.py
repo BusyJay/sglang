@@ -32,6 +32,7 @@ from sglang.kernels.ops.gemm.mlx_dense_rows import (
     mlx_headed_dense_rows,
 )
 from sglang.kernels.ops.layernorm.mlx_hc import mlx_hc_collapse_norm
+from sglang.kernels.ops.layernorm.mlx_hc_mix import mlx_hc_rms_mix
 from sglang.kernels.ops.moe.mlx_glm import (
     mlx_glm_down_combine,
     mlx_glm_router,
@@ -1392,18 +1393,24 @@ class DecoderLayer(nn.Module):
             and 1 <= x.shape[1] <= 17
             and x.shape[2] == 4
         ):
-            flat = x.reshape(1, x.shape[1], -1).astype(mx.float32)
-            weight = getattr(self, f"hc_{name}_fn").astype(mx.float32).T
-            # Keep the trained FP32 mix's singleton GEMV rounding. Batch
-            # the nonlinear HC work, not this cancellation-sensitive sum.
-            mix = mx.concatenate(
-                [
-                    mx.fast.rms_norm(flat[:, j : j + 1], None, self.args.rms_norm_eps)
-                    @ weight
-                    for j in range(x.shape[1])
-                ],
-                axis=1,
+            mix = mlx_hc_rms_mix(
+                x,
+                getattr(self, f"hc_{name}_fn"),
+                eps=self.args.rms_norm_eps,
             )
+            if mix is None:
+                flat = x.reshape(1, x.shape[1], -1).astype(mx.float32)
+                weight = getattr(self, f"hc_{name}_fn").astype(mx.float32).T
+                mix = mx.concatenate(
+                    [
+                        mx.fast.rms_norm(
+                            flat[:, j : j + 1], None, self.args.rms_norm_eps
+                        )
+                        @ weight
+                        for j in range(x.shape[1])
+                    ],
+                    axis=1,
+                )
             fused = mlx_hc_collapse_norm(
                 x,
                 mix,
@@ -1441,9 +1448,15 @@ class DecoderLayer(nn.Module):
         ):
             if self.args.mhc:
                 if self.fuse_hc and x.shape[:3] == (1, 1, 4):
-                    flat = x.reshape(1, 1, -1).astype(mx.float32)
-                    mix = mx.fast.rms_norm(flat, None, self.args.rms_norm_eps)
-                    mix = mix @ getattr(self, f"hc_{name}_fn").astype(mx.float32).T
+                    mix = mlx_hc_rms_mix(
+                        x,
+                        getattr(self, f"hc_{name}_fn"),
+                        eps=self.args.rms_norm_eps,
+                    )
+                    if mix is None:
+                        flat = x.reshape(1, 1, -1).astype(mx.float32)
+                        mix = mx.fast.rms_norm(flat, None, self.args.rms_norm_eps)
+                        mix = mix @ getattr(self, f"hc_{name}_fn").astype(mx.float32).T
                     fused = mlx_hc_collapse_norm(
                         x,
                         mix,
