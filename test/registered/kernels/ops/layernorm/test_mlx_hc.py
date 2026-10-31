@@ -6,11 +6,117 @@ import unittest
 from sglang.test.ci.ci_register import register_mlx_ci
 from sglang.test.test_utils import CustomTestCase
 
-register_mlx_ci(est_time=2, suite="stage-a-unit-test-mlx")
+register_mlx_ci(est_time=5, suite="stage-a-unit-test-mlx")
 
 
 @unittest.skipUnless(importlib.util.find_spec("mlx"), "requires MLX")
 class TestMlxHc(CustomTestCase):
+    def test_parallel_lines_preserve_serial_coefficients_and_rounding(self):
+        """A lane transpose must preserve orientation, order and cast boundaries.
+
+        Compare coefficients before 16-bit rounding as well as the complete
+        fused outputs; rounded coefficients alone can hide routing changes.
+        """
+        import mlx.core as mx
+        import numpy as np
+
+        from sglang.kernels.ops.layernorm import mlx_hc as parallel
+        from sglang.test.kernels import mlx_hc as serial
+
+        kernels = [
+            mx.fast.metal_kernel(
+                name=f"test_hc_fp32_coefficients_{name}",
+                input_names=["x", "mix", "base", "scale", "norm_weight", "params"],
+                output_names=["normed", "post", "comb_out"],
+                source=module._SOURCE.replace(
+                    "T(2 * (v < 0 ? e : 1 - e))", "(2 * (v < 0 ? e : 1 - e))"
+                )
+                .replace("T(comb[i])", "comb[i]")
+                .replace("T(values[c])", "values[c]"),
+            )
+            for name, module in (("serial", serial), ("parallel", parallel))
+        ]
+        mx.random.seed(20261031)
+        for dtype in (mx.bfloat16, mx.float16):
+            for dim, count, iters in (
+                (128, 1, 1),
+                (256, 3, 2),
+                (4096, 1, 20),
+                (4096, 2, 20),
+                (4096, 17, 32),
+            ):
+                for cancelling in (False, True):
+                    with self.subTest(
+                        dtype=dtype,
+                        dim=dim,
+                        count=count,
+                        iters=iters,
+                        cancelling=cancelling,
+                    ):
+                        x = mx.random.normal((1, count, 4, dim)).astype(dtype)
+                        mix = mx.random.normal((1, count, 24)) * 8
+                        scale = mx.array([30.3, -0.75, 1.5])
+                        base = mx.random.normal((24,))
+                        if cancelling:
+                            mix = mx.full((1, count, 24), 100.7)
+                            products = np.float32(100.7) * np.repeat(
+                                np.array(scale), [4, 4, 16]
+                            )
+                            base = mx.array(-products)
+                            x = mx.broadcast_to(
+                                mx.array([1, -1, 1, -1], dtype).reshape(1, 1, 4, 1),
+                                (1, count, 4, dim),
+                            )
+                        norm = mx.random.uniform(low=0.1, high=2, shape=(dim,)).astype(
+                            dtype
+                        )
+                        inputs = [
+                            x,
+                            mix,
+                            base,
+                            scale,
+                            norm,
+                            mx.array([1e-6, 1e-5], mx.float32),
+                        ]
+                        coefficients = [
+                            kernel(
+                                inputs=inputs,
+                                template=[
+                                    ("T", dtype),
+                                    ("D", dim),
+                                    ("ITERS", iters),
+                                    ("THREADS", dim // 4),
+                                ],
+                                grid=(dim // 4, count, 1),
+                                threadgroup=(dim // 4, 1, 1),
+                                output_shapes=[
+                                    (1, count, dim),
+                                    (1, count, 4),
+                                    (1, count, 4, 4),
+                                ],
+                                output_dtypes=[dtype, mx.float32, mx.float32],
+                            )
+                            for kernel in kernels
+                        ]
+                        outputs = [
+                            module.mlx_hc_collapse_norm(
+                                x,
+                                mix,
+                                base,
+                                scale,
+                                norm,
+                                eps=1e-6,
+                                norm_eps=1e-5,
+                                iters=iters,
+                            )
+                            for module in (serial, parallel)
+                        ]
+                        mx.eval(coefficients, outputs)
+                        for pair in (coefficients, outputs):
+                            for got, want in zip(pair[1], pair[0]):
+                                self.assertTrue(mx.all(mx.isfinite(got)).item())
+                                self.assertTrue(mx.array_equal(got, want).item())
+
     def test_multirow_collapse_preserves_independent_sinkhorn(self):
         import mlx.core as mx
 

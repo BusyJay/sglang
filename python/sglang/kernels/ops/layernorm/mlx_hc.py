@@ -8,10 +8,13 @@ _SOURCE = r"""
     const uint tid = thread_position_in_threadgroup.x;
     const uint tok = threadgroup_position_in_grid.y;
     threadgroup float pre[4];
-    threadgroup float comb[16];
     threadgroup float partial[32];
-    if (tid == 0) {
-        for (int i = 0; i < 4; i++) {
+    // The first SIMD group owns the coefficient work. All its lanes execute
+    // shuffles; lanes 0..3 publish the four independent rows/columns.
+    if (tid < 32) {
+        const int r = int(tid % 4);
+        if (tid < 4) {
+            const int i = r;
             volatile float pre_product = mix[tok * 24 + i] * scale[0];
             float v = pre_product + base[i];
             float e = 1 / (1 + metal::precise::exp(metal::abs(v)));
@@ -21,40 +24,48 @@ _SOURCE = r"""
             e = 1 / (1 + metal::precise::exp(metal::abs(v)));
             post[tok * 4 + i] = T(2 * (v < 0 ? e : 1 - e));
         }
-        for (int r = 0; r < 4; r++) {
+        float values[4] = {0, 0, 0, 0};
+        if (tid < 4) {
             float maximum = -INFINITY;
             for (int c = 0; c < 4; c++) {
                 const int i = 4 * r + c;
                 volatile float comb_product = mix[tok * 24 + 8 + i] * scale[2];
-                comb[i] = comb_product + base[8 + i];
-                maximum = max(maximum, comb[i]);
+                values[c] = comb_product + base[8 + i];
+                maximum = max(maximum, values[c]);
             }
             float total = 0;
             for (int c = 0; c < 4; c++) {
-                comb[4 * r + c] = fast::exp(comb[4 * r + c] - maximum);
-                total += comb[4 * r + c];
+                values[c] = fast::exp(values[c] - maximum);
+                total += values[c];
             }
             for (int c = 0; c < 4; c++) {
-                volatile float value = comb[4 * r + c] * (1.0f / total);
-                comb[4 * r + c] = value + params[0];
+                volatile float value = values[c] * (1.0f / total);
+                values[c] = value + params[0];
             }
         }
         // Initial column normalization, then alternating rows and columns.
         for (int it = 0; it < 2 * ITERS - 1; it++) {
-            bool column = (it % 2) == 0;
-            for (int r = 0; r < 4; r++) {
-                float total = 0;
-                for (int c = 0; c < 4; c++) {
-                    total += comb[column ? 4 * c + r : 4 * r + c];
-                }
-                for (int c = 0; c < 4; c++) {
-                    comb[column ? 4 * c + r : 4 * r + c] /= total + params[0];
-                }
+            // Transpose ownership without changing a line's summation order.
+            // Each source lane c supplies its element r. Snapshot the row
+            // before overwriting it, including the diagonal elements.
+            const float4 row = float4(values[0], values[1], values[2], values[3]);
+            for (int c = 0; c < 4; c++) {
+                values[c] = simd_shuffle(row, ushort(c))[r];
+            }
+            float total = 0;
+            for (int c = 0; c < 4; c++) {
+                total += values[c];
+            }
+            for (int c = 0; c < 4; c++) {
+                values[c] /= total + params[0];
             }
         }
-    }
-    if (tid == 0) {
-        for (int i = 0; i < 16; i++) comb_out[tok * 16 + i] = T(comb[i]);
+        // The odd number of stages always finishes with column ownership.
+        if (tid < 4) {
+            for (int c = 0; c < 4; c++) {
+                comb_out[tok * 16 + 4 * c + r] = T(values[c]);
+            }
+        }
     }
     threadgroup_barrier(mem_flags::mem_threadgroup);
     float squares = 0;
