@@ -82,6 +82,27 @@ class TestMlxDenseRows(CustomTestCase):
                 actual = mlx_headed_dense_rows(x, w, transposed=True)
                 self.assertTrue(mx.array_equal(actual, expected).item())
 
+    def test_greedy_epilogue_matches_rounded_logits_and_first_tie(self):
+        import mlx.core as mx
+
+        from sglang.kernels.ops.gemm.mlx_dense_rows import mlx_dense_argmax
+
+        mx.random.seed(92)
+        for dtype in (mx.float16, mx.bfloat16):
+            for n in (65, 256, 4097):
+                x = mx.random.normal((1, 1, 256)).astype(dtype)
+                w = mx.random.normal((n, 256)).astype(dtype)
+                self.assertTrue(
+                    mx.array_equal(
+                        mlx_dense_argmax(x, w), mx.argmax(x @ w.T, -1)
+                    ).item()
+                )
+                w = mx.zeros((n, 256), dtype)
+                self.assertEqual(mlx_dense_argmax(x, w).item(), 0)
+                w[31] = x[0, 0]
+                w[32] = x[0, 0]
+                self.assertEqual(mlx_dense_argmax(x, w).item(), 31)
+
 
 if __name__ == "__main__":
     unittest.main()

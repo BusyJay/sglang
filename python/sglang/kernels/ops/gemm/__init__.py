@@ -573,6 +573,16 @@ register_kernel(
 
 register_kernel(
     KernelSpec(
+        op="gemm.mlx_dense_argmax",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.gemm.mlx_dense_rows:mlx_dense_argmax",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)
+
+
+register_kernel(
+    KernelSpec(
         op="gemm.mlx_affine_swiglu_rows",
         backend=KernelBackend.MLX,
         target="sglang.kernels.ops.gemm.mlx_affine_rows:mlx_affine_swiglu_rows",

@@ -26,7 +26,11 @@ from sglang.kernels.ops.gemm.mlx_affine_rows import (
     mlx_affine_rows,
     mlx_affine_swiglu_rows,
 )
-from sglang.kernels.ops.gemm.mlx_dense_rows import mlx_dense_rows, mlx_headed_dense_rows
+from sglang.kernels.ops.gemm.mlx_dense_rows import (
+    mlx_dense_argmax,
+    mlx_dense_rows,
+    mlx_headed_dense_rows,
+)
 from sglang.kernels.ops.layernorm.mlx_hc import mlx_hc_collapse_norm
 from sglang.kernels.ops.moe.mlx_glm import (
     mlx_glm_down_combine,
@@ -1598,6 +1602,13 @@ class Model(nn.Module):
         hidden = self.model(inputs, cache if cache is not None else self.make_cache())
         return self.lm_head(hidden), hidden
 
+    def draft_token(self, hidden):
+        normalized = self.mtp.shared_head.norm(hidden)
+        token = None
+        if type(self.lm_head) is nn.Linear and "bias" not in self.lm_head:
+            token = mlx_dense_argmax(normalized, self.lm_head.weight)
+        return mx.argmax(self.lm_head(normalized), axis=-1) if token is None else token
+
     def forward_mtp(self, following_tokens, hidden, cache):
         if self.mtp is None:
             raise ValueError("Load the model with enable_mtp=True before drafting")
@@ -1724,6 +1735,15 @@ class Model(nn.Module):
                 if getattr(self, "_optimization_profile", "router") != "base":
                     layer.mlp.prepare_for_inference()
                 layer.mlp.switch_mlp.prepare_for_inference()
+        if self.mtp is not None and type(self.lm_head) is nn.Linear:
+            # Compile the greedy epilogue during preparation. Its first Metal
+            # build belongs to model startup, not the first speculative cycle.
+            token = mlx_dense_argmax(
+                mx.zeros((1, 1, self.args.hidden_size), self.lm_head.weight.dtype),
+                self.lm_head.weight,
+            )
+            if token is not None:
+                mx.eval(token)
 
     def configure_optimizations(self, profile):
         """Select independent decode candidates before load-time preparation."""

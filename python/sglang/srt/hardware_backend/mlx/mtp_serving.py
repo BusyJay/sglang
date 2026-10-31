@@ -235,8 +235,7 @@ class MlxMTPServing:
             scratch_head = clone_cache(state.head)
             chain = [inputs]
             for depth in range(steps):
-                draft_logits = self.model.lm_head(self.model.mtp.shared_head.norm(out))
-                draft = mx.argmax(draft_logits, axis=-1)
+                draft = self.model.draft_token(out)
                 chain.append(draft)
                 if depth + 1 < steps:
                     out = self.model.mtp(

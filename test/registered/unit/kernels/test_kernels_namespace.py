@@ -34,6 +34,7 @@ _MUSA = PlatformInfo(device_type="musa")
         "layernorm.mlx_hc_collapse_norm",
         "gemm.mlx_affine_rows",
         "gemm.mlx_dense_rows",
+        "gemm.mlx_dense_argmax",
         "gemm.mlx_headed_dense_rows",
         "gemm.mlx_affine_mixed_rows",
         "gemm.mlx_affine_swiglu_rows",
