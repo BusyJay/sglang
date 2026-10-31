@@ -1071,6 +1071,57 @@ class TestGlm5NextMlx(CustomTestCase):
                         np.array(model(mx.array([[23]]), expected).astype(mx.float32)),
                     )
 
+    def test_kda_shared_projection_preserves_each_recurrent_snapshot(self):
+        import copy
+
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import KDA, NativeCache
+
+        args = copy.copy(self.model.args)
+        args.hidden_size = 256
+        args.linear_attn_config = dict(
+            num_heads=2, head_dim=128, short_conv_kernel_size=4, gate_lower_bound=-5.0
+        )
+        mx.random.seed(73)
+        attn = KDA(args)
+        attn.set_dtype(mx.bfloat16)
+        attn.A_log = attn.A_log.astype(mx.float32)
+        attn.dt_bias = attn.dt_bias.astype(mx.float32)
+        attn.fuse_decode = True
+        attn.prepare_for_inference()
+        for count in (2, 3, 9, 17):
+            x = mx.random.normal((1, count, 256)).astype(mx.bfloat16)
+            projected = attn.project_verify_rows(x)
+            self.assertIsNotNone(projected)
+            serial, shared = NativeCache(4), NativeCache(4)
+            for j in range(count):
+                row = x[:, j : j + 1]
+                expected = attn(row, serial)
+                actual = attn(
+                    row, shared, projected=tuple(v[:, j : j + 1] for v in projected)
+                )
+                mx.eval(actual, expected, serial.cache, shared.cache)
+                self.assertTrue(mx.array_equal(actual, expected).item())
+                self.assertEqual(serial.offset, shared.offset)
+                for a, b in zip(serial.cache, shared.cache):
+                    self.assertTrue(mx.array_equal(a, b).item())
+
+        attn.q_proj.weight = attn.q_proj.weight * mx.array(0.5, mx.bfloat16)
+        self.assertIsNone(attn.project_verify_rows(x))
+        attn.prepare_for_inference()
+        projected = attn.project_verify_rows(x)
+        self.assertIsNotNone(projected)
+        serial, shared = NativeCache(4), NativeCache(4)
+        for j in range(x.shape[1]):
+            expected = attn(x[:, j : j + 1], serial)
+            actual = attn(
+                x[:, j : j + 1],
+                shared,
+                projected=tuple(v[:, j : j + 1] for v in projected),
+            )
+            self.assertTrue(mx.array_equal(actual, expected).item())
+
     def test_mtp_batched_ffn_preserves_two_row_commit_boundaries(self):
         """Batching must retain snapshots usable after rejection or full reuse."""
         import mlx.core as mx

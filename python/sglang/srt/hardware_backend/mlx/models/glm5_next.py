@@ -621,7 +621,31 @@ class KDA(nn.Module):
         self._fused_qkv_sources = self._qkv_sources()
         return True
 
-    def __call__(self, x, cache):
+    def project_verify_rows(self, x):
+        """Share dense input weights across rows, keeping recurrence transactional."""
+        if (
+            not self.fuse_decode
+            or self.head_dim != 128
+            or len(self._fused_input_names) != 6
+            or not self._fused_qkv_is_current()
+            or type(self._fused_qkv) is not nn.Linear
+        ):
+            return None
+        proj = mlx_dense_rows(x, self._fused_qkv.weight)
+        if proj is None:
+            return None
+        _, _, _, fa_end, ga_end = self._fused_input_splits
+        a_input = proj[..., 3 * self.dim : fa_end]
+        gate_input = proj[..., fa_end:ga_end]
+        a = mx.concatenate(
+            [self.f_b_proj(a_input[:, j : j + 1]) for j in range(x.shape[1])], 1
+        )
+        gate = mx.concatenate(
+            [self.g_b_proj(gate_input[:, j : j + 1]) for j in range(x.shape[1])], 1
+        )
+        return proj, a, gate
+
+    def __call__(self, x, cache, *, projected=None):
         b, t, _ = x.shape
         if (
             self.fuse_decode
@@ -632,10 +656,13 @@ class KDA(nn.Module):
             and len(self._fused_input_names) == 6
             and self._fused_qkv_is_current()
         ):
-            proj = self._fused_qkv(x)
-            _, _, _, fa_end, ga_end = self._fused_input_splits
-            a = self.f_b_proj(proj[..., 3 * self.dim : fa_end])
-            gate = self.g_b_proj(proj[..., fa_end:ga_end])
+            if projected is None:
+                proj = self._fused_qkv(x)
+                _, _, _, fa_end, ga_end = self._fused_input_splits
+                a = self.f_b_proj(proj[..., 3 * self.dim : fa_end])
+                gate = self.g_b_proj(proj[..., fa_end:ga_end])
+            else:
+                proj, a, gate = projected
             result = mlx_kda_decode(
                 proj,
                 tuple(
@@ -1183,13 +1210,26 @@ class DecoderLayer(nn.Module):
     def verify_ffn_rows(self, x, cache):
         """Batch stateless FFN dispatch, retaining per-position attention state."""
         attended, snapshots = [], []
+        attention_inputs = [
+            self._branch_inputs(x[:, j : j + 1], "attn", self.input_layernorm)
+            for j in range(x.shape[1])
+        ]
+        normed_rows = mx.concatenate([v[0] for v in attention_inputs], 1)
+        projected = (
+            self.self_attn.project_verify_rows(normed_rows) if self.is_linear else None
+        )
         for j in range(x.shape[1]):
-            normed, post, residual = self._branch_inputs(
-                x[:, j : j + 1], "attn", self.input_layernorm
+            normed, post, residual = attention_inputs[j]
+            branch = (
+                self.self_attn(
+                    normed,
+                    cache,
+                    projected=tuple(v[:, j : j + 1] for v in projected),
+                )
+                if projected is not None
+                else self.self_attn(normed, cache)
             )
-            attended.append(
-                self._branch_output(self.self_attn(normed, cache), post, residual)
-            )
+            attended.append(self._branch_output(branch, post, residual))
             snapshot = NativeCache(4)
             snapshot.cache = [
                 v.view(v.dtype) if v is not None else None for v in cache.cache
