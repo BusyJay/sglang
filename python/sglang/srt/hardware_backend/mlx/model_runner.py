@@ -607,6 +607,9 @@ class MlxModelRunner:
             self.model.configure_optimizations(
                 envs.SGLANG_MLX_GLM_OPTIMIZATION_PROFILE.get()
             )
+            self.model.configure_mtp_verification(
+                envs.SGLANG_MLX_GLM_MTP_VERIFY_MODE.get()
+            )
             self.model.configure_latent_projection_cache(
                 envs.SGLANG_MLX_GLM_CACHE_LATENT_PROJECTION.get()
             )

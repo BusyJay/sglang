@@ -11,6 +11,85 @@ register_mlx_ci(est_time=3, suite="stage-a-unit-test-mlx")
 
 @unittest.skipUnless(importlib.util.find_spec("mlx"), "requires MLX")
 class TestMlxGlmMoe(CustomTestCase):
+    def test_multirow_fusions_match_independent_rows(self):
+        """Token offsets must isolate routing, experts and shared output."""
+        import mlx.core as mx
+
+        from sglang.kernels.ops.moe.mlx_glm import (
+            mlx_glm_down_combine,
+            mlx_glm_router,
+        )
+
+        mx.random.seed(81)
+        for count in (2, 3, 5, 9, 17):
+            for dtype in (mx.float16, mx.bfloat16):
+                with self.subTest(count=count, dtype=dtype):
+                    x = mx.random.normal((1, count, 256)).astype(dtype)
+                    w = mx.random.normal((32, 256)) * 0.03
+                    bias = mx.random.normal((32,)) * 0.01
+                    indices, scores = mlx_glm_router(
+                        x, w, bias, top_k=8, scaling=1.0, renormalize=True
+                    )
+                    rows = [
+                        mlx_glm_router(
+                            x[:, j : j + 1],
+                            w,
+                            bias,
+                            top_k=8,
+                            scaling=1.0,
+                            renormalize=True,
+                        )
+                        for j in range(count)
+                    ]
+                    self.assertTrue(
+                        mx.array_equal(
+                            indices, mx.concatenate([r[0] for r in rows], 1)
+                        ).item()
+                    )
+                    self.assertTrue(
+                        mx.array_equal(
+                            scores, mx.concatenate([r[1] for r in rows], 1)
+                        ).item()
+                    )
+                    act = mx.random.normal((1, count, 8, 512)).astype(dtype)
+                    shared = mx.random.normal((1, count, 256)).astype(mx.bfloat16)
+                    for bits in (4, 5, 6, 8):
+                        qw, qs, qb = mx.quantize(
+                            (mx.random.normal((32, 256, 512)) * 0.03).astype(dtype),
+                            bits=bits,
+                            group_size=64,
+                        )
+                        out = mlx_glm_down_combine(
+                            act,
+                            indices,
+                            scores,
+                            qw,
+                            qs,
+                            qb,
+                            shared,
+                            bits=bits,
+                            group_size=64,
+                        )
+                        self.assertIsNotNone(out)
+                        expected = mx.concatenate(
+                            [
+                                mlx_glm_down_combine(
+                                    act[:, j : j + 1],
+                                    indices[:, j : j + 1],
+                                    scores[:, j : j + 1],
+                                    qw,
+                                    qs,
+                                    qb,
+                                    shared[:, j : j + 1],
+                                    bits=bits,
+                                    group_size=64,
+                                )
+                                for j in range(count)
+                            ],
+                            1,
+                        )
+                        self.assertTrue(mx.array_equal(out, expected).item())
+
     def test_corrected_sigmoid_routing_and_ties(self):
         import mlx.core as mx
         from mlx_lm.models.kimi_linear import _group_expert_select

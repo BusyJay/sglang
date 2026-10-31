@@ -19,7 +19,9 @@ from sglang.srt.hardware_backend.mlx.models.glm5_next import (
 )
 
 
-def load_mtp_model(model_dir, profile="affine_fused", *, cache_latent=True):
+def load_mtp_model(
+    model_dir, profile="affine_fused", *, verify_mode="ffn", cache_latent=True
+):
     """Load a local original-layout checkpoint including its prediction layer.
 
     Keep layer N at model.layers.N so mlx-lm applies the checkpoint's exact
@@ -34,6 +36,7 @@ def load_mtp_model(model_dir, profile="affine_fused", *, cache_latent=True):
     mx.set_cache_limit(1024**3)
     model, _ = load_model(Path(model_dir), lazy=True, get_model_classes=model_classes)
     model.configure_optimizations(profile)
+    model.configure_mtp_verification(verify_mode)
     model.configure_latent_projection_cache(cache_latent)
     model.prepare_for_inference()
     mx.eval(model.parameters())

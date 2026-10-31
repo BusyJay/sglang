@@ -10,6 +10,7 @@ from sglang.kernels.selector import _platform, get_kernel
 from sglang.kernels.spec import (
     CUDA_ONLY,
     CapabilityRequirement,
+    DeviceType,
     KernelBackend,
     KernelSpec,
     capabilities_satisfied,
@@ -547,5 +548,15 @@ register_kernel(
         backend=KernelBackend.TORCH,
         target="sglang.kernels.ops.gemm.router_gemv:router_gemm_bf16x3_cublas",
         capabilities=CUDA_ONLY,
+    )
+)
+
+
+register_kernel(
+    KernelSpec(
+        op="gemm.mlx_affine_rows",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.gemm.mlx_affine_rows:mlx_affine_rows",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
     )
 )

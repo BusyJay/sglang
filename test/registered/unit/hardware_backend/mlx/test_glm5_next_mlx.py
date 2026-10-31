@@ -1071,6 +1071,41 @@ class TestGlm5NextMlx(CustomTestCase):
                         np.array(model(mx.array([[23]]), expected).astype(mx.float32)),
                     )
 
+    def test_mtp_batched_ffn_preserves_two_row_commit_boundaries(self):
+        """Batching must retain snapshots usable after rejection or full reuse."""
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
+
+        model = self._mtp_model()
+        base = model.make_cache()
+        mx.eval(model(mx.array([self.tokens]), base))
+        chain = mx.array([[17, 19]])
+        model.configure_mtp_verification("serial")
+        expected = model.verify_mtp_rows(chain, [clone_cache(c) for c in base])
+        mx.eval(expected[:2])
+        for mode in ("head", "ffn"):
+            with self.subTest(mode=mode):
+                model.configure_mtp_verification(mode)
+                actual = model.verify_mtp_rows(chain, [clone_cache(c) for c in base])
+                mx.eval(actual[:2])
+                for layer in model.layers:
+                    self.assertNotIn("batch_fusion", layer.mlp)
+                for got, want in zip(actual[:2], expected[:2]):
+                    self.assertLess(mx.max(mx.abs(got - want)).item(), 0.04)
+                for depth in (0, 1):
+                    got = [clone_cache(c) for c in actual[2][depth]]
+                    want = [clone_cache(c) for c in expected[2][depth]]
+                    self.assertTrue(
+                        all(c.offset == len(self.tokens) + depth + 1 for c in got)
+                    )
+                    token = mx.array([[23]])
+                    got_logits, want_logits = model(token, got), model(token, want)
+                    mx.eval(got_logits, want_logits)
+                    self.assertLess(
+                        mx.max(mx.abs(got_logits - want_logits)).item(), 0.04
+                    )
+
     def test_dense_latent_cache_tracks_dtype_and_weight_replacement(self):
         import mlx.core as mx
 

@@ -19,6 +19,7 @@ from mlx_lm.models.kimi_linear import ShortConv1d, _group_expert_select
 from mlx_lm.models.switch_layers import QuantizedSwitchLinear, SwitchGLU
 
 from sglang.kernels.ops.attention.linear.mlx_kda import mlx_kda_decode
+from sglang.kernels.ops.gemm.mlx_affine_rows import mlx_affine_rows
 from sglang.kernels.ops.layernorm.mlx_hc import mlx_hc_collapse_norm
 from sglang.kernels.ops.moe.mlx_glm import (
     mlx_glm_down_combine,
@@ -70,6 +71,37 @@ def _uses_fp16_affine_ffn(x, projections):
     )
 
 
+def _row_exact_affine_ffn(block, x, indices=None, *, gate_up_only=False):
+    projections = (block.gate_proj, block.up_proj, block.down_proj)
+    cls = QuantizedSwitchLinear if indices is not None else nn.QuantizedLinear
+    if not all(
+        type(p) is cls
+        and p.mode == "affine"
+        and "bias" not in p
+        and getattr(p, "global_scale", None) is None
+        for p in projections
+    ):
+        return None
+
+    def project(value, projection):
+        return mlx_affine_rows(
+            value,
+            projection.weight,
+            projection.scales,
+            projection.biases,
+            bits=projection.bits,
+            group_size=projection.group_size,
+            indices=indices,
+        )
+
+    gate, up = project(x, projections[0]), project(x, projections[1])
+    if gate is None or up is None:
+        return None
+    limit = block.activation.limit if indices is not None else block.limit
+    act = _compiled_swiglu(gate, up, limit)
+    return act if gate_up_only else project(act, projections[2])
+
+
 class MLP(nn.Module):
     compile_decode = False
     compile_activation = False
@@ -83,14 +115,23 @@ class MLP(nn.Module):
         self.down_proj = nn.Linear(dim, args.hidden_size, bias=False)
         self.limit = args.swiglu_limit
 
-    def __call__(self, x):
+    def __call__(self, x, *, batch_fusion=False):
         restore_dtype = self.match_affine_dtype and _uses_fp16_affine_ffn(
             x, (self.gate_proj, self.up_proj, self.down_proj)
         )
         dtype = x.dtype
         if restore_dtype:
             x = x.astype(mx.float16)
-        if self.compile_decode and x.dtype != mx.float32 and x.shape[:2] == (1, 1):
+        if batch_fusion and x.shape[1] > 1:
+            out = _row_exact_affine_ffn(self, x)
+            if out is not None:
+                return out.astype(dtype) if restore_dtype else out
+        if (
+            self.compile_decode
+            and x.dtype != mx.float32
+            and x.shape[0] == 1
+            and (x.shape[1] == 1 or batch_fusion and 1 < x.shape[1] <= 17)
+        ):
             out = _compiled_quantized_ffn(self, x)
             if out is not None:
                 return out.astype(dtype) if restore_dtype else out
@@ -360,7 +401,7 @@ class MoE(nn.Module):
         mx.eval(self._router_weight)
         self._router_sources = sources
 
-    def __call__(self, x):
+    def __call__(self, x, *, batch_fusion=False):
         # The router uses FP32, including the matrix multiplication.
         weight = self.gate.weight
         if self._router_weight is not None and all(
@@ -382,7 +423,15 @@ class MoE(nn.Module):
                 )
         a = self.args
         selected = None
-        if self.fuse_decode and a.n_group == 1 and a.scoring_func == "sigmoid":
+        bounded = x.shape[0] == 1 and (
+            x.shape[1] == 1 or batch_fusion and 1 < x.shape[1] <= 17
+        )
+        if (
+            self.fuse_decode
+            and bounded
+            and a.n_group == 1
+            and a.scoring_func == "sigmoid"
+        ):
             selected = mlx_glm_router(
                 x,
                 weight,
@@ -404,7 +453,7 @@ class MoE(nn.Module):
                 a.scoring_func,
             )
         indices, weights = selected
-        if self.fuse_decode and x.shape[:2] == (1, 1):
+        if self.fuse_decode and bounded:
             sw = self.switch_mlp
             projections = (sw.gate_proj, sw.up_proj, sw.down_proj)
             if all(
@@ -426,8 +475,16 @@ class MoE(nn.Module):
                     and down.weight.shape[-1] * 32 // down.bits % 512 == 0
                     and down.weight.shape[-2] % 16 == 0
                 ):
-                    act = _compiled_quantized_ffn(sw, local, indices, gate_up_only=True)
-                    shared = self.shared_experts(x)
+                    act = (
+                        _row_exact_affine_ffn(sw, local, indices, gate_up_only=True)
+                        if batch_fusion and x.shape[1] > 1
+                        else None
+                    )
+                    if act is None:
+                        act = _compiled_quantized_ffn(
+                            sw, local, indices, gate_up_only=True
+                        )
+                    shared = self.shared_experts(x, batch_fusion=batch_fusion)
                     result = mlx_glm_down_combine(
                         act,
                         indices,
@@ -443,7 +500,7 @@ class MoE(nn.Module):
                         return result
         routed = self.switch_mlp(x, indices)
         routed = (routed * weights[..., None]).sum(-2).astype(x.dtype)
-        return routed + self.shared_experts(x)
+        return routed + self.shared_experts(x, batch_fusion=batch_fusion)
 
 
 class KDA(nn.Module):
@@ -1022,6 +1079,57 @@ class DecoderLayer(nn.Module):
                 setattr(self, f"hc_{name}_base", mx.zeros(((2 + h) * h,), mx.float32))
                 setattr(self, f"hc_{name}_scale", mx.ones((3,), mx.float32))
 
+    def _branch_inputs(self, x, name, norm):
+        if not self.args.mhc:
+            return norm(x), None, x
+        if (
+            self.fuse_hc
+            and x.shape[0] == 1
+            and 1 <= x.shape[1] <= 17
+            and x.shape[2] == 4
+        ):
+            flat = x.reshape(1, x.shape[1], -1).astype(mx.float32)
+            weight = getattr(self, f"hc_{name}_fn").astype(mx.float32).T
+            # Keep the trained FP32 mix's singleton GEMV rounding. Batch
+            # the nonlinear HC work, not this cancellation-sensitive sum.
+            mix = mx.concatenate(
+                [
+                    mx.fast.rms_norm(flat[:, j : j + 1], None, self.args.rms_norm_eps)
+                    @ weight
+                    for j in range(x.shape[1])
+                ],
+                axis=1,
+            )
+            fused = mlx_hc_collapse_norm(
+                x,
+                mix,
+                getattr(self, f"hc_{name}_base"),
+                getattr(self, f"hc_{name}_scale"),
+                norm.weight,
+                eps=self.args.hc_eps,
+                norm_eps=norm.eps,
+                iters=self.args.hc_sinkhorn_iters,
+            )
+            if fused is not None:
+                return fused
+        collapsed, post, residual = hyper_connection(
+            x,
+            getattr(self, f"hc_{name}_fn"),
+            getattr(self, f"hc_{name}_base"),
+            getattr(self, f"hc_{name}_scale"),
+            self.args,
+        )
+        return norm(collapsed), post, residual
+
+    def _branch_output(self, branch, post, residual):
+        if self.preserve_residual_dtype:
+            branch = branch.astype(residual.dtype)
+        if post is None:
+            return residual + branch
+        if self.compile_residual or self.fuse_hc:
+            return _compiled_residual(residual, post, branch)
+        return residual + post[..., None] * branch[..., None, :]
+
     def __call__(self, x, cache):
         for name, norm, block in (
             ("attn", self.input_layernorm, lambda y: self.self_attn(y, cache)),
@@ -1070,6 +1178,28 @@ class DecoderLayer(nn.Module):
                     branch = branch.astype(x.dtype)
                 x = x + branch
         return x
+
+    def verify_ffn_rows(self, x, cache):
+        """Batch stateless FFN dispatch, retaining per-position attention state."""
+        attended, snapshots = [], []
+        for j in range(x.shape[1]):
+            normed, post, residual = self._branch_inputs(
+                x[:, j : j + 1], "attn", self.input_layernorm
+            )
+            attended.append(
+                self._branch_output(self.self_attn(normed, cache), post, residual)
+            )
+            snapshot = NativeCache(4)
+            snapshot.cache = [
+                v.view(v.dtype) if v is not None else None for v in cache.cache
+            ]
+            snapshot.offset = cache.offset
+            snapshots.append(snapshot)
+        normed, post, residual = self._branch_inputs(
+            mx.concatenate(attended, axis=1), "ffn", self.post_attention_layernorm
+        )
+        branch = self.mlp(normed, batch_fusion=True)
+        return self._branch_output(branch, post, residual), snapshots
 
 
 class MTPHead(DecoderLayer):
@@ -1174,6 +1304,11 @@ class Model(nn.Module):
         )
         return logits, hidden, snapshots[0]
 
+    def configure_mtp_verification(self, mode):
+        if mode not in ("serial", "head", "ffn"):
+            raise ValueError(f"Unknown GLM MTP verification mode: {mode}")
+        self._mtp_verification_mode = mode
+
     def configure_latent_projection_cache(self, enabled):
         for layer in self.model.layers:
             if not layer.is_linear:
@@ -1181,43 +1316,66 @@ class Model(nn.Module):
                 layer.self_attn._latent_projection = None
 
     def verify_mtp_rows(self, inputs, cache):
-        """Verify a draft chain with serial arithmetic and per-position state.
+        """Verify a draft chain with per-position attention state.
 
-        Each layer processes rows separately to preserve singleton GEMM,
-        attention and recurrent rounding. Immutable cache arrays after each
-        row allow publishing exactly the consumed prefix, including KDA
-        convolution/recurrence and MLA/indexer state, without replay.
+        Attention and recurrence retain per-row state. Serving batches stateless
+        FFN work with singleton QMV reductions on covered affine tiles; mHC mix
+        and residual GEMVs retain their original reduction order. Immutable row
+        snapshots publish exactly the consumed prefix without attention replay.
+        Serial/head modes are diagnostic controls. Unsupported FFN tiles retain
+        the general MLX path and require their own numerical validation.
         """
         if len(cache) != len(self.layers):
             raise ValueError("MTP verification requires one cache per target layer")
         if inputs.ndim != 2 or inputs.shape[0] != 1 or not 1 <= inputs.shape[1] <= 17:
             raise ValueError("GLM MTP verification requires one chain of 1-17 rows")
         count = inputs.shape[1]
+        mode = getattr(self, "_mtp_verification_mode", "serial")
         x = self.model.embed_tokens(inputs)
         if self.args.mhc:
             x = mx.repeat(x[..., None, :], self.args.hc_mult, axis=-2)
         snapshots = [[] for _ in range(count)]
         for i, (layer, state) in enumerate(zip(self.layers, cache)):
-            rows = []
-            for j in range(count):
-                rows.append(layer(x[:, j : j + 1], state))
-                snapshot = NativeCache(4)
-                snapshot.cache = [
-                    v.view(v.dtype) if v is not None else None for v in state.cache
-                ]
-                snapshot.offset = state.offset
-                snapshots[j].append(snapshot)
-            x = mx.concatenate(rows, axis=1)
+            if mode == "ffn" and count > 1:
+                x, layer_snapshots = layer.verify_ffn_rows(x, state)
+                for j, snapshot in enumerate(layer_snapshots):
+                    snapshots[j].append(snapshot)
+            else:
+                rows = []
+                for j in range(count):
+                    rows.append(layer(x[:, j : j + 1], state))
+                    snapshot = NativeCache(4)
+                    snapshot.cache = [
+                        v.view(v.dtype) if v is not None else None for v in state.cache
+                    ]
+                    snapshot.offset = state.offset
+                    snapshots[j].append(snapshot)
+                x = mx.concatenate(rows, axis=1)
             if (i + 1) % self.model._eval_group_size == 0 or i + 1 == len(cache):
                 mx.async_eval(x, [c.cache for c in cache])
         if self.args.mhc:
             x = x.mean(axis=-2)
         hidden_rows = [self.model.norm(x[:, j : j + 1]) for j in range(count)]
-        return (
-            mx.concatenate([self.lm_head(row) for row in hidden_rows], axis=1),
-            mx.concatenate(hidden_rows, axis=1),
-            snapshots,
-        )
+        hidden = mx.concatenate(hidden_rows, axis=1)
+        logits = None
+        if (
+            mode != "serial"
+            and count > 1
+            and isinstance(self.lm_head, nn.QuantizedLinear)
+        ):
+            p = self.lm_head
+            if p.mode == "affine" and "bias" not in p and p.global_scale is None:
+                logits = mlx_affine_rows(
+                    hidden,
+                    p.weight,
+                    p.scales,
+                    p.biases,
+                    bits=p.bits,
+                    group_size=p.group_size,
+                )
+        if logits is None:
+            logits = mx.concatenate([self.lm_head(row) for row in hidden_rows], axis=1)
+        return logits, hidden, snapshots
 
     def make_cache(self):
         # KDA stores conv/recurrent state; MLA stores latent KV, raw indexer

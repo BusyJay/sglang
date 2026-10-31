@@ -331,25 +331,26 @@ _DOWN = r"""
     const uint lane = thread_index_in_simdgroup;
     const uint sg = simdgroup_index_in_threadgroup;
     const int row = (int(threadgroup_position_in_grid.x) * 4 + int(sg)) * 4;
+    const int tok = int(threadgroup_position_in_grid.y);
     float acc[4] = {0};
     for (int r = 0; r < TOPK; r++) {
-        const size_t base = size_t(indices[r]) * N + row;
+        const size_t base = size_t(indices[tok * TOPK + r]) * N + row;
         float value[4] = {0};
         glm_qmv_rows<T, K, GS, BITS, 4>(
             (const device uint8_t*)w + base * (K * BITS / 8),
             s + base * (K / GS), b + base * (K / GS),
-            act + r * K, lane, value);
+            act + (size_t(tok) * TOPK + r) * K, lane, value);
         for (int j = 0; j < 4; j++) {
             // The local FFN output is rounded to T, restored to R, then
             // multiplied in FP32 before the separate routing reduction.
             float v = float(R(T(simd_sum(value[j]))));
-            volatile float weighted = v * scores[r];
+            volatile float weighted = v * scores[tok * TOPK + r];
             acc[j] += weighted;
         }
     }
     if (lane == 0) {
         for (int j = 0; j < 4; j++) {
-            out[row + j] = R(acc[j]) + shared[row + j];
+            out[size_t(tok) * N + row + j] = R(acc[j]) + shared[size_t(tok) * N + row + j];
         }
     }
 """
@@ -375,9 +376,10 @@ def _kernel(kind):
 
 
 def mlx_glm_router(x, weight, bias, *, top_k, scaling, renormalize):
-    """Sigmoid GEMV, corrected top-k and FP32 weights for one token; else None."""
-    if x.ndim != 3 or x.shape[:2] != (1, 1) or weight.ndim != 2:
+    """Sigmoid GEMV, corrected top-k and FP32 weights for 1..17 rows."""
+    if x.ndim != 3 or x.shape[0] != 1 or not 1 <= x.shape[1] <= 17 or weight.ndim != 2:
         return None
+    count = x.shape[1]
     experts, dim = weight.shape
     if (
         x.shape[-1] != dim
@@ -396,9 +398,9 @@ def mlx_glm_router(x, weight, bias, *, top_k, scaling, renormalize):
     sig, biased = _kernel("logits")(
         inputs=[x, weight, bias],
         template=[("T", x.dtype), ("K", dim), ("E", experts), ("ROWS_PER_SIMD", 1)],
-        grid=(128 * (experts // 4), 1, 1),
+        grid=(128 * (experts // 4), count, 1),
         threadgroup=(128, 1, 1),
-        output_shapes=[(1, experts)] * 2,
+        output_shapes=[(count, experts)] * 2,
         output_dtypes=[mx.float32] * 2,
     )
     indices, scores = _kernel("select")(
@@ -408,9 +410,9 @@ def mlx_glm_router(x, weight, bias, *, top_k, scaling, renormalize):
             ("TOPK", top_k),
             ("NORM", int(renormalize and top_k > 1)),
         ],
-        grid=(32, 1, 1),
+        grid=(32 * count, 1, 1),
         threadgroup=(32, 1, 1),
-        output_shapes=[(1, 1, top_k)] * 2,
+        output_shapes=[(1, count, top_k)] * 2,
         output_dtypes=[mx.uint32, mx.float32],
     )
     return indices, scores
@@ -420,9 +422,14 @@ def mlx_glm_down_combine(
     act, indices, scores, weight, scales, biases, shared, *, bits, group_size
 ):
     """Affine expert down + FP32 weighted reduction + shared output; else None."""
-    if act.ndim != 4 or act.shape[:2] != (1, 1) or weight.ndim != 3:
+    if (
+        act.ndim != 4
+        or act.shape[0] != 1
+        or not 1 <= act.shape[1] <= 17
+        or weight.ndim != 3
+    ):
         return None
-    _, _, top_k, dim = act.shape
+    _, count, top_k, dim = act.shape
     experts, out_dim, packed = weight.shape
     if (
         bits not in (4, 5, 6, 8)
@@ -439,10 +446,10 @@ def mlx_glm_down_combine(
         or scales.dtype != act.dtype
         or biases.dtype != act.dtype
         or weight.dtype != mx.uint32
-        or shared.shape != (1, 1, out_dim)
+        or shared.shape != (1, count, out_dim)
         or scores.dtype != mx.float32
         or indices.dtype not in (mx.uint32, mx.int32)
-        or indices.shape != (1, 1, top_k)
+        or indices.shape != (1, count, top_k)
         or scores.shape != indices.shape
     ):
         return None
@@ -457,7 +464,7 @@ def mlx_glm_down_combine(
             ("BITS", bits),
             ("GS", group_size),
         ],
-        grid=(128 * (out_dim // 16), 1, 1),
+        grid=(128 * (out_dim // 16), count, 1),
         threadgroup=(128, 1, 1),
         output_shapes=[shared.shape],
         output_dtypes=[shared.dtype],

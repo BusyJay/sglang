@@ -31,6 +31,7 @@ _MUSA = PlatformInfo(device_type="musa")
         "attention.mlx_pool_decode_attention",
         "attention.mlx_kda_decode",
         "layernorm.mlx_hc_collapse_norm",
+        "gemm.mlx_affine_rows",
         "moe.mlx_glm_router",
         "moe.mlx_glm_down_combine",
     ],

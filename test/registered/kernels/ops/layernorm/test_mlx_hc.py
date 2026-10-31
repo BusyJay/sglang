@@ -11,6 +11,44 @@ register_mlx_ci(est_time=2, suite="stage-a-unit-test-mlx")
 
 @unittest.skipUnless(importlib.util.find_spec("mlx"), "requires MLX")
 class TestMlxHc(CustomTestCase):
+    def test_multirow_collapse_preserves_independent_sinkhorn(self):
+        import mlx.core as mx
+
+        from sglang.kernels.ops.layernorm.mlx_hc import mlx_hc_collapse_norm
+
+        mx.random.seed(82)
+        for count in (2, 3, 5, 9, 17):
+            for dtype in (mx.float16, mx.bfloat16):
+                with self.subTest(count=count, dtype=dtype):
+                    x = mx.random.normal((1, count, 4, 256)).astype(dtype)
+                    mix = mx.random.normal((1, count, 24))
+                    base = mx.random.normal((24,))
+                    scale = mx.array([0.5, 1.5, 0.75])
+                    norm = mx.random.uniform(low=0.1, high=2, shape=(256,)).astype(
+                        dtype
+                    )
+
+                    def run(x, mix):
+                        return mlx_hc_collapse_norm(
+                            x,
+                            mix,
+                            base,
+                            scale,
+                            norm,
+                            eps=1e-6,
+                            norm_eps=1e-5,
+                            iters=20,
+                        )
+
+                    actual = run(x, mix)
+                    self.assertIsNotNone(actual)
+                    rows = [
+                        run(x[:, j : j + 1], mix[:, j : j + 1]) for j in range(count)
+                    ]
+                    for i in range(3):
+                        expected = mx.concatenate([r[i] for r in rows], 1)
+                        self.assertTrue(mx.array_equal(actual[i], expected).item())
+
     def test_mix_product_rounds_before_bias_in_cancelling_streams(self):
         """Contracting multiply+bias changed real-model routing after cancellation."""
         import mlx.core as mx
