@@ -51,6 +51,40 @@ class TestMlxAuxiliaryStateAcquire(CustomTestCase):
         )
         self.slots = self.table.auxiliary_state_pool
 
+    def test_prefix_snapshot_fork_restore_shares_storage_and_isolates_writes(self):
+        """A pool fork must retain latent state after parent writes and slot release."""
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import MLACache
+
+        cache = MLACache(4)
+        cache.append_latent(mx.ones((1, 65536, 512), mx.bfloat16), materialize=False)
+        cache.offset = 65536
+        cache.append_latent(mx.full((1, 1, 512), 2, mx.bfloat16), materialize=False)
+        cache.offset += 1
+        mx.eval(cache.cache)
+        parent = self.slots.alloc(1)
+        before = mx.get_active_memory()
+        self.slots.store_cache(parent, [cache], [0])
+        child = self.slots.fork_from(parent)
+        restored = MLACache(4)
+        self.assertTrue(self.slots.restore_cache(child, [restored]))
+        mx.eval(restored.cache)
+        # The 64MiB prefix must be shared, allowing some allocator metadata.
+        self.assertLess(mx.get_active_memory() - before, 1024 * 1024)
+        self.slots.free(parent)
+        restored.append_latent(mx.full((1, 2, 512), 7, mx.bfloat16), materialize=False)
+        restored.offset += 2
+        restored.cache[0][:, 0] = -3
+        mx.eval(restored.cache)
+        again = MLACache(4)
+        self.assertTrue(self.slots.restore_cache(child, [again]))
+        self.assertEqual(again.offset, 65537)
+        self.assertTrue(mx.array_equal(again[0], cache[0]).item())
+        self.assertEqual(again[0][0, 0, 0].item(), 1)
+        self.slots.free(child)
+        self.assertEqual(self.slots.available_size(), 4)
+
     def test_first_admission_binds_the_row_and_one_slot(self):
         req = _req()
         rows = acquire_rows(self.table, self.table.state, [req])

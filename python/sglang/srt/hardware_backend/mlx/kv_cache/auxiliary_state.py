@@ -28,7 +28,10 @@ _MISSING = object()
 
 def _clone_tree(value: Any) -> Any:
     if isinstance(value, mx.array):
-        return mx.array(value)
+        # A distinct array object isolates later slice assignment while MLX
+        # shares evaluated storage. Copying the tensor here duplicates every
+        # sealed latent prefix and recurrent state on store and restore.
+        return value.view(value.dtype)
     if isinstance(value, list):
         return [_clone_tree(item) for item in value]
     if isinstance(value, tuple):
