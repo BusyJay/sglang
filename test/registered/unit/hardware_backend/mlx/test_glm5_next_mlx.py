@@ -1221,6 +1221,49 @@ class TestGlm5NextMlx(CustomTestCase):
         self.assertTrue(mx.all(mx.isfinite(actual)).item())
         self.assertLess(mx.max(mx.abs(actual - expected)).item(), 2e-5)
 
+    def test_mtp_shared_execute_boundary_preserves_request_isolation(self):
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.mtp_serving import MlxMTPServing
+
+        model = self._mtp_model()
+        model.configure_mtp_verification("ffn")
+        serial, batch = MlxMTPServing(model, 2), MlxMTPServing(model, 2)
+        a, b = (
+            [model.make_cache(), model.make_cache()],
+            [model.make_cache(), model.make_cache()],
+        )
+        for i, rid in enumerate(("a", "b")):
+            prompt = mx.array([[1, 3 + i, 5, 7]])
+            mx.eval(serial.prefill(rid, prompt, a[i]), batch.prefill(rid, prompt, b[i]))
+        for step in range(7):
+            tokens = [13 + step, 27 - step]
+            inputs = mx.array(tokens)[:, None]
+            expected = mx.concatenate(
+                [
+                    serial.decode(
+                        rid,
+                        inputs[i : i + 1],
+                        a[i],
+                    )
+                    for i, rid in enumerate(("a", "b"))
+                ],
+                0,
+            )
+            actual = batch.decode_batch(["a", "b"], inputs, b, tokens)
+            self.assertTrue(mx.array_equal(actual, expected).item())
+            for got, want in zip(b, a):
+                for gc, wc in zip(got, want):
+                    self.assertEqual(gc.offset, wc.offset)
+                    for gv, wv in zip(gc.cache, wc.cache):
+                        if gv is None or wv is None:
+                            self.assertIs(gv, wv)
+                        else:
+                            self.assertTrue(mx.array_equal(gv, wv).item())
+        batch.remove("a")
+        self.assertNotIn("a", batch.states)
+        self.assertIn("b", batch.states)
+
     def test_affine_mla_verify_and_rejected_prefix_resume(self):
         """Real affine modules must batch without missing attributes or stale KV."""
         import mlx.core as mx
@@ -1283,6 +1326,39 @@ class TestGlm5NextMlx(CustomTestCase):
             got = attn(follow, clone_cache(snapshots[consumed - 1]))
             want = attn(follow, clone_cache(refs[consumed - 1]))
             self.assertTrue(mx.array_equal(got, want).item())
+
+    def test_zero_step_decode_keeps_lazy_graph_and_cache_publication(self):
+        """Zero-step execution publishes state without synchronizing lazy logits."""
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.mtp_serving import MlxMTPServing
+
+        model = self._mtp_model()
+        serving = MlxMTPServing(model, 0)
+        cache = model.make_cache()
+        mx.eval(serving.prefill("zero", mx.array([[1, 3, 5]]), cache))
+        pending = serving.build_decode("zero", mx.array([[7]]), cache, 7)
+        self.assertIsNone(pending.chain)
+        # A real lazy Metal graph makes an accidental execute-time eval fail.
+        kernel = mx.fast.metal_kernel(
+            name="sglang_test_lazy_zero_step",
+            input_names=["x"],
+            output_names=["out"],
+            source="deliberate compile error",
+        )
+        pending.logits = kernel(
+            inputs=[pending.logits],
+            grid=(1, 1, 1),
+            threadgroup=(1, 1, 1),
+            output_shapes=[pending.logits.shape],
+            output_dtypes=[pending.logits.dtype],
+        )[0]
+        out = serving.execute_batch([pending])[0]
+        self.assertIs(out, pending.logits)
+        self.assertEqual(serving.states["zero"].offset, cache[0].offset)
+        self.assertEqual(cache[0].mlx_mtp[3], cache[0].offset)
+        with self.assertRaises(RuntimeError):
+            mx.eval(out)
 
     def test_dense_latent_cache_tracks_dtype_and_weight_replacement(self):
         import mlx.core as mx

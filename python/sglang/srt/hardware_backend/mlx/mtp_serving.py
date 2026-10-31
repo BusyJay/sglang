@@ -74,6 +74,17 @@ class VerifiedRow:
 
 
 @dataclass
+class PendingMTPDecode:
+    state: "RequestState"
+    inputs: mx.array
+    cache: list
+    chain: mx.array | None = None
+    logits: mx.array | None = None
+    hidden: mx.array | None = None
+    snapshots: list | None = None
+
+
+@dataclass
 class RequestState:
     head: NativeCache
     anchor: object = None
@@ -194,9 +205,9 @@ class MlxMTPServing:
             )
         state.cycle_start = 0.0
 
-    def decode(self, rid, inputs, cache):
+    def build_decode(self, rid, inputs, cache, token):
+        """Build private speculation; caller supplies the already sampled input ID."""
         state = self._state(rid, cache)
-        token = inputs.item()
         if state.rows:
             row = state.rows[0]
             key = f"{state.cycle_steps}:{row.depth}"
@@ -222,12 +233,14 @@ class MlxMTPServing:
                 if state.hidden is not None:
                     state.pending_hidden.append(state.hidden)
                     state.pending_tokens.append(inputs)
-                state.hidden = hidden[:, -1:]
-                state.offset = cache[0].offset
-                state.cycle_tokens = 1
                 self.step_histogram[0] += 1
-                self._publish(state, cache)
-                return logits[:, -1]
+                return PendingMTPDecode(
+                    state,
+                    inputs,
+                    cache,
+                    logits=logits[:, -1],
+                    hidden=hidden[:, -1:],
+                )
             self._flush_head(state)
             out = self.model.mtp(
                 state.hidden, self.model.model.embed_tokens(inputs), state.head
@@ -244,26 +257,42 @@ class MlxMTPServing:
             chain = mx.concatenate(chain, axis=1)
             scratch = [clone_cache(c) for c in cache]
             logits, hidden, snapshots = self.model.verify_mtp_rows(chain, scratch)
-            mx.eval(chain, logits, hidden)
-            tokens = chain[0].tolist()
-            state.rows.extend(
-                VerifiedRow(t, logits[:, j], hidden[:, j : j + 1], snapshots[j], j)
-                for j, t in enumerate(tokens)
-            )
             self.step_histogram[steps] += 1
             self.verify_ct += 1
             self.num_proposed_drafts += steps
             self.proposed_by_depth.update(range(1, steps + 1))
-            root_advanced = True
-        else:
-            self.num_reuse_tokens += 1
-            root_advanced = False
-        row = state.rows.popleft()
-        if not root_advanced:
-            out = self.model.mtp(
-                state.hidden, self.model.model.embed_tokens(inputs), state.head
+            return PendingMTPDecode(
+                state, inputs, cache, chain, logits, hidden, snapshots
             )
-            mx.async_eval(out, state.head.cache)
+        self.num_reuse_tokens += 1
+        out = self.model.mtp(
+            state.hidden, self.model.model.embed_tokens(inputs), state.head
+        )
+        mx.async_eval(out, state.head.cache)
+        return PendingMTPDecode(state, inputs, cache)
+
+    def publish_decode(self, pending):
+        """Publish only the consumed cache boundary after batch execution."""
+        state, cache = pending.state, pending.cache
+        if pending.chain is not None:
+            tokens = pending.chain[0].tolist()
+            state.rows.extend(
+                VerifiedRow(
+                    t,
+                    pending.logits[:, j],
+                    pending.hidden[:, j : j + 1],
+                    pending.snapshots[j],
+                    j,
+                )
+                for j, t in enumerate(tokens)
+            )
+        elif pending.logits is not None:
+            state.hidden = pending.hidden
+            state.offset = cache[0].offset
+            state.cycle_tokens = 1
+            self._publish(state, cache)
+            return pending.logits
+        row = state.rows.popleft()
         for dst, src in zip(cache, row.cache):
             dst.cache = [v.view(v.dtype) if v is not None else None for v in src.cache]
             dst.offset = src.offset
@@ -272,6 +301,29 @@ class MlxMTPServing:
         state.cycle_tokens += 1
         self._publish(state, cache)
         return row.logits
+
+    def execute_batch(self, pending):
+        # A shared boundary preserves bounded graph execution without a host
+        # wait for every request's verifier. Existing per-layer submissions stay.
+        verifying = [p for p in pending if p.chain is not None]
+        if verifying:
+            mx.eval(
+                [p.chain for p in verifying],
+                [p.logits for p in verifying if p.logits is not None],
+                [p.hidden for p in verifying if p.hidden is not None],
+            )
+        return [self.publish_decode(p) for p in pending]
+
+    def decode(self, rid, inputs, cache):
+        pending = self.build_decode(rid, inputs, cache, inputs.item())
+        return self.execute_batch([pending])[0]
+
+    def decode_batch(self, req_ids, inputs, caches, tokens):
+        pending = [
+            self.build_decode(rid, inputs[i : i + 1], caches[i], tokens[i])
+            for i, rid in enumerate(req_ids)
+        ]
+        return mx.concatenate(self.execute_batch(pending), axis=0)
 
     def remove(self, rid):
         state = self.states.pop(rid, None)

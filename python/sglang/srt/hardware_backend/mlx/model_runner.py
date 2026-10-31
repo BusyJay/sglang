@@ -1794,12 +1794,8 @@ class MlxModelRunner:
         batched_input = mx.array(last_tokens, dtype=mx.int32)[:, None]
 
         if self._mtp is not None:
-            last_logits = mx.concatenate(
-                [
-                    self._mtp.decode(rid, batched_input[i : i + 1], caches[i])
-                    for i, rid in enumerate(req_ids)
-                ],
-                axis=0,
+            last_logits = self._mtp.decode_batch(
+                req_ids, batched_input, caches, last_tokens
             )
         elif self._native_cache:
             last_logits = self._decode_with_native_cache(
