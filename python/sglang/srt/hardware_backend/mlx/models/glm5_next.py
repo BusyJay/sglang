@@ -20,6 +20,7 @@ from mlx_lm.models.switch_layers import QuantizedSwitchLinear, SwitchGLU
 
 from sglang.kernels.ops.attention.linear.mlx_kda import mlx_kda_decode
 from sglang.kernels.ops.gemm.mlx_affine_rows import mlx_affine_rows
+from sglang.kernels.ops.gemm.mlx_dense_rows import mlx_dense_rows
 from sglang.kernels.ops.layernorm.mlx_hc import mlx_hc_collapse_norm
 from sglang.kernels.ops.moe.mlx_glm import (
     mlx_glm_down_combine,
@@ -1373,6 +1374,14 @@ class Model(nn.Module):
                     bits=p.bits,
                     group_size=p.group_size,
                 )
+        if (
+            logits is None
+            and mode != "serial"
+            and count > 1
+            and type(self.lm_head) is nn.Linear
+            and "bias" not in self.lm_head
+        ):
+            logits = mlx_dense_rows(hidden, self.lm_head.weight)
         if logits is None:
             logits = mx.concatenate([self.lm_head(row) for row in hidden_rows], axis=1)
         return logits, hidden, snapshots

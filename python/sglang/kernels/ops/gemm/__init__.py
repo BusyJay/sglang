@@ -560,3 +560,12 @@ register_kernel(
         capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
     )
 )
+
+register_kernel(
+    KernelSpec(
+        op="gemm.mlx_dense_rows",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.gemm.mlx_dense_rows:mlx_dense_rows",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)
