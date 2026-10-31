@@ -340,14 +340,26 @@ _ROUTED_GATE_UP = r"""
     const uint tok = pick / TOPK;
     const size_t base = size_t(indices[pick]) * N + row;
     float gate[4] = {0}, up[4] = {0};
-    glm_qmv_rows<T, K, GS, BITS, 4>(
-        (const device uchar*)gw + base * (K * BITS / 8),
-        gs + base * (K / GS), gb + base * (K / GS),
-        x + size_t(tok) * K, lane, gate);
-    glm_qmv_rows<T, K, GS, BITS, 4>(
-        (const device uchar*)uw + base * (K * BITS / 8),
-        us + base * (K / GS), ub + base * (K / GS),
-        x + size_t(tok) * K, lane, up);
+    constexpr int PACK = glm_pack_factor<BITS>();
+    constexpr int BYTES = glm_bytes_per_pack<BITS>();
+    constexpr int VPT = 2 * PACK;
+    constexpr int BLOCK = 32 * VPT;
+    const device uchar* gate_w = (const device uchar*)gw + base * (K * BITS / 8);
+    const device uchar* up_w = (const device uchar*)uw + base * (K * BITS / 8);
+    // Both producers consume the same lane-local input and affine sum. Load
+    // it once, retaining each projection's qdot and accumulation order.
+    for (int k = int(lane) * VPT; k < K; k += BLOCK) {
+        float input[VPT];
+        float sum = glm_load_vector<T, VPT, BITS>(x + size_t(tok) * K + k, input);
+        for (int j = 0; j < 4; ++j) {
+            size_t group = (base + j) * (K / GS) + k / GS;
+            size_t packed = size_t(j) * (K * BITS / 8) + k * BYTES / PACK;
+            gate[j] += glm_qdot<VPT, BITS>(gate_w + packed, input,
+                                         gs[group], gb[group], sum);
+            up[j] += glm_qdot<VPT, BITS>(up_w + packed, input,
+                                       us[group], ub[group], sum);
+        }
+    }
     for (uint i = 0; i < 4; ++i) {
         T g = T(simd_sum(gate[i]));
         T u = T(simd_sum(up[i]));

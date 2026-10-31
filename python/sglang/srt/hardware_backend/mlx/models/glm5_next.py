@@ -457,6 +457,51 @@ def _compiled_kda_gate(out, gate, reference):
     return (out * mx.sigmoid(gate.astype(mx.float32))).astype(reference.dtype)
 
 
+def _compiled_routed_gate_up(block, x, indices):
+    """Cache only scalar tracing configuration; pass mutable weights explicitly."""
+    gate, up = block.gate_proj, block.up_proj
+    if (
+        gate.bits not in (4, 5, 6, 8)
+        or gate.group_size not in (32, 64, 128)
+        or gate.biases is None
+        or up.biases is None
+    ):
+        return None
+    pack = 8 if gate.bits == 5 else 4 if gate.bits == 6 else 32 // gate.bits
+    if (
+        x.shape[-1] % (64 * pack)
+        or gate.weight.shape[-2] % 16
+        or gate.scales.dtype != x.dtype
+        or up.scales.dtype != x.dtype
+        or gate.biases.dtype != x.dtype
+        or up.biases.dtype != x.dtype
+    ):
+        return None
+    spec = (gate.bits, gate.group_size, block.activation.limit)
+    if getattr(block, "_compiled_gate_up_spec", None) != spec:
+        bits, group_size, limit = spec
+
+        def forward(x, gate_arrays, up_arrays, indices):
+            return mlx_affine_routed_swiglu(
+                x,
+                gate_arrays,
+                up_arrays,
+                indices,
+                bits=bits,
+                group_size=group_size,
+                limit=limit,
+            )
+
+        block._compiled_gate_up = mx.compile(forward)
+        block._compiled_gate_up_spec = spec
+    return block._compiled_gate_up(
+        x,
+        tuple(gate[k] for k in ("weight", "scales", "biases")),
+        tuple(up[k] for k in ("weight", "scales", "biases")),
+        indices,
+    )
+
+
 class MoE(nn.Module):
     fuse_decode = False
 
@@ -574,14 +619,21 @@ class MoE(nn.Module):
                     and down.weight.shape[-1] * 32 // down.bits % 512 == 0
                     and down.weight.shape[-2] % 16 == 0
                 ):
-                    # On M5 the fused multi-row epilogue helps verification,
-                    # while native compiled singleton QMV remains faster in
-                    # serving. Keep that measured one-row dispatch choice.
+                    # Joint singleton gate/up reuse the input and affine sum
+                    # on large expert rows; small tiles retain compiled QMV.
                     act = (
                         _row_exact_affine_ffn(sw, local, indices, gate_up_only=True)
                         if batch_fusion and x.shape[1] > 1
                         else None
                     )
+                    if (
+                        act is None
+                        and x.shape[1] == 1
+                        and sw.gate_proj.weight.shape[-2] >= 512
+                        and sw.gate_proj.bits == sw.up_proj.bits
+                        and sw.gate_proj.group_size == sw.up_proj.group_size
+                    ):
+                        act = _compiled_routed_gate_up(sw, local, indices)
                     if act is None:
                         act = _compiled_quantized_ffn(
                             sw, local, indices, gate_up_only=True

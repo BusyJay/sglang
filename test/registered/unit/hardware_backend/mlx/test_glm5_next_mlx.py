@@ -790,6 +790,39 @@ class TestGlm5NextMlx(CustomTestCase):
                     all(state.offset == len(self.tokens) for state in cache)
                 )
 
+    def test_compiled_joint_gate_up_observes_weight_and_limit_updates(self):
+        """A cached producer graph must read replacement checkpoint arrays each call."""
+        import copy
+
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import (
+            ClampedSwitchGLU,
+            _compiled_quantized_ffn,
+            _compiled_routed_gate_up,
+        )
+
+        args = copy.copy(self.model.args)
+        args.hidden_size = 512
+        args.moe_intermediate_size = 512
+        block = ClampedSwitchGLU(args)
+        block.set_dtype(mx.float16)
+        for name, bits in (("gate_proj", 4), ("up_proj", 4), ("down_proj", 5)):
+            setattr(
+                block, name, getattr(block, name).to_quantized(bits=bits, group_size=64)
+            )
+        x = mx.random.normal((1, 1, 512)).astype(mx.float16)
+        indices = mx.array([[[0, 1]]], mx.uint32)
+        for limit in (10.0, 0.0, None):
+            block.activation.limit = limit
+            actual = _compiled_routed_gate_up(block, x, indices)
+            expected = _compiled_quantized_ffn(block, x, indices, gate_up_only=True)
+            self.assertTrue(mx.array_equal(actual, expected).item())
+            block.gate_proj.scales = block.gate_proj.scales * mx.array(0.5, mx.float16)
+            actual = _compiled_routed_gate_up(block, x, indices)
+            expected = _compiled_quantized_ffn(block, x, indices, gate_up_only=True)
+            self.assertTrue(mx.array_equal(actual, expected).item())
+
     def test_kda_qkv_fusion_preserves_quantization_and_canonical_weights(self):
         """Load-time fusion must preserve mixed-bit fallback, state and save format."""
         import copy
