@@ -39,7 +39,11 @@ from sglang.kernels.ops.gemm.mlx_dense_rows import (
     mlx_dense_rows,
     mlx_headed_dense_rows,
 )
-from sglang.kernels.ops.gemm.mlx_qmm_swiglu import mlx_sorted_qmm_swiglu
+from sglang.kernels.ops.gemm.mlx_qmm_scatter import mlx_sorted_qmm_scatter
+from sglang.kernels.ops.gemm.mlx_qmm_swiglu import (
+    _expert_worklist,
+    mlx_sorted_qmm_swiglu,
+)
 from sglang.kernels.ops.kvcache.mlx_latent import mlx_latent_gather_cast
 from sglang.kernels.ops.layernorm.mlx_hc import mlx_hc_collapse_norm
 from sglang.kernels.ops.layernorm.mlx_hc_mix import mlx_hc_rms_mix
@@ -470,9 +474,19 @@ class ClampedSwitchGLU(SwitchGLU):
         ):
             # Sorted QMM shares input tiles and fuses both MMA projections and
             # rounded clamp/SwiGLU inside the shader. Down restores pick order.
-            sorted_x, sorted_idx, inverse = _gather_sort(
-                mx.expand_dims(x, (-2, -3)), mx.stop_gradient(indices)
-            )
+            flat_ids = mx.stop_gradient(indices).reshape(-1)
+            order = mx.argsort(flat_ids)
+            inverse = mx.argsort(order)
+            sorted_idx = flat_ids[order]
+            sorted_x = x.reshape(-1, x.shape[-1])[order // indices.shape[-1]][:, None]
+            tasks = None
+            rows, experts = sorted_idx.size, gate.weight.shape[0]
+            if (
+                rows // experts >= 4
+                and mx.device_info()["architecture"].startswith("applegpu_g17")
+            ):
+                bm = 32 if rows // experts < 64 else 64
+                tasks = _expert_worklist(sorted_idx, experts, rows, bm)
             activated = mlx_sorted_qmm_swiglu(
                 sorted_x,
                 sorted_idx,
@@ -481,6 +495,7 @@ class ClampedSwitchGLU(SwitchGLU):
                 bits=gate.bits,
                 group_size=gate.group_size,
                 limit=self.activation.limit,
+                tasks=tasks,
             )
             if activated is None:
                 joined = self._fused_gate_up(sorted_x, sorted_idx, sorted_indices=True)
@@ -488,8 +503,22 @@ class ClampedSwitchGLU(SwitchGLU):
                 activated = _compiled_swiglu(
                     gate_values, up_values, self.activation.limit
                 )
-            output = self.down_proj(activated, sorted_idx, sorted_indices=True)
-            output = _scatter_unsort(output, inverse, indices.shape).squeeze(-2)
+            output = None
+            down = self.down_proj
+            if (
+                type(down) is QuantizedSwitchLinear
+                and down.mode == "affine" and "bias" not in down
+                and getattr(down, "global_scale", None) is None
+            ):
+                output = mlx_sorted_qmm_scatter(
+                    activated, sorted_idx, order,
+                    (down.weight, down.scales, down.biases),
+                    bits=down.bits, group_size=down.group_size, tasks=tasks,
+                )
+            if output is None:
+                output = self.down_proj(activated, sorted_idx, sorted_indices=True)
+                output = output[inverse]
+            output = mx.unflatten(output, 0, indices.shape).squeeze(-2)
             return output.astype(dtype) if restore_dtype else output
         if (
             self.compile_decode

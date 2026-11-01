@@ -32,6 +32,7 @@ _MUSA = PlatformInfo(device_type="musa")
         "attention.mlx_kda_decode",
         "attention.mlx_ragged_latent_attention",
         "layernorm.mlx_hc_collapse_norm",
+        "gemm.mlx_sorted_qmm_scatter",
         "gemm.mlx_affine_rows",
         "gemm.mlx_dense_rows",
         "gemm.mlx_dense_argmax",

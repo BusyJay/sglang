@@ -638,3 +638,12 @@ register_kernel(
         capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
     )
 )
+
+register_kernel(
+    KernelSpec(
+        op="gemm.mlx_sorted_qmm_scatter",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.gemm.mlx_qmm_scatter:mlx_sorted_qmm_scatter",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)

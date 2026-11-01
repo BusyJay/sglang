@@ -225,6 +225,44 @@ class TestMlxQmmSwiGLU(CustomTestCase):
                     mx.array_equal(actual, _compiled_swiglu(g, u, 1.3)).item()
                 )
 
+    def test_sorted_projection_scatter_preserves_native_rounding_and_views(self):
+        import mlx.core as mx
+
+        from sglang.kernels.ops.gemm.mlx_qmm_scatter import mlx_sorted_qmm_scatter
+        from sglang.kernels.ops.gemm.mlx_qmm_swiglu import _expert_worklist
+
+        if not mx.device_info()["architecture"].startswith("applegpu_g17"):
+            self.skipTest("NAX projection requires the validated M5 backend")
+        for dtype in (mx.float16, mx.bfloat16):
+            for rows in (65, 129, 257):
+                packed = mx.quantize(
+                    mx.random.normal((8, 128, 256)).astype(dtype),
+                    bits=4, group_size=64,
+                )
+                operands = []
+                for value in packed:
+                    storage = mx.zeros((16, 256, value.shape[-1] * 2), value.dtype)
+                    storage[::2, ::2, ::2] = value
+                    operands.append(storage[::2, ::2, ::2])
+                x = mx.random.normal((rows * 2, 1, 512)).astype(dtype)[::2, :, ::2]
+                ids = (mx.arange(rows) % 8).astype(mx.int32)
+                order = mx.argsort(ids)
+                sorted_ids = ids[order]
+                expected = mx.gather_qmm(
+                    x, *operands, rhs_indices=sorted_ids, transpose=True,
+                    bits=4, group_size=64, sorted_indices=True,
+                )[mx.argsort(order)]
+                actual = mlx_sorted_qmm_scatter(
+                    x, sorted_ids, order, operands, bits=4, group_size=64,
+                )
+                self.assertTrue(mx.array_equal(actual, expected).item())
+                tasks = _expert_worklist(sorted_ids, 8, rows, 32)
+                reused = mlx_sorted_qmm_scatter(
+                    x, sorted_ids, order, operands, bits=4, group_size=64,
+                    tasks=tasks,
+                )
+                self.assertTrue(mx.array_equal(reused, expected).item())
+
     def test_compact_worklist_preserves_expert_row_order_and_capacity(self):
         """Every sorted row belongs to exactly one bounded tile, including tails."""
         import mlx.core as mx
