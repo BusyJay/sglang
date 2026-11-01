@@ -2139,7 +2139,8 @@ def _graph_configuration(modules):
 
     Array identities are keyed separately. Derived caches and graph owners do
     not affect the model equation. Shared args are visited once per call and
-    class flag discovery is cached, keeping steady decode host work bounded.
+    class flag discovery is cached. Shared containers appear once in the flat
+    signature, so hashing the key does not repeatedly walk shared model args.
     """
     excluded = {
         "_fixed_mla_layer",
@@ -2151,20 +2152,11 @@ def _graph_configuration(modules):
         "_router_sources",
         "_fused_qkv_sources",
     }
-    memo = {}
-
-    def visit(value):
-        if isinstance(value, mx.array):
-            return None
-        if value is None or isinstance(
-            value, (bool, int, float, str, type(mx.float32))
-        ):
-            return value
-        ident = id(value)
-        if ident in memo:
-            return memo[ident]
+    records, pending, memo = [], [modules], {id(modules): 0}
+    primitive = (bool, int, float, str, type(mx.float32))
+    for value in pending:
         if isinstance(value, (list, tuple)):
-            result = (type(value), tuple(visit(v) for v in value))
+            fields = enumerate(value)
         elif isinstance(value, (nn.Module, ModelArgs, dict)):
             fields = dict(value) if isinstance(value, dict) else {}
             if hasattr(value, "__dict__"):
@@ -2172,22 +2164,28 @@ def _graph_configuration(modules):
             if isinstance(value, nn.Module):
                 for key in _graph_scalar_defaults(type(value)):
                     fields.setdefault(key, getattr(value, key))
-            result = (
-                type(value),
-                tuple(
-                    (key, visit(child))
-                    for key, child in fields.items()
-                    if key not in excluded
-                    and not isinstance(child, mx.array)
-                    and (not callable(child) or isinstance(child, nn.Module))
-                ),
-            )
+            fields = fields.items()
         else:
-            result = (type(value), ident)
-        memo[ident] = result
-        return result
-
-    return visit(modules)
+            records.append((type(value), id(value)))
+            continue
+        entries = []
+        for key, child in fields:
+            if key in excluded or isinstance(child, mx.array):
+                continue
+            if child is None or isinstance(child, primitive):
+                entries.append((key, child))
+            elif callable(child) and not isinstance(child, nn.Module):
+                continue
+            else:
+                ident = id(child)
+                index = memo.get(ident)
+                if index is None:
+                    index = len(pending)
+                    memo[ident] = index
+                    pending.append(child)
+                entries.append((key, ("ref", index)))
+        records.append((type(value), tuple(entries)))
+    return tuple(records)
 
 
 def _clone_graph_modules(modules, excluded=()):
