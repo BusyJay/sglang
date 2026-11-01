@@ -332,6 +332,28 @@ def mlx_affine_mixed_rows(x, weight, scales, biases, *, bits, group_size):
     return outputs[0] if len(outputs) == 1 else mx.concatenate(outputs, 1)
 
 
+_PACKED_LOAD = r"""
+template <int BYTES>
+inline void glm_load_packed(const device uchar* base, size_t stride,
+                            size_t offset, thread uchar* result) {
+    if (stride == 1 && BYTES != 8) {
+        // uint32-aligned loads also cover unaligned 5/6-bit byte offsets.
+        const device uint* words = (const device uint*)base;
+        const size_t first = offset / 4;
+        const uint shift = uint(offset % 4);
+        uint loaded[(BYTES + 6) / 4];
+        const uint count = (shift + BYTES + 3) / 4;
+        for (uint i=0; i<count; ++i) loaded[i] = words[first+i];
+        for (uint i=0; i<BYTES; ++i)
+            result[i] = uchar(loaded[(shift+i)/4] >> (((shift+i)%4)*8));
+    } else {
+        for (uint i=0; i<BYTES; ++i)
+            result[i] = base[((offset+i)/4)*stride*4 + (offset+i)%4];
+    }
+}
+"""
+
+
 _ROUTED_GATE_UP = r"""
     const uint lane = thread_index_in_simdgroup;
     const uint sg = simdgroup_index_in_threadgroup;
@@ -354,10 +376,8 @@ _ROUTED_GATE_UP = r"""
             const size_t ur = size_t(expert)*uw_strides[0]*4 + size_t(row+j)*uw_strides[1]*4;
             const size_t packed = k * BYTES / PACK;
             uchar gp[2*BYTES], upack[2*BYTES];
-            for (uint i=0; i<2*BYTES; ++i) {
-                gp[i] = ((const device uchar*)gw)[gr + ((packed+i)/4)*gw_strides[2]*4 + (packed+i)%4];
-                upack[i] = ((const device uchar*)uw)[ur + ((packed+i)/4)*uw_strides[2]*4 + (packed+i)%4];
-            }
+            glm_load_packed<2*BYTES>((const device uchar*)gw+gr,gw_strides[2],packed,gp);
+            glm_load_packed<2*BYTES>((const device uchar*)uw+ur,uw_strides[2],packed,upack);
             gate[j] += glm_qdot_shared<VPT, BITS>(gp, input,
                 gs[size_t(expert)*gs_strides[0] + size_t(row+j)*gs_strides[1] + size_t(k/GS)*gs_strides[2]],
                 gb[size_t(expert)*gb_strides[0] + size_t(row+j)*gb_strides[1] + size_t(k/GS)*gb_strides[2]], sum);
@@ -417,10 +437,8 @@ float gate[RPS] = {0}, up[RPS] = {0};
             const size_t ur = size_t(expert)*uw_strides[0]*4 + size_t(row+j)*uw_strides[1]*4;
             const size_t packed = k * BYTES / PACK;
             uchar gp[2*BYTES], upack[2*BYTES];
-            for (uint i=0; i<2*BYTES; ++i) {
-                gp[i] = ((const device uchar*)gw)[gr + ((packed+i)/4)*gw_strides[2]*4 + (packed+i)%4];
-                upack[i] = ((const device uchar*)uw)[ur + ((packed+i)/4)*uw_strides[2]*4 + (packed+i)%4];
-            }
+            glm_load_packed<2*BYTES>((const device uchar*)gw+gr,gw_strides[2],packed,gp);
+            glm_load_packed<2*BYTES>((const device uchar*)uw+ur,uw_strides[2],packed,upack);
             gate[j] += glm_qdot_shared<VPT, BITS>(gp, input,
                 gs[size_t(expert)*gs_strides[0] + size_t(row+j)*gs_strides[1] + size_t(k/GS)*gs_strides[2]],
                 gb[size_t(expert)*gb_strides[0] + size_t(row+j)*gb_strides[1] + size_t(k/GS)*gb_strides[2]], sum);
@@ -459,10 +477,8 @@ for (uint j = 0; j < RPS; ++j) {
                 const size_t ur = size_t(expert)*uw_strides[0]*4 + size_t(row+j)*uw_strides[1]*4;
                 const size_t packed = k * BYTES / PACK;
                 uchar gp[2*BYTES], upack[2*BYTES];
-                for (uint i=0; i<2*BYTES; ++i) {
-                    gp[i] = ((const device uchar*)gw)[gr + ((packed+i)/4)*gw_strides[2]*4 + (packed+i)%4];
-                    upack[i] = ((const device uchar*)uw)[ur + ((packed+i)/4)*uw_strides[2]*4 + (packed+i)%4];
-                }
+                glm_load_packed<2*BYTES>((const device uchar*)gw+gr,gw_strides[2],packed,gp);
+                glm_load_packed<2*BYTES>((const device uchar*)uw+ur,uw_strides[2],packed,upack);
                 float gscale=gs[size_t(expert)*gs_strides[0] + size_t(row+j)*gs_strides[1] + size_t(k/GS)*gs_strides[2]], gbias=gb[size_t(expert)*gb_strides[0] + size_t(row+j)*gb_strides[1] + size_t(k/GS)*gb_strides[2]];
                 float uscale=us[size_t(expert)*us_strides[0] + size_t(row+j)*us_strides[1] + size_t(k/GS)*us_strides[2]], ubias=ub[size_t(expert)*ub_strides[0] + size_t(row+j)*ub_strides[1] + size_t(k/GS)*ub_strides[2]];
 
@@ -531,7 +547,7 @@ def _grouped_gate_up_kernel():
         ],
         output_names=["out"],
         source=_GROUPED_GATE_UP,
-        header=_SHARED_HEADER,
+        header=_SHARED_HEADER + _PACKED_LOAD,
         ensure_row_contiguous=False,
     )
 
@@ -543,7 +559,7 @@ def _routed_gate_up_kernel():
         input_names=["x", "gw", "gs", "gb", "uw", "us", "ub", "indices", "limit"],
         output_names=["out"],
         source=_ROUTED_GATE_UP,
-        header=_SHARED_HEADER,
+        header=_SHARED_HEADER + _PACKED_LOAD,
         ensure_row_contiguous=False,
     )
 
