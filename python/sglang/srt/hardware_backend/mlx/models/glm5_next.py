@@ -2908,6 +2908,13 @@ class Model(nn.Module):
                 if getattr(self, "_optimization_profile", "router") != "base":
                     layer.mlp.prepare_for_inference()
                 layer.mlp.switch_mlp.prepare_for_inference()
+            # Materialize remaining projections per layer rather than submitting
+            # the full checkpoint in one command buffer at runner startup.
+            mx.eval(layer.parameters())
+        mx.eval(self.model.embed_tokens.parameters(), self.model.norm.parameters())
+        mx.eval(self.lm_head.parameters())
+        if self.mtp is not None:
+            mx.eval(self.mtp.parameters())
         if self.mtp is not None and type(self.lm_head) is nn.Linear:
             # Compile the greedy epilogue during preparation. Its first Metal
             # build belongs to model startup, not the first speculative cycle.
