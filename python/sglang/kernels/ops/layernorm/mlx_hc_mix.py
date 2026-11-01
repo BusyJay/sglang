@@ -59,6 +59,37 @@ _SOURCE = r"""
 """
 
 
+def _parallel_source():
+    source = _SOURCE.replace(
+        "const uint tid = thread_position_in_threadgroup.x;",
+        "const uint tile = thread_position_in_threadgroup.x / 256;"
+        "const uint tid = thread_position_in_threadgroup.x % 256;",
+    ).replace(
+        "const uint sg = simdgroup_index_in_threadgroup;",
+        "const uint sg = simdgroup_index_in_threadgroup % 8;",
+    ).replace(
+        "threadgroup_position_in_grid.x * 4;",
+        "(threadgroup_position_in_grid.x * 2 + tile) * 4;",
+    ).replace("for (uint wave = 0;", "if (tile == 0) for (uint wave = 0;", 1)
+    source = source.replace("if (sg == 0)", "if (tile == 0 && sg == 0)", 1)
+    return (
+        source.replace("partial[8 * 4]", "partial[2 * 8 * 4]")
+        .replace("partial[sg * 4 + r]", "partial[tile * 32 + sg * 4 + r]")
+        .replace("partial[tid]", "partial[tile * 32 + tid]")
+        .replace("partial[group * 4 + tid]", "partial[tile * 32 + group * 4 + tid]")
+    )
+
+
+@cache
+def _parallel_kernel():
+    return mx.fast.metal_kernel(
+        name="sglang_hc_parallel_rms_mix",
+        input_names=["x", "weight", "eps"],
+        output_names=["mix"],
+        source=_parallel_source(),
+    )
+
+
 @cache
 def _kernel():
     return mx.fast.metal_kernel(
@@ -89,11 +120,16 @@ def mlx_hc_rms_mix(x, weight, *, eps):
     ):
         return None
     count, k = x.shape[1], 4 * x.shape[3]
-    return _kernel()(
+    parallel = (
+        count >= 3
+        and k == 16384
+        and mx.device_info()["architecture"].startswith("applegpu_g17")
+    )
+    return (_parallel_kernel() if parallel else _kernel())(
         inputs=[x, weight, mx.array([eps], mx.float32)],
         template=[("K", k), ("RMS_THREADS", min(k // 4, 1024))],
         grid=(256 * 6, count, 1),
-        threadgroup=(256, 1, 1),
+        threadgroup=(512 if parallel else 256, 1, 1),
         output_shapes=[(1, count, 24)],
         output_dtypes=[mx.float32],
     )[0]
