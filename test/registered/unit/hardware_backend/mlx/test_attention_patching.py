@@ -959,6 +959,12 @@ class TestMlxAuxiliaryStateRunnerCache(unittest.TestCase):
         self.assertEqual(pool.auxiliary_state_pool.available_size(), 3)
 
     def test_auxiliary_state_component_inserts_tracked_slot_and_frees_live_slot(self):
+        from sglang.srt.runtime_context import get_context
+
+        override = get_context().override_server_args(model_path="dummy")
+        override.install()
+        self.addCleanup(override.restore)
+
         pool = MlxAuxiliaryStateReqToTokenPool(
             size=2,
             max_context_len=8,
@@ -973,7 +979,12 @@ class TestMlxAuxiliaryStateRunnerCache(unittest.TestCase):
         req.kv.mamba_last_track_seqlen = 64
         component = MlxAuxiliaryStateComponent(
             SimpleNamespace(req_to_token_pool=pool),
-            SimpleNamespace(enable_mamba_extra_buffer=False),
+            SimpleNamespace(
+                enable_mamba_extra_buffer=False,
+                req_to_token_pool=pool,
+                disable=False,
+                page_size=1,
+            ),
             tree_slots_of((ComponentType.MAMBA,), checkpoint_interval=64)[0],
         )
         insert_params = InsertParams()
@@ -1000,6 +1011,12 @@ class TestMlxAuxiliaryStateRunnerCache(unittest.TestCase):
         self.assertEqual(pool.auxiliary_state_pool.available_size(), 3)
 
     def test_auxiliary_state_component_unfinished_frees_tracked_source_slot(self):
+        from sglang.srt.runtime_context import get_context
+
+        override = get_context().override_server_args(model_path="dummy")
+        override.install()
+        self.addCleanup(override.restore)
+
         pool = MlxAuxiliaryStateReqToTokenPool(
             size=2,
             max_context_len=8,
@@ -1014,7 +1031,12 @@ class TestMlxAuxiliaryStateRunnerCache(unittest.TestCase):
         req.kv.mamba_last_track_seqlen = 64
         component = MlxAuxiliaryStateComponent(
             SimpleNamespace(req_to_token_pool=pool),
-            SimpleNamespace(enable_mamba_extra_buffer=False),
+            SimpleNamespace(
+                enable_mamba_extra_buffer=False,
+                req_to_token_pool=pool,
+                disable=False,
+                page_size=1,
+            ),
             tree_slots_of((ComponentType.MAMBA,), checkpoint_interval=64)[0],
         )
         insert_params = InsertParams()
@@ -1042,6 +1064,12 @@ class TestMlxAuxiliaryStateRunnerCache(unittest.TestCase):
     def test_auxiliary_state_component_frees_stale_track_slot_when_live_slot_inserted(
         self,
     ):
+        from sglang.srt.runtime_context import get_context
+
+        override = get_context().override_server_args(model_path="dummy")
+        override.install()
+        self.addCleanup(override.restore)
+
         pool = MlxAuxiliaryStateReqToTokenPool(
             size=2,
             max_context_len=8,
@@ -1055,7 +1083,12 @@ class TestMlxAuxiliaryStateRunnerCache(unittest.TestCase):
         req.kv.mamba_next_track_idx = 0
         component = MlxAuxiliaryStateComponent(
             SimpleNamespace(req_to_token_pool=pool),
-            SimpleNamespace(enable_mamba_extra_buffer=False),
+            SimpleNamespace(
+                enable_mamba_extra_buffer=False,
+                req_to_token_pool=pool,
+                disable=False,
+                page_size=1,
+            ),
             tree_slots_of((ComponentType.MAMBA,), checkpoint_interval=64)[0],
         )
         insert_params = InsertParams()
@@ -1082,6 +1115,12 @@ class TestMlxAuxiliaryStateRunnerCache(unittest.TestCase):
         self.assertEqual(pool.auxiliary_state_pool.available_size(), 3)
 
     def test_auxiliary_state_component_frees_duplicate_live_slot(self):
+        from sglang.srt.runtime_context import get_context
+
+        override = get_context().override_server_args(model_path="dummy")
+        override.install()
+        self.addCleanup(override.restore)
+
         pool = MlxAuxiliaryStateReqToTokenPool(
             size=2,
             max_context_len=8,
@@ -1093,7 +1132,12 @@ class TestMlxAuxiliaryStateRunnerCache(unittest.TestCase):
         pool.alloc([req])
         component = MlxAuxiliaryStateComponent(
             SimpleNamespace(req_to_token_pool=pool),
-            SimpleNamespace(enable_mamba_extra_buffer=False),
+            SimpleNamespace(
+                enable_mamba_extra_buffer=False,
+                req_to_token_pool=pool,
+                disable=False,
+                page_size=1,
+            ),
             tree_slots_of((ComponentType.MAMBA,), checkpoint_interval=64)[0],
         )
         insert_params = InsertParams()
