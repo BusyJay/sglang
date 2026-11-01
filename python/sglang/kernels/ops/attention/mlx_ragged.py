@@ -251,6 +251,7 @@ _SOFTMAX = r"""
     const uint r = threadgroup_position_in_grid.x / H;
     const uint h = threadgroup_position_in_grid.x % H;
     const uint length = lengths[r];
+    if (length <= 4096) {
     const uint simds = (length + 127) / 128;
     threadgroup float maxima[32], totals[32];
     if (sg == 0) { maxima[lane] = -INFINITY; totals[lane] = 0; }
@@ -289,6 +290,44 @@ _SOFTMAX = r"""
         if (pos < WIDTH)
             probs[(size_t(r) * H + h) * WIDTH + pos] = pos < length ? T(vals[i] * inv) : T(0);
     }
+    } else {
+        // Match MLX's looped precise softmax for a logical row above 4096.
+        // The width bucket is only a storage stride; reduction follows length.
+        threadgroup float maxima[32], totals[32];
+        float maximum = -MAXFLOAT, total = 0;
+        for (uint base = 0; base < length; base += 4096) {
+            float values[4];
+            for (uint i = 0; i < 4; ++i) {
+                uint pos = base + lid * 4 + i;
+                values[i] = pos < length ? float(scores[(size_t(r) * H + h) * WIDTH + pos]) : -INFINITY;
+            }
+            float previous = maximum;
+            for (uint i = 0; i < 4; ++i) maximum = maximum < values[i] ? values[i] : maximum;
+            total *= fast::exp(previous - maximum);
+            for (uint i = 0; i < 4; ++i) total += fast::exp(values[i] - maximum);
+        }
+        float previous = maximum;
+        maximum = simd_max(maximum);
+        total *= fast::exp(previous - maximum);
+        total = simd_sum(total);
+        previous = maximum;
+        if (lane == 0) maxima[sg] = maximum;
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+        maximum = simd_max(maxima[lane]);
+        total *= fast::exp(previous - maximum);
+        if (lane == 0) totals[sg] = total;
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+        total = 1 / simd_sum(totals[lane]);
+        for (uint base = 0; base < WIDTH; base += 4096) {
+            for (uint i = 0; i < 4; ++i) {
+                uint pos = base + lid * 4 + i;
+                if (pos < WIDTH)
+                    probs[(size_t(r) * H + h) * WIDTH + pos] = pos < length ?
+                        T(fast::exp(float(scores[(size_t(r) * H + h) * WIDTH + pos]) - maximum) * total) : T(0);
+            }
+        }
+    }
+
 """
 
 _VALUES = r"""
@@ -415,13 +454,18 @@ def _kernels(nax=False, fp32=False):
     )
 
 
-def mlx_ragged_latent_attention(queries, kv, indices, lengths, *, scale, tail=None):
+def mlx_ragged_latent_attention(
+    queries, kv, indices, lengths, *, scale, tail=None, split=None
+):
     """Q [1,64,R,512], shared KV [1,L,512], index table [1,R,W].
 
     Optional tail follows the sealed prefix without materializing a concat.
-    Lengths are explicit host metadata; valid indices address both KV segments.
+    Lengths may be a uint32 device array; split may be a scalar device array.
+    Valid indices address both KV segments. Padded table widths keep compiled
+    graph layouts stable while the visible lengths and segment split advance.
     Invalid index padding is never read. Retains singleton promotion and reduction
-    for legal lengths 1..4096, including empty rows. Other geometries use the
+    for all table widths, including empty rows. Logical lengths above 4096
+    use the native looped softmax reduction with bounded threadgroup size. Other geometries use the
     caller's general batch attention. No per-token SDPA or KV copies occur.
     """
     if queries.ndim != 4 or kv.ndim != 3 or indices.ndim != 3:
@@ -439,7 +483,6 @@ def mlx_ragged_latent_attention(queries, kv, indices, lengths, *, scale, tail=No
         or indices.shape[:2] != (batch, rows)
         or len(lengths) != rows
         or mx.result_type(queries.dtype, kv.dtype) != queries.dtype
-        or width > 4096
         or queries.dtype not in dtypes
         or kv.dtype not in dtypes
         or indices.dtype not in (mx.int32, mx.uint32)
@@ -454,15 +497,20 @@ def mlx_ragged_latent_attention(queries, kv, indices, lengths, *, scale, tail=No
         or tail.dtype != kv.dtype
     ):
         return None
-    if any(length < 0 or length > width for length in lengths):
+    device_lengths = isinstance(lengths, mx.array)
+    if device_lengths:
+        if lengths.shape != (rows,) or lengths.dtype != mx.uint32:
+            raise ValueError("device ragged lengths must be uint32 [rows]")
+    elif any(length < 0 or length > width for length in lengths):
         raise ValueError("ragged lengths must be within the index table width")
-    if not any(lengths):
+    if not width or (not device_lengths and not any(lengths)):
         return mx.zeros_like(queries)
-    split = kv.shape[1]
+    prefix_size = kv.shape[1]
+    split = prefix_size if split is None else split
     # Empty MLX inputs use constant pointers, but both row-loader arguments
     # require device pointers. Alias the nonempty segment for the unreachable
     # argument, preserving the original split and every valid slot address.
-    if not split:
+    if not prefix_size:
         kv = tail
     if not tail.shape[1]:
         tail = kv
@@ -477,7 +525,15 @@ def mlx_ragged_latent_attention(queries, kv, indices, lengths, *, scale, tail=No
             32 if queries.dtype == mx.float32 and _matmul_policy()[2] else 16,
         ),
     ]
-    lens = mx.array([*lengths, width, split], mx.uint32)
+    lens = mx.concatenate(
+        [
+            lengths if device_lengths else mx.array(lengths, mx.uint32),
+            mx.array([width], mx.uint32),
+            split.reshape(1)
+            if isinstance(split, mx.array)
+            else mx.array([split], mx.uint32),
+        ]
+    )
     has_nax, tf32, _ = _matmul_policy()
     nax = has_nax and (queries.dtype != mx.float32 or tf32)
     scores_kernel, softmax_kernel, values_kernel = _kernels(
@@ -500,7 +556,7 @@ def mlx_ragged_latent_attention(queries, kv, indices, lengths, *, scale, tail=No
         output_shapes=[(rows, heads, width)],
         output_dtypes=[queries.dtype],
     )[0]
-    threads = 32 * ((width + 127) // 128)
+    threads = min(1024, 32 * ((width + 127) // 128))
     probs = softmax_kernel(
         inputs=[scores, lens],
         template=template,

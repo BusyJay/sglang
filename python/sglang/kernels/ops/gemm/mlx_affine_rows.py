@@ -6,7 +6,7 @@ from functools import cache
 
 import mlx.core as mx
 
-from sglang.kernels.ops.moe.mlx_glm import _HEADER
+from sglang.kernels.ops.moe.mlx_glm import _HEADER, _group_picks
 
 _SOURCE = r"""
     const uint lane = thread_index_in_simdgroup;
@@ -338,26 +338,32 @@ _ROUTED_GATE_UP = r"""
     const uint row = (threadgroup_position_in_grid.x * 4 + sg) * 4;
     const uint pick = threadgroup_position_in_grid.y;
     const uint tok = pick / TOPK;
-    const size_t base = size_t(indices[pick]) * N + row;
+    const uint expert = indices[pick];
     float gate[4] = {0}, up[4] = {0};
     constexpr int PACK = glm_pack_factor<BITS>();
     constexpr int BYTES = glm_bytes_per_pack<BITS>();
     constexpr int VPT = 2 * PACK;
     constexpr int BLOCK = 32 * VPT;
-    const device uchar* gate_w = (const device uchar*)gw + base * (K * BITS / 8);
-    const device uchar* up_w = (const device uchar*)uw + base * (K * BITS / 8);
     // Both producers consume the same lane-local input and affine sum. Load
     // it once, retaining each projection's qdot and accumulation order.
     for (int k = int(lane) * VPT; k < K; k += BLOCK) {
         float input[VPT];
         float sum = glm_load_vector<T, VPT, BITS>(x + size_t(tok) * K + k, input);
         for (int j = 0; j < 4; ++j) {
-            size_t group = (base + j) * (K / GS) + k / GS;
-            size_t packed = size_t(j) * (K * BITS / 8) + k * BYTES / PACK;
-            gate[j] += glm_qdot<VPT, BITS>(gate_w + packed, input,
-                                         gs[group], gb[group], sum);
-            up[j] += glm_qdot<VPT, BITS>(up_w + packed, input,
-                                       us[group], ub[group], sum);
+            const size_t gr = size_t(expert)*gw_strides[0]*4 + size_t(row+j)*gw_strides[1]*4;
+            const size_t ur = size_t(expert)*uw_strides[0]*4 + size_t(row+j)*uw_strides[1]*4;
+            const size_t packed = k * BYTES / PACK;
+            uchar gp[2*BYTES], upack[2*BYTES];
+            for (uint i=0; i<2*BYTES; ++i) {
+                gp[i] = ((const device uchar*)gw)[gr + ((packed+i)/4)*gw_strides[2]*4 + (packed+i)%4];
+                upack[i] = ((const device uchar*)uw)[ur + ((packed+i)/4)*uw_strides[2]*4 + (packed+i)%4];
+            }
+            gate[j] += glm_qdot_shared<VPT, BITS>(gp, input,
+                gs[size_t(expert)*gs_strides[0] + size_t(row+j)*gs_strides[1] + size_t(k/GS)*gs_strides[2]],
+                gb[size_t(expert)*gb_strides[0] + size_t(row+j)*gb_strides[1] + size_t(k/GS)*gb_strides[2]], sum);
+            up[j] += glm_qdot_shared<VPT, BITS>(upack, input,
+                us[size_t(expert)*us_strides[0] + size_t(row+j)*us_strides[1] + size_t(k/GS)*us_strides[2]],
+                ub[size_t(expert)*ub_strides[0] + size_t(row+j)*ub_strides[1] + size_t(k/GS)*ub_strides[2]], sum);
         }
     }
     for (uint i = 0; i < 4; ++i) {
@@ -375,6 +381,161 @@ _ROUTED_GATE_UP = r"""
 """
 
 
+# Three-token tiles group picks by expert entirely on-device. The first pick
+# owns the group, and scatters each result back to its original top-k slot.
+_GROUPED_GATE_UP_PREFIX = r"""
+const uint lane = thread_index_in_simdgroup;
+    const uint sg = simdgroup_index_in_threadgroup;
+    const uint row = (threadgroup_position_in_grid.x * 4 + sg) * RPS;
+    const uint first = threadgroup_position_in_grid.y;
+    const uint expert=indices[first];
+    const uint matches=counts[first];
+    if(matches==0) return;
+    const device uint* picks=grouped+first*(TOPK*TILE);
+    constexpr int PACK = glm_pack_factor<BITS>();
+    constexpr int BYTES = glm_bytes_per_pack<BITS>();
+    constexpr int VPT = 2 * PACK;
+    constexpr int BLOCK = 32 * VPT;
+    const size_t base = size_t(expert) * N + row;
+    for(uint start=0;start<matches;start+=TILE) {
+const uint rows=min(uint(TILE),matches-start);
+"""
+
+_GROUPED_GATE_UP_SINGLE = r"""
+float gate[RPS] = {0}, up[RPS] = {0};
+    constexpr int PACK = glm_pack_factor<BITS>();
+    constexpr int BYTES = glm_bytes_per_pack<BITS>();
+    constexpr int VPT = 2 * PACK;
+    constexpr int BLOCK = 32 * VPT;
+    // Both producers consume the same lane-local input and affine sum. Load
+    // it once, retaining each projection's qdot and accumulation order.
+    for (int k = int(lane) * VPT; k < K; k += BLOCK) {
+        float input[VPT];
+        float sum = glm_load_vector<T, VPT, BITS>(x + size_t(picks[start] / TOPK) * K + k, input);
+        for (int j = 0; j < RPS; ++j) {
+            const size_t gr = size_t(expert)*gw_strides[0]*4 + size_t(row+j)*gw_strides[1]*4;
+            const size_t ur = size_t(expert)*uw_strides[0]*4 + size_t(row+j)*uw_strides[1]*4;
+            const size_t packed = k * BYTES / PACK;
+            uchar gp[2*BYTES], upack[2*BYTES];
+            for (uint i=0; i<2*BYTES; ++i) {
+                gp[i] = ((const device uchar*)gw)[gr + ((packed+i)/4)*gw_strides[2]*4 + (packed+i)%4];
+                upack[i] = ((const device uchar*)uw)[ur + ((packed+i)/4)*uw_strides[2]*4 + (packed+i)%4];
+            }
+            gate[j] += glm_qdot_shared<VPT, BITS>(gp, input,
+                gs[size_t(expert)*gs_strides[0] + size_t(row+j)*gs_strides[1] + size_t(k/GS)*gs_strides[2]],
+                gb[size_t(expert)*gb_strides[0] + size_t(row+j)*gb_strides[1] + size_t(k/GS)*gb_strides[2]], sum);
+            up[j] += glm_qdot_shared<VPT, BITS>(upack, input,
+                us[size_t(expert)*us_strides[0] + size_t(row+j)*us_strides[1] + size_t(k/GS)*us_strides[2]],
+                ub[size_t(expert)*ub_strides[0] + size_t(row+j)*ub_strides[1] + size_t(k/GS)*ub_strides[2]], sum);
+        }
+    }
+    for (uint i = 0; i < RPS; ++i) {
+        T g = T(simd_sum(gate[i]));
+        T u = T(simd_sum(up[i]));
+        if (HAS_LIMIT) {
+            g = T(min(float(g), float(T(limit[0]))));
+            u = T(clamp(float(u), float(T(-limit[0])), float(T(limit[0]))));
+        }
+        T sigmoid = glm_sigmoid<T>(g);
+        T activated = g * sigmoid;
+        T result = activated * u;
+        if (lane == 0) out[size_t(picks[start]) * N + row + i] = result;
+    }
+"""
+
+_GROUPED_GATE_UP_ROWS = r"""
+float gate[ROWS][RPS] = {0}, up[ROWS][RPS] = {0};
+        for (int k = int(lane) * VPT; k < K; k += BLOCK) {
+            float inputs[ROWS][VPT], sums[ROWS];
+
+#pragma clang loop unroll(full)
+for (uint t = 0; t < ROWS; ++t)
+                sums[t] = glm_load_vector<T,VPT,BITS>(
+                    x + size_t(picks[start+t] / TOPK) * K + k, inputs[t]);
+
+#pragma clang loop unroll(full)
+for (uint j = 0; j < RPS; ++j) {
+                const size_t gr = size_t(expert)*gw_strides[0]*4 + size_t(row+j)*gw_strides[1]*4;
+                const size_t ur = size_t(expert)*uw_strides[0]*4 + size_t(row+j)*uw_strides[1]*4;
+                const size_t packed = k * BYTES / PACK;
+                uchar gp[2*BYTES], upack[2*BYTES];
+                for (uint i=0; i<2*BYTES; ++i) {
+                    gp[i] = ((const device uchar*)gw)[gr + ((packed+i)/4)*gw_strides[2]*4 + (packed+i)%4];
+                    upack[i] = ((const device uchar*)uw)[ur + ((packed+i)/4)*uw_strides[2]*4 + (packed+i)%4];
+                }
+                float gscale=gs[size_t(expert)*gs_strides[0] + size_t(row+j)*gs_strides[1] + size_t(k/GS)*gs_strides[2]], gbias=gb[size_t(expert)*gb_strides[0] + size_t(row+j)*gb_strides[1] + size_t(k/GS)*gb_strides[2]];
+                float uscale=us[size_t(expert)*us_strides[0] + size_t(row+j)*us_strides[1] + size_t(k/GS)*us_strides[2]], ubias=ub[size_t(expert)*ub_strides[0] + size_t(row+j)*ub_strides[1] + size_t(k/GS)*ub_strides[2]];
+
+#pragma clang loop unroll(full)
+for (uint t=0; t<ROWS; ++t) {
+                    gate[t][j] += glm_qdot_shared<VPT,BITS>(gp,inputs[t],gscale,gbias,sums[t]);
+                    up[t][j] += glm_qdot_shared<VPT,BITS>(upack,inputs[t],uscale,ubias,sums[t]);
+                }
+            }
+        }
+
+#pragma clang loop unroll(full)
+for (uint t=0; t<ROWS; ++t)
+
+#pragma clang loop unroll(full)
+for (uint j=0; j<RPS; ++j) {
+                T g=T(simd_sum(gate[t][j])), u=T(simd_sum(up[t][j]));
+                if (HAS_LIMIT) {
+                    g=T(min(float(g),float(T(limit[0]))));
+                    u=T(clamp(float(u),float(T(-limit[0])),float(T(limit[0]))));
+                }
+                T sigmoid=glm_sigmoid<T>(g);
+                T activated=g*sigmoid;
+                T result=activated*u;
+                if(lane==0) out[size_t(picks[start+t])*N+row+j]=result;
+            }
+"""
+
+_GROUPED_GATE_UP_SUFFIX = r"""
+}
+"""
+
+_GROUPED_GATE_UP = (
+    _GROUPED_GATE_UP_PREFIX
+    + "if (rows == 1) {\n"
+    + _GROUPED_GATE_UP_SINGLE
+    + "}\n"
+    + "".join(
+        "else if (rows == "
+        + str(rows)
+        + ") {\n"
+        + _GROUPED_GATE_UP_ROWS.replace("ROWS", str(rows))
+        + "}\n"
+        for rows in (2, 3)
+    )
+    + _GROUPED_GATE_UP_SUFFIX
+)
+
+
+@cache
+def _grouped_gate_up_kernel():
+    return mx.fast.metal_kernel(
+        name="sglang_routed_grouped_swiglu",
+        input_names=[
+            "x",
+            "gw",
+            "gs",
+            "gb",
+            "uw",
+            "us",
+            "ub",
+            "indices",
+            "limit",
+            "grouped",
+            "counts",
+        ],
+        output_names=["out"],
+        source=_GROUPED_GATE_UP,
+        header=_SHARED_HEADER,
+        ensure_row_contiguous=False,
+    )
+
+
 @cache
 def _routed_gate_up_kernel():
     return mx.fast.metal_kernel(
@@ -382,16 +543,19 @@ def _routed_gate_up_kernel():
         input_names=["x", "gw", "gs", "gb", "uw", "us", "ub", "indices", "limit"],
         output_names=["out"],
         source=_ROUTED_GATE_UP,
-        header=_HEADER,
+        header=_SHARED_HEADER,
+        ensure_row_contiguous=False,
     )
 
 
-def mlx_affine_routed_swiglu(x, gate, up, indices, *, bits, group_size, limit=None):
+def mlx_affine_routed_swiglu(
+    x, gate, up, indices, *, bits, group_size, limit=None, grouped=None
+):
     """Fuse routed gate/up and rounded activation without duplicating weights.
 
-    Each SIMD owns four outputs for one selected expert. Index tables and
-    original packed arrays are explicit inputs. This stage does not assume
-    routing overlap or claim cross-token expert weight sharing.
+    Each SIMD owns four outputs. Three-token tiles group actual matching
+    experts on-device, sharing packed weights and metadata across their rows.
+    Outputs scatter to the original token/top-k slots, including duplicates.
     """
     if (
         x.ndim != 3
@@ -427,8 +591,18 @@ def mlx_affine_routed_swiglu(x, gate, up, indices, *, bits, group_size, limit=No
     if any(a.shape != b.shape for a, b in zip(gate, up)):
         return None
     n, topk = gate[0].shape[-2], indices.shape[-1]
-    return _routed_gate_up_kernel()(
-        inputs=[x, *gate, *up, indices, mx.array([limit or 0], mx.float32)],
+    # Activations and ids are small; prepared expert weights must retain their
+    # strides rather than materializing complete gate/up matrices each decode.
+    x, indices = mx.contiguous(x), mx.contiguous(indices)
+    inputs = [x, *gate, *up, indices, mx.array([limit or 0], mx.float32)]
+    if x.shape[1] > 1:
+        inputs.extend(
+            _group_picks(indices, min(3, x.shape[1]))
+            if grouped is None
+            else tuple(mx.contiguous(v) for v in grouped)
+        )
+    return (_grouped_gate_up_kernel() if x.shape[1] > 1 else _routed_gate_up_kernel())(
+        inputs=inputs,
         template=[
             ("T", x.dtype),
             ("K", k),
@@ -436,9 +610,12 @@ def mlx_affine_routed_swiglu(x, gate, up, indices, *, bits, group_size, limit=No
             ("GS", group_size),
             ("BITS", bits),
             ("TOPK", topk),
+            ("COUNT", x.shape[1]),
+            ("TILE", min(3, x.shape[1])),
+            ("RPS", 2),
             ("HAS_LIMIT", limit is not None),
         ],
-        grid=(128 * (n // 16), x.shape[1] * topk, 1),
+        grid=(128 * (n // (8 if x.shape[1] > 1 else 16)), x.shape[1] * topk, 1),
         threadgroup=(128, 1, 1),
         output_shapes=[(1, x.shape[1], topk, n)],
         output_dtypes=[x.dtype],

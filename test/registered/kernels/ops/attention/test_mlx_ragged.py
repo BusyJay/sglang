@@ -12,6 +12,102 @@ register_mlx_ci(est_time=5, suite="stage-a-unit-test-mlx")
 
 @unittest.skipUnless(importlib.util.find_spec("mlx"), "requires MLX")
 class TestMlxRagged(CustomTestCase):
+    def test_width_buckets_above_4096_preserve_native_rows(self):
+        """A padded index bucket must preserve short and looped long reductions."""
+        import mlx.core as mx
+
+        from sglang.kernels.ops.attention.mlx_ragged import mlx_ragged_latent_attention
+
+        mx.random.seed(823)
+        for dtype in (mx.float16, mx.bfloat16, mx.float32):
+            q = mx.random.normal((1, 64, 3, 512)).astype(dtype)
+            kv = mx.random.normal((1, 8193, 512)).astype(dtype)
+            for lengths in (
+                [0, 2049, 4096],
+                [4095, 4096, 4097],
+                [4097, 4098, 4099],
+                [8191, 8192, 8193],
+            ):
+                width = 1 << (max(lengths) - 1).bit_length()
+                indices = mx.broadcast_to(
+                    mx.arange(width, dtype=mx.int32), (1, 3, width)
+                )
+                expected = []
+                for row, length in enumerate(lengths):
+                    indices[:, row, length:] = -9999
+                    expected.append(
+                        mx.fast.scaled_dot_product_attention(
+                            q[:, :, row : row + 1],
+                            kv[:, None, :length],
+                            kv[:, None, :length],
+                            scale=128**-0.5,
+                        )
+                        if length
+                        else mx.zeros_like(q[:, :, row : row + 1])
+                    )
+                actual = mlx_ragged_latent_attention(
+                    q,
+                    kv[:, :4096],
+                    indices,
+                    mx.array(lengths, mx.uint32),
+                    tail=kv[:, 4096:],
+                    scale=128**-0.5,
+                )
+                self.assertIsNotNone(actual)
+                self.assertTrue(
+                    mx.array_equal(actual, mx.concatenate(expected, 2)).item(),
+                    (dtype, lengths),
+                )
+
+    def test_compiled_runtime_lengths_and_split_preserve_reductions(self):
+        """One graph accepts growing visibility and a moved sealed boundary."""
+        import mlx.core as mx
+
+        from sglang.kernels.ops.attention.mlx_ragged import mlx_ragged_latent_attention
+
+        mx.random.seed(819)
+        for dtype in (mx.float16, mx.bfloat16, mx.float32):
+            q = mx.random.normal((1, 64, 3, 512)).astype(dtype)
+            kv = mx.random.normal((1, 513, 512)).astype(dtype)
+            prefix = mx.zeros_like(kv)
+            tail = mx.zeros_like(kv)
+            traced = []
+
+            def forward(query, left, right, table, lengths, split):
+                traced.append(True)
+                return mlx_ragged_latent_attention(
+                    query,
+                    left,
+                    table,
+                    lengths,
+                    scale=128**-0.5,
+                    tail=right,
+                    split=split,
+                )
+
+            graph = mx.compile(forward)
+            for split in (0, 1, 255, 256, 511, 513):
+                prefix[:, :split] = kv[:, :split]
+                tail[:, : 513 - split] = kv[:, split:]
+                for length in (1, 17, 255, 256, 257, 511, 513):
+                    lengths = [0, min(17, length), length]
+                    table = mx.broadcast_to(mx.arange(513), (1, 3, 513))
+                    for row, visible in enumerate(lengths):
+                        table[:, row, visible:] = -9999
+                    expected = mlx_ragged_latent_attention(
+                        q, kv, table, lengths, scale=128**-0.5
+                    )
+                    actual = graph(
+                        q,
+                        prefix,
+                        tail,
+                        table,
+                        mx.array(lengths, mx.uint32),
+                        mx.array(split, mx.uint32),
+                    )
+                    self.assertTrue(mx.array_equal(actual, expected).item())
+            self.assertEqual(len(traced), 1)
+
     def test_segmented_kv_preserves_native_reduction_and_visibility(self):
         """Index slots cross sealed/append boundaries without reading poisoned tails."""
         import mlx.core as mx

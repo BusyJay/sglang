@@ -12,6 +12,27 @@ register_mlx_ci(est_time=3, suite="stage-a-unit-test-mlx")
 
 @unittest.skipUnless(importlib.util.find_spec("mlx"), "requires MLX")
 class TestMlxDenseRows(CustomTestCase):
+    def test_batched_greedy_preserves_rounding_tail_and_ties(self):
+        import mlx.core as mx
+
+        from sglang.kernels.ops.gemm.mlx_dense_rows import mlx_dense_argmax_rows
+
+        for dtype in (mx.float16, mx.bfloat16):
+            for count in (1, 2, 3, 5, 9, 17):
+                x = mx.random.normal((1, count, 256)).astype(dtype)
+                weight = mx.random.normal((258, 256)).astype(dtype)
+                expected = mx.concatenate(
+                    [mx.argmax(x[:, j : j + 1] @ weight.T, -1) for j in range(count)], 1
+                )
+                actual = mlx_dense_argmax_rows(x, weight)
+                self.assertTrue(mx.array_equal(actual, expected).item())
+                self.assertTrue(
+                    mx.array_equal(
+                        mlx_dense_argmax_rows(x, mx.zeros_like(weight)),
+                        mx.zeros((1, count), mx.uint32),
+                    ).item()
+                )
+
     def test_shared_loads_match_singletons_and_tail_rows(self):
         import mlx.core as mx
 

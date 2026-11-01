@@ -36,6 +36,33 @@ class TestMlxHc(CustomTestCase):
                 )
                 self.assertTrue(mx.array_equal(actual, expected).item())
 
+    def test_bf16_checkpoint_mix_preserves_fp32_branch(self):
+        """Checkpoint dtype must not silently bypass fused mix or change rounding."""
+        import mlx.core as mx
+
+        from sglang.kernels.ops.layernorm.mlx_hc_mix import mlx_hc_rms_mix
+
+        mx.random.seed(20261101)
+        for dim in (256, 4096):
+            for count in (1, 3, 17):
+                x = mx.random.normal((1, count, 4, dim)).astype(mx.bfloat16)
+                w = mx.random.normal((24, 4 * dim)).astype(mx.bfloat16)
+                actual = mlx_hc_rms_mix(x, w, eps=1e-5)
+                self.assertIsNotNone(actual)
+                expected = mx.concatenate(
+                    [
+                        mx.fast.rms_norm(
+                            x[:, j : j + 1].reshape(1, 1, -1).astype(mx.float32),
+                            None,
+                            1e-5,
+                        )
+                        @ w.astype(mx.float32).T
+                        for j in range(count)
+                    ],
+                    axis=1,
+                )
+                self.assertTrue(mx.array_equal(actual, expected).item())
+
     def test_parallel_lines_preserve_serial_coefficients_and_rounding(self):
         """A lane transpose must preserve orientation, order and cast boundaries.
 

@@ -42,7 +42,7 @@ _SOURCE = r"""
             normalized[i] = float(x[tok * K + k + i]) * inverse;
         for (uint r = 0; r < 4; ++r)
             for (uint i = 0; i < 4; ++i)
-                result[r] += weight[(row + r) * K + k + i] * normalized[i];
+                result[r] += float(weight[(row + r) * K + k + i]) * normalized[i];
     }
     threadgroup float partial[8 * 4];
     for (uint r = 0; r < 4; ++r) {
@@ -85,7 +85,7 @@ def mlx_hc_rms_mix(x, weight, *, eps):
         or x.shape[3] % 256
         or x.dtype not in (mx.float16, mx.bfloat16)
         or weight.shape != (24, 4 * x.shape[3])
-        or weight.dtype != mx.float32
+        or weight.dtype not in (mx.float16, mx.bfloat16, mx.float32)
     ):
         return None
     count, k = x.shape[1], 4 * x.shape[3]

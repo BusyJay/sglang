@@ -12,6 +12,89 @@ register_mlx_ci(est_time=5, suite="stage-a-unit-test-mlx")
 
 @unittest.skipUnless(importlib.util.find_spec("mlx"), "requires MLX")
 class TestMlxAffineRows(CustomTestCase):
+    def test_routed_gate_up_reads_independent_strided_views(self):
+        """Prepared expert views and packed columns retain native arithmetic."""
+        import mlx.core as mx
+
+        from sglang.kernels.ops.gemm.mlx_affine_rows import mlx_affine_routed_swiglu
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import _compiled_swiglu
+
+        mx.random.seed(602)
+        for dtype in (mx.float16, mx.bfloat16):
+            for bits in (4, 5, 6, 8):
+                operands = []
+                for stride in (2, 3):
+                    values = mx.quantize(
+                        (mx.random.normal((4, 32, 512)) * 0.02).astype(dtype),
+                        group_size=64,
+                        bits=bits,
+                    )
+                    views = []
+                    for value in values:
+                        storage = mx.zeros(
+                            (4 * stride, 64, value.shape[-1] * stride), value.dtype
+                        )
+                        storage[::stride, ::2, ::stride] = value
+                        views.append(storage[::stride, ::2, ::stride])
+                    operands.append(tuple(views))
+                for count in (1, 3, 5, 17):
+                    x = mx.random.normal((1, 2 * count, 1024)).astype(dtype)[
+                        :, ::2, ::2
+                    ]
+                    table = mx.array([[[1, 3, 1, 0]] * (2 * count)], mx.uint32)
+                    indices = table[:, ::2]
+                    expected = []
+                    for j in range(count):
+                        row = x[:, j : j + 1, None, None, :]
+                        gate, up = [
+                            mx.gather_qmm(
+                                row,
+                                *values,
+                                rhs_indices=indices[:, j : j + 1],
+                                transpose=True,
+                                group_size=64,
+                                bits=bits,
+                            ).squeeze(-2)
+                            for values in operands
+                        ]
+                        expected.append(_compiled_swiglu(gate, up, 1.3))
+                    actual = mlx_affine_routed_swiglu(
+                        x, *operands, indices, bits=bits, group_size=64, limit=1.3
+                    )
+                    self.assertTrue(
+                        mx.array_equal(actual, mx.concatenate(expected, 1)).item()
+                    )
+
+    def test_routed_prepared_views_do_not_copy_all_expert_weights(self):
+        """Decode scratch must not scale with the resident expert bank."""
+        import mlx.core as mx
+
+        from sglang.kernels.ops.gemm.mlx_affine_rows import mlx_affine_routed_swiglu
+
+        packed = mx.quantize(
+            mx.ones((64, 2048, 1024), mx.float16), bits=4, group_size=64
+        )
+        gate, up = (
+            tuple(v[:, :1024] for v in packed),
+            tuple(v[:, 1024:] for v in packed),
+        )
+        mx.eval(packed)
+        for count in (1, 3):
+            x = mx.ones((1, count, 1024), mx.float16)
+            indices = mx.array([[[0, 3, 7, 11]] * count], mx.uint32)
+            mx.eval(x, indices)
+            mx.eval(
+                mlx_affine_routed_swiglu(x, gate, up, indices, bits=4, group_size=64)
+            )
+            mx.synchronize()
+            before = mx.get_active_memory()
+            mx.reset_peak_memory()
+            actual = mlx_affine_routed_swiglu(
+                x, gate, up, indices, bits=4, group_size=64
+            )
+            mx.eval(actual)
+            self.assertLess(mx.get_peak_memory() - before, 1024**2)
+
     def test_dense_and_routed_rows_match_native_singletons(self):
         import mlx.core as mx
 
@@ -231,14 +314,14 @@ class TestMlxAffineRows(CustomTestCase):
 
         mx.random.seed(713)
         for dtype in (mx.float16, mx.bfloat16):
-            for bits in (4, 8):
+            for bits in (4, 5, 6, 8):
                 x = mx.random.normal((1, 3, 512)).astype(dtype)
                 gate = mx.quantize(
                     mx.random.normal((4, 256, 512)).astype(dtype),
                     bits=bits,
                     group_size=64,
                 )
-                indices = mx.array([[[1, 3], [3, 1], [0, 3]]], mx.uint32)
+                indices = mx.array([[[1, 3, 3], [3, 1, 1], [0, 3, 1]]], mx.uint32)
                 for _ in range(2):
                     up = mx.quantize(
                         mx.random.normal((4, 256, 512)).astype(dtype),

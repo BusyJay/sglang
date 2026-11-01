@@ -40,6 +40,43 @@ _SOURCE = r"""
 """
 
 
+# Each lane retains its four consecutive K values and shuffle order. More
+# output rows reuse the lane input without changing the dot-product tree.
+_TILED_SOURCE = (
+    _SOURCE.replace("* 4;", "* RPS;", 1)
+    .replace("acc[ROWS][4]", "acc[ROWS][RPS]")
+    .replace("r < 4", "r < RPS")
+    .replace(
+        "const uint lane =",
+        "const uint start = threadgroup_position_in_grid.z * ROWS;\n    const uint lane =",
+    )
+    .replace(
+        "float(x[t * K + k + i])",
+        "(!TAIL || start+t < COUNT) ? float(x[(start+t) * K + k + i]) : 0.0f",
+    )
+    .replace(
+        "lane == 0 && row + r < N",
+        "lane == 0 && row + r < N && (!TAIL || start+t < COUNT)",
+    )
+    .replace("out[t * N + row + r]", "out[(start+t) * N + row + r]")
+)
+
+
+@cache
+def _tiled_kernel():
+    return mx.fast.metal_kernel(
+        name="sglang_dense_tiled_rows",
+        input_names=["x", "w"],
+        output_names=["out"],
+        source=_TILED_SOURCE,
+    )
+
+
+def _dense_geometry(out_dim):
+    # Tuning retains the native four-element lane slices.
+    return (8 if out_dim >= 4096 else 4, 4)
+
+
 @cache
 def _kernel():
     return mx.fast.metal_kernel(
@@ -70,28 +107,29 @@ def mlx_dense_rows(x, weight):
     out_dim, width = weight.shape
     if width != dim or dim % 128 or out_dim < 4 or dim <= 64 or dim >= 16 * out_dim:
         return None
-    bm = 8 if out_dim >= 4096 else 4
-    outputs = []
-    for start in range(0, count, 4):
-        rows = min(count - start, 4)
-        outputs.append(
-            _kernel()(
-                inputs=[x[:, start : start + rows], weight],
-                template=[
-                    ("T", x.dtype),
-                    ("O", mx.result_type(x.dtype, weight.dtype)),
-                    ("K", dim),
-                    ("N", out_dim),
-                    ("BM", bm),
-                    ("ROWS", rows),
-                ],
-                grid=(32 * bm * ((out_dim + 4 * bm - 1) // (4 * bm)), 1, 1),
-                threadgroup=(32 * bm, 1, 1),
-                output_shapes=[(1, rows, out_dim)],
-                output_dtypes=[mx.result_type(x.dtype, weight.dtype)],
-            )[0]
-        )
-    return outputs[0] if len(outputs) == 1 else mx.concatenate(outputs, axis=1)
+    bm, rps = _dense_geometry(out_dim)
+    rows = min(count, 4)
+    return _tiled_kernel()(
+        inputs=[x, weight],
+        template=[
+            ("O", mx.result_type(x.dtype, weight.dtype)),
+            ("K", dim),
+            ("N", out_dim),
+            ("BM", bm),
+            ("RPS", rps),
+            ("ROWS", rows),
+            ("COUNT", count),
+            ("TAIL", count % rows != 0),
+        ],
+        grid=(
+            32 * bm * ((out_dim + rps * bm - 1) // (rps * bm)),
+            1,
+            (count + rows - 1) // rows,
+        ),
+        threadgroup=(32 * bm, 1, 1),
+        output_shapes=[(1, count, out_dim)],
+        output_dtypes=[mx.result_type(x.dtype, weight.dtype)],
+    )[0]
 
 
 @cache
@@ -165,6 +203,101 @@ def mlx_dense_argmax(x, weight):
         output_dtypes=[x.dtype, mx.uint32],
     )
     return mx.take(ids, mx.argmax(scores)).reshape(1, 1)
+
+
+@cache
+def _argmax_rows_kernel():
+    source = _TILED_SOURCE.replace("if (row >= N) return;", "")
+    epilogue = (
+        "    for (int t = 0; t < ROWS; ++t) {\n        for (int r = 0; r < RPS; ++r) {"
+    )
+    source = (
+        source[: source.index(epilogue)]
+        + r"""
+    threadgroup float winners[ROWS * BM];
+    threadgroup uint tokens[ROWS * BM];
+    for (int t = 0; t < ROWS; ++t) {
+        float best = -INFINITY;
+        uint token = uint(N);
+        for (int r = 0; r < RPS; ++r) {
+            for (ushort off = 16; off >= 1; off >>= 1)
+                acc[t][r] += simd_shuffle_down(acc[t][r], off);
+            const float value = float(O(acc[t][r]));
+            if (row+r < N && (value > best || (value == best && uint(row+r) < token))) {
+                best = value; token = uint(row+r);
+            }
+        }
+        if (lane == 0) {
+            winners[t*BM+sg] = best;
+            tokens[t*BM+sg] = token;
+        }
+    }
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    if (sg == 0 && lane == 0) {
+        for (int t = 0; t < ROWS; ++t) {
+            float best = -INFINITY;
+            uint token = uint(N);
+            for (int i = 0; i < BM; ++i) {
+                float value = winners[t*BM+i];
+                uint id = tokens[t*BM+i];
+                if (value > best || (value == best && id < token)) {
+                    best = value; token = id;
+                }
+            }
+            if (start+t < COUNT) {
+                size_t index = size_t(start+t)*BLOCKS+threadgroup_position_in_grid.x;
+                block_scores[index] = O(best);
+                block_ids[index] = token;
+            }
+        }
+    }
+"""
+    )
+    return mx.fast.metal_kernel(
+        name="sglang_dense_greedy_rows",
+        input_names=["x", "w"],
+        output_names=["block_scores", "block_ids"],
+        source=source,
+    )
+
+
+def mlx_dense_argmax_rows(x, weight):
+    """Share head weights across request rows, preserving rounded stable top1."""
+    if (
+        x.ndim != 3
+        or x.shape[0] != 1
+        or not 1 <= x.shape[1] <= 17
+        or weight.ndim != 2
+        or x.dtype not in (mx.float16, mx.bfloat16)
+        or weight.dtype != x.dtype
+    ):
+        return None
+    n, k = weight.shape
+    if x.shape[-1] != k or k % 128 or n < 4 or k >= 16 * n:
+        return None
+    count = x.shape[1]
+    bm, rps = _dense_geometry(n)
+    rows = min(count, 4)
+    blocks = (n + bm * rps - 1) // (bm * rps)
+    scores, ids = _argmax_rows_kernel()(
+        inputs=[x, weight],
+        template=[
+            ("O", x.dtype),
+            ("K", k),
+            ("N", n),
+            ("BM", bm),
+            ("RPS", rps),
+            ("ROWS", rows),
+            ("COUNT", count),
+            ("TAIL", count % rows != 0),
+            ("BLOCKS", blocks),
+        ],
+        grid=(32 * bm * blocks, 1, (count + rows - 1) // rows),
+        threadgroup=(32 * bm, 1, 1),
+        output_shapes=[(count, blocks), (count, blocks)],
+        output_dtypes=[x.dtype, mx.uint32],
+    )
+    return mx.take_along_axis(ids, mx.argmax(scores, -1)[:, None], 1).reshape(1, count)
 
 
 _HEAD_TRANSPOSE = r"""

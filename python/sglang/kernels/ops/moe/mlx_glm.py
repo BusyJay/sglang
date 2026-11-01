@@ -383,6 +383,96 @@ _DOWN_PARALLEL = r"""
 """
 
 
+# Group experts across up to three requests/verification rows. Every expert
+# computes independently; matching experts share the memory-system cache
+# without serializing per-row qdots or allocating intermediate projections.
+_DOWN_BATCH_PARALLEL = (
+    _DOWN_PARALLEL.replace(
+        "const uint expert = simdgroup_index_in_threadgroup;",
+        "const uint group = simdgroup_index_in_threadgroup;\n"
+        "    const uint expert = group % TOPK;",
+    )
+    .replace(
+        "const uint tok = threadgroup_position_in_grid.y;",
+        "const uint tok = threadgroup_position_in_grid.y * TILE + group / TOPK;",
+    )
+    .replace(
+        "indices[tok * TOPK + expert]",
+        "indices[min(tok, uint(COUNT-1)) * TOPK + expert]",
+    )
+    .replace(
+        "(size_t(tok) * TOPK + expert) * K",
+        "(size_t(min(tok, uint(COUNT-1))) * TOPK + expert) * K",
+    )
+    .replace(
+        "threadgroup float weighted[TOPK * 4]",
+        "threadgroup float weighted[TILE * TOPK * 4]",
+    )
+    .replace(
+        "scores[tok * TOPK + expert]",
+        "scores[min(tok, uint(COUNT-1)) * TOPK + expert]",
+    )
+    .replace("weighted[expert * 4 + j]", "weighted[group * 4 + j]")
+    .replace(
+        "if (expert == 0 && lane < 4)",
+        "if (expert == 0 && lane < 4 && tok < COUNT)",
+    )
+    .replace(
+        "weighted[r * 4 + lane]", "weighted[((group / TOPK) * TOPK + r) * 4 + lane]"
+    )
+)
+
+
+@cache
+def _batch_parallel_down_kernel():
+    return mx.fast.metal_kernel(
+        name="sglang_moe_batch_parallel_down",
+        input_names=["act", "indices", "scores", "w", "s", "b", "shared"],
+        output_names=["out"],
+        source=_DOWN_BATCH_PARALLEL,
+        header=_HEADER,
+    )
+
+
+_GROUP_PICKS = r"""
+    const uint first=thread_position_in_grid.x;
+    if(first>=COUNT*TOPK) return;
+    const uint begin=(first/(TOPK*TILE))*(TOPK*TILE);
+    const uint end=min(begin+uint(TOPK*TILE),uint(COUNT*TOPK));
+    uint count=0;
+    const uint expert=indices[first];
+    bool owner=true;
+    for(uint p=begin;p<first;++p) if(indices[p]==expert) owner=false;
+    if(owner) {
+        for(uint p=first;p<end;++p)
+            if(indices[p]==expert) picks[first*(TOPK*TILE)+count++]=p;
+    }
+    counts[first]=count;
+"""
+
+
+@cache
+def _group_picks_kernel():
+    return mx.fast.metal_kernel(
+        name="sglang_moe_group_picks",
+        input_names=["indices"],
+        output_names=["picks", "counts"],
+        source=_GROUP_PICKS,
+    )
+
+
+def _group_picks(indices, tile):
+    count, topk = indices.shape[1:]
+    return _group_picks_kernel()(
+        inputs=[indices],
+        template=[("COUNT", count), ("TOPK", topk), ("TILE", tile)],
+        grid=(count * topk, 1, 1),
+        threadgroup=(32, 1, 1),
+        output_shapes=[(count * topk, topk * tile), (count * topk,)],
+        output_dtypes=[mx.uint32, mx.uint32],
+    )
+
+
 @cache
 def _kernel(kind):
     if kind == "logits":
@@ -480,6 +570,30 @@ def mlx_glm_down_combine(
         or scores.shape != indices.shape
     ):
         return None
+    if count > 1 and top_k <= 8:
+        # One request per threadgroup keeps eight expert SIMD groups resident
+        # without the register/occupancy cost of a 24-SIMD three-row group.
+        # Requests remain parallel in grid.y; combine order is unchanged.
+        tile = 1
+        threads = 32 * top_k * tile
+        return _batch_parallel_down_kernel()(
+            inputs=[act, indices, scores, weight, scales, biases, shared],
+            template=[
+                ("T", act.dtype),
+                ("R", shared.dtype),
+                ("K", dim),
+                ("N", out_dim),
+                ("TOPK", top_k),
+                ("BITS", bits),
+                ("GS", group_size),
+                ("COUNT", count),
+                ("TILE", tile),
+            ],
+            grid=(threads * (out_dim // 4), (count + tile - 1) // tile, 1),
+            threadgroup=(threads, 1, 1),
+            output_shapes=[shared.shape],
+            output_dtypes=[shared.dtype],
+        )[0]
     # Independent experts compute concurrently; the final four lanes retain
     # the original routing reduction order. Small top-k keeps native geometry.
     parallel = count == 1 and top_k >= 4 and out_dim >= 1024

@@ -580,6 +580,15 @@ register_kernel(
     )
 )
 
+register_kernel(
+    KernelSpec(
+        op="gemm.mlx_dense_argmax_rows",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.gemm.mlx_dense_rows:mlx_dense_argmax_rows",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)
+
 
 register_kernel(
     KernelSpec(
@@ -616,6 +625,16 @@ register_kernel(
         op="gemm.mlx_headed_dense_rows",
         backend=KernelBackend.MLX,
         target="sglang.kernels.ops.gemm.mlx_dense_rows:mlx_headed_dense_rows",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)
+
+
+register_kernel(
+    KernelSpec(
+        op="gemm.mlx_sorted_qmm_swiglu",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.gemm.mlx_qmm_swiglu:mlx_sorted_qmm_swiglu",
         capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
     )
 )
