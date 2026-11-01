@@ -121,6 +121,11 @@ class MlxMTPServing:
         self.eligible_by_depth = Counter()
         self.correct_by_depth = Counter()
         self.proposed_by_depth = Counter()
+        self.proposed_by_budget_depth = Counter()
+        self.cycles_by_budget = Counter()
+        self.tokens_by_budget = Counter()
+        self.seconds_by_budget = Counter()
+        self.accepted_by_budget_depth = Counter()
         self.eligible_by_budget_depth = Counter()
         self.correct_by_budget_depth = Counter()
 
@@ -209,6 +214,11 @@ class MlxMTPServing:
         return hidden
 
     def _close_cycle(self, state):
+        if state.cycle_start:
+            elapsed = perf_counter() - state.cycle_start
+            self.cycles_by_budget[state.cycle_steps] += 1
+            self.tokens_by_budget[state.cycle_steps] += state.cycle_tokens
+            self.seconds_by_budget[state.cycle_steps] += elapsed
         if state.cycle_start and state.train_cycle:
             self.budget.observe(
                 state.cycle_steps,
@@ -238,6 +248,7 @@ class MlxMTPServing:
             if expected_token == token:
                 self.correct_by_depth[row.depth] += 1
                 self.correct_by_budget_depth[key] += 1
+                self.accepted_by_budget_depth[key] += 1
             else:
                 state.rows.clear()
         if not state.rows:
@@ -273,6 +284,7 @@ class MlxMTPServing:
                 self.verify_ct += 1
                 self.num_proposed_drafts += steps
                 self.proposed_by_depth.update(range(1, steps + 1))
+                self.proposed_by_budget_depth.update(f"{steps}:{depth}" for depth in range(1, steps + 1))
                 return PendingMTPDecode(state, inputs, cache, draft_steps=steps, token_only=token_only)
             out = self.model.mtp(
                 state.hidden, self.model.model.embed_tokens(inputs), state.head
@@ -297,6 +309,7 @@ class MlxMTPServing:
             self.verify_ct += 1
             self.num_proposed_drafts += steps
             self.proposed_by_depth.update(range(1, steps + 1))
+            self.proposed_by_budget_depth.update(f"{steps}:{depth}" for depth in range(1, steps + 1))
             return PendingMTPDecode(
                 state, inputs, cache, chain, logits, hidden, snapshots, token_only=token_only
             )
@@ -440,6 +453,11 @@ class MlxMTPServing:
             num_reuse_tokens=self.num_reuse_tokens,
             step_histogram=dict(self.step_histogram),
             adaptive_scores=dict(self.budget.scores),
+            proposed_by_budget_depth=dict(self.proposed_by_budget_depth),
+            accepted_by_budget_depth=dict(self.accepted_by_budget_depth),
+            cycles_by_budget=dict(self.cycles_by_budget),
+            committed_tokens_by_budget=dict(self.tokens_by_budget),
+            elapsed_seconds_by_budget=dict(self.seconds_by_budget),
             proposed_by_depth=dict(self.proposed_by_depth),
             eligible_by_depth=dict(self.eligible_by_depth),
             correct_by_depth=dict(self.correct_by_depth),

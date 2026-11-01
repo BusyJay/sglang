@@ -1721,6 +1721,8 @@ class TestGlm5NextMlx(CustomTestCase):
                 token = int(choice.item()) if iteration != 3 else 19
             actual.remove("a")
             stats = actual.stats()
+            self.assertEqual(sum(stats["committed_tokens_by_budget"].values()), 8)
+            self.assertTrue(stats["elapsed_seconds_by_budget"])
 
     def test_token_only_target_retains_logits_and_cache_contract(self):
         import mlx.core as mx
