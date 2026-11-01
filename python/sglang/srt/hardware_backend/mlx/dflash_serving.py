@@ -35,6 +35,8 @@ class DFlashRequest:
     pending_positions: list = field(default_factory=list)
     rows: deque = field(default_factory=deque)
     remaining: int | None = None
+    chain_tokens: mx.array | None = None
+    input_tokens: tuple[int, ...] | None = None
 
 
 class MlxDFlashServing:
@@ -135,7 +137,12 @@ class MlxDFlashServing:
             if state.rows:
                 row = state.rows[0]
                 self.eligible_by_depth[row.depth] += 1
-                if int(row.input_token.item()) != token:
+                # Verification already depends on the complete chain. Read its
+                # token vector once per chain, avoiding a fresh scalar slice
+                # evaluation and device readback at every consumed draft row.
+                if state.input_tokens is None:
+                    state.input_tokens = tuple(state.chain_tokens.reshape(-1).tolist())
+                if state.input_tokens[row.depth] != token:
                     state.rows.clear()
                     self.counters["reject_ct"] += 1
                 else:
@@ -185,6 +192,8 @@ class MlxDFlashServing:
             for i, (logits, hidden, snapshots, features) in zip(indices, results):
                 state = requests[i][0]
                 chain = chains[i]
+                state.chain_tokens = chain
+                state.input_tokens = None
                 state.rows.extend(
                     DFlashRow(
                         chain[0, j],
