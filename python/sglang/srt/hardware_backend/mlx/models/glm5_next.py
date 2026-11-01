@@ -2205,11 +2205,11 @@ class DecoderLayer(nn.Module):
         if fixed is not None and shared_stream is None:
             return fixed(x, cache)
         attended, snapshots = [], []
-        attention_inputs = [
-            self._branch_inputs((x)[:, j : j + 1], "attn", self.input_layernorm)
-            for j in range((x).shape[1])
-        ]
-        normed_rows = mx.concatenate([v[0] for v in attention_inputs], 1)
+        # mHC rows are independent; submit their collapse/projection together.
+        # Attention still returns an explicit cache snapshot for every position.
+        normed_rows, attention_post, attention_residual = self._branch_inputs(
+            x, "attn", self.input_layernorm
+        )
         if (
             not self.is_linear
             and getattr(self, "_fixed_mla_attention", None) is not None
@@ -2221,12 +2221,16 @@ class DecoderLayer(nn.Module):
             batched = self.self_attn.verify_rows(normed_rows, cache)
         if batched is not None:
             branches, snapshots = batched
-            for j, (_, post, residual) in enumerate(attention_inputs):
-                attended.append(
-                    self._branch_output(branches[:, j : j + 1], post, residual)
-                )
+            attended.append(
+                self._branch_output(branches, attention_post, attention_residual)
+            )
         else:
-            for normed, post, residual in attention_inputs:
+            for j in range(x.shape[1]):
+                normed = normed_rows[:, j : j + 1]
+                post = (
+                    None if attention_post is None else attention_post[:, j : j + 1]
+                )
+                residual = attention_residual[:, j : j + 1]
                 branch = self.self_attn(normed, cache)
                 attended.append(self._branch_output(branch, post, residual))
                 snapshot = type(cache)(4)
@@ -2678,13 +2682,10 @@ class _FixedMLALayer(_FixedGraphOwner):
 
             def prepare(value, parameters):
                 layer.update(parameters)
-                parts = [
-                    layer._branch_inputs(
-                        (value)[:, j : j + 1], "attn", layer.input_layernorm
-                    )
-                    for j in range((value).shape[1])
-                ]
-                normed = mx.concatenate([v[0] for v in parts], 1)
+                normed, post, residual = layer._branch_inputs(
+                    value, "attn", layer.input_layernorm
+                )
+                parts = post, residual
                 return (
                     parts,
                     normed,
@@ -2700,12 +2701,9 @@ class _FixedMLALayer(_FixedGraphOwner):
                         if router_weight is not None
                         else ()
                     )
-                attended = [
-                    layer._branch_output(branch[:, j : j + 1], post, residual)
-                    for j, (_, post, residual) in enumerate(parts)
-                ]
+                attended = layer._branch_output(branch, *parts)
                 value, post, residual = layer._branch_inputs(
-                    mx.concatenate(attended, 1), "ffn", layer.post_attention_layernorm
+                    attended, "ffn", layer.post_attention_layernorm
                 )
                 branch = (
                     layer.mlp(value, batch_fusion=True)

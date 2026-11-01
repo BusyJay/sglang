@@ -44,7 +44,7 @@ class TestMlxHc(CustomTestCase):
 
         mx.random.seed(20261101)
         for dim in (256, 4096):
-            for count in (1, 3, 17):
+            for count in (1, 3, 4, 6, 8, 17):
                 x = mx.random.normal((1, count, 4, dim)).astype(mx.bfloat16)
                 w = mx.random.normal((24, 4 * dim)).astype(mx.bfloat16)
                 actual = mlx_hc_rms_mix(x, w, eps=1e-5)
