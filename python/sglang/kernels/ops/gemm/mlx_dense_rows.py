@@ -75,8 +75,15 @@ def _tiled_kernel():
 def _dense_geometry(out_dim, in_dim=None, count=1):
     # M5 ABBA: high-output KDA and vocabulary heads need distinct register
     # budgets. Keep native lane slices and each accumulator's shuffle tree.
-    if in_dim == 4096 and out_dim == 24896 and count == 3:
-        return 4, 8
+    if in_dim == 4096 and out_dim == 24896:
+        if count == 3:
+            return 4, 8
+        if 4 <= count <= 8:
+            # Full KDA verification rows share one weight stream. Two output
+            # accumulators per SIMD retain occupancy as the row tile widens.
+            return (8 if count == 4 else 4), 2
+    if in_dim == 8192 and out_dim == 4096 and 5 <= count <= 8:
+        return 4, 2
     if in_dim == 4096 and out_dim == 154880:
         if count in (1, 3):
             return 4, 4
@@ -100,7 +107,8 @@ def mlx_dense_rows(x, weight):
 
     Row-major [N,K] weights; aligned native SN=32/TN=4 GEMV geometries.
     Returns None for layouts requiring a different reduction/tail kernel.
-    Longer chains use tiles of up to four vectors to bound register pressure.
+    KDA banks use full tiles through eight vectors; other banks use up to
+    four vectors to bound register pressure.
     """
     if (
         x.ndim != 3
@@ -116,7 +124,12 @@ def mlx_dense_rows(x, weight):
     if width != dim or dim % 128 or out_dim < 4 or dim <= 64 or dim >= 16 * out_dim:
         return None
     bm, rps = _dense_geometry(out_dim, dim, count)
-    rows = min(count, 4)
+    rows = (
+        count
+        if (dim == 4096 and out_dim == 24896 and 4 <= count <= 8)
+        or (dim == 8192 and out_dim == 4096 and 5 <= count <= 8)
+        else min(count, 4)
+    )
     return _tiled_kernel()(
         inputs=[x, weight],
         template=[

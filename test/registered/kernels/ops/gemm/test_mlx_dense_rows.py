@@ -75,6 +75,25 @@ class TestMlxDenseRows(CustomTestCase):
                         )
                         self.assertTrue(mx.array_equal(result, expected).item())
 
+    def test_kda_verification_rows_preserve_singleton_projection(self):
+        """Wider row tiles must retain the large KDA bank's reduction order."""
+        import mlx.core as mx
+
+        from sglang.kernels.ops.gemm.mlx_dense_rows import mlx_dense_rows
+
+        mx.random.seed(20261102)
+        for n, k in ((24896, 4096), (4096, 8192)):
+            weight = (mx.random.normal((n, k)) * 0.02).astype(mx.bfloat16)
+            mx.eval(weight)
+            for count in (4, 5, 6, 7, 8):
+                x = mx.random.normal((1, count, k)).astype(mx.bfloat16)
+                expected = mx.concatenate(
+                    [mlx_dense_rows(x[:, j : j + 1], weight) for j in range(count)], 1
+                )
+                self.assertTrue(
+                    mx.array_equal(mlx_dense_rows(x, weight), expected).item()
+                )
+
     def test_strided_inputs_and_unsupported_reductions(self):
         import mlx.core as mx
 
