@@ -188,12 +188,11 @@ class TestGlm5NextMlx(CustomTestCase):
         import mlx.core as mx
         import numpy as np
         import torch
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import Model, ModelArgs
         from transformers.models.glm5_next.configuration_glm5_next import (
             Glm5NextTextConfig,
         )
         from transformers.models.glm5_next.modeling_glm5_next import Glm5NextTextModel
-
-        from sglang.srt.hardware_backend.mlx.models.glm5_next import Model, ModelArgs
 
         torch.manual_seed(42)
         cls.config = Glm5NextTextConfig(
@@ -786,11 +785,10 @@ class TestGlm5NextMlx(CustomTestCase):
         import mlx.core as mx
         import numpy as np
         import torch
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import hyper_connection
         from transformers.models.glm5_next.modeling_glm5_next import (
             Glm5NextTextHyperConnection,
         )
-
-        from sglang.srt.hardware_backend.mlx.models.glm5_next import hyper_connection
 
         config = copy.deepcopy(self.config)
         config.hc_mult, config.hc_sinkhorn_iters = 4, 20
@@ -850,9 +848,8 @@ class TestGlm5NextMlx(CustomTestCase):
         import mlx.core as mx
         import numpy as np
         import torch
-        from transformers.cache_utils import DynamicCache
-
         from sglang.srt.hardware_backend.mlx.models.glm5_next import NativeCache
+        from transformers.cache_utils import DynamicCache
 
         attn = self.model.layers[3].self_attn
         reference = self.reference.layers[3].self_attn.indexer
@@ -1466,6 +1463,107 @@ class TestGlm5NextMlx(CustomTestCase):
                         mx.max(mx.abs(got_logits - want_logits)).item(), 0.04
                     )
 
+    def test_f_parallel_verify_causal_split_and_rejected_prefix(self):
+
+        import mlx.core as mx
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import (
+            MLA,
+            MLACache,
+            ModelArgs,
+            _FixedMLAAttention,
+        )
+        from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
+
+        mx.random.seed(954)
+        args = ModelArgs(
+            model_type="glm5_next",
+            text_config={
+                "hidden_size": 512,
+                "rms_norm_eps": 1e-5,
+                "attention_bias": False,
+                "num_attention_heads": 64,
+                "q_lora_rank": 512,
+                "kv_lora_rank": 512,
+                "qk_nope_head_dim": 128,
+                "qk_rope_head_dim": 0,
+                "v_head_dim": 128,
+                "index_head_dim": 128,
+                "index_n_heads": 4,
+                "index_topk": 2048,
+                "index_kpool": 16,
+                "index_kpool_always_select_tail": True,
+            },
+        )
+
+        class CompactingMLA(MLA):
+            def attend_rows(self, *inputs, indices_valid=False, **kwargs):
+                return super().attend_rows(*inputs, indices_valid=False, **kwargs)
+
+        attn = MLA(args)
+        attn.set_dtype(mx.bfloat16)
+        compacting = CompactingMLA(args)
+        compacting.update(attn.parameters())
+        for offset in (31, 255, 256, 257, 2047, 2048, 2049):
+            base = MLACache(4)
+            # Populate real index/cache state using original AR/prefill.
+            mx.eval(
+                attn(mx.random.normal((1, offset, 512)).astype(mx.bfloat16), base),
+                base.state,
+            )
+            x = mx.random.normal((1, 3, 512)).astype(mx.bfloat16)
+            for compiled in (False, True):
+                reference, rs = compacting.verify_rows(x, clone_cache(base))
+                graph = _FixedMLAAttention(attn) if compiled else None
+                actual, cs = attn.verify_rows(
+                    x,
+                    clone_cache(base),
+                    attention_graph=graph,
+                )
+                self.assertTrue(
+                    mx.array_equal(reference, actual).item(),
+                    (offset, compiled, "outputs"),
+                )
+                for left, right in zip(rs, cs):
+                    self.assertEqual(left.offset, right.offset)
+                    self.assertEqual(len(left.cache), len(right.cache))
+                    for a, b in zip(left.cache, right.cache):
+                        if a is None or b is None:
+                            self.assertIs(a, b)
+                        else:
+                            self.assertTrue(mx.array_equal(a, b).item())
+                for consumed in (1, 2):
+                    follow = mx.random.normal((1, 1, 512)).astype(mx.bfloat16)
+                    expected = attn(follow, clone_cache(rs[consumed - 1]))
+                    got = attn(follow, clone_cache(cs[consumed - 1]))
+                    self.assertTrue(
+                        mx.array_equal(expected, got).item(),
+                        (offset, consumed, "resume"),
+                    )
+        # Poison future keys AND capacity region. Input causal metadata is
+        # distinct from selected lengths, including a deliberately future id.
+        q = mx.random.normal((1, 3, 64 * 128)).astype(mx.bfloat16)
+        kv = mx.random.normal((1, 513, 512)).astype(mx.bfloat16)
+        ends = mx.array([511, 512, 513], mx.uint32)
+        ids = mx.broadcast_to(mx.arange(513, dtype=mx.int32), (1, 3, 513))
+        lengths = mx.array([513, 513, 513], mx.uint32)
+        ref = attn.attend_rows(q, kv, None, ids, lengths, visible_ends=ends)
+        prefix = mx.pad(
+            kv[:, :256], [(0, 0), (0, 256), (0, 0)], constant_values=float("nan")
+        )
+        tail = mx.pad(
+            kv[:, 256:], [(0, 0), (0, 255), (0, 0)], constant_values=float("nan")
+        )
+        got = attn.attend_rows(
+            q,
+            prefix,
+            tail,
+            ids,
+            lengths,
+            split=mx.array(256, mx.uint32),
+            visible_ends=ends,
+        )
+        self.assertTrue(mx.array_equal(ref, got).item())
+
     def test_mla_verify_rows_match_legal_prefixes_and_index_pool_growth(self):
         import copy
 
@@ -1533,14 +1631,13 @@ class TestGlm5NextMlx(CustomTestCase):
     def _optimized_mtp_model(self, *, attention_heads=2, latent_rank=256):
         """Covered GLM geometry, genuine BF16 mHC and mixed affine experts."""
         import mlx.core as mx
-        from transformers.models.glm5_next.configuration_glm5_next import (
-            Glm5NextTextConfig,
-        )
-
         from sglang.srt.hardware_backend.mlx.models.glm5_next import (
             Model,
             ModelArgs,
             MoE,
+        )
+        from transformers.models.glm5_next.configuration_glm5_next import (
+            Glm5NextTextConfig,
         )
 
         mx.random.seed(83)

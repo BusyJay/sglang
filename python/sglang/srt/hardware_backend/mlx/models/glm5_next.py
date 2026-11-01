@@ -1350,6 +1350,21 @@ class Indexer(nn.Module):
         return indices
 
 
+def _f_visible_indices(indices, selected_lengths, visible_ends):
+    # selected_lengths and causal ends are independent device metadata.
+    # Respect original selected prefix before stable legal compaction.
+    rows, width = indices.shape[1:]
+    position = mx.arange(width, dtype=mx.int32)
+    lengths = (
+        selected_lengths
+        if isinstance(selected_lengths, mx.array)
+        else mx.array(selected_lengths, mx.uint32)
+    ).reshape(rows)
+    valid = (position[None, None, :] < lengths[None, :, None]) & (indices >= 0)
+    valid &= indices.astype(mx.uint32) < visible_ends[None, :, None]
+    order = mx.argsort(mx.where(valid, position, position + width), axis=-1)
+    table = mx.take_along_axis(mx.where(valid, indices, -1), order, axis=-1)
+    return table, mx.sum(valid, axis=-1).reshape(rows).astype(mx.uint32)
 
 class MLA(nn.Module):
     cache_latent_projection = False
@@ -1537,15 +1552,24 @@ class MLA(nn.Module):
         )
 
     def verify_rows(
-        self, x, cache, *, projected=None, project_output=True,
-        attention_graph=None, graph_observation=None,
+        self,
+        x,
+        cache,
+        *,
+        projected=None,
+        project_output=True,
+        attention_graph=None,
+        graph_observation=None,
     ):
         """Batch projections and latent attention with explicit per-row visibility."""
         a = self.args
         b, count, _ = x.shape
         qr, q, new_kv, index_projection = (
-            self.project_verify_rows(x, selecting=self._selection_needed(cache.offset, count))
-            if projected is None else projected
+            self.project_verify_rows(
+                x, selecting=self._selection_needed(cache.offset, count)
+            )
+            if projected is None
+            else projected
         )
         offset = cache.offset
         if isinstance(cache, MLACache):
@@ -1565,7 +1589,9 @@ class MLA(nn.Module):
                 qr[:, j : j + 1],
                 cache,
                 offset + j,
-                projected=tuple(v[:, j : j + 1] if v is not None else None for v in index_projection),
+                projected=tuple(
+                    v[:, j : j + 1] if v is not None else None for v in index_projection
+                ),
             )
             if indices is None:
                 indices = mx.arange(length)[None, None, :]
@@ -1609,18 +1635,52 @@ class MLA(nn.Module):
             cache.latent_segments() if isinstance(cache, MLACache) else (kv, None)
         )
         lengths = [v.shape[-1] for v in selected]
+        visible_ends = mx.array(offset, mx.uint32) + mx.arange(
+            1, count + 1, dtype=mx.uint32
+        )
         if attention_graph is not None:
             out = attention_graph(
-                q, prefix, tail, indices, mx.array(lengths, mx.uint32), observation=graph_observation
+                q,
+                prefix,
+                tail,
+                indices,
+                mx.array(lengths, mx.uint32),
+                visible_ends=visible_ends,
+                indices_valid=True,
+                observation=graph_observation,
             )
         else:
-            out = self.attend_rows(q, prefix, tail, indices, lengths)
+            out = self.attend_rows(
+                q,
+                prefix,
+                tail,
+                indices,
+                lengths,
+                visible_ends=visible_ends,
+                indices_valid=True,
+            )
         return (_project_rows(self.o_proj, out) if project_output else out), snapshots
 
-    def attend_rows(self, q, prefix, tail, indices, lengths, *, split=None):
+    def attend_rows(
+        self,
+        q,
+        prefix,
+        tail,
+        indices,
+        lengths,
+        *,
+        split=None,
+        visible_ends=None,
+        indices_valid=False,
+    ):
         """Stateless latent attention with runtime visible-length metadata."""
         a = self.args
         b, count, _ = q.shape
+        covered = b == 1 and a.num_attention_heads == 64 and a.kv_lora_rank == 512
+        if covered and visible_ends is not None and not indices_valid:
+            indices, lengths = _f_visible_indices(
+                indices.astype(mx.int32), lengths, visible_ends
+            )
         width = indices.shape[-1]
         q = q.reshape(b, count, a.num_attention_heads, a.qk_nope_head_dim).transpose(
             0, 2, 1, 3
@@ -2050,11 +2110,11 @@ class DecoderLayer(nn.Module):
         attention projections share weights across all chains, including ragged
         chain lengths. Row slices preserve singleton reductions and routing order.
         """
-        counts = [x.shape[1] for x in rows]
+        counts = [(x).shape[1] for x in rows]
         prepared = [
             [
-                self._branch_inputs(x[:, j : j + 1], "attn", self.input_layernorm)
-                for j in range(x.shape[1])
+                self._branch_inputs((x)[:, j : j + 1], "attn", self.input_layernorm)
+                for j in range((x).shape[1])
             ]
             for x in rows
         ]
@@ -2069,7 +2129,9 @@ class DecoderLayer(nn.Module):
                 def slice_rows(value):
                     if isinstance(value, tuple):
                         return tuple(slice_rows(v) for v in value)
-                    return value[:, cursor : cursor + count] if value is not None else None
+                    return (
+                        value[:, cursor : cursor + count] if value is not None else None
+                    )
 
                 local = tuple(slice_rows(v) for v in projected)
             result = self.self_attn.verify_rows(
@@ -2122,7 +2184,7 @@ class DecoderLayer(nn.Module):
             self.post_attention_layernorm,
         )
         branches = []
-        for start in range(0, value.shape[1], 17):
+        for start in range(0, (value).shape[1], 17):
             tile = value[:, start : start + 17]
             branches.append(
                 self.mlp(tile, batch_fusion=True, shared_stream=shared_stream)
@@ -2133,7 +2195,7 @@ class DecoderLayer(nn.Module):
         result = self._branch_output(branch, post, residual)
         outputs, cursor = [], 0
         for count in counts:
-            outputs.append(result[:, cursor : cursor + count])
+            outputs.append((result)[:, cursor : cursor + count])
             cursor += count
         return outputs, snapshots
 
@@ -2144,8 +2206,8 @@ class DecoderLayer(nn.Module):
             return fixed(x, cache)
         attended, snapshots = [], []
         attention_inputs = [
-            self._branch_inputs(x[:, j : j + 1], "attn", self.input_layernorm)
-            for j in range(x.shape[1])
+            self._branch_inputs((x)[:, j : j + 1], "attn", self.input_layernorm)
+            for j in range((x).shape[1])
         ]
         normed_rows = mx.concatenate([v[0] for v in attention_inputs], 1)
         if (
@@ -2174,7 +2236,7 @@ class DecoderLayer(nn.Module):
                 snapshot.offset = cache.offset
                 snapshots.append(snapshot)
         normed, post, residual = self._branch_inputs(
-            mx.concatenate(attended, axis=1), "ffn", self.post_attention_layernorm
+            mx.concatenate(attended, 1), "ffn", self.post_attention_layernorm
         )
         branch = (
             self.mlp(normed, batch_fusion=True, shared_stream=shared_stream)
@@ -2511,10 +2573,23 @@ class _FixedMLAAttention(_FixedGraphOwner):
         self.attention = attention
         self.graphs = {}
 
-    def __call__(self, q, prefix, tail, indices, lengths, *, observation=None):
+    def __call__(
+        self,
+        q,
+        prefix,
+        tail,
+        indices,
+        lengths,
+        *,
+        observation=None,
+        visible_ends=None,
+        indices_valid=False,
+    ):
         if tail is None:
             tail = prefix[:, :0]
         split = prefix.shape[1]
+        if visible_ends is None:
+            visible_ends = mx.full((q.shape[1],), split + tail.shape[1], mx.uint32)
         # Only the first short prefix grows per token. Long sealed prefixes
         # already have a stable shape; padding them would copy full history.
         if split < 256:
@@ -2525,7 +2600,7 @@ class _FixedMLAAttention(_FixedGraphOwner):
             _observe_graph(self, self.attention) if observation is None else observation
         )
         spec = (
-            configuration,
+            (configuration, indices_valid),
             q.shape,
             q.dtype,
             indices.shape,
@@ -2539,16 +2614,32 @@ class _FixedMLAAttention(_FixedGraphOwner):
             attention = _clone_graph_modules(self.attention)
             attention.cache_latent_projection = False
 
-            def forward(query, left, right, table, visible, split, weights):
+            def forward(
+                query, left, right, table, visible, causal_ends, split, weights
+            ):
                 attention.update(weights)
                 return attention.attend_rows(
-                    query, left, right, table, visible, split=split
+                    query,
+                    left,
+                    right,
+                    table,
+                    visible,
+                    split=split,
+                    visible_ends=causal_ends,
+                    indices_valid=indices_valid,
                 )
 
             graph = mx.compile(forward)
             self._remember_graph(spec, graph, (spec[0], spec[7]))
         return graph(
-            q, prefix, tail, indices, lengths, mx.array(split, mx.uint32), parameter
+            q,
+            prefix,
+            tail,
+            indices,
+            lengths,
+            visible_ends,
+            mx.array(split, mx.uint32),
+            parameter,
         )
 
 
