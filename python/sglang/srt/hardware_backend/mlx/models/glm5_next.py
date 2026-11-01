@@ -2215,6 +2215,16 @@ def _clone_graph_modules(modules, excluded=()):
 
 
 class _FixedGraphOwner:
+    def _remember_graph(self, spec, graph, configuration):
+        # Retain common verification depths and capacity buckets. Model changes
+        # invalidate all layouts; layout churn has a bounded storage cost.
+        if getattr(self, "_graph_configuration_key", None) != configuration:
+            self.graphs.clear()
+            self._graph_configuration_key = configuration
+        if len(self.graphs) >= 8:
+            del self.graphs[next(iter(self.graphs))]
+        self.graphs[spec] = graph
+
     def __deepcopy__(self, memo):
         # Compiled functions close over private module containers and are not
         # pickleable. A copied model must compile its own functions rather than
@@ -2273,8 +2283,7 @@ class _FixedMLAAttention(_FixedGraphOwner):
                 )
 
             graph = mx.compile(forward)
-            self.graphs.clear()
-            self.graphs[spec] = graph
+            self._remember_graph(spec, graph, (spec[0], spec[7]))
         return graph(
             q, prefix, tail, indices, lengths, mx.array(split, mx.uint32), parameter
         )
@@ -2346,8 +2355,7 @@ class _FixedMLALayer(_FixedGraphOwner):
                 return layer._branch_output(branch, post, residual)
 
             graphs = mx.compile(prepare), mx.compile(finish)
-            self.graphs.clear()
-            self.graphs[spec] = graphs
+            self._remember_graph(spec, graphs, (spec[0], spec[3:]))
         parts, normed, projected = graphs[0](x, weights)
         branch, snapshots = self.layer.self_attn.verify_rows(
             normed, cache, projected=projected, attention_graph=self.attention
@@ -2461,10 +2469,7 @@ class _FixedLayerGroup(_FixedGraphOwner):
                 return value, outputs, boundaries
 
             graph = mx.compile(forward)
-            # Keep only the current layout. Growing contexts must not retain
-            # one graph and weight closure per token indefinitely.
-            self.graphs.clear()
-            self.graphs[spec] = graph
+            self._remember_graph(spec, graph, (spec[0], sources, flags))
         prepared = []
         for layer in self.layers:
             attention = tuple(

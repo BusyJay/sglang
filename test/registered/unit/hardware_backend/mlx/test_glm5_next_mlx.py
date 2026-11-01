@@ -18,6 +18,48 @@ register_mlx_ci(est_time=10, suite="stage-a-unit-test-mlx")
 
 @unittest.skipUnless(importlib.util.find_spec("mlx"), "requires MLX")
 class TestGlm5NextMlx(CustomTestCase):
+    def test_fixed_graphs_reuse_alternating_verification_depths(self):
+        import copy
+
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
+
+        model = self._optimized_mtp_model(attention_heads=64, latent_rank=512)
+        base = model.make_cache()
+        mx.eval(model(mx.array([[1, 2, 3, 4]]), base))
+        reference = copy.deepcopy(model)
+        reference.configure_fixed_groups(False)
+        owners = []
+        for layer in model.layers:
+            owner = getattr(layer, "_fixed_mla_layer", None)
+            if owner is not None:
+                owners.extend((owner, owner.attention))
+        first = None
+        for repeat in range(3):
+            for count in (3, 2):
+                tokens = mx.array([list(range(11, 11 + count))])
+                actual = model.verify_mtp_rows(tokens, [clone_cache(c) for c in base])
+                mx.eval(actual[:2])
+                if repeat == 0 and count == 3:
+                    first = [list(owner.graphs.values())[-1] for owner in owners]
+                elif count == 3:
+                    for owner, graph in zip(owners, first):
+                        self.assertTrue(
+                            any(value is graph for value in owner.graphs.values())
+                        )
+                expected = reference.verify_mtp_rows(
+                    tokens, [clone_cache(c) for c in base]
+                )
+                mx.eval(expected[:2])
+                for got, want in zip(actual[:2], expected[:2]):
+                    self.assertTrue(mx.array_equal(got, want).item())
+                for got, want in zip(actual[2], expected[2]):
+                    self._assert_optimized_cache_equal(got, want)
+        self.assertTrue(owners)
+        self.assertTrue(all(len(owner.graphs) <= 8 for owner in owners))
+
+
     def test_latent_append_snapshots_restore_inside_and_across_blocks(self):
         """Rejected suffixes cannot overwrite a retained prefix or append block."""
         import mlx.core as mx
