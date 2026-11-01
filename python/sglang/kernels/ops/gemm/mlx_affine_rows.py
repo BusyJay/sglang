@@ -423,8 +423,8 @@ _ROUTED_GATE_UP = r"""
 """
 
 
-# Three-token tiles group picks by expert entirely on-device. The first pick
-# owns the group, and scatters each result back to its original top-k slot.
+# Group picks across the verification chain on-device. The first pick owns
+# the expert; bounded three-row arithmetic tiles retain singleton rounding.
 _GROUPED_GATE_UP_PREFIX = r"""
 const uint lane = thread_index_in_simdgroup;
     const uint sg = simdgroup_index_in_threadgroup;
@@ -433,7 +433,7 @@ const uint lane = thread_index_in_simdgroup;
     const uint expert=indices[first];
     const uint matches=counts[first];
     if(matches==0) return;
-    const device uint* picks=grouped+first*(TOPK*TILE);
+    const device uint* picks=grouped+first*GROUP_WIDTH;
     constexpr int PACK = glm_pack_factor<BITS>();
     constexpr int BYTES = glm_bytes_per_pack<BITS>();
     constexpr int VPT = 2 * PACK;
@@ -635,8 +635,8 @@ def mlx_affine_routed_swiglu(
 ):
     """Fuse routed gate/up and rounded activation without duplicating weights.
 
-    Each SIMD owns bounded output rows. Three-token tiles group actual matching
-    experts on-device, sharing packed weights and metadata across their rows.
+    Each SIMD owns bounded output rows. Matching experts are grouped across the
+    chain and processed in three-row tiles sharing packed weights and metadata.
     Outputs scatter to the original token/top-k slots, including duplicates.
     """
     if (
@@ -679,7 +679,7 @@ def mlx_affine_routed_swiglu(
     inputs = [x, *gate, *up, indices, mx.array([limit or 0], mx.float32)]
     if x.shape[1] > 1:
         inputs.extend(
-            _group_picks(indices, min(3, x.shape[1]))
+            _group_picks(indices, x.shape[1])
             if grouped is None
             else tuple(mx.contiguous(v) for v in grouped)
         )
@@ -701,6 +701,7 @@ def mlx_affine_routed_swiglu(
             ("TOPK", topk),
             ("COUNT", x.shape[1]),
             ("TILE", min(3, x.shape[1])),
+            ("GROUP_WIDTH", inputs[-2].shape[1] if x.shape[1] > 1 else topk),
             ("RPS", 2),
             ("HAS_LIMIT", limit is not None),
         ],

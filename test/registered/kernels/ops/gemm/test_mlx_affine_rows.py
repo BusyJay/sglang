@@ -88,7 +88,7 @@ class TestMlxAffineRows(CustomTestCase):
                     template=[
                         ("T", dtype), ("K", 512), ("N", 32), ("GS", 64),
                         ("BITS", 4), ("TOPK", 8), ("COUNT", count),
-                        ("TILE", min(3, count)), ("RPS", 2), ("HAS_LIMIT", True),
+                        ("TILE", min(3, count)), ("GROUP_WIDTH", grouped[0].shape[1]), ("RPS", 2), ("HAS_LIMIT", True),
                     ],
                     grid=(128 * 4, count * 8, 1), threadgroup=(128, 1, 1),
                     output_shapes=[(1, count, 8, 32)], output_dtypes=[dtype],
@@ -120,7 +120,7 @@ class TestMlxAffineRows(CustomTestCase):
                         storage[::stride, ::2, ::stride] = value
                         views.append(storage[::stride, ::2, ::stride])
                     operands.append(tuple(views))
-                for count in (1, 3, 5, 17):
+                for count in (1, 3, 4, 5, 6, 8, 17):
                     x = mx.random.normal((1, 2 * count, 1024)).astype(dtype)[
                         :, ::2, ::2
                     ]
