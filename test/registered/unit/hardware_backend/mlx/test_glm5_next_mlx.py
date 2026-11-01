@@ -371,14 +371,13 @@ class TestGlm5NextMlx(CustomTestCase):
             runner = MlxModelRunner(str(path), disable_radix_cache=True, pool_size=128)
             self.addCleanup(runner.clear)
             runner.init_cache_pools(None)
-            # Exercise the serving dispatch rather than only the model helper.
-            with patch.object(
-                runner.model,
-                "forward_last_logits",
-                wraps=runner.model.forward_last_logits,
-            ) as forward:
-                runner.prefill("last-only", self.tokens[:4], self.tokens[:4], [], [], 0)
-                self.assertEqual(forward.call_count, 1)
+            # Check the served token and consumed state across the head contract.
+            reference_cache = model.make_cache()
+            logits = model(mx.array([self.tokens[:4]]), reference_cache)
+            expected_token = int(mx.argmax(logits[:, -1], -1).item())
+            actual_token = runner.prefill("last-only", self.tokens[:4], self.tokens[:4], [], [], 0)
+            self.assertEqual(actual_token, expected_token)
+            self._assert_optimized_cache_equal(runner._req_caches["last-only"], reference_cache)
             prompts = {"a": self.tokens[:9], "b": self.tokens[:3]}
             expected = {}
             for rid, prompt in prompts.items():
@@ -1675,6 +1674,77 @@ class TestGlm5NextMlx(CustomTestCase):
         self.assertTrue(mx.array_equal(actual[0], expected[0]).item())
         for got, want in zip(actual[2], expected[2]):
             self._assert_optimized_cache_equal(got, want)
+
+    def test_token_only_serving_switches_contract_at_consumption_boundary(self):
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.model_runner import MlxModelRunner
+        from sglang.srt.hardware_backend.mlx.mtp_serving import MlxMTPServing
+        from sglang.srt.hardware_backend.mlx.sampling import (
+            GREEDY_PARAMS,
+            MlxSamplingParams,
+        )
+
+        model = self._optimized_mtp_model()
+        runner = object.__new__(MlxModelRunner)
+        runner.model = model
+        runner._enable_sampling = True
+        runner._sanitize_nan = False
+        runner._req_sampling = {"a": GREEDY_PARAMS}
+        self.assertTrue(runner._token_only_allowed(["a"]))
+        self.assertFalse(runner._token_only_allowed(["a"], logits_hook=lambda x: x))
+        self.assertFalse(runner._token_only_allowed(["a"], logprob_spec=object()))
+        self.assertFalse(runner._token_only_allowed(["a"], edit_rows=mx.zeros((1, 128))))
+        runner._sanitize_nan = True
+        self.assertFalse(runner._token_only_allowed(["a"]))
+        runner._sanitize_nan = False
+        runner._req_sampling["a"] = MlxSamplingParams(1, 4, 1, 0, None)
+        self.assertFalse(runner._token_only_allowed(["a"]))
+        for steps in (0, 2, 4):
+            actual, reference = MlxMTPServing(model, steps), MlxMTPServing(model, steps)
+            caches = [model.make_cache(), model.make_cache()]
+            prompt = mx.array([[1, 2, 3, 4]])
+            hidden = actual.prefill("a", prompt, caches[0])
+            reference.prefill("a", prompt, caches[1])
+            token = int(mx.argmax(model.lm_head(hidden[:, -1:])).item())
+            for iteration in range(8):
+                inputs = mx.array([[token]], mx.int32)
+                expected = reference.decode_batch(["a"], inputs, [caches[1]], [token])
+                token_only = iteration % 3 != 2
+                output = actual.decode_batch(
+                    ["a"], inputs, [caches[0]], [token], token_only=token_only
+                )
+                choice = output.reshape(-1) if token_only else mx.argmax(output, -1)
+                expected_choice = mx.argmax(expected, -1)
+                self.assertTrue(mx.array_equal(choice, expected_choice).item())
+                self._assert_optimized_cache_equal(caches[0], caches[1])
+                token = int(choice.item()) if iteration != 3 else 19
+            actual.remove("a")
+            stats = actual.stats()
+
+    def test_token_only_target_retains_logits_and_cache_contract(self):
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
+
+        model = self._optimized_mtp_model(attention_heads=64, latent_rank=512)
+        cache = model.make_cache()
+        mx.eval(model(mx.array([[1, 2, 3, 4]]), cache))
+        tokens = mx.array([[11, 17, 23]])
+        logits, hidden, states = model.verify_mtp_rows(tokens, [clone_cache(c) for c in cache])
+        actual, actual_hidden, actual_states = model.verify_mtp_rows(
+            tokens, [clone_cache(c) for c in cache], token_only=True
+        )
+        self.assertTrue(mx.array_equal(actual, mx.argmax(logits, -1)).item())
+        self.assertTrue(mx.array_equal(hidden, actual_hidden).item())
+        for got, want in zip(actual_states, states):
+            self._assert_optimized_cache_equal(got, want)
+        first = [clone_cache(c) for c in cache]
+        second = [clone_cache(c) for c in cache]
+        predicted = model.forward_last_tokens(tokens[:, :1], first)
+        expected = mx.argmax(model.forward_last_logits(tokens[:, :1], second), -1)
+        self.assertTrue(mx.array_equal(predicted, expected).item())
+        self._assert_optimized_cache_equal(first, second)
 
     def test_optimized_fixed_graphs_refresh_scalar_equations(self):
         """Compiled owners must observe changed FFN limits, norm and dispatch metadata."""

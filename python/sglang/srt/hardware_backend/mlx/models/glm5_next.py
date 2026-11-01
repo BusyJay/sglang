@@ -2767,7 +2767,7 @@ class Model(nn.Module):
         layers = self.model.layers
         return layers[-1] if len(layers) > self.args.num_hidden_layers else None
 
-    def decode_requests(self, inputs, caches):
+    def decode_requests(self, inputs, caches, *, token_only=False):
         """Ragged request contract: one token and independent layer caches each."""
         if not inputs or len(inputs) != len(caches):
             raise ValueError("One cache owner is required for each decode request")
@@ -2778,7 +2778,7 @@ class Model(nn.Module):
         if len(inputs) > 17:
             return mx.concatenate(
                 [
-                    self.decode_requests(inputs[i : i + 17], caches[i : i + 17])
+                    self.decode_requests(inputs[i : i + 17], caches[i : i + 17], token_only=token_only)
                     for i in range(0, len(inputs), 17)
                 ],
                 axis=0,
@@ -2806,12 +2806,40 @@ class Model(nn.Module):
         hidden = mx.concatenate(
             [self.model.norm(v.mean(-2) if self.args.mhc else v) for v in rows], axis=1
         )
+        if token_only:
+            return self.target_tokens(hidden).swapaxes(0, 1)
         logits = _project_rows(self.lm_head, hidden)
         return logits.swapaxes(0, 1)
 
-    def forward_with_hidden(self, inputs, cache=None):
+    def target_tokens(self, hidden):
+        """Explicit greedy contract: no logit edits, processors or logprobs."""
+        if hidden.shape[1] > 17:
+            return mx.concatenate(
+                [
+                    self.target_tokens(hidden[:, start : start + 17])
+                    for start in range(0, hidden.shape[1], 17)
+                ],
+                1,
+            )
+        tokens = (
+            mlx_dense_argmax_rows(hidden, self.lm_head.weight)
+            if type(self.lm_head) is nn.Linear and "bias" not in self.lm_head
+            else None
+        )
+        return (
+            tokens
+            if tokens is not None
+            else mx.argmax(_project_rows(self.lm_head, hidden), -1)
+        )
+
+    def forward_last_tokens(self, inputs, cache=None):
         hidden = self.model(inputs, cache if cache is not None else self.make_cache())
-        return self.lm_head(hidden), hidden
+        return self.target_tokens(hidden[:, -1:])
+
+    def forward_with_hidden(self, inputs, cache=None, *, token_only=False):
+        hidden = self.model(inputs, cache if cache is not None else self.make_cache())
+        output = self.target_tokens(hidden) if token_only else self.lm_head(hidden)
+        return output, hidden
 
     def draft_token(self, hidden):
         normalized = self.mtp.shared_head.norm(hidden)
@@ -2891,7 +2919,7 @@ class Model(nn.Module):
                 layer.self_attn.cache_latent_projection = enabled
                 layer.self_attn._latent_projection = None
 
-    def verify_mtp_requests(self, inputs, caches):
+    def verify_mtp_requests(self, inputs, caches, *, token_only=False):
         """Layerwise ragged MTP trunks with private per-depth cache owners."""
         if not inputs or len(inputs) != len(caches):
             raise ValueError("Each verification chain requires its own cache")
@@ -2902,7 +2930,7 @@ class Model(nn.Module):
         if any(len(c) != len(self.layers) for c in caches):
             raise ValueError("Each chain must own all target layer caches")
         if len(inputs) == 1:
-            return [self.verify_mtp_rows(inputs[0], caches[0])]
+            return [self.verify_mtp_rows(inputs[0], caches[0], token_only=token_only)]
         rows = [self.model.embed_tokens(v) for v in inputs]
         if self.args.mhc:
             rows = [mx.repeat(v[..., None, :], self.args.hc_mult, -2) for v in rows]
@@ -2923,7 +2951,8 @@ class Model(nn.Module):
                 )
                 start = i + 1
         hidden = [self.model.norm(v.mean(-2) if self.args.mhc else v) for v in rows]
-        logits = _project_rows(self.lm_head, mx.concatenate(hidden, 1))
+        logits = (self.target_tokens(mx.concatenate(hidden, 1)) if token_only
+                  else _project_rows(self.lm_head, mx.concatenate(hidden, 1)))
         result, cursor = [], 0
         for value, states in zip(hidden, snapshots):
             count = value.shape[1]
@@ -2931,7 +2960,7 @@ class Model(nn.Module):
             cursor += count
         return result
 
-    def verify_mtp_rows(self, inputs, cache):
+    def verify_mtp_rows(self, inputs, cache, *, token_only=False):
         """Verify a draft chain with per-position attention state.
 
         Fused recurrence emits every row boundary; MLA batches explicit projected
@@ -3013,6 +3042,8 @@ class Model(nn.Module):
             x = x.mean(axis=-2)
         hidden_rows = [self.model.norm(x[:, j : j + 1]) for j in range(count)]
         hidden = mx.concatenate(hidden_rows, axis=1)
+        if token_only:
+            return self.target_tokens(hidden), hidden, snapshots
         logits = None
         if (
             mode != "serial"

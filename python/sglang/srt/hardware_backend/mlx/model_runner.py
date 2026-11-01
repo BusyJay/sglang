@@ -1360,6 +1360,22 @@ class MlxModelRunner:
             return None
         return self._trunk(input_ids, cache=cache)
 
+    def _token_only_allowed(
+        self, req_ids, edit_rows=None, logprob_spec=None, logits_hook=None
+    ):
+        """Authorize the model's explicit head contract for this transaction."""
+        return (
+            callable(getattr(getattr(self, "model", None), "target_tokens", None))
+            and edit_rows is None
+            and logprob_spec is None
+            and logits_hook is None
+            and not self._sanitize_nan
+            and (
+                not self._enable_sampling
+                or all_greedy([self._req_sampling[rid] for rid in req_ids])
+            )
+        )
+
     def _forward_lazy_token(
         self,
         input_ids: mx.array,
@@ -1377,6 +1393,8 @@ class MlxModelRunner:
             hidden = self._mtp.prefill(req_id, input_ids, cache)
             if not needs_logits:
                 return self._dummy_next_token(hidden), None
+            if self._token_only_allowed([req_id], logit_edit_row, logprob_spec):
+                return self.model.target_tokens(hidden[:, -1:, :]).reshape(-1), None
             logits = self.model.lm_head(hidden[:, -1:, :])
             edits = logit_edit_row[None, :] if logit_edit_row is not None else None
             return self._select_tokens_with_logprobs(
@@ -1392,6 +1410,8 @@ class MlxModelRunner:
             model_output = self.model(input_ids, cache=cache)
             logits = self._extract_logits(model_output)
             return mx.argmax(logits[:, -1, :], axis=-1), None
+        if self._token_only_allowed([req_id], logit_edit_row, logprob_spec):
+            return self.model.forward_last_tokens(input_ids, cache=cache).reshape(-1), None
         forward = getattr(self.model, "forward_last_logits", self.model)
         model_output = forward(input_ids, cache=cache)
         logits = self._extract_logits(model_output)
@@ -1734,7 +1754,12 @@ class MlxModelRunner:
         self,
         caches: list[list[Any]],
         input_ids_by_request: list[mx.array],
+        *, token_only: bool = False,
     ) -> mx.array:
+        if token_only:
+            if len(caches) > 1:
+                return self.model.decode_requests(input_ids_by_request, caches, token_only=True).reshape(-1)
+            return self.model.forward_last_tokens(input_ids_by_request[0], cache=caches[0]).reshape(-1)
         batched_decode = getattr(self.model, "decode_requests", None)
         if len(caches) > 1 and callable(batched_decode):
             return self._extract_logits(batched_decode(input_ids_by_request, caches))[
@@ -1837,13 +1862,16 @@ class MlxModelRunner:
         last_tokens = [self._req_token_ids[rid][-1] for rid in req_ids]
         batched_input = mx.array(last_tokens, dtype=mx.int32)[:, None]
 
+        token_only = self._token_only_allowed(
+            req_ids, edit_rows, logprob_spec, logits_hook
+        )
         if self._mtp is not None:
             last_logits = self._mtp.decode_batch(
-                req_ids, batched_input, caches, last_tokens
+                req_ids, batched_input, caches, last_tokens, token_only=token_only
             )
         elif self._native_cache:
             last_logits = self._decode_with_native_cache(
-                caches, [batched_input[i : i + 1] for i in range(len(caches))]
+                caches, [batched_input[i : i + 1] for i in range(len(caches))], token_only=token_only
             )
         elif self._cache_layout.has_auxiliary_state:
             last_logits = self._decode_with_hybrid_batching(
@@ -1861,9 +1889,12 @@ class MlxModelRunner:
                 last_logits = last_logits.astype(mx.float32) + edit_rows
                 edit_rows = None
             last_logits = self._run_logits_hook(last_logits, logits_hook)
-        lazy_tokens, lazy_logprobs = self._select_tokens_with_logprobs(
-            last_logits, list(req_ids), caches, edit_rows, logprob_spec
-        )
+        if token_only:
+            lazy_tokens, lazy_logprobs = last_logits.reshape(-1), None
+        else:
+            lazy_tokens, lazy_logprobs = self._select_tokens_with_logprobs(
+                last_logits, list(req_ids), caches, edit_rows, logprob_spec
+            )
         return MlxPendingDecode(
             lazy_tokens=lazy_tokens,
             req_ids=list(req_ids),
@@ -1905,9 +1936,12 @@ class MlxModelRunner:
         # So layer-0 offsets reflect the position the NEW token will
         # be written at in step N+1 (and equivalently the RoPE offset).
         batched_input = prev.lazy_tokens[:, None]
+        token_only = self._token_only_allowed(
+            prev.req_ids, prev.edit_rows, prev.logprob_spec
+        )
         if self._native_cache:
             last_logits = self._decode_with_native_cache(
-                caches, [batched_input[i : i + 1] for i in range(len(caches))]
+                caches, [batched_input[i : i + 1] for i in range(len(caches))], token_only=token_only
             )
         elif self._cache_layout.has_auxiliary_state:
             last_logits = self._decode_with_hybrid_batching(
@@ -1918,9 +1952,12 @@ class MlxModelRunner:
                 caches, batched_input, prev.req_ids, allow_pool_attention=False
             )
 
-        lazy_tokens, lazy_logprobs = self._select_tokens_with_logprobs(
-            last_logits, prev.req_ids, caches, prev.edit_rows, prev.logprob_spec
-        )
+        if token_only:
+            lazy_tokens, lazy_logprobs = last_logits.reshape(-1), None
+        else:
+            lazy_tokens, lazy_logprobs = self._select_tokens_with_logprobs(
+                last_logits, prev.req_ids, caches, prev.edit_rows, prev.logprob_spec
+            )
         return MlxPendingDecode(
             lazy_tokens=lazy_tokens,
             req_ids=prev.req_ids,
