@@ -18,47 +18,68 @@ register_mlx_ci(est_time=10, suite="stage-a-unit-test-mlx")
 
 @unittest.skipUnless(importlib.util.find_spec("mlx"), "requires MLX")
 class TestGlm5NextMlx(CustomTestCase):
-    def test_fixed_graphs_reuse_alternating_verification_depths(self):
+    def test_missing_native_prefix_snapshot_keeps_prefill_bound(self):
+        """A cache miss must not expand a small scheduler suffix into one giant forward."""
         import copy
+        from types import SimpleNamespace
 
         import mlx.core as mx
+        from mlx.utils import tree_flatten
 
-        from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
+        from sglang.srt.hardware_backend.mlx.model_runner import MlxModelRunner
+        from sglang.srt.runtime_context import get_context
 
-        model = self._optimized_mtp_model(attention_heads=64, latent_rank=512)
-        base = model.make_cache()
-        mx.eval(model(mx.array([[1, 2, 3, 4]]), base))
-        reference = copy.deepcopy(model)
-        reference.configure_fixed_groups(False)
-        owners = []
-        for layer in model.layers:
-            owner = getattr(layer, "_fixed_mla_layer", None)
-            if owner is not None:
-                owners.extend((owner, owner.attention))
-        first = None
-        for repeat in range(3):
-            for count in (3, 2):
-                tokens = mx.array([list(range(11, 11 + count))])
-                actual = model.verify_mtp_rows(tokens, [clone_cache(c) for c in base])
-                mx.eval(actual[:2])
-                if repeat == 0 and count == 3:
-                    first = [list(owner.graphs.values())[-1] for owner in owners]
-                elif count == 3:
-                    for owner, graph in zip(owners, first):
-                        self.assertTrue(
-                            any(value is graph for value in owner.graphs.values())
-                        )
-                expected = reference.verify_mtp_rows(
-                    tokens, [clone_cache(c) for c in base]
+        model = copy.deepcopy(self.model)
+        runner = object.__new__(MlxModelRunner)
+        runner.model = model
+        runner._mtp = None
+        runner._enable_sampling = False
+        runner._req_to_token_pool = None
+        runner._cache_layout = SimpleNamespace(has_auxiliary_state=False)
+        lengths = []
+
+        def trunk(inputs, cache):
+            lengths.append(inputs.shape[1])
+            return model.model(inputs, cache=cache)
+
+        runner._trunk = trunk
+        tokens = [10, 11, 12, 13] * 16 + [19, 23, 29]
+        cache = model.make_cache()
+        with get_context().override_server_args(
+            model_path="dummy", chunked_prefill_size=16
+        ):
+            with patch.object(runner, "_acquire_cache", model.make_cache):
+                pending = runner._prefill_native_prefix(
+                    "replay",
+                    tokens[64:],
+                    tokens,
+                    64,
+                    [1, 2, 3],
+                    1,
+                    None,
+                    True,
+                    None,
+                    None,
                 )
-                mx.eval(expected[:2])
-                for got, want in zip(actual[:2], expected[:2]):
-                    self.assertTrue(mx.array_equal(got, want).item())
-                for got, want in zip(actual[2], expected[2]):
-                    self._assert_optimized_cache_equal(got, want)
-        self.assertTrue(owners)
-        self.assertTrue(all(len(owner.graphs) <= 8 for owner in owners))
-
+                mx.eval(pending.lazy_token, [c.state for c in pending.cache])
+        reference = None
+        for start in range(0, len(tokens), 16):
+            hidden = model.model(
+                mx.array([tokens[start : start + 16]], mx.int32), cache
+            )
+            mx.eval(hidden, [c.state for c in cache])
+            reference = mx.argmax(model.lm_head(hidden[:, -1:])[:, -1], -1)
+        self.assertEqual(lengths, [16, 16, 16, 16])
+        self.assertTrue(mx.array_equal(pending.lazy_token, reference).item())
+        for actual, expected in zip(pending.cache, cache):
+            self.assertEqual(actual.offset, len(tokens))
+            for (_, a), (_, b) in zip(
+                tree_flatten(actual.state), tree_flatten(expected.state)
+            ):
+                if a is None:
+                    self.assertIsNone(b)
+                else:
+                    self.assertTrue(mx.array_equal(a, b).item())
 
     def test_latent_append_snapshots_restore_inside_and_across_blocks(self):
         """Rejected suffixes cannot overwrite a retained prefix or append block."""
@@ -1699,6 +1720,47 @@ class TestGlm5NextMlx(CustomTestCase):
                 )
                 self._assert_optimized_cache_equal(actual[1], expected[1])
 
+    def test_fixed_graphs_reuse_alternating_verification_depths(self):
+        import copy
+
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
+
+        model = self._optimized_mtp_model(attention_heads=64, latent_rank=512)
+        base = model.make_cache()
+        mx.eval(model(mx.array([[1, 2, 3, 4]]), base))
+        reference = copy.deepcopy(model)
+        reference.configure_fixed_groups(False)
+        owners = []
+        for layer in model.layers:
+            owner = getattr(layer, "_fixed_mla_layer", None)
+            if owner is not None:
+                owners.extend((owner, owner.attention))
+        first = None
+        for repeat in range(3):
+            for count in (3, 2):
+                tokens = mx.array([list(range(11, 11 + count))])
+                actual = model.verify_mtp_rows(tokens, [clone_cache(c) for c in base])
+                mx.eval(actual[:2])
+                if repeat == 0 and count == 3:
+                    first = [list(owner.graphs.values())[-1] for owner in owners]
+                elif count == 3:
+                    for owner, graph in zip(owners, first):
+                        self.assertTrue(
+                            any(value is graph for value in owner.graphs.values())
+                        )
+                expected = reference.verify_mtp_rows(
+                    tokens, [clone_cache(c) for c in base]
+                )
+                mx.eval(expected[:2])
+                for got, want in zip(actual[:2], expected[:2]):
+                    self.assertTrue(mx.array_equal(got, want).item())
+                for got, want in zip(actual[2], expected[2]):
+                    self._assert_optimized_cache_equal(got, want)
+        self.assertTrue(owners)
+        self.assertTrue(all(len(owner.graphs) <= 8 for owner in owners))
+
     def test_optimized_fixed_groups_invalidate_weights_and_flags(self):
         import mlx.core as mx
 
@@ -1738,7 +1800,6 @@ class TestGlm5NextMlx(CustomTestCase):
     def test_optimized_sorted_prefill_matches_expert_reference(self):
         import mlx.core as mx
         from mlx_lm.models.switch_layers import SwitchGLU
-
 
         model = self._optimized_mtp_model()
         block = next(

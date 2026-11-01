@@ -79,6 +79,7 @@ from sglang.srt.hardware_backend.mlx.sampling import (
 )
 from sglang.srt.mem_cache.memory_pool import ReqToTokenPool
 from sglang.srt.runtime_context import (
+    get_schedule,
     mamba_cache_chunk_size,
 )
 
@@ -1179,6 +1180,31 @@ class MlxModelRunner:
             req=req,
         )
         split = track_len - run_prefix if track_len is not None else None
+        if run_prefix == 0 and prefix_len > 0:
+            # A missing recurrent snapshot expands a scheduler-sized suffix
+            # back to the complete prefix. Preserve the prefill submission
+            # bound rather than building all expert/attention intermediates
+            # for the reconstructed history in one graph.
+            chunk_size = get_schedule().chunked_prefill_size
+            if chunk_size is not None and chunk_size > 0:
+                consumed = 0
+                while len(run_tokens) - consumed > chunk_size:
+                    end = min(consumed + chunk_size, len(run_tokens))
+                    if split is not None and consumed < split < end:
+                        end = split
+                    token, _ = self._forward_lazy_token(
+                        mx.array([run_tokens[consumed:end]], mx.int32),
+                        cache,
+                        False,
+                        req_id,
+                    )
+                    mx.eval(token, [c.state for c in cache])
+                    consumed = end
+                    if split is not None and consumed == split:
+                        self._store_tracked_auxiliary_state(req, cache, track_len)
+                run_tokens = run_tokens[consumed:]
+                if split is not None:
+                    split -= consumed
         if split is not None and 0 < split < len(run_tokens):
             inputs = mx.array([run_tokens[:split]], mx.int32)
             if self._mtp is not None:
