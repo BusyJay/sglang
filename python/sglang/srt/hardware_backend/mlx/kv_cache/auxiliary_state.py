@@ -65,7 +65,7 @@ class _CacheSnapshot:
     attrs: dict[str, Any] | None = None
 
 
-def _snapshot_cache(cache: Any) -> _CacheSnapshot:
+def _snapshot_cache(cache: Any, *, evaluate: bool = True) -> _CacheSnapshot:
     state = _clone_tree(getattr(cache, "state", ()))
     meta_state = (
         _clone_tree(cache.meta_state) if hasattr(cache, "meta_state") else _MISSING
@@ -76,7 +76,7 @@ def _snapshot_cache(cache: Any) -> _CacheSnapshot:
         if hasattr(cache, name)
     }
     arrays = _arrays_in_tree((state, meta_state, attrs))
-    if arrays:
+    if evaluate and arrays:
         mx.eval(*arrays)
     return _CacheSnapshot(state=state, meta_state=meta_state, attrs=attrs)
 
@@ -194,9 +194,25 @@ class MlxAuxiliaryStatePool:
         cache: list[Any],
         layer_indices: Iterable[int],
     ) -> None:
-        self._snapshots[self._index(index)] = {
-            layer_idx: _snapshot_cache(cache[layer_idx]) for layer_idx in layer_indices
+        snapshots = {
+            layer_idx: _snapshot_cache(cache[layer_idx], evaluate=False)
+            for layer_idx in layer_indices
         }
+        # Seal every layer and DFlash feature context in one submission. Views
+        # isolate future slice assignment while sharing the evaluated storage.
+        arrays = [
+            array
+            for snapshot in snapshots.values()
+            for array in _arrays_in_tree(
+                (snapshot.state, snapshot.meta_state, snapshot.attrs)
+            )
+        ]
+        if arrays:
+            # Enqueue the immutable views before publishing. Restore and future
+            # forwards retain MLX dependencies; source writes cannot replace
+            # the storage held by these views. No host tensor values are read.
+            mx.async_eval(*arrays)
+        self._snapshots[self._index(index)] = snapshots
 
     def restore_cache(
         self,

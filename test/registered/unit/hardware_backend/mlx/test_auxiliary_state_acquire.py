@@ -107,6 +107,39 @@ class TestMlxAuxiliaryStateAcquire(CustomTestCase):
             int(self.table.get_auxiliary_state_indices(rows)[0]), int(held)
         )
 
+    def test_multilayer_snapshot_seals_lazy_state_and_dflash_context(self):
+        """One sealed prefix must survive later writes to every source layer."""
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import NativeCache
+
+        cache = [NativeCache(4) for _ in range(3)]
+        for i, layer in enumerate(cache):
+            layer.offset = 8
+            layer.cache = [mx.arange(16, dtype=mx.float32).reshape(1, 16) + i] + [
+                None
+            ] * 3
+        features = mx.arange(24, dtype=mx.float32).reshape(1, 8, 3) * 2
+        cache[0].mlx_dflash = (8, (0, 2), {"keys": (features,)}, (), ())
+        slot = self.slots.alloc(1)
+        self.slots.store_cache(slot, cache, range(3))
+        for layer in cache:
+            layer.cache[0][:] = -1
+            layer.offset = 9
+        features[:] = -2
+        restored = [NativeCache(4) for _ in range(3)]
+        self.assertTrue(self.slots.restore_cache(slot, restored))
+        for i, layer in enumerate(restored):
+            self.assertEqual(layer.offset, 8)
+            self.assertTrue(
+                mx.array_equal(layer.cache[0], mx.arange(16).reshape(1, 16) + i).item()
+            )
+        self.assertTrue(
+            mx.array_equal(
+                restored[0].mlx_dflash[2]["keys"][0], mx.arange(24).reshape(1, 8, 3) * 2
+            ).item()
+        )
+
     def test_admission_checks_auxiliary_capacity(self):
         self.slots.alloc(4)
         self.assertFalse(
