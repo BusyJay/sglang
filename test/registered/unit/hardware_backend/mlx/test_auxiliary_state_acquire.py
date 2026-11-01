@@ -96,6 +96,39 @@ class TestMlxAuxiliaryStateAcquire(CustomTestCase):
             int(req.kv.mamba_pool_idx),
         )
 
+    def test_worker_consumes_deferred_prefix_snapshot_before_restore(self):
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import NativeCache
+        from sglang.srt.hardware_backend.mlx.tp_worker import MlxTpModelWorker
+
+        source, destination, stale = self.slots.alloc(3).split(1)
+        cached = NativeCache(4)
+        cached.offset = 8
+        cached.cache = [mx.array([1.0])] + [None] * 3
+        self.slots.store_cache(source, [cached], [0])
+        self.slots.store_cache(stale, [cached], [0])
+        batch = SimpleNamespace(
+            mamba_cow_src_indices=source,
+            mamba_cow_dst_indices=destination,
+            mamba_clear_indices=stale,
+        )
+        worker = MlxTpModelWorker.__new__(MlxTpModelWorker)
+        worker._model_runner = SimpleNamespace(req_to_token_pool=self.table)
+        available = self.slots.available_size()
+        worker._prepare_auxiliary_state(batch)
+        restored = NativeCache(4)
+        self.assertTrue(self.slots.restore_cache(destination, [restored]))
+        self.assertEqual(restored.offset, 8)
+        self.assertEqual(restored.cache[0].item(), 1.0)
+        self.assertFalse(self.slots.has_snapshot(stale))
+        self.assertTrue(self.slots.has_snapshot(source))
+        self.assertEqual(self.slots.available_size(), available)
+        self.assertIsNone(batch.mamba_cow_src_indices)
+        self.assertIsNone(batch.mamba_cow_dst_indices)
+        self.assertIsNone(batch.mamba_clear_indices)
+        worker._prepare_auxiliary_state(batch)
+
     def test_a_request_holding_a_slot_keeps_it(self):
         req = _req()
         held = self.slots.alloc(1)[0]

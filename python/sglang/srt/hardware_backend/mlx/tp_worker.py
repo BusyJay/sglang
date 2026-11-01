@@ -480,8 +480,24 @@ class MlxTpModelWorker(TpModelWorker):
             f"MLX async runner does not support forward mode: {forward_mode}"
         )
 
+    def _prepare_auxiliary_state(self, batch: ScheduleBatch) -> None:
+        """Consume the scheduler's deferred prefix state copies before prefill."""
+        sources = getattr(batch, "mamba_cow_src_indices", None)
+        clear = getattr(batch, "mamba_clear_indices", None)
+        if sources is None and clear is None:
+            return
+        pool = self._model_runner.req_to_token_pool.auxiliary_state_pool
+        if clear is not None:
+            pool.clear_slots(clear)
+        if sources is not None:
+            pool.copy_from(sources, batch.mamba_cow_dst_indices)
+        batch.mamba_clear_indices = None
+        batch.mamba_cow_src_indices = None
+        batch.mamba_cow_dst_indices = None
+
     def _async_extend_batch(self, batch: ScheduleBatch) -> MlxLaunch:
         """Launch each request in an EXTEND batch lazily and kick GPU work."""
+        self._prepare_auxiliary_state(batch)
         reqs = batch.reqs
         input_ids_cpu = batch.input_ids.cpu().tolist()
         out_cache_loc_cpu = batch.out_cache_loc.cpu().tolist()

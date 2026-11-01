@@ -233,6 +233,11 @@ class MlxAuxiliaryStatePool:
     def has_snapshot(self, index: Any) -> bool:
         return self._index(index) in self._snapshots
 
+    def clear_slots(self, indices: Any) -> None:
+        """Discard state while retaining ownership of the allocated slots."""
+        for slot in self._tensor(indices).tolist():
+            self._snapshots.pop(int(slot), None)
+
 
 class MlxAuxiliaryStateStorage(StateStorage):
     """The auxiliary-state slots, as the radix cache's state component reaches
