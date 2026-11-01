@@ -72,8 +72,16 @@ def _tiled_kernel():
     )
 
 
-def _dense_geometry(out_dim):
-    # Tuning retains the native four-element lane slices.
+def _dense_geometry(out_dim, in_dim=None, count=1):
+    # M5 ABBA: high-output KDA and vocabulary heads need distinct register
+    # budgets. Keep native lane slices and each accumulator's shuffle tree.
+    if in_dim == 4096 and out_dim == 24896 and count == 3:
+        return 4, 8
+    if in_dim == 4096 and out_dim == 154880:
+        if count in (1, 3):
+            return 4, 4
+        if count >= 9:
+            return 8, 8
     return (8 if out_dim >= 4096 else 4, 4)
 
 
@@ -107,7 +115,7 @@ def mlx_dense_rows(x, weight):
     out_dim, width = weight.shape
     if width != dim or dim % 128 or out_dim < 4 or dim <= 64 or dim >= 16 * out_dim:
         return None
-    bm, rps = _dense_geometry(out_dim)
+    bm, rps = _dense_geometry(out_dim, dim, count)
     rows = min(count, 4)
     return _tiled_kernel()(
         inputs=[x, weight],
@@ -192,7 +200,7 @@ def mlx_dense_argmax(x, weight):
     n, k = weight.shape
     if x.shape[-1] != k or k % 128 or n < 4 or k >= 16 * n:
         return None
-    bm = 8 if n >= 4096 else 4
+    bm, _ = _dense_geometry(n, k, 1)
     blocks = (n + 4 * bm - 1) // (4 * bm)
     scores, ids = _argmax_kernel()(
         inputs=[x, weight],
@@ -276,7 +284,7 @@ def mlx_dense_argmax_rows(x, weight):
     if x.shape[-1] != k or k % 128 or n < 4 or k >= 16 * n:
         return None
     count = x.shape[1]
-    bm, rps = _dense_geometry(n)
+    bm, rps = _dense_geometry(n, k, count)
     rows = min(count, 4)
     blocks = (n + bm * rps - 1) // (bm * rps)
     scores, ids = _argmax_rows_kernel()(
