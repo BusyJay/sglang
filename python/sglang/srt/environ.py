@@ -1123,6 +1123,13 @@ class Envs:
     # Retain split/promoted MLA KV-B operands, including dense BF16 projections.
     # Lazy, identity/dtype-invalidated storage trades resident memory for casts.
     SGLANG_MLX_GLM_CACHE_LATENT_PROJECTION = EnvBool(True)
+    # Phase submission controls for same-checkpoint HTTP A/B.
+    SGLANG_MLX_GLM_DECODE_EVAL_GROUP = EnvInt(4)
+    SGLANG_MLX_GLM_PREFILL_EVAL_GROUP = EnvInt(4)
+    SGLANG_MLX_GLM_VERIFY_EVAL_GROUP = EnvInt(4)
+    SGLANG_MLX_GLM_ENABLE_FIXED_GROUPS = EnvBool(True)
+    SGLANG_MLX_GLM_ENABLE_SHARED_STREAM = EnvBool(False)
+
     SGLANG_MLX_USE_CUSTOM_ROPE = EnvBool(False)
     SGLANG_MLX_USE_POOL_ATTENTION = EnvBool(True)
     SGLANG_MLX_FUSE_SWIGLU = EnvBool(False)

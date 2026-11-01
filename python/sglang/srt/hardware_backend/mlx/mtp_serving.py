@@ -66,7 +66,7 @@ class AdaptiveMTPBudget:
 
 @dataclass
 class VerifiedRow:
-    input_token: int
+    input_token: int | mx.array
     logits: mx.array
     hidden: mx.array
     cache: list
@@ -82,6 +82,7 @@ class PendingMTPDecode:
     logits: mx.array | None = None
     hidden: mx.array | None = None
     snapshots: list | None = None
+    draft_steps: int = 0
 
 
 @dataclass
@@ -160,7 +161,7 @@ class MlxMTPServing:
 
     def _flush_head(self, state):
         if state.pending_hidden:
-            out = self.model.mtp(
+            out = self.model.mtp.consume_rows(
                 mx.concatenate(state.pending_hidden, axis=1),
                 self.model.model.embed_tokens(
                     mx.concatenate(state.pending_tokens, axis=1)
@@ -205,7 +206,7 @@ class MlxMTPServing:
             )
         state.cycle_start = 0.0
 
-    def build_decode(self, rid, inputs, cache, token):
+    def build_decode(self, rid, inputs, cache, token, *, defer_verification=False):
         """Build private speculation; caller supplies the already sampled input ID."""
         state = self._state(rid, cache)
         if state.rows:
@@ -213,7 +214,12 @@ class MlxMTPServing:
             key = f"{state.cycle_steps}:{row.depth}"
             self.eligible_by_depth[row.depth] += 1
             self.eligible_by_budget_depth[key] += 1
-            if row.input_token == token:
+            expected_token = (
+                int(row.input_token.item())
+                if isinstance(row.input_token, mx.array)
+                else row.input_token
+            )
+            if expected_token == token:
                 self.correct_by_depth[row.depth] += 1
                 self.correct_by_budget_depth[key] += 1
             else:
@@ -242,6 +248,12 @@ class MlxMTPServing:
                     hidden=hidden[:, -1:],
                 )
             self._flush_head(state)
+            if defer_verification and hasattr(self.model, "draft_tokens"):
+                self.step_histogram[steps] += 1
+                self.verify_ct += 1
+                self.num_proposed_drafts += steps
+                self.proposed_by_depth.update(range(1, steps + 1))
+                return PendingMTPDecode(state, inputs, cache, draft_steps=steps)
             out = self.model.mtp(
                 state.hidden, self.model.model.embed_tokens(inputs), state.head
             )
@@ -255,8 +267,11 @@ class MlxMTPServing:
                         out, self.model.model.embed_tokens(draft), scratch_head
                     )
             chain = mx.concatenate(chain, axis=1)
-            scratch = [clone_cache(c) for c in cache]
-            logits, hidden, snapshots = self.model.verify_mtp_rows(chain, scratch)
+            if defer_verification:
+                logits, hidden, snapshots = None, None, []
+            else:
+                scratch = [clone_cache(c) for c in cache]
+                logits, hidden, snapshots = self.model.verify_mtp_rows(chain, scratch)
             self.step_histogram[steps] += 1
             self.verify_ct += 1
             self.num_proposed_drafts += steps
@@ -265,17 +280,21 @@ class MlxMTPServing:
                 state, inputs, cache, chain, logits, hidden, snapshots
             )
         self.num_reuse_tokens += 1
-        out = self.model.mtp(
-            state.hidden, self.model.model.embed_tokens(inputs), state.head
-        )
-        mx.async_eval(out, state.head.cache)
+        # The head is only read before drafting the next cycle. Retain the
+        # consumed pairs now; flush them together when drafting or extending.
+        # Prefix snapshots carry these pairs, so release/reject never publish
+        # a head advanced through an unconsumed target row.
+        state.pending_hidden.append(state.hidden)
+        state.pending_tokens.append(inputs)
         return PendingMTPDecode(state, inputs, cache)
 
     def publish_decode(self, pending):
         """Publish only the consumed cache boundary after batch execution."""
         state, cache = pending.state, pending.cache
         if pending.chain is not None:
-            tokens = pending.chain[0].tolist()
+            # Keep future token IDs lazy. Only the next consumption boundary
+            # materializes the scalar needed to accept/reject that private row.
+            tokens = [pending.chain[0, j] for j in range(pending.chain.shape[1])]
             state.rows.extend(
                 VerifiedRow(
                     t,
@@ -303,14 +322,61 @@ class MlxMTPServing:
         return row.logits
 
     def execute_batch(self, pending):
-        # A shared boundary preserves bounded graph execution without a host
-        # wait for every request's verifier. Existing per-layer submissions stay.
+        # Submit complete private transactions together. Array handles and
+        # snapshots retain ownership until sampling/consumption materializes
+        # them; publication never reads unfinished cache contents on the host.
+        drafting = [p for p in pending if p.draft_steps]
+        if drafting:
+            chains = [[p.inputs] for p in drafting]
+            outputs = self.model.mtp.decode_requests(
+                [p.state.hidden for p in drafting],
+                [self.model.model.embed_tokens(p.inputs) for p in drafting],
+                [p.state.head for p in drafting],
+            )
+            scratch_heads = [clone_cache(p.state.head) for p in drafting]
+            active = list(range(len(drafting)))
+            for depth in range(max(p.draft_steps for p in drafting)):
+                tokens = self.model.draft_tokens([outputs[i] for i in active])
+                for i, token in zip(active, tokens):
+                    chains[i].append(token)
+                continuing = [
+                    (i, token)
+                    for i, token in zip(active, tokens)
+                    if depth + 1 < drafting[i].draft_steps
+                ]
+                if continuing:
+                    values = self.model.mtp.decode_requests(
+                        [outputs[i] for i, _ in continuing],
+                        [
+                            self.model.model.embed_tokens(token)
+                            for _, token in continuing
+                        ],
+                        [scratch_heads[i] for i, _ in continuing],
+                    )
+                    for (i, _), value in zip(continuing, values):
+                        outputs[i] = value
+                active = [i for i, _ in continuing]
+            for p, chain in zip(drafting, chains):
+                p.chain = mx.concatenate(chain, 1)
         verifying = [p for p in pending if p.chain is not None]
+        deferred = [p for p in verifying if p.logits is None]
+        if deferred:
+            scratch = [[clone_cache(c) for c in p.cache] for p in deferred]
+            results = self.model.verify_mtp_requests(
+                [p.chain for p in deferred], scratch
+            )
+            for transaction, (logits, hidden, snapshots) in zip(deferred, results):
+                transaction.logits, transaction.hidden, transaction.snapshots = (
+                    logits,
+                    hidden,
+                    snapshots,
+                )
         if verifying:
-            mx.eval(
+            mx.async_eval(
                 [p.chain for p in verifying],
                 [p.logits for p in verifying if p.logits is not None],
                 [p.hidden for p in verifying if p.hidden is not None],
+                [[c.cache for row in p.snapshots for c in row] for p in verifying],
             )
         return [self.publish_decode(p) for p in pending]
 
@@ -320,7 +386,13 @@ class MlxMTPServing:
 
     def decode_batch(self, req_ids, inputs, caches, tokens):
         pending = [
-            self.build_decode(rid, inputs[i : i + 1], caches[i], tokens[i])
+            self.build_decode(
+                rid,
+                inputs[i : i + 1],
+                caches[i],
+                tokens[i],
+                defer_verification=hasattr(self.model, "verify_mtp_requests"),
+            )
             for i, rid in enumerate(req_ids)
         ]
         return mx.concatenate(self.execute_batch(pending), axis=0)

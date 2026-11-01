@@ -613,6 +613,19 @@ class MlxModelRunner:
             self.model.configure_latent_projection_cache(
                 envs.SGLANG_MLX_GLM_CACHE_LATENT_PROJECTION.get()
             )
+            self.model.configure_eval_groups(
+                decode=envs.SGLANG_MLX_GLM_DECODE_EVAL_GROUP.get(),
+                prefill=envs.SGLANG_MLX_GLM_PREFILL_EVAL_GROUP.get(),
+                verification=envs.SGLANG_MLX_GLM_VERIFY_EVAL_GROUP.get(),
+            )
+            self.model.configure_fixed_groups(
+                envs.SGLANG_MLX_GLM_ENABLE_FIXED_GROUPS.get()
+            )
+            self.model.configure_shared_stream(
+                mx.new_stream(mx.gpu)
+                if envs.SGLANG_MLX_GLM_ENABLE_SHARED_STREAM.get()
+                else None
+            )
             prepare_for_inference = getattr(self.model, "prepare_for_inference", None)
             if callable(prepare_for_inference):
                 prepare_for_inference()
@@ -1696,6 +1709,11 @@ class MlxModelRunner:
         caches: list[list[Any]],
         input_ids_by_request: list[mx.array],
     ) -> mx.array:
+        batched_decode = getattr(self.model, "decode_requests", None)
+        if len(caches) > 1 and callable(batched_decode):
+            return self._extract_logits(batched_decode(input_ids_by_request, caches))[
+                :, -1, :
+            ]
         lazy_logits_list = []
         for input_ids, cache in zip(input_ids_by_request, caches):
             model_output = self.model(input_ids, cache=cache)

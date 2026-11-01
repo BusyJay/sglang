@@ -9,14 +9,21 @@ these caches must stay together for the lifetime of a request.
 import copy
 import logging
 from dataclasses import dataclass
+from functools import cache
 
 import mlx.core as mx
 import mlx.nn as nn
+from mlx.utils import tree_flatten
 from mlx_lm.models.base import BaseModelArgs
 from mlx_lm.models.cache import ArraysCache
 from mlx_lm.models.gated_delta import gated_delta_update, normalize_qk
 from mlx_lm.models.kimi_linear import ShortConv1d, _group_expert_select
-from mlx_lm.models.switch_layers import QuantizedSwitchLinear, SwitchGLU
+from mlx_lm.models.switch_layers import (
+    QuantizedSwitchLinear,
+    SwitchGLU,
+    _gather_sort,
+    _scatter_unsort,
+)
 
 from sglang.kernels.ops.attention.linear.mlx_kda import mlx_kda_decode
 from sglang.kernels.ops.attention.mlx_ragged import mlx_ragged_latent_attention
@@ -28,9 +35,11 @@ from sglang.kernels.ops.gemm.mlx_affine_rows import (
 )
 from sglang.kernels.ops.gemm.mlx_dense_rows import (
     mlx_dense_argmax,
+    mlx_dense_argmax_rows,
     mlx_dense_rows,
     mlx_headed_dense_rows,
 )
+from sglang.kernels.ops.gemm.mlx_qmm_swiglu import mlx_sorted_qmm_swiglu
 from sglang.kernels.ops.kvcache.mlx_latent import mlx_latent_gather_cast
 from sglang.kernels.ops.layernorm.mlx_hc import mlx_hc_collapse_norm
 from sglang.kernels.ops.layernorm.mlx_hc_mix import mlx_hc_rms_mix
@@ -162,6 +171,14 @@ def _project_weight_rows(weight, x):
 
 def _project_rows(projection, x):
     """Use singleton reductions with shared weights on covered row tiles."""
+    if x.shape[1] > 17:
+        return mx.concatenate(
+            [
+                _project_rows(projection, x[:, start : start + 17])
+                for start in range(0, x.shape[1], 17)
+            ],
+            1,
+        )
     out = None
     if type(projection) is nn.Linear and "bias" not in projection:
         out = mlx_dense_rows(x, projection.weight)
@@ -186,7 +203,7 @@ def _project_rows(projection, x):
     return out
 
 
-def _row_exact_affine_ffn(block, x, indices=None, *, gate_up_only=False):
+def _row_exact_affine_ffn(block, x, indices=None, *, gate_up_only=False, grouped=None):
     projections = (block.gate_proj, block.up_proj, block.down_proj)
     cls = QuantizedSwitchLinear if indices is not None else nn.QuantizedLinear
     if not all(
@@ -232,6 +249,7 @@ def _row_exact_affine_ffn(block, x, indices=None, *, gate_up_only=False):
                 bits=projections[0].bits,
                 group_size=projections[0].group_size,
                 limit=limit,
+                grouped=grouped,
             )
         if act is not None:
             return act if gate_up_only else project(act, projections[2])
@@ -262,6 +280,23 @@ class MLP(nn.Module):
         dtype = x.dtype
         if restore_dtype:
             x = x.astype(mx.float16)
+        if (
+            batch_fusion
+            and x.shape[1] > 1
+            and all(
+                type(p) is nn.Linear and "bias" not in p
+                for p in (self.gate_proj, self.up_proj, self.down_proj)
+            )
+        ):
+            gate = _project_rows(self.gate_proj, x)
+            up = _project_rows(self.up_proj, x)
+            act = (
+                _compiled_swiglu(gate, up, self.limit)
+                if self.compile_activation
+                else clamped_swiglu(gate, up, self.limit)
+            )
+            out = _project_rows(self.down_proj, act)
+            return out.astype(dtype) if restore_dtype else out
         if batch_fusion and x.shape[1] > 1:
             out = _row_exact_affine_ffn(self, x)
             if out is not None:
@@ -320,12 +355,30 @@ class ClampedSwitchGLU(SwitchGLU):
             for value in (p, p.weight, p.get("scales"), p.get("biases"))
         )
 
+    def _current_gate_up_metadata(self):
+        return tuple(
+            (
+                type(p),
+                getattr(p, "bits", None),
+                getattr(p, "group_size", None),
+                getattr(p, "mode", None),
+            )
+            for p in (self.gate_proj, self.up_proj)
+        )
+
     def prepare_for_inference(self):
         if not self.fuse_gate_up:
             return False
-        if self._fused_gate_up is not None and all(
-            old is new
-            for old, new in zip(self._gate_up_sources, self._current_gate_up_sources())
+        if (
+            self._fused_gate_up is not None
+            and getattr(self, "_gate_up_metadata", None)
+            == self._current_gate_up_metadata()
+            and all(
+                old is new
+                for old, new in zip(
+                    self._gate_up_sources, self._current_gate_up_sources()
+                )
+            )
         ):
             return True
         self._fused_gate_up = None
@@ -360,12 +413,18 @@ class ClampedSwitchGLU(SwitchGLU):
             gate[field], up[field] = mx.split(fused[field], 2, axis=1)
         self._fused_gate_up = fused
         self._gate_up_sources = self._current_gate_up_sources()
+        self._gate_up_metadata = self._current_gate_up_metadata()
         return True
 
     def __call__(self, x, indices):
-        if self._fused_gate_up is not None and not all(
-            old is new
-            for old, new in zip(self._gate_up_sources, self._current_gate_up_sources())
+        if self._fused_gate_up is not None and (
+            getattr(self, "_gate_up_metadata", None) != self._current_gate_up_metadata()
+            or not all(
+                old is new
+                for old, new in zip(
+                    self._gate_up_sources, self._current_gate_up_sources()
+                )
+            )
         ):
             self._fused_gate_up = None
             self._gate_up_sources = ()
@@ -403,6 +462,36 @@ class ClampedSwitchGLU(SwitchGLU):
                 ).squeeze(-2)
                 return out.astype(dtype) if restore_dtype else out
         if (
+            indices.size >= 64
+            and self._fused_gate_up is not None
+            and getattr(self, "_gate_up_metadata", None)
+            == self._current_gate_up_metadata()
+            and x.dtype != mx.float32
+        ):
+            # Sorted QMM shares input tiles and fuses both MMA projections and
+            # rounded clamp/SwiGLU inside the shader. Down restores pick order.
+            sorted_x, sorted_idx, inverse = _gather_sort(
+                mx.expand_dims(x, (-2, -3)), mx.stop_gradient(indices)
+            )
+            activated = mlx_sorted_qmm_swiglu(
+                sorted_x,
+                sorted_idx,
+                (gate.weight, gate.scales, gate.biases),
+                (up.weight, up.scales, up.biases),
+                bits=gate.bits,
+                group_size=gate.group_size,
+                limit=self.activation.limit,
+            )
+            if activated is None:
+                joined = self._fused_gate_up(sorted_x, sorted_idx, sorted_indices=True)
+                gate_values, up_values = mx.split(joined, 2, axis=-1)
+                activated = _compiled_swiglu(
+                    gate_values, up_values, self.activation.limit
+                )
+            output = self.down_proj(activated, sorted_idx, sorted_indices=True)
+            output = _scatter_unsort(output, inverse, indices.shape).squeeze(-2)
+            return output.astype(dtype) if restore_dtype else output
+        if (
             self.compile_decode
             and x.dtype != mx.float32
             and x.shape[:2] == (1, 1)
@@ -431,6 +520,8 @@ class ClampedSwitchGLU(SwitchGLU):
             self.fuse_gate_up
             and x.dtype != mx.float32
             and self._fused_gate_up is not None
+            and getattr(self, "_gate_up_metadata", None)
+            == self._current_gate_up_metadata()
             and all(
                 old is new
                 for old, new in zip(
@@ -613,7 +704,7 @@ class MoE(nn.Module):
         mx.eval(self._router_weight)
         self._router_sources = sources
 
-    def __call__(self, x, *, batch_fusion=False):
+    def __call__(self, x, *, batch_fusion=False, shared_stream=None):
         # The router uses FP32, including the matrix multiplication.
         weight = self.gate.weight
         if self._router_weight is not None and all(
@@ -665,6 +756,14 @@ class MoE(nn.Module):
                 a.scoring_func,
             )
         indices, weights = selected
+        if shared_stream is None:
+            shared = self.shared_experts(x, batch_fusion=batch_fusion)
+        else:
+            # MLX array dependencies join the side stream at combine. The
+            # caller owns the stream on the serving thread and passes it in.
+            with mx.stream(shared_stream):
+                shared = self.shared_experts(x, batch_fusion=batch_fusion)
+            mx.async_eval(shared)
         if self.fuse_decode and bounded:
             sw = self.switch_mlp
             projections = (sw.gate_proj, sw.up_proj, sw.down_proj)
@@ -706,7 +805,6 @@ class MoE(nn.Module):
                         act = _compiled_quantized_ffn(
                             sw, local, indices, gate_up_only=True
                         )
-                    shared = self.shared_experts(x, batch_fusion=batch_fusion)
                     result = mlx_glm_down_combine(
                         act,
                         indices,
@@ -722,7 +820,7 @@ class MoE(nn.Module):
                         return result
         routed = self.switch_mlp(x, indices)
         routed = (routed * weights[..., None]).sum(-2).astype(x.dtype)
-        return routed + self.shared_experts(x, batch_fusion=batch_fusion)
+        return routed + shared
 
 
 class KDA(nn.Module):
@@ -766,9 +864,25 @@ class KDA(nn.Module):
             for value in (p, p.weight, p.get("scales"), p.get("biases"))
         )
 
+    def _qkv_metadata(self):
+        return tuple(
+            (
+                type(p),
+                getattr(p, "bits", None),
+                getattr(p, "group_size", None),
+                getattr(p, "mode", None),
+            )
+            for p in (getattr(self, name) for name in self._fused_input_names)
+        )
+
     def _fused_qkv_is_current(self):
-        return self._fused_qkv is not None and all(
-            old is new for old, new in zip(self._fused_qkv_sources, self._qkv_sources())
+        return (
+            self._fused_qkv is not None
+            and getattr(self, "_fused_qkv_metadata", None) == self._qkv_metadata()
+            and all(
+                old is new
+                for old, new in zip(self._fused_qkv_sources, self._qkv_sources())
+            )
         )
 
     def prepare_for_inference(self):
@@ -840,6 +954,7 @@ class KDA(nn.Module):
         self._fused_input_names = names
         self._fused_input_splits = tuple(splits)
         self._fused_qkv_sources = self._qkv_sources()
+        self._fused_qkv_metadata = self._qkv_metadata()
         return True
 
     def project_verify_rows(self, x):
@@ -862,8 +977,8 @@ class KDA(nn.Module):
         gate = _project_rows(self.g_b_proj, gate_input)
         return proj, a, gate
 
-    def verify_rows(self, x, cache):
-        projected = self.project_verify_rows(x)
+    def verify_rows(self, x, cache, *, projected=None, project_output=True):
+        projected = self.project_verify_rows(x) if projected is None else projected
         if projected is None:
             return None
         outputs, snapshots = [], []
@@ -905,7 +1020,48 @@ class KDA(nn.Module):
                 snapshots.append(snapshot)
             cache.cache = [v.view(v.dtype) for v in snapshots[-1].cache]
             cache.offset += count
-        return _project_rows(self.o_proj, mx.concatenate(outputs, 1)), snapshots
+        out = mx.concatenate(outputs, 1)
+        return (_project_rows(self.o_proj, out) if project_output else out), snapshots
+
+    def decode_requests(self, rows, caches):
+        """Share large projections; recurrence remains private to each request."""
+        x = mx.concatenate(rows, axis=1)
+        projected = self.project_verify_rows(x)
+        if projected is None:
+            return [self(row, cache) for row, cache in zip(rows, caches)]
+        outputs, updates = [], []
+        for j, cache in enumerate(caches):
+            proj, a, gate = (v[:, j : j + 1] for v in projected)
+            result = mlx_kda_decode(
+                proj,
+                tuple(
+                    getattr(self, name + "_conv").conv.weight
+                    for name in ("q", "k", "v")
+                ),
+                tuple(cache[i] for i in range(3)),
+                cache[3],
+                a,
+                gate,
+                self.A_log,
+                self.dt_bias,
+                self.o_norm.weight,
+                heads=self.num_heads,
+                norm_eps=self.o_norm.eps,
+                lower_bound=self.lower_bound,
+            )
+            if result is None:
+                # General dtype/geometry retains the same per-request equation.
+                return [self(row, state) for row, state in zip(rows, caches)]
+            out, conv, state = result
+            updates.append((cache, conv, state))
+            outputs.append(out)
+        for cache, conv, state in updates:
+            for i in range(3):
+                cache[i] = conv[i]
+            cache[3] = state
+            cache.offset += 1
+        projected_out = _project_rows(self.o_proj, mx.concatenate(outputs, 1))
+        return [projected_out[:, j : j + 1] for j in range(len(rows))]
 
     def __call__(self, x, cache, *, projected=None):
         b, t, _ = x.shape
@@ -1170,6 +1326,10 @@ class MLA(nn.Module):
             getattr(projection, "bits", None),
             getattr(projection, "mode", None),
             activation_dtype,
+            self.args.num_attention_heads,
+            self.args.kv_lora_rank,
+            self.args.qk_nope_head_dim,
+            self.args.v_head_dim,
         )
         saved = getattr(self, "_latent_projection", None)
         if (
@@ -1240,7 +1400,9 @@ class MLA(nn.Module):
         kv = self.kv_a_layernorm(_project_rows(self.kv_a_proj_with_mqa, x))
         return qr, q, kv, self.indexer.project_verify_rows(x, qr)
 
-    def verify_rows(self, x, cache, *, projected=None):
+    def verify_rows(
+        self, x, cache, *, projected=None, project_output=True, attention_graph=None
+    ):
         """Batch projections and latent attention with explicit per-row visibility."""
         a = self.args
         b, count, _ = x.shape
@@ -1290,6 +1452,38 @@ class MLA(nn.Module):
         ]
         cache.offset = offset + count
         width = max(v.shape[-1] for v in selected)
+        if attention_graph is not None and not (
+            a.num_attention_heads == 64 and a.kv_lora_rank == 512
+        ):
+            attention_graph = None
+        if attention_graph is not None and width:
+            width = max(32, 1 << (width - 1).bit_length())
+        indices = mx.concatenate(
+            [
+                mx.pad(
+                    v, [(0, 0), (0, 0), (0, width - v.shape[-1])], constant_values=-1
+                )
+                for v in selected
+            ],
+            axis=1,
+        ).astype(mx.int32)
+        prefix, tail = (
+            cache.latent_segments() if isinstance(cache, MLACache) else (kv, None)
+        )
+        lengths = [v.shape[-1] for v in selected]
+        if attention_graph is not None:
+            out = attention_graph(
+                q, prefix, tail, indices, mx.array(lengths, mx.uint32)
+            )
+        else:
+            out = self.attend_rows(q, prefix, tail, indices, lengths)
+        return (_project_rows(self.o_proj, out) if project_output else out), snapshots
+
+    def attend_rows(self, q, prefix, tail, indices, lengths, *, split=None):
+        """Stateless latent attention with runtime visible-length metadata."""
+        a = self.args
+        b, count, _ = q.shape
+        width = indices.shape[-1]
         q = q.reshape(b, count, a.num_attention_heads, a.qk_nope_head_dim).transpose(
             0, 2, 1, 3
         )
@@ -1300,27 +1494,14 @@ class MLA(nn.Module):
         if width == 0:
             latent_out = mx.zeros(latent_q.shape, latent_q.dtype)
         else:
-            indices = mx.concatenate(
-                [
-                    mx.pad(
-                        v,
-                        [(0, 0), (0, 0), (0, width - v.shape[-1])],
-                        constant_values=-1,
-                    )
-                    for v in selected
-                ],
-                axis=1,
-            )
-            prefix, tail = (
-                cache.latent_segments() if isinstance(cache, MLACache) else (kv, None)
-            )
             latent_out = mlx_ragged_latent_attention(
                 latent_q,
                 prefix,
                 indices.astype(mx.int32),
-                [v.shape[-1] for v in selected],
+                lengths,
                 scale=a.qk_nope_head_dim**-0.5,
                 tail=tail,
+                split=split,
             )
             if latent_out is None:
                 selected_kv = mlx_latent_gather_cast(
@@ -1330,7 +1511,11 @@ class MLA(nn.Module):
                     tail=tail,
                 )
                 if selected_kv is None:
-                    kv = cache[0] if isinstance(cache, MLACache) else kv
+                    kv = (
+                        mx.concatenate([prefix, tail], 1)
+                        if tail is not None
+                        else prefix
+                    )
                     selected_kv = mx.take_along_axis(
                         kv[:, None], mx.maximum(indices, 0)[..., None], axis=2
                     ).reshape(b * count, 1, width, a.kv_lora_rank)
@@ -1370,7 +1555,31 @@ class MLA(nn.Module):
         if out is None:
             out = latent_out @ wv
         out = out.transpose(0, 2, 1, 3).reshape(b, count, -1)
-        return _project_rows(self.o_proj, out), snapshots
+        return out
+
+    def decode_requests(self, rows, caches):
+        if self.args.kv_lora_rank < 256:
+            # Tiny reference fixtures use an expanded SDPA reduction rather
+            # than the covered GLM latent kernel. Preserve that equation.
+            return [self(row, cache) for row, cache in zip(rows, caches)]
+        x = mx.concatenate(rows, axis=1)
+        qr, q, kv, index = self.project_verify_rows(x)
+        outputs = []
+        for j, cache in enumerate(caches):
+            branch, _ = self.verify_rows(
+                rows[j],
+                cache,
+                project_output=False,
+                projected=(
+                    qr[:, j : j + 1],
+                    q[:, j : j + 1],
+                    kv[:, j : j + 1],
+                    tuple(v[:, j : j + 1] for v in index),
+                ),
+            )
+            outputs.append(branch)
+        out = _project_rows(self.o_proj, mx.concatenate(outputs, 1))
+        return [out[:, j : j + 1] for j in range(len(rows))]
 
     def __call__(self, x, cache):
         a = self.args
@@ -1585,14 +1794,21 @@ class DecoderLayer(nn.Module):
             )
             if fused is not None:
                 return fused
-        collapsed, post, residual = hyper_connection(
-            x,
-            getattr(self, f"hc_{name}_fn"),
-            getattr(self, f"hc_{name}_base"),
-            getattr(self, f"hc_{name}_scale"),
-            self.args,
+        parts = [
+            hyper_connection(
+                x[:, j : j + 1],
+                getattr(self, f"hc_{name}_fn"),
+                getattr(self, f"hc_{name}_base"),
+                getattr(self, f"hc_{name}_scale"),
+                self.args,
+            )
+            for j in range(x.shape[1])
+        ]
+        return (
+            mx.concatenate([norm(v[0]) for v in parts], 1),
+            mx.concatenate([v[1] for v in parts], 1),
+            mx.concatenate([v[2] for v in parts], 1),
         )
-        return norm(collapsed), post, residual
 
     def _branch_output(self, branch, post, residual):
         if self.preserve_residual_dtype:
@@ -1603,10 +1819,18 @@ class DecoderLayer(nn.Module):
             return _compiled_residual(residual, post, branch)
         return residual + post[..., None] * branch[..., None, :]
 
-    def __call__(self, x, cache):
+    def __call__(self, x, cache, *, shared_stream=None):
         for name, norm, block in (
             ("attn", self.input_layernorm, lambda y: self.self_attn(y, cache)),
-            ("ffn", self.post_attention_layernorm, self.mlp),
+            (
+                "ffn",
+                self.post_attention_layernorm,
+                lambda y: (
+                    self.mlp(y, shared_stream=shared_stream)
+                    if isinstance(self.mlp, MoE)
+                    else self.mlp(y)
+                ),
+            ),
         ):
             if self.args.mhc:
                 if self.fuse_hc and x.shape[:3] == (1, 1, 4):
@@ -1658,15 +1882,139 @@ class DecoderLayer(nn.Module):
                 x = x + branch
         return x
 
-    def verify_ffn_rows(self, x, cache):
+    def decode_requests(self, rows, caches, *, shared_stream=None):
+        """Layerwise request batch with separate ragged attention/cache owners."""
+        prepared = [self._branch_inputs(x, "attn", self.input_layernorm) for x in rows]
+        branches = self.self_attn.decode_requests([v[0] for v in prepared], caches)
+        attended = [
+            self._branch_output(branch, post, residual)
+            for branch, (_, post, residual) in zip(branches, prepared)
+        ]
+        normed, post, residual = self._branch_inputs(
+            mx.concatenate(attended, 1), "ffn", self.post_attention_layernorm
+        )
+        branch = (
+            self.mlp(normed, batch_fusion=True, shared_stream=shared_stream)
+            if isinstance(self.mlp, MoE)
+            else self.mlp(normed, batch_fusion=True)
+        )
+        out = self._branch_output(branch, post, residual)
+        return [out[:, j : j + 1] for j in range(len(rows))]
+
+    def verify_requests(self, rows, caches, *, shared_stream=None):
+        """Share verification projections without mixing request recurrences.
+
+        Each chain owns its attention snapshots. Stateless FFN and both large
+        attention projections share weights across all chains, including ragged
+        chain lengths. Row slices preserve singleton reductions and routing order.
+        """
+        counts = [x.shape[1] for x in rows]
+        prepared = [
+            [
+                self._branch_inputs(x[:, j : j + 1], "attn", self.input_layernorm)
+                for j in range(x.shape[1])
+            ]
+            for x in rows
+        ]
+        normed = mx.concatenate([v[0] for chain in prepared for v in chain], 1)
+        projected = self.self_attn.project_verify_rows(normed)
+        attended, snapshots, branches = [], [], []
+        cursor = 0
+        for x, cache, count, inputs in zip(rows, caches, counts, prepared):
+            local = None
+            if projected is not None:
+
+                def slice_rows(value):
+                    if isinstance(value, tuple):
+                        return tuple(slice_rows(v) for v in value)
+                    return value[:, cursor : cursor + count]
+
+                local = tuple(slice_rows(v) for v in projected)
+            result = self.self_attn.verify_rows(
+                normed[:, cursor : cursor + count],
+                cache,
+                projected=local,
+                project_output=False,
+            )
+            if result is None:
+                chain, states = [], []
+                for value, post, residual in inputs:
+                    chain.append(
+                        self._branch_output(
+                            self.self_attn(value, cache), post, residual
+                        )
+                    )
+                    state = type(cache)(4)
+                    state.cache = [
+                        v.view(v.dtype) if v is not None else None for v in cache.cache
+                    ]
+                    state.offset = cache.offset
+                    states.append(state)
+                attended.append(chain)
+                branches.append(None)
+                snapshots.append(states)
+            else:
+                branch, states = result
+                branches.append(branch)
+                attended.append(None)
+                snapshots.append(states)
+            cursor += count
+        valid = [v for v in branches if v is not None]
+        if valid:
+            output = _project_rows(self.self_attn.o_proj, mx.concatenate(valid, 1))
+            cursor = 0
+            for i, (branch, inputs, count) in enumerate(
+                zip(branches, prepared, counts)
+            ):
+                if branch is not None:
+                    attended[i] = [
+                        self._branch_output(
+                            output[:, cursor + j : cursor + j + 1], post, residual
+                        )
+                        for j, (_, post, residual) in enumerate(inputs)
+                    ]
+                    cursor += count
+        value, post, residual = self._branch_inputs(
+            mx.concatenate([v for chain in attended for v in chain], 1),
+            "ffn",
+            self.post_attention_layernorm,
+        )
+        branches = []
+        for start in range(0, value.shape[1], 17):
+            tile = value[:, start : start + 17]
+            branches.append(
+                self.mlp(tile, batch_fusion=True, shared_stream=shared_stream)
+                if isinstance(self.mlp, MoE)
+                else self.mlp(tile, batch_fusion=True)
+            )
+        branch = mx.concatenate(branches, 1)
+        result = self._branch_output(branch, post, residual)
+        outputs, cursor = [], 0
+        for count in counts:
+            outputs.append(result[:, cursor : cursor + count])
+            cursor += count
+        return outputs, snapshots
+
+    def verify_ffn_rows(self, x, cache, *, shared_stream=None):
         """Batch stateless FFN dispatch, retaining per-position attention state."""
+        fixed = getattr(self, "_fixed_mla_layer", None)
+        if fixed is not None and shared_stream is None:
+            return fixed(x, cache)
         attended, snapshots = [], []
         attention_inputs = [
             self._branch_inputs(x[:, j : j + 1], "attn", self.input_layernorm)
             for j in range(x.shape[1])
         ]
         normed_rows = mx.concatenate([v[0] for v in attention_inputs], 1)
-        batched = self.self_attn.verify_rows(normed_rows, cache)
+        if (
+            not self.is_linear
+            and getattr(self, "_fixed_mla_attention", None) is not None
+        ):
+            batched = self.self_attn.verify_rows(
+                normed_rows, cache, attention_graph=self._fixed_mla_attention
+            )
+        else:
+            batched = self.self_attn.verify_rows(normed_rows, cache)
         if batched is not None:
             branches, snapshots = batched
             for j, (_, post, residual) in enumerate(attention_inputs):
@@ -1686,7 +2034,11 @@ class DecoderLayer(nn.Module):
         normed, post, residual = self._branch_inputs(
             mx.concatenate(attended, axis=1), "ffn", self.post_attention_layernorm
         )
-        branch = self.mlp(normed, batch_fusion=True)
+        branch = (
+            self.mlp(normed, batch_fusion=True, shared_stream=shared_stream)
+            if isinstance(self.mlp, MoE)
+            else self.mlp(normed, batch_fusion=True)
+        )
         return self._branch_output(branch, post, residual), snapshots
 
 
@@ -1711,6 +2063,58 @@ class MTPHead(DecoderLayer):
         self.shared_head = nn.Module()
         self.shared_head.norm = nn.RMSNorm(args.hidden_size, eps=args.rms_norm_eps)
 
+    def consume_rows(self, hidden, embeddings, cache):
+        """Advance consumed head history once with singleton-equivalent rows."""
+        if hidden.shape[1] == 1:
+            return self(hidden, embeddings, cache)
+        if hidden.shape[1] > 8:
+            # Keep each head tile below the SwitchGLU prefill sorting boundary;
+            # changing to grouped QMM changes the singleton reduction tree.
+            return mx.concatenate(
+                [
+                    self.consume_rows(
+                        hidden[:, start : start + 8],
+                        embeddings[:, start : start + 8],
+                        cache,
+                    )
+                    for start in range(0, hidden.shape[1], 8)
+                ],
+                axis=1,
+            )
+        joined = mx.concatenate(
+            [
+                mx.concatenate(
+                    [
+                        self.enorm(embeddings[:, j : j + 1]),
+                        self.hnorm(hidden[:, j : j + 1]),
+                    ],
+                    -1,
+                )
+                for j in range(hidden.shape[1])
+            ],
+            axis=1,
+        )
+        x = _project_rows(self.eh_proj, joined)
+        if x.shape[1] == 1:
+            return super().__call__(x, cache)
+        return self.verify_ffn_rows(x, cache)[0]
+
+    def decode_requests(self, hidden, embeddings, caches, *, shared_stream=None):
+        joined = mx.concatenate(
+            [
+                mx.concatenate([self.enorm(token), self.hnorm(value)], -1)
+                for value, token in zip(hidden, embeddings)
+            ],
+            1,
+        )
+        x = _project_rows(self.eh_proj, joined)
+        outputs, _ = super().verify_requests(
+            [x[:, j : j + 1] for j in range(len(caches))],
+            caches,
+            shared_stream=shared_stream,
+        )
+        return outputs
+
     def __call__(self, hidden, embeddings, cache):
         if hidden.shape != embeddings.shape or hidden.ndim != 3:
             raise ValueError("MTP hidden states must match following-token embeddings")
@@ -1718,6 +2122,395 @@ class MTPHead(DecoderLayer):
             mx.concatenate([self.enorm(embeddings), self.hnorm(hidden)], -1)
         )
         return super().__call__(x, cache)
+
+
+@cache
+def _graph_scalar_defaults(module_type):
+    fields = {}
+    for cls in reversed(module_type.__mro__):
+        for key, value in vars(cls).items():
+            if not key.startswith("__") and isinstance(value, (bool, int, float, str)):
+                fields[key] = value
+    return tuple(fields)
+
+
+def _graph_configuration(modules):
+    """Observe captured Python metadata without evaluating device arrays.
+
+    Array identities are keyed separately. Derived caches and graph owners do
+    not affect the model equation. Shared args are visited once per call and
+    class flag discovery is cached, keeping steady decode host work bounded.
+    """
+    excluded = {
+        "_fixed_mla_layer",
+        "_fixed_mla_attention",
+        "_latent_projection",
+        "_no_grad",
+        "_training",
+        "_gate_up_sources",
+        "_router_sources",
+        "_fused_qkv_sources",
+    }
+    memo = {}
+
+    def visit(value):
+        if isinstance(value, mx.array):
+            return None
+        if value is None or isinstance(
+            value, (bool, int, float, str, type(mx.float32))
+        ):
+            return value
+        ident = id(value)
+        if ident in memo:
+            return memo[ident]
+        if isinstance(value, (list, tuple)):
+            result = (type(value), tuple(visit(v) for v in value))
+        elif isinstance(value, (nn.Module, ModelArgs, dict)):
+            fields = dict(value) if isinstance(value, dict) else {}
+            if hasattr(value, "__dict__"):
+                fields.update(vars(value))
+            if isinstance(value, nn.Module):
+                for key in _graph_scalar_defaults(type(value)):
+                    fields.setdefault(key, getattr(value, key))
+            result = (
+                type(value),
+                tuple(
+                    (key, visit(child))
+                    for key, child in fields.items()
+                    if key not in excluded
+                    and not isinstance(child, mx.array)
+                    and (not callable(child) or isinstance(child, nn.Module))
+                ),
+            )
+        else:
+            result = (type(value), ident)
+        memo[ident] = result
+        return result
+
+    return visit(modules)
+
+
+def _clone_graph_modules(modules, excluded=()):
+    """Clone module containers while sharing array storage and compiled callables."""
+    memo = {id(value): None for value in excluded if value is not None}
+    visited = set()
+
+    def visit(value):
+        if id(value) in visited or id(value) in memo:
+            return
+        visited.add(id(value))
+        if isinstance(value, (mx.array, type(mx.float32))) or (
+            callable(value) and not isinstance(value, nn.Module)
+        ):
+            memo[id(value)] = value
+        elif isinstance(value, dict):
+            for child in value.values():
+                visit(child)
+            for child in vars(value).values():
+                visit(child)
+        elif isinstance(value, (list, tuple)):
+            for child in value:
+                visit(child)
+
+    visit(modules)
+    return copy.deepcopy(modules, memo)
+
+
+class _FixedGraphOwner:
+    def __deepcopy__(self, memo):
+        # Compiled functions close over private module containers and are not
+        # pickleable. A copied model must compile its own functions rather than
+        # inherit closures referring to the source model's weights or caches.
+        result = object.__new__(type(self))
+        memo[id(self)] = result
+        for name, value in vars(self).items():
+            setattr(
+                result, name, {} if name == "graphs" else copy.deepcopy(value, memo)
+            )
+        return result
+
+
+class _FixedMLAAttention(_FixedGraphOwner):
+    """Compile the latent subgraph with explicit indices, lengths and split.
+
+    Indexer cache transitions stay at their existing ownership boundary. The
+    KV segments use 256-row capacity buckets. Valid lengths and the logical
+    segment split are device inputs, so advancing a token reuses the same graph.
+    """
+
+    def __init__(self, attention):
+        self.attention = attention
+        self.graphs = {}
+
+    def __call__(self, q, prefix, tail, indices, lengths):
+        if tail is None:
+            tail = prefix[:, :0]
+        split = prefix.shape[1]
+        # Only the first short prefix grows per token. Long sealed prefixes
+        # already have a stable shape; padding them would copy full history.
+        if split < 256:
+            prefix = mx.pad(prefix, [(0, 0), (0, 256 - split), (0, 0)])
+        tail_capacity = max(256, ((tail.shape[1] + 255) // 256) * 256)
+        tail = mx.pad(tail, [(0, 0), (0, tail_capacity - tail.shape[1]), (0, 0)])
+        parameter = self.attention.parameters()
+        spec = (
+            _graph_configuration(self.attention),
+            q.shape,
+            q.dtype,
+            indices.shape,
+            prefix.shape,
+            tail.shape,
+            prefix.dtype,
+            tuple(id(v) for _, v in tree_flatten(parameter)),
+        )
+        graph = self.graphs.get(spec)
+        if graph is None:
+            attention = _clone_graph_modules(self.attention)
+            attention.cache_latent_projection = False
+
+            def forward(query, left, right, table, visible, split, weights):
+                attention.update(weights)
+                return attention.attend_rows(
+                    query, left, right, table, visible, split=split
+                )
+
+            graph = mx.compile(forward)
+            self.graphs.clear()
+            self.graphs[spec] = graph
+        return graph(
+            q, prefix, tail, indices, lengths, mx.array(split, mx.uint32), parameter
+        )
+
+
+class _FixedMLALayer(_FixedGraphOwner):
+    """Pure projection and FFN graphs surrounding owned index/cache updates."""
+
+    def __init__(self, layer):
+        self.layer = layer
+        self.graphs = {}
+        self.attention = _FixedMLAAttention(layer.self_attn)
+
+    def __call__(self, x, cache):
+        weights = self.layer.parameters()
+        spec = (
+            _graph_configuration(self.layer),
+            x.shape,
+            x.dtype,
+            self.layer.fuse_hc,
+            self.layer.compile_residual,
+            self.layer.preserve_residual_dtype,
+            tuple(id(v) for _, v in tree_flatten(weights)),
+        )
+        graphs = self.graphs.get(spec)
+        if graphs is None:
+            layer = _clone_graph_modules(
+                self.layer,
+                (
+                    self,
+                    getattr(self.layer, "_fixed_mla_attention", None),
+                ),
+            )
+            layer._fixed_mla_layer = None
+            layer._fixed_mla_attention = None
+
+            def prepare(value, parameters):
+                layer.update(parameters)
+                parts = [
+                    layer._branch_inputs(
+                        value[:, j : j + 1], "attn", layer.input_layernorm
+                    )
+                    for j in range(value.shape[1])
+                ]
+                normed = mx.concatenate([v[0] for v in parts], 1)
+                return parts, normed, layer.self_attn.project_verify_rows(normed)
+
+            def finish(branch, parts, parameters, router_weight):
+                layer.update(parameters)
+                if isinstance(layer.mlp, MoE):
+                    layer.mlp._router_weight = router_weight
+                    layer.mlp._router_sources = (
+                        layer.mlp._current_router_sources()
+                        if router_weight is not None
+                        else ()
+                    )
+                attended = [
+                    layer._branch_output(branch[:, j : j + 1], post, residual)
+                    for j, (_, post, residual) in enumerate(parts)
+                ]
+                value, post, residual = layer._branch_inputs(
+                    mx.concatenate(attended, 1), "ffn", layer.post_attention_layernorm
+                )
+                branch = (
+                    layer.mlp(value, batch_fusion=True)
+                    if isinstance(layer.mlp, MoE)
+                    else layer.mlp(value, batch_fusion=True)
+                )
+                return layer._branch_output(branch, post, residual)
+
+            graphs = mx.compile(prepare), mx.compile(finish)
+            self.graphs.clear()
+            self.graphs[spec] = graphs
+        parts, normed, projected = graphs[0](x, weights)
+        branch, snapshots = self.layer.self_attn.verify_rows(
+            normed, cache, projected=projected, attention_graph=self.attention
+        )
+        router_weight = None
+        if isinstance(self.layer.mlp, MoE):
+            block = self.layer.mlp
+            if block._router_weight is not None and all(
+                old is new
+                for old, new in zip(
+                    block._router_sources, block._current_router_sources()
+                )
+            ):
+                router_weight = block._router_weight
+        return graphs[1](branch, parts, weights, router_weight), snapshots
+
+
+class _FixedLayerGroup(_FixedGraphOwner):
+    """Stable graph identity, explicit weights, and explicit cache outputs.
+
+    Cache objects created during tracing are private. The traced function
+    returns their arrays; offsets advance in the caller using input length.
+    Input layout is part of the key, so a seal/split retraces deliberately.
+    """
+
+    def __init__(self, layers):
+        self.layers = layers
+        self.graphs = {}
+
+    def __call__(self, x, states, *, verification=False):
+        parameters = [layer.parameters() for layer in self.layers]
+        sources = tuple(
+            id(value)
+            for parameter in parameters
+            for _, value in tree_flatten(parameter)
+        )
+        flags = tuple(
+            (
+                layer.fuse_hc,
+                layer.compile_residual,
+                layer.preserve_residual_dtype,
+                layer.self_attn.fuse_decode,
+                layer.self_attn._fused_qkv_is_current(),
+            )
+            for layer in self.layers
+        )
+        spec = (
+            _graph_configuration(self.layers),
+            x.shape,
+            x.dtype,
+            sources,
+            flags,
+            verification,
+            tuple(
+                (
+                    type(state),
+                    tuple(
+                        None if v is None else (v.shape, v.dtype) for v in state.cache
+                    ),
+                )
+                for state in states
+            ),
+        )
+        graph = self.graphs.get(spec)
+        if graph is None:
+            # Weights are explicit compiled inputs; cloned module dictionaries
+            # are never exposed to the live serving model.
+            # Clone module containers, sharing every original array storage.
+            # A graph owner must never duplicate resident checkpoint weights.
+            layers = _clone_graph_modules(self.layers)
+            for original, layer in zip(self.layers, layers):
+                if not original.self_attn._fused_qkv_is_current():
+                    layer.self_attn._fused_qkv = None
+                    layer.self_attn._fused_qkv3 = None
+            cache_types = tuple(type(state) for state in states)
+
+            def forward(value, weights, arrays, fused_weights):
+                outputs, boundaries = [], []
+                for layer, parameter, array, cache_type, prepared in zip(
+                    layers, weights, arrays, cache_types, fused_weights
+                ):
+                    fused, expert_weights, router_weight = prepared
+                    layer.update(parameter)
+                    attention = layer.self_attn
+                    for projection, values in zip(
+                        (attention._fused_qkv, attention._fused_qkv3), fused
+                    ):
+                        if projection is not None:
+                            projection.update(values)
+                    if attention._fused_qkv is not None:
+                        attention._fused_qkv_sources = attention._qkv_sources()
+                    if isinstance(layer.mlp, MoE):
+                        layer.mlp._router_weight = router_weight
+                        layer.mlp._router_sources = layer.mlp._current_router_sources()
+                        switch = layer.mlp.switch_mlp
+                        if (
+                            expert_weights is not None
+                            and switch._fused_gate_up is not None
+                        ):
+                            switch._fused_gate_up.update(expert_weights)
+                            switch._gate_up_sources = switch._current_gate_up_sources()
+                    local = cache_type(4)
+                    local.cache = list(array)
+                    local.offset = 0
+                    if verification:
+                        value, snapshots = layer.verify_ffn_rows(value, local)
+                        boundaries.append([snapshot.cache for snapshot in snapshots])
+                    else:
+                        value = layer(value, local)
+                    outputs.append(local.cache)
+                return value, outputs, boundaries
+
+            graph = mx.compile(forward)
+            # Keep only the current layout. Growing contexts must not retain
+            # one graph and weight closure per token indefinitely.
+            self.graphs.clear()
+            self.graphs[spec] = graph
+        prepared = []
+        for layer in self.layers:
+            attention = tuple(
+                p.parameters() if p is not None else None
+                for p in (layer.self_attn._fused_qkv, layer.self_attn._fused_qkv3)
+            )
+            expert_weights, router = None, None
+            if isinstance(layer.mlp, MoE):
+                switch = layer.mlp.switch_mlp
+                if (
+                    switch._fused_gate_up is not None
+                    and getattr(switch, "_gate_up_metadata", None)
+                    == switch._current_gate_up_metadata()
+                    and all(
+                        a is b
+                        for a, b in zip(
+                            switch._gate_up_sources, switch._current_gate_up_sources()
+                        )
+                    )
+                ):
+                    expert_weights = switch._fused_gate_up.parameters()
+                if all(
+                    a is b
+                    for a, b in zip(
+                        layer.mlp._router_sources, layer.mlp._current_router_sources()
+                    )
+                ):
+                    router = layer.mlp._router_weight
+            prepared.append((attention, expert_weights, router))
+        result, arrays, boundaries = graph(
+            x, parameters, [state.cache for state in states], prepared
+        )
+        snapshots = [[] for _ in range(x.shape[1])]
+        if verification:
+            for state, layer_boundaries in zip(states, boundaries):
+                for j, values in enumerate(layer_boundaries):
+                    snapshot = type(state)(4)
+                    snapshot.cache = list(values)
+                    snapshot.offset = state.offset + j + 1
+                    snapshots[j].append(snapshot)
+        for state, values in zip(states, arrays):
+            state.cache = list(values)
+            state.offset += x.shape[1]
+        return (result, snapshots) if verification else result
 
 
 class TextModel(nn.Module):
@@ -1730,11 +2523,18 @@ class TextModel(nn.Module):
     def __init__(self, args, enable_mtp=False):
         super().__init__()
         self.args = args
+        self._shared_stream = None
+        self._compile_groups = True
+        self._fixed_groups = {}
         self.embed_tokens = nn.Embedding(args.vocab_size, args.hidden_size)
         self.layers = [DecoderLayer(args, i) for i in range(args.num_hidden_layers)]
         if enable_mtp:
             self.layers.append(MTPHead(args))
         self.norm = nn.RMSNorm(args.hidden_size, eps=args.rms_norm_eps)
+        for layer in self.layers[: args.num_hidden_layers]:
+            if not layer.is_linear:
+                layer._fixed_mla_attention = _FixedMLAAttention(layer.self_attn)
+                layer._fixed_mla_layer = _FixedMLALayer(layer)
 
     def __call__(self, inputs, cache):
         x = self.embed_tokens(inputs)
@@ -1745,15 +2545,37 @@ class TextModel(nn.Module):
             if inputs.shape[1] == 1
             else self._eval_group_size
         )
-        group_start = 0
-        for i, (layer, state) in enumerate(
-            zip(self.layers[: self.args.num_hidden_layers], cache)
-        ):
-            x = layer(x, cache=state)
-            final_layer = i + 1 == self.args.num_hidden_layers
-            if (i + 1) % group_size == 0 or final_layer:
-                mx.async_eval(x, [c.cache for c in cache[group_start : i + 1]])
-                group_start = i + 1
+        if self._compile_groups and self._shared_stream is None:
+            for start in range(0, self.args.num_hidden_layers, group_size):
+                end = min(start + group_size, self.args.num_hidden_layers)
+                cursor = start
+                while cursor < end:
+                    if not self.layers[cursor].is_linear:
+                        layer = self.layers[cursor]
+                        x = layer(x, cache[cursor])
+                        cursor += 1
+                        continue
+                    stop = cursor + 1
+                    while stop < end and self.layers[stop].is_linear:
+                        stop += 1
+                    key = (cursor, stop)
+                    group = self._fixed_groups.get(key)
+                    if group is None:
+                        group = _FixedLayerGroup(self.layers[cursor:stop])
+                        self._fixed_groups[key] = group
+                    x = group(x, cache[cursor:stop])
+                    cursor = stop
+                mx.async_eval(x, [c.cache for c in cache[start:end]])
+        else:
+            group_start = 0
+            for i, (layer, state) in enumerate(
+                zip(self.layers[: self.args.num_hidden_layers], cache)
+            ):
+                x = layer(x, cache=state, shared_stream=self._shared_stream)
+                final_layer = i + 1 == self.args.num_hidden_layers
+                if (i + 1) % group_size == 0 or final_layer:
+                    mx.async_eval(x, [c.cache for c in cache[group_start : i + 1]])
+                    group_start = i + 1
         if self.args.mhc:
             x = x.mean(axis=-2)
         return self.norm(x)
@@ -1780,6 +2602,48 @@ class Model(nn.Module):
         layers = self.model.layers
         return layers[-1] if len(layers) > self.args.num_hidden_layers else None
 
+    def decode_requests(self, inputs, caches):
+        """Ragged request contract: one token and independent layer caches each."""
+        if not inputs or len(inputs) != len(caches):
+            raise ValueError("One cache owner is required for each decode request")
+        if any(v.shape != (1, 1) for v in inputs):
+            raise ValueError("Request decode batches consume one token per request")
+        if any(len(c) != len(self.layers) for c in caches):
+            raise ValueError("Each request must own one cache per target layer")
+        if len(inputs) > 17:
+            return mx.concatenate(
+                [
+                    self.decode_requests(inputs[i : i + 17], caches[i : i + 17])
+                    for i in range(0, len(inputs), 17)
+                ],
+                axis=0,
+            )
+        x = self.model.embed_tokens(mx.concatenate(inputs, axis=1))
+        if self.args.mhc:
+            x = mx.repeat(x[..., None, :], self.args.hc_mult, axis=-2)
+        rows = [x[:, j : j + 1] for j in range(len(inputs))]
+        group_start = 0
+        for i, layer in enumerate(self.layers):
+            rows = layer.decode_requests(
+                rows, [c[i] for c in caches], shared_stream=self.model._shared_stream
+            )
+            if (i + 1) % self.model._decode_eval_group_size == 0 or i + 1 == len(
+                self.layers
+            ):
+                mx.async_eval(
+                    rows,
+                    [
+                        [c.cache for c in states[group_start : i + 1]]
+                        for states in caches
+                    ],
+                )
+                group_start = i + 1
+        hidden = mx.concatenate(
+            [self.model.norm(v.mean(-2) if self.args.mhc else v) for v in rows], axis=1
+        )
+        logits = _project_rows(self.lm_head, hidden)
+        return logits.swapaxes(0, 1)
+
     def forward_with_hidden(self, inputs, cache=None):
         hidden = self.model(inputs, cache if cache is not None else self.make_cache())
         return self.lm_head(hidden), hidden
@@ -1790,6 +2654,17 @@ class Model(nn.Module):
         if type(self.lm_head) is nn.Linear and "bias" not in self.lm_head:
             token = mlx_dense_argmax(normalized, self.lm_head.weight)
         return mx.argmax(self.lm_head(normalized), axis=-1) if token is None else token
+
+    def draft_tokens(self, hidden):
+        normalized = mx.concatenate([self.mtp.shared_head.norm(v) for v in hidden], 1)
+        token = (
+            mlx_dense_argmax_rows(normalized, self.lm_head.weight)
+            if type(self.lm_head) is nn.Linear and "bias" not in self.lm_head
+            else None
+        )
+        if token is None:
+            token = mx.argmax(_project_rows(self.lm_head, normalized), -1)
+        return [token[:, j : j + 1] for j in range(len(hidden))]
 
     def forward_mtp(self, following_tokens, hidden, cache):
         if self.mtp is None:
@@ -1811,6 +2686,21 @@ class Model(nn.Module):
             raise ValueError(f"Unknown GLM MTP verification mode: {mode}")
         self._mtp_verification_mode = mode
 
+    def configure_fixed_groups(self, enabled):
+        """Compile phase-sized pure layer groups for submission A/B."""
+        self.model._compile_groups = bool(enabled)
+        self.model._fixed_groups.clear()
+        for layer in self.layers:
+            if not layer.is_linear:
+                layer._fixed_mla_attention = (
+                    _FixedMLAAttention(layer.self_attn) if enabled else None
+                )
+                layer._fixed_mla_layer = _FixedMLALayer(layer) if enabled else None
+
+    def configure_shared_stream(self, stream):
+        """Bind a caller-owned MLX stream on the current serving thread."""
+        self.model._shared_stream = stream
+
     def configure_eval_groups(self, *, decode=4, prefill=4, verification=4):
         """Bound submission graphs by phase, before serving any requests.
 
@@ -1828,12 +2718,53 @@ class Model(nn.Module):
         self.model._decode_eval_group_size = decode
         self.model._eval_group_size = prefill
         self.model._verification_eval_group_size = verification
+        self.model._fixed_groups.clear()
 
     def configure_latent_projection_cache(self, enabled):
         for layer in self.model.layers:
             if not layer.is_linear:
                 layer.self_attn.cache_latent_projection = enabled
                 layer.self_attn._latent_projection = None
+
+    def verify_mtp_requests(self, inputs, caches):
+        """Layerwise ragged MTP trunks with private per-depth cache owners."""
+        if not inputs or len(inputs) != len(caches):
+            raise ValueError("Each verification chain requires its own cache")
+        if any(
+            v.ndim != 2 or v.shape[0] != 1 or not 1 <= v.shape[1] <= 17 for v in inputs
+        ):
+            raise ValueError("Verification chains must contain 1-17 token rows")
+        if any(len(c) != len(self.layers) for c in caches):
+            raise ValueError("Each chain must own all target layer caches")
+        if len(inputs) == 1:
+            return [self.verify_mtp_rows(inputs[0], caches[0])]
+        rows = [self.model.embed_tokens(v) for v in inputs]
+        if self.args.mhc:
+            rows = [mx.repeat(v[..., None, :], self.args.hc_mult, -2) for v in rows]
+        snapshots = [[[] for _ in range(v.shape[1])] for v in inputs]
+        start = 0
+        for i, layer in enumerate(self.layers):
+            rows, states = layer.verify_requests(
+                rows, [c[i] for c in caches], shared_stream=self.model._shared_stream
+            )
+            for owner, chain in zip(snapshots, states):
+                for destination, state in zip(owner, chain):
+                    destination.append(state)
+            if (i + 1) % self.model._verification_eval_group_size == 0 or i + 1 == len(
+                self.layers
+            ):
+                mx.async_eval(
+                    rows, [[s.cache for s in c[start : i + 1]] for c in caches]
+                )
+                start = i + 1
+        hidden = [self.model.norm(v.mean(-2) if self.args.mhc else v) for v in rows]
+        logits = _project_rows(self.lm_head, mx.concatenate(hidden, 1))
+        result, cursor = [], 0
+        for value, states in zip(hidden, snapshots):
+            count = value.shape[1]
+            result.append((logits[:, cursor : cursor + count], value, states))
+            cursor += count
+        return result
 
     def verify_mtp_rows(self, inputs, cache):
         """Verify a draft chain with per-position attention state.
@@ -1857,27 +2788,62 @@ class Model(nn.Module):
             x = mx.repeat(x[..., None, :], self.args.hc_mult, axis=-2)
         snapshots = [[] for _ in range(count)]
         group_start = 0
-        for i, (layer, state) in enumerate(zip(self.layers, cache)):
-            if mode == "ffn" and count > 1:
-                x, layer_snapshots = layer.verify_ffn_rows(x, state)
+        i = 0
+        while i < len(self.layers):
+            layer, state = self.layers[i], cache[i]
+            if (
+                self.model._compile_groups
+                and self.model._shared_stream is None
+                and mode == "ffn"
+                and count > 1
+                and layer.is_linear
+            ):
+                end = min(
+                    ((i // self.model._verification_eval_group_size) + 1)
+                    * self.model._verification_eval_group_size,
+                    len(self.layers),
+                )
+                stop = i + 1
+                while stop < end and self.layers[stop].is_linear:
+                    stop += 1
+                key = ("verify", i, stop)
+                group = self.model._fixed_groups.get(key)
+                if group is None:
+                    group = _FixedLayerGroup(self.layers[i:stop])
+                    self.model._fixed_groups[key] = group
+                x, states = group(x, cache[i:stop], verification=True)
+                for owner, values in zip(snapshots, states):
+                    owner.extend(values)
+                i = stop - 1
+            elif mode == "ffn" and count > 1:
+                x, layer_snapshots = layer.verify_ffn_rows(
+                    x, state, shared_stream=self.model._shared_stream
+                )
                 for j, snapshot in enumerate(layer_snapshots):
                     snapshots[j].append(snapshot)
             else:
                 rows = []
                 for j in range(count):
-                    rows.append(layer(x[:, j : j + 1], state))
+                    rows.append(
+                        layer(
+                            x[:, j : j + 1],
+                            state,
+                            shared_stream=self.model._shared_stream,
+                        )
+                    )
                     snapshot = type(state)(4)
                     snapshot.cache = [
                         v.view(v.dtype) if v is not None else None for v in state.cache
                     ]
                     snapshot.offset = state.offset
                     snapshots[j].append(snapshot)
-                x = mx.concatenate(rows, axis=1)
+                x = mx.concatenate(rows, 1)
             if (i + 1) % self.model._verification_eval_group_size == 0 or i + 1 == len(
                 cache
             ):
                 mx.async_eval(x, [c.cache for c in cache[group_start : i + 1]])
                 group_start = i + 1
+            i += 1
         if self.args.mhc:
             x = x.mean(axis=-2)
         hidden_rows = [self.model.norm(x[:, j : j + 1]) for j in range(count)]
@@ -1973,6 +2939,7 @@ class Model(nn.Module):
         ):
             raise ValueError(f"Unknown GLM MLX optimization profile: {profile}")
         self._optimization_profile = profile
+        self.model._fixed_groups.clear()
         affine = profile.startswith("affine_")
         fused = profile in ("affine_hc", "affine_kda", "affine_moe", "affine_fused")
         pointwise = profile in ("pointwise", "all", "affine_all") or fused
@@ -2005,7 +2972,11 @@ class Model(nn.Module):
                     mlp.compile_activation = pointwise
                 else:
                     mlp.activation.compile_activation = pointwise
-                    mlp.fuse_gate_up = profile in ("gate_up", "affine_gate_up")
+                    mlp.fuse_gate_up = profile in (
+                        "gate_up",
+                        "affine_gate_up",
+                        "affine_fused",
+                    )
                     if not mlp.fuse_gate_up:
                         mlp._fused_gate_up = None
                         mlp._gate_up_sources = ()

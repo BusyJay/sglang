@@ -675,7 +675,16 @@ class TestGlm5NextMlx(CustomTestCase):
             _snapshot_cache,
         )
 
-        model = copy.deepcopy(self.model)
+        # Exercise copying warmed graph owners even when this test runs alone.
+        source = copy.deepcopy(self.model)
+        source.configure_fixed_groups(True)
+        warm_cache = source.make_cache()
+        mx.eval(source(mx.array([[1, 3, 5, 7]]), warm_cache))
+        model = copy.deepcopy(source)
+        self.assertTrue(model.model._fixed_groups)
+        self.assertTrue(
+            all(not owner.graphs for owner in model.model._fixed_groups.values())
+        )
         cache = model.make_cache()
         tokens = mx.array([self.tokens[:8]])
         model.forward_last_logits(tokens[:, :4], cache)
@@ -1442,6 +1451,517 @@ class TestGlm5NextMlx(CustomTestCase):
         actual, _ = attn.verify_rows(x, NativeCache(4))
         self.assertTrue(mx.all(mx.isfinite(actual)).item())
         self.assertLess(mx.max(mx.abs(actual - expected)).item(), 2e-5)
+
+    def _optimized_mtp_model(self, *, attention_heads=2, latent_rank=256):
+        """Covered GLM geometry, genuine BF16 mHC and mixed affine experts."""
+        import mlx.core as mx
+        from transformers.models.glm5_next.configuration_glm5_next import (
+            Glm5NextTextConfig,
+        )
+
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import (
+            Model,
+            ModelArgs,
+            MoE,
+        )
+
+        mx.random.seed(83)
+        config = Glm5NextTextConfig(
+            vocab_size=128,
+            hidden_size=256,
+            intermediate_size=512,
+            moe_intermediate_size=512,
+            num_hidden_layers=4,
+            num_attention_heads=attention_heads,
+            num_key_value_heads=attention_heads,
+            n_routed_experts=8,
+            num_experts_per_tok=8,
+            n_shared_experts=1,
+            q_lora_rank=128,
+            kv_lora_rank=latent_rank,
+            qk_nope_head_dim=128,
+            qk_rope_head_dim=0,
+            v_head_dim=128,
+            index_head_dim=32,
+            index_n_heads=2,
+            index_topk=32,
+            index_kpool=4,
+            linear_num_heads=2,
+            linear_head_dim=128,
+            hc_mult=4,
+            hc_sinkhorn_iters=20,
+            pad_token_id=None,
+        ).to_dict()
+        config.update(mhc=True, scoring_func="sigmoid", num_nextn_predict_layers=1)
+        config["linear_attn_config"] = dict(
+            num_heads=2, head_dim=128, short_conv_kernel_size=4, gate_lower_bound=-5.0
+        )
+        model = Model(
+            ModelArgs(model_type="glm5_next", text_config=config), enable_mtp=True
+        )
+        model.set_dtype(mx.bfloat16)
+        for layer in model.layers:
+            for name in ("attn", "ffn"):
+                layer[f"hc_{name}_fn"] = (mx.random.normal((24, 1024)) * 0.02).astype(
+                    mx.bfloat16
+                )
+                layer[f"hc_{name}_base"] = layer[f"hc_{name}_base"].astype(mx.float32)
+                layer[f"hc_{name}_scale"] = layer[f"hc_{name}_scale"].astype(mx.float32)
+        for layer in model.model.layers:
+            if isinstance(layer.mlp, MoE):
+                for name, bits in (("gate_proj", 4), ("up_proj", 4), ("down_proj", 5)):
+                    projection = layer.mlp.switch_mlp[name]
+                    projection.set_dtype(mx.float16)
+                    layer.mlp.switch_mlp[name] = projection.to_quantized(
+                        group_size=64, bits=bits
+                    )
+        model.configure_optimizations("affine_fused")
+        model.configure_mtp_verification("ffn")
+        model.prepare_for_inference()
+        mx.eval(model.parameters())
+        return model
+
+    def _assert_optimized_cache_equal(self, actual, expected):
+        import mlx.core as mx
+
+        for got, want in zip(actual, expected):
+            self.assertEqual(got.offset, want.offset)
+            for slot, (a, b) in enumerate(zip(got.cache, want.cache)):
+                if hasattr(got, "latent_segments") and slot == 0:
+                    a, b = got[0], want[0]
+                if hasattr(got, "latent_segments") and slot == 4:
+                    continue
+                if a is None or b is None:
+                    self.assertIs(a, b)
+                else:
+                    self.assertTrue(
+                        mx.array_equal(a, b).item(), (slot, a.shape, b.shape)
+                    )
+
+    def test_optimized_fixed_graphs_refresh_scalar_equations(self):
+        """Compiled owners must observe changed FFN limits, norm and dispatch metadata."""
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import MLP
+        from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
+
+        model = self._optimized_mtp_model(attention_heads=64, latent_rank=512)
+        base = model.make_cache()
+        mx.eval(model((mx.arange(26) % 128)[None], base))
+        tokens = mx.array([[11, 17, 23]])
+        dense = MLP(model.args)
+        dense.set_dtype(mx.bfloat16)
+        model.layers[0].mlp = dense
+        for change in ("limits", "flags", "norm", "quantization", "attention"):
+            model.configure_fixed_groups(True)
+            mx.eval(model.verify_mtp_rows(tokens, [clone_cache(c) for c in base])[:2])
+            if change == "limits":
+                model.layers[0].mlp.limit = 0.001
+                for layer in model.layers[1:]:
+                    if hasattr(layer.mlp, "switch_mlp"):
+                        layer.mlp.switch_mlp.activation.limit = 0.001
+                        layer.mlp.shared_experts.limit = 0.001
+                    else:
+                        layer.mlp.limit = 0.001
+            elif change == "flags":
+                for layer in model.layers:
+                    layer.mlp.compile_activation = not getattr(
+                        layer.mlp, "compile_activation", False
+                    )
+                    if hasattr(layer.mlp, "switch_mlp"):
+                        layer.mlp.switch_mlp.activation.compile_activation = False
+            elif change == "norm":
+                for layer in model.layers:
+                    layer.input_layernorm.eps = 0.1
+                    layer.post_attention_layernorm.eps = 0.1
+            elif change == "quantization":
+                # Same packed weights, valid new grouping with matching metadata arrays.
+                for layer in model.layers[1:]:
+                    if not hasattr(layer.mlp, "switch_mlp"):
+                        continue
+                    for name in ("gate_proj", "up_proj", "down_proj"):
+                        projection = layer.mlp.switch_mlp[name]
+                        projection.group_size = 32
+                        projection.scales = mx.repeat(projection.scales, 2, -1)
+                        projection.biases = mx.repeat(projection.biases, 2, -1)
+            else:
+                for layer in model.layers:
+                    if layer.is_linear:
+                        layer.self_attn.lower_bound = -2.0
+                    else:
+                        layer.self_attn.q_a_layernorm.eps = 0.1
+            actual = model.verify_mtp_rows(tokens, [clone_cache(c) for c in base])
+            mx.eval(actual[:2])
+            model.configure_fixed_groups(False)
+            expected = model.verify_mtp_rows(tokens, [clone_cache(c) for c in base])
+            mx.eval(expected[:2])
+            for a, b in zip(actual[:2], expected[:2]):
+                self.assertTrue(mx.array_equal(a, b).item(), change)
+            for got, want in zip(actual[2], expected[2]):
+                self._assert_optimized_cache_equal(got, want)
+
+    def test_optimized_mla_fixed_width_includes_pool_tails(self):
+        """topk plus unfinished pools may exceed 4096; all snapshots stay exact."""
+        import copy
+
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import (
+            MLA,
+            MLACache,
+            _FixedMLAAttention,
+        )
+        from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
+
+        model = self._optimized_mtp_model(attention_heads=64, latent_rank=512)
+        for topk in (2048, 4096):
+            args = copy.copy(model.args)
+            args.index_topk = topk
+            args.index_kpool_always_select_tail = True
+            attention = MLA(args)
+            attention.set_dtype(mx.bfloat16)
+            owner = _FixedMLAAttention(attention)
+            for offset in (4093, 4096, 4099):
+                cache = MLACache(4)
+                prefix = mx.random.normal((1, offset, 256)).astype(mx.bfloat16)
+                qr = attention.q_a_layernorm(attention.q_a_proj(prefix))
+                attention.indexer(prefix, qr, cache, 0)
+                cache.append_latent(
+                    mx.random.normal((1, offset, 512)).astype(mx.bfloat16)
+                )
+                cache.offset = offset
+                mx.eval(cache.cache)
+                rows = mx.random.normal((1, 3, 256)).astype(mx.bfloat16)
+                actual = attention.verify_rows(
+                    rows, clone_cache(cache), attention_graph=owner
+                )
+                expected = attention.verify_rows(rows, clone_cache(cache))
+                self.assertTrue(
+                    mx.array_equal(actual[0], expected[0]).item(), (topk, offset)
+                )
+                self._assert_optimized_cache_equal(actual[1], expected[1])
+
+    def test_optimized_fixed_groups_invalidate_weights_and_flags(self):
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
+
+        model = self._optimized_mtp_model()
+        base = model.make_cache()
+        mx.eval(model(mx.array([[1, 2, 3, 4]]), base))
+        for update in ("weight", "flag"):
+            model.configure_fixed_groups(True)
+            mx.eval(model(mx.array([[5]]), [clone_cache(c) for c in base]))
+            before = [
+                g
+                for owner in model.model._fixed_groups.values()
+                for g in owner.graphs.values()
+            ]
+            if update == "weight":
+                model.layers[0].self_attn.q_proj.weight = (
+                    model.layers[0].self_attn.q_proj.weight * 1.125
+                )
+            else:
+                model.layers[0].compile_residual = not model.layers[0].compile_residual
+            actual_cache = [clone_cache(c) for c in base]
+            actual = model(mx.array([[5]]), actual_cache)
+            after = [
+                g
+                for owner in model.model._fixed_groups.values()
+                for g in owner.graphs.values()
+            ]
+            self.assertIsNot(before[0], after[0])
+            model.configure_fixed_groups(False)
+            expected_cache = [clone_cache(c) for c in base]
+            expected = model(mx.array([[5]]), expected_cache)
+            self.assertTrue(mx.array_equal(actual, expected).item())
+            self._assert_optimized_cache_equal(actual_cache, expected_cache)
+
+    def test_optimized_sorted_prefill_matches_expert_reference(self):
+        import mlx.core as mx
+        from mlx_lm.models.switch_layers import SwitchGLU
+
+
+        model = self._optimized_mtp_model()
+        block = next(
+            layer.mlp.switch_mlp
+            for layer in model.layers
+            if hasattr(layer.mlp, "switch_mlp")
+        )
+        self.assertIsNotNone(block._fused_gate_up)
+        for count in (8, 32, 65, 256):
+            x = mx.random.normal((1, count, 256)).astype(mx.float16)
+            indices = mx.random.randint(0, 8, (1, count, 8))
+            expected = SwitchGLU.__call__(block, x, indices)
+            actual = block(x, indices)
+            self.assertTrue(mx.array_equal(actual, expected).item(), count)
+
+    def test_optimized_deferred_prefix_accept_reject_and_release(self):
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.mtp_serving import (
+            MlxMTPServing,
+            clone_cache,
+        )
+
+        model = self._optimized_mtp_model()
+        for depth in range(1, 5):
+            engine = MlxMTPServing(model, 4)
+            cache = model.make_cache()
+            mx.eval(engine.prefill("owner", mx.array([[1, 3, 5, 7]]), cache))
+            engine.decode("owner", mx.array([[11]]), cache)
+            for _ in range(depth):
+                token = engine.states["owner"].rows[0].input_token
+                engine.decode("owner", mx.array([[token.item()]]), cache)
+            reference = [clone_cache(c) for c in cache]
+            reference[0].mlx_mtp = cache[0].mlx_mtp
+            engine.remove("owner")
+            resumed = MlxMTPServing(model, 4)
+            for token in (23, 24, 25):
+                inputs = mx.array([[token]])
+                actual = engine.decode("owner", inputs, cache)
+                expected = resumed.decode("fork", inputs, reference)
+                self.assertTrue(mx.array_equal(actual, expected).item())
+                self._assert_optimized_cache_equal(cache, reference)
+            engine.remove("owner")
+            resumed.remove("fork")
+            self.assertFalse(engine.states)
+            self.assertFalse(resumed.states)
+
+    def test_optimized_mtp_request_trunks_preserve_ragged_snapshots(self):
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
+
+        model = self._optimized_mtp_model()
+        owners = [model.make_cache() for _ in range(3)]
+        for j, cache in enumerate(owners):
+            mx.eval(model(mx.array([list(range(1, 5 + j))]), cache))
+        for counts in ((3, 3, 3), (2, 5, 9), (1, 2, 17)):
+            chains = [mx.array([list(range(11, 11 + count))]) for count in counts]
+            reference = [[clone_cache(c) for c in owner] for owner in owners]
+            expected = [
+                model.verify_mtp_rows(chain, cache)
+                for chain, cache in zip(chains, reference)
+            ]
+            actual_cache = [[clone_cache(c) for c in owner] for owner in owners]
+            actual = model.verify_mtp_requests(chains, actual_cache)
+            for got, want in zip(actual, expected):
+                for a, b in zip(got[:2], want[:2]):
+                    self.assertTrue(mx.array_equal(a, b).item(), counts)
+                for a, b in zip(got[2], want[2]):
+                    self._assert_optimized_cache_equal(a, b)
+            for a, b in zip(actual_cache, reference):
+                self._assert_optimized_cache_equal(a, b)
+
+    def test_fixed_mla_preserves_prepared_router_precision(self):
+        """The graph must retain the FP32 router when canonical weights are BF16."""
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.models import glm5_next as module
+        from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
+
+        model = self._optimized_mtp_model()
+        layer = model.layers[3]
+        self.assertEqual(layer.mlp.gate.weight.dtype, mx.bfloat16)
+        self.assertEqual(layer.mlp._router_weight.dtype, mx.float32)
+        cache = model.make_cache()[3]
+        x = mx.random.normal((1, 3, 4, 256)).astype(mx.bfloat16)
+        with (
+            patch.object(layer, "_fixed_mla_layer", None),
+            patch.object(layer, "_fixed_mla_attention", None),
+        ):
+            expected, expected_states = layer.verify_ffn_rows(x, clone_cache(cache))
+
+        operands = []
+        original = module.mlx_glm_router
+
+        def observe(value, weight, *args, **kwargs):
+            operands.append(weight.dtype)
+            return original(value, weight, *args, **kwargs)
+
+        with patch.object(module, "mlx_glm_router", observe):
+            actual, states = module._FixedMLALayer(layer)(x, clone_cache(cache))
+        self.assertTrue(mx.array_equal(actual, expected).item())
+        self.assertTrue(operands)
+        self.assertTrue(all(dtype == mx.float32 for dtype in operands))
+        for got, want in zip(states, expected_states):
+            self._assert_optimized_cache_equal([got], [want])
+
+    def test_optimized_fixed_verification_returns_every_depth(self):
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
+
+        model = self._optimized_mtp_model()
+        base = model.make_cache()
+        mx.eval(model(mx.array([[1, 2, 3, 4]]), base))
+        for count in (2, 5, 9, 17):
+            chain = mx.array([list(range(11, 11 + count))])
+            a, b = ([clone_cache(c) for c in base], [clone_cache(c) for c in base])
+            model.configure_fixed_groups(False)
+            expected = model.verify_mtp_rows(chain, a)
+            model.configure_fixed_groups(True)
+            actual = model.verify_mtp_rows(chain, b)
+            for x, y in zip(actual[:2], expected[:2]):
+                self.assertTrue(mx.array_equal(x, y).item())
+            for x, y in zip(actual[2], expected[2]):
+                self._assert_optimized_cache_equal(x, y)
+            self._assert_optimized_cache_equal(a, b)
+
+    def test_consumed_head_rows_preserve_singleton_cache_boundaries(self):
+        """Deferred accepted rows must retain head arithmetic across tile ends."""
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import NativeCache
+
+        model = self._optimized_mtp_model()
+        for count in (2, 5, 9, 17):
+            hidden = mx.random.normal((1, count, model.args.hidden_size)).astype(
+                mx.bfloat16
+            )
+            embedded = mx.random.normal(hidden.shape).astype(mx.bfloat16)
+            serial, grouped = NativeCache(4), NativeCache(4)
+            expected = mx.concatenate(
+                [
+                    model.mtp(hidden[:, j : j + 1], embedded[:, j : j + 1], serial)
+                    for j in range(count)
+                ],
+                1,
+            )
+            actual = model.mtp.consume_rows(hidden, embedded, grouped)
+            self.assertTrue(mx.array_equal(actual, expected).item())
+            self.assertEqual(serial.offset, grouped.offset)
+            for got, want in zip(grouped.cache, serial.cache):
+                if got is None or want is None:
+                    self.assertIs(got, want)
+                else:
+                    self.assertTrue(mx.array_equal(got, want).item())
+
+    def test_optimized_mla_graph_uses_runtime_visibility(self):
+        import copy
+
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import (
+            MLA,
+            _FixedMLAAttention,
+        )
+
+        model = self._optimized_mtp_model()
+        args = copy.copy(model.args)
+        args.num_attention_heads = 64
+        args.kv_lora_rank = 512
+        attention = MLA(args)
+        attention.set_dtype(mx.bfloat16)
+        graph = _FixedMLAAttention(attention)
+        q = mx.random.normal((1, 3, 64 * 128)).astype(mx.bfloat16)
+        for length in (255, 256, 257, 511, 512, 513):
+            kv = mx.random.normal((1, length, 512)).astype(mx.bfloat16)
+            split = length - 17
+            table = mx.broadcast_to(mx.arange(32), (1, 3, 32))
+            lengths = [17, 26, 31]
+            for row, visible in enumerate(lengths):
+                table[:, row, visible:] = -9999
+            expected = attention.attend_rows(
+                q, kv[:, :split], kv[:, split:], table, lengths
+            )
+            actual = graph(
+                q, kv[:, :split], kv[:, split:], table, mx.array(lengths, mx.uint32)
+            )
+            self.assertTrue(mx.array_equal(actual, expected).item())
+
+    def test_optimized_mla_fixed_model_preserves_growth_and_snapshots(self):
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
+
+        model = self._optimized_mtp_model(attention_heads=64, latent_rank=512)
+        for context in (26, 255, 256, 257, 511, 512, 513):
+            model.configure_fixed_groups(False)
+            base = model.make_cache()
+            mx.eval(model((mx.arange(context) % 128)[None], base))
+            for count in (1, 3, 5):
+                a = [clone_cache(c) for c in base]
+                b = [clone_cache(c) for c in base]
+                tokens = (mx.arange(count) + 17)[None]
+                model.configure_fixed_groups(False)
+                expected = model.verify_mtp_rows(tokens, a)
+                model.configure_fixed_groups(True)
+                actual = model.verify_mtp_rows(tokens, b)
+                for got, want in zip(actual[:2], expected[:2]):
+                    self.assertTrue(mx.array_equal(got, want).item())
+                for got, want in zip(actual[2], expected[2]):
+                    self._assert_optimized_cache_equal(got, want)
+
+    def test_optimized_decode_batch_shares_drafting_and_preserves_owners(self):
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.mtp_serving import MlxMTPServing
+
+        model = self._optimized_mtp_model()
+        for steps in (1, 2, 3, 4):
+            for count in (2, 4):
+                batched, serial = (
+                    MlxMTPServing(model, steps),
+                    MlxMTPServing(model, steps),
+                )
+                a = [model.make_cache() for _ in range(count)]
+                b = [model.make_cache() for _ in range(count)]
+                tokens = []
+                for j in range(count):
+                    prompt = (mx.arange(26 + j) % 128)[None]
+                    hidden = batched.prefill(str(j), prompt, a[j])
+                    serial.prefill(str(j), prompt, b[j])
+                    tokens.append(int(mx.argmax(model.lm_head(hidden[:, -1:])).item()))
+                for iteration in range(7):
+                    inputs = mx.array(tokens)[:, None]
+                    expected = mx.concatenate(
+                        [
+                            serial.decode(str(j), inputs[j : j + 1], b[j])
+                            for j in range(count)
+                        ],
+                        0,
+                    )
+                    actual = batched.decode_batch(
+                        [str(j) for j in range(count)], inputs, a, tokens
+                    )
+                    self.assertTrue(mx.array_equal(actual, expected).item())
+                    for got, want in zip(a, b):
+                        self._assert_optimized_cache_equal(got, want)
+                    tokens = [int(mx.argmax(actual[j]).item()) for j in range(count)]
+
+    def test_request_batch_preserves_ragged_cache_and_prefix_owners(self):
+        """Batched projections cannot merge unequal request visibility or state."""
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
+
+        model = self._optimized_mtp_model()
+        model.prepare_for_inference()
+        owners = [model.make_cache() for _ in range(3)]
+        for j, cache in enumerate(owners):
+            mx.eval(model(mx.array([list(range(1, 5 + j))]), cache))
+        for step in range(4):
+            reference = [[clone_cache(c) for c in cs] for cs in owners]
+            tokens = [mx.array([[13 + step + j]]) for j in range(3)]
+            expected = mx.concatenate(
+                [model(t, c) for t, c in zip(tokens, reference)], 0
+            )
+            actual = model.decode_requests(tokens, owners)
+            self.assertTrue(mx.array_equal(actual, expected).item())
+            for got, want in zip(owners, reference):
+                for gc, wc in zip(got, want):
+                    self.assertEqual(gc.offset, wc.offset)
+                    for slot, (gv, wv) in enumerate(zip(gc.cache, wc.cache)):
+                        if hasattr(gc, "latent_segments") and slot == 0:
+                            gv, wv = gc[0], wc[0]
+                        if hasattr(gc, "latent_segments") and slot == 4:
+                            continue
+                        if gv is None or wv is None:
+                            self.assertIs(gv, wv)
+                        else:
+                            self.assertTrue(mx.array_equal(gv, wv).item())
 
     def test_mtp_shared_execute_boundary_preserves_request_isolation(self):
         import mlx.core as mx
