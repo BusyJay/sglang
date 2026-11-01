@@ -161,7 +161,7 @@ class MlxMTPServing:
         if state is not None:
             state.remaining = max(0, remaining)
 
-    def _flush_head(self, state):
+    def _flush_head(self, state, *, submit=True):
         if state.pending_hidden:
             out = self.model.mtp.consume_rows(
                 mx.concatenate(state.pending_hidden, axis=1),
@@ -170,9 +170,18 @@ class MlxMTPServing:
                 ),
                 state.head,
             )
-            mx.async_eval(out, state.head.cache)
+            if submit:
+                mx.async_eval(out, state.head.cache)
             state.pending_hidden.clear()
             state.pending_tokens.clear()
+            return out
+        return None
+
+    def _flush_heads(self, states):
+        outputs = [self._flush_head(state, submit=False) for state in states]
+        active = [(state, out) for state, out in zip(states, outputs) if out is not None]
+        if active:
+            mx.async_eval([out for _, out in active], [state.head.cache for state, _ in active])
 
     def prefill(self, rid, inputs, cache):
         state = self._state(rid, cache)
@@ -256,8 +265,10 @@ class MlxMTPServing:
                     hidden=hidden[:, -1:],
                     token_only=token_only,
                 )
-            self._flush_head(state)
-            if defer_verification and hasattr(self.model, "draft_tokens"):
+            batch_drafting = defer_verification and hasattr(self.model, "draft_tokens")
+            if not batch_drafting:
+                self._flush_head(state)
+            if batch_drafting:
                 self.step_histogram[steps] += 1
                 self.verify_ct += 1
                 self.num_proposed_drafts += steps
@@ -338,6 +349,7 @@ class MlxMTPServing:
         # them; publication never reads unfinished cache contents on the host.
         drafting = [p for p in pending if p.draft_steps]
         if drafting:
+            self._flush_heads([p.state for p in drafting])
             chains = [[p.inputs] for p in drafting]
             outputs = self.model.mtp.decode_requests(
                 [p.state.hidden for p in drafting],
