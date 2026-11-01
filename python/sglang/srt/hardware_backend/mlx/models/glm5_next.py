@@ -1430,7 +1430,8 @@ class MLA(nn.Module):
         return qr, q, kv, self.indexer.project_verify_rows(x, qr)
 
     def verify_rows(
-        self, x, cache, *, projected=None, project_output=True, attention_graph=None
+        self, x, cache, *, projected=None, project_output=True,
+        attention_graph=None, graph_observation=None,
     ):
         """Batch projections and latent attention with explicit per-row visibility."""
         a = self.args
@@ -1502,7 +1503,7 @@ class MLA(nn.Module):
         lengths = [v.shape[-1] for v in selected]
         if attention_graph is not None:
             out = attention_graph(
-                q, prefix, tail, indices, mx.array(lengths, mx.uint32)
+                q, prefix, tail, indices, mx.array(lengths, mx.uint32), observation=graph_observation
             )
         else:
             out = self.attend_rows(q, prefix, tail, indices, lengths)
@@ -2217,6 +2218,126 @@ def _graph_configuration(modules):
     return tuple(records)
 
 
+class _GraphObservation:
+    """Reuse observation paths and parameter containers until live state changes.
+
+    Check container membership, child identities, scalar values and class
+    dictionaries on every transaction. Arrays remain explicit graph inputs;
+    neither this plan nor graph clones copy their device storage.
+    """
+
+    _excluded = frozenset(
+        {
+            "_fixed_mla_layer",
+            "_fixed_mla_attention",
+            "_latent_projection",
+            "_no_grad",
+            "_training",
+            "_gate_up_sources",
+            "_router_sources",
+            "_fused_qkv_sources",
+        }
+    )
+
+    def __init__(self, modules):
+        self.modules = modules
+        self.nodes = []
+        self.classes = {}
+        pending, seen = [modules], {id(modules)}
+        primitive = (bool, int, float, str, type(mx.float32))
+        for value in pending:
+            if isinstance(value, (list, tuple)):
+                fields = tuple(enumerate(value))
+                keys = None
+            elif isinstance(value, (nn.Module, ModelArgs, dict)):
+                fields = dict(value) if isinstance(value, dict) else {}
+                fields.update(vars(value) if hasattr(value, "__dict__") else {})
+                keys = (
+                    tuple(value) if isinstance(value, dict) else (),
+                    tuple(vars(value)) if hasattr(value, "__dict__") else (),
+                )
+                if isinstance(value, nn.Module):
+                    for cls in type(value).__mro__:
+                        self.classes.setdefault(
+                            cls,
+                            tuple((k, v) for k, v in vars(cls).items()
+                                  if not k.startswith("__")
+                                  and isinstance(v, (bool, int, float, str))),
+                        )
+                    # Discover current defaults on rebuild, including added flags.
+                    defaults = {}
+                    for cls in reversed(type(value).__mro__):
+                        defaults.update({
+                            k: v for k, v in vars(cls).items()
+                            if not k.startswith("__")
+                            and isinstance(v, (bool, int, float, str))
+                        })
+                    for key in defaults:
+                        fields.setdefault(key, getattr(value, key))
+                fields = tuple(fields.items())
+            else:
+                continue
+            observed = []
+            for key, child in fields:
+                if key in self._excluded:
+                    continue
+                scalar = child is None or isinstance(child, primitive)
+                observed.append((key, scalar, child if scalar else id(child)))
+                if (
+                    not scalar
+                    and not isinstance(child, mx.array)
+                    and not (callable(child) and not isinstance(child, nn.Module))
+                ):
+                    if id(child) not in seen:
+                        seen.add(id(child))
+                        pending.append(child)
+            length = len(value) if isinstance(value, (list, tuple)) else None
+            self.nodes.append((value, keys, length, observed))
+        # A plan identity is a configuration epoch. Structure and values are
+        # checked before reusing it; changed state creates a fresh epoch.
+        self.key = object()
+        self.parameters = (
+            [m.parameters() for m in modules]
+            if isinstance(modules, (list, tuple))
+            else modules.parameters()
+        )
+        self.sources = tuple(id(v) for _, v in tree_flatten(self.parameters))
+
+    def current(self, modules):
+        if modules is not self.modules:
+            return False
+        for cls, fields in self.classes.items():
+            if tuple((k, v) for k, v in vars(cls).items()
+                     if not k.startswith("__") and isinstance(v, (bool, int, float, str))) != fields:
+                return False
+        for value, keys, length, observed in self.nodes:
+            if keys is None:
+                if len(value) != length:
+                    return False
+            elif keys != (tuple(value) if isinstance(value, dict) else (),
+                          tuple(vars(value)) if hasattr(value, "__dict__") else ()):
+                return False
+            for key, scalar, previous in observed:
+                child = (
+                    value[key]
+                    if keys is None or isinstance(value, dict) and key in value
+                    else getattr(value, key)
+                )
+                if scalar:
+                    if type(child) is not type(previous) or child != previous:
+                        return False
+                elif id(child) != previous:
+                    return False
+        return True
+
+
+def _observe_graph(owner, modules):
+    plan = getattr(owner, "_observation", None)
+    if plan is None or not plan.current(modules):
+        plan = owner._observation = _GraphObservation(modules)
+    return plan.key, plan.parameters, plan.sources
+
+
 def _clone_graph_modules(modules, excluded=()):
     """Clone module containers while sharing array storage and compiled callables."""
     memo = {id(value): None for value in excluded if value is not None}
@@ -2262,7 +2383,13 @@ class _FixedGraphOwner:
         memo[id(self)] = result
         for name, value in vars(self).items():
             setattr(
-                result, name, {} if name == "graphs" else copy.deepcopy(value, memo)
+                result,
+                name,
+                (
+                    {} if name == "graphs"
+                    else None if name == "_observation"
+                    else copy.deepcopy(value, memo)
+                ),
             )
         return result
 
@@ -2279,7 +2406,7 @@ class _FixedMLAAttention(_FixedGraphOwner):
         self.attention = attention
         self.graphs = {}
 
-    def __call__(self, q, prefix, tail, indices, lengths):
+    def __call__(self, q, prefix, tail, indices, lengths, *, observation=None):
         if tail is None:
             tail = prefix[:, :0]
         split = prefix.shape[1]
@@ -2289,16 +2416,18 @@ class _FixedMLAAttention(_FixedGraphOwner):
             prefix = mx.pad(prefix, [(0, 0), (0, 256 - split), (0, 0)])
         tail_capacity = max(256, ((tail.shape[1] + 255) // 256) * 256)
         tail = mx.pad(tail, [(0, 0), (0, tail_capacity - tail.shape[1]), (0, 0)])
-        parameter = self.attention.parameters()
+        configuration, parameter, sources = (
+            _observe_graph(self, self.attention) if observation is None else observation
+        )
         spec = (
-            _graph_configuration(self.attention),
+            configuration,
             q.shape,
             q.dtype,
             indices.shape,
             prefix.shape,
             tail.shape,
             prefix.dtype,
-            tuple(id(v) for _, v in tree_flatten(parameter)),
+            sources,
         )
         graph = self.graphs.get(spec)
         if graph is None:
@@ -2327,15 +2456,15 @@ class _FixedMLALayer(_FixedGraphOwner):
         self.attention = _FixedMLAAttention(layer.self_attn)
 
     def __call__(self, x, cache):
-        weights = self.layer.parameters()
+        configuration, weights, sources = _observe_graph(self, self.layer)
         spec = (
-            _graph_configuration(self.layer),
+            configuration,
             x.shape,
             x.dtype,
             self.layer.fuse_hc,
             self.layer.compile_residual,
             self.layer.preserve_residual_dtype,
-            tuple(id(v) for _, v in tree_flatten(weights)),
+            sources,
         )
         graphs = self.graphs.get(spec)
         if graphs is None:
@@ -2386,8 +2515,11 @@ class _FixedMLALayer(_FixedGraphOwner):
             graphs = mx.compile(prepare), mx.compile(finish)
             self._remember_graph(spec, graphs, (spec[0], spec[3:]))
         parts, normed, projected = graphs[0](x, weights)
+        # A replaced attention module belongs to this transaction's layer.
+        self.attention.attention = self.layer.self_attn
         branch, snapshots = self.layer.self_attn.verify_rows(
-            normed, cache, projected=projected, attention_graph=self.attention
+            normed, cache, projected=projected, attention_graph=self.attention,
+            graph_observation=(configuration, weights["self_attn"], sources),
         )
         router_weight = None
         if isinstance(self.layer.mlp, MoE):
@@ -2414,13 +2546,13 @@ class _FixedLayerGroup(_FixedGraphOwner):
         self.layers = layers
         self.graphs = {}
 
-    def __call__(self, x, states, *, verification=False):
-        parameters = [layer.parameters() for layer in self.layers]
-        sources = tuple(
-            id(value)
-            for parameter in parameters
-            for _, value in tree_flatten(parameter)
-        )
+    def __call__(self, x, states, *, verification=False, layers=None):
+        if layers is not None and (
+            len(layers) != len(self.layers)
+            or any(a is not b for a, b in zip(layers, self.layers))
+        ):
+            self.layers = layers
+        configuration, parameters, sources = _observe_graph(self, self.layers)
         flags = tuple(
             (
                 layer.fuse_hc,
@@ -2432,7 +2564,7 @@ class _FixedLayerGroup(_FixedGraphOwner):
             for layer in self.layers
         )
         spec = (
-            _graph_configuration(self.layers),
+            configuration,
             x.shape,
             x.dtype,
             sources,
@@ -2596,7 +2728,7 @@ class TextModel(nn.Module):
                     if group is None:
                         group = _FixedLayerGroup(self.layers[cursor:stop])
                         self._fixed_groups[key] = group
-                    x = group(x, cache[cursor:stop])
+                    x = group(x, cache[cursor:stop], layers=self.layers[cursor:stop])
                     cursor = stop
                 mx.async_eval(x, [c.cache for c in cache[start:end]])
         else:
@@ -2844,7 +2976,7 @@ class Model(nn.Module):
                 if group is None:
                     group = _FixedLayerGroup(self.layers[i:stop])
                     self.model._fixed_groups[key] = group
-                x, states = group(x, cache[i:stop], verification=True)
+                x, states = group(x, cache[i:stop], verification=True, layers=self.layers[i:stop])
                 for owner, values in zip(snapshots, states):
                     owner.extend(values)
                 i = stop - 1

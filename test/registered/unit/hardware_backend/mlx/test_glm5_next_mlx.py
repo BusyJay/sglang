@@ -1617,6 +1617,65 @@ class TestGlm5NextMlx(CustomTestCase):
                         mx.array_equal(a, b).item(), (slot, a.shape, b.shape)
                     )
 
+    def test_graph_observation_rebuilds_mutated_structure_and_parameters(self):
+        import copy
+
+        import mlx.core as mx
+        import mlx.nn as nn
+        from mlx.utils import tree_flatten
+
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import _GraphObservation
+
+        module = nn.Module()
+        module.projection = nn.Linear(256, 256)
+        module.norms = [nn.RMSNorm(256)]
+        module.options = {"limit": 1.0}
+        plan = _GraphObservation(module)
+        for change in (
+            lambda: setattr(module.norms[0], "eps", 0.1),
+            lambda: module.update({"projection": {"weight": module.projection.weight * 1.25}}),
+            lambda: setattr(module, "projection", nn.Linear(256, 256)),
+            lambda: module.norms.append(nn.RMSNorm(256)),
+            lambda: module.options.update(extra=2),
+            lambda: module.options.pop("limit"),
+        ):
+            self.assertTrue(plan.current(module))
+            change()
+            self.assertFalse(plan.current(module))
+            plan = _GraphObservation(module)
+            for (_, actual), (_, expected) in zip(
+                tree_flatten(plan.parameters), tree_flatten(module.parameters())
+            ):
+                self.assertIs(actual, expected)
+        with patch.object(nn.Linear, "compile_observation_flag", True, create=True):
+            self.assertFalse(plan.current(module))
+            plan = _GraphObservation(module)
+            self.assertTrue(plan.current(module))
+        self.assertFalse(plan.current(module))
+        self.assertFalse(plan.current(copy.deepcopy(module)))
+
+    def test_fixed_groups_refresh_replaced_layer_container(self):
+        import copy
+
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
+
+        model = self._optimized_mtp_model()
+        cache = model.make_cache()
+        mx.eval(model(mx.array([[1, 2, 3]]), cache))
+        tokens = mx.array([[11, 17, 23]])
+        mx.eval(model.verify_mtp_rows(tokens, [clone_cache(c) for c in cache])[:2])
+        replacement = copy.deepcopy(model.layers[0])
+        replacement.post_attention_layernorm.eps = 0.1
+        model.model.layers[0] = replacement
+        actual = model.verify_mtp_rows(tokens, [clone_cache(c) for c in cache])
+        model.configure_fixed_groups(False)
+        expected = model.verify_mtp_rows(tokens, [clone_cache(c) for c in cache])
+        self.assertTrue(mx.array_equal(actual[0], expected[0]).item())
+        for got, want in zip(actual[2], expected[2]):
+            self._assert_optimized_cache_equal(got, want)
+
     def test_optimized_fixed_graphs_refresh_scalar_equations(self):
         """Compiled owners must observe changed FFN limits, norm and dispatch metadata."""
         import mlx.core as mx
