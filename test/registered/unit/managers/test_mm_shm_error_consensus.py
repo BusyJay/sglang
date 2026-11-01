@@ -541,7 +541,9 @@ class TestModelSpecificDataShmWrap(CustomTestCase):
         self.assertNotIsInstance(crop, ShmPointerMMData)
         self.assertEqual(crop.numel(), 1 * 1 * 3 * 1024 * 1024, "shape must survive")
         self.assertLess(crop.untyped_storage().nbytes(), 1024, "must be a small view")
-        self.assertEqual(after - before, 1, "only the feature segment is allocated")
+        if sys.platform == "linux":
+            self.assertEqual(after - before, 1, "only the feature segment is allocated")
+        self.assertIsInstance(item.feature, ShmPointerMMData)
         self.assertTrue(bool((crop == 0).all()))
 
     def test_real_crops_are_not_treated_as_placeholders(self):
