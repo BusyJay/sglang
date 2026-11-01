@@ -90,6 +90,12 @@ class _DummyModel:
     shared_experts_config = SharedExpertsConfig()
 
     @staticmethod
+    def pad_input_ids(input_ids, mm_inputs):
+        from sglang.srt.managers.mm_utils import pad_mm_tokens
+
+        return pad_mm_tokens(input_ids, mm_inputs)
+
+    @staticmethod
     def forward():
         pass
 

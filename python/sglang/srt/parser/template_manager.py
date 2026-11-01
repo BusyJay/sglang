@@ -190,7 +190,11 @@ class TemplateManager:
                     # override the chat template
                     tokenizer_manager.tokenizer.chat_template = hf_template
                 python_template = resolve_python_chat_template(
-                    tokenizer_manager.model_config.hf_config, hf_template
+                    tokenizer_manager.model_config.hf_config,
+                    hf_template,
+                    enable_multimodal=getattr(
+                        tokenizer_manager.model_config, "is_multimodal", False
+                    ),
                 )
                 if python_template is not None:
                     self._load_python_chat_template(tokenizer_manager, python_template)

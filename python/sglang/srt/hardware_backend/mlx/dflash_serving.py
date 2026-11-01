@@ -103,12 +103,15 @@ class MlxDFlashServing:
             state.pending_features.clear()
             state.pending_positions.clear()
 
-    def prefill(self, rid, inputs, cache):
+    def prefill(self, rid, inputs, cache, *, inputs_embeds=None):
         state = self._state(rid, cache)
         state.rows.clear()
         offset = state.offset
         hidden, features = self.model.model(
-            inputs, cache, capture_layer_ids=self.capture_layer_ids
+            inputs,
+            cache,
+            capture_layer_ids=self.capture_layer_ids,
+            inputs_embeds=inputs_embeds,
         )
         state.pending_features.append(features)
         state.pending_positions.append(

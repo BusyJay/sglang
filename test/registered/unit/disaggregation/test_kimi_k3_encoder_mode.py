@@ -11,7 +11,6 @@ import torch
 import zmq
 import zmq.asyncio
 from fastapi import HTTPException
-
 from sglang.srt.arg_groups.overrides import resolution_result
 from sglang.srt.disaggregation.encoder.receiver import (
     EmbeddingData,
@@ -28,6 +27,26 @@ from sglang.srt.runtime_context import get_context, publish, reset_context
 from sglang.test.ci.ci_register import register_cpu_ci
 
 register_cpu_ci(est_time=12, suite="base-a-test-cpu")
+
+
+def test_single_rank_encoder_prepare_without_distributed_group():
+    from unittest.mock import patch
+
+    from sglang.srt.disaggregation.encoder.server import BadRequestError
+
+    encoder = MMEncoder.__new__(MMEncoder)
+    with patch(
+        "sglang.srt.disaggregation.encoder.server.get_parallel",
+        return_value=SimpleNamespace(tp_size=1),
+    ):
+        status = encoder._sync_tp_prepare_status(
+            None, error_phase=1, layout_digest=(7, 11)
+        )
+        assert status[0].tolist() == [0, 1, 7, 11]
+        with pytest.raises(BadRequestError, match="preprocessing failed on TP rank 0"):
+            encoder._sync_tp_prepare_status(
+                BadRequestError("invalid image"), error_phase=1, layout_digest=(0, 0)
+            )
 
 
 def test_epd_rejection_reads_the_resolved_transfer_backend():

@@ -37,7 +37,6 @@ import unittest
 from types import SimpleNamespace
 
 import torch
-
 from sglang.srt.managers.schedule_batch import ReqKvInfo
 from sglang.srt.model_executor.forward_batch_info import ForwardMode
 from sglang.srt.runtime_context import get_context
@@ -200,6 +199,34 @@ class _FakeBatch:
 
 @unittest.skipUnless(_IS_APPLE_SILICON and _HAS_MLX, _SKIP_REASON)
 class TestMlxExtendRouting(CustomTestCase):
+    def test_image_padding_distinguishes_equal_shape_media(self):
+        from array import array
+
+        from sglang.srt.hardware_backend.mlx.tp_worker import MlxTpModelWorker
+        from sglang.srt.managers.schedule_batch import (
+            Modality,
+            MultimodalDataItem,
+            MultimodalInputs,
+        )
+
+        pad = MlxTpModelWorker.__new__(MlxTpModelWorker).get_pad_input_ids_func()
+        source = array("q", [1, 9, 9, 2])
+        outputs = []
+        for value in (0.0, 1.0):
+            item = MultimodalDataItem(
+                modality=Modality.IMAGE,
+                feature=torch.full((2, 4), value),
+                offsets=[(1, 2)],
+            )
+            item.set_pad_value()
+            outputs.append(
+                pad(source, MultimodalInputs(mm_items=[item], im_token_id=9))
+            )
+        self.assertNotEqual(outputs[0], outputs[1])
+        self.assertEqual(source, array("q", [1, 9, 9, 2]))
+        self.assertEqual(outputs[0][0], 1)
+        self.assertEqual(outputs[0][-1], 2)
+
     """Routing contract for MlxTpModelWorker: shared helper + sync + async."""
 
     @classmethod

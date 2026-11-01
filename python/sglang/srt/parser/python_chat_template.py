@@ -93,14 +93,15 @@ def may_replace_jinja_template(hf_chat_template: Optional[str]) -> bool:
 
 
 def resolve_python_chat_template(
-    hf_config: Any, hf_chat_template: Optional[str]
+    hf_config: Any, hf_chat_template: Optional[str], *, enable_multimodal: bool = False
 ) -> Optional[PythonChatTemplate]:
     """The Python template that replaces this checkpoint's Jinja template.
 
     GLM-5, GLM-5.1 and GLM-5.2 share ``GlmMoeDsaForCausalLM`` with GLM-5.3 but
     ship different templates, so the architecture alone does not decide: the
-    checkpoint's template must be a GLM-5.3 one, and its multimodal block must
-    match the architecture (GLM-5.3 is text-only, GLM-5.3-Flash multimodal).
+    checkpoint's template must be a GLM-5.3 one. Its multimodal block must
+    match the architecture, except for converted Flash checkpoints whose
+    vision-enabled serving configuration selects the canonical Flash renderer.
     """
     architectures = getattr(hf_config, "architectures", None) or []
     template = _GLM53_TEMPLATES_BY_ARCH.get(architectures[0] if architectures else "")
@@ -108,6 +109,11 @@ def resolve_python_chat_template(
         return None
     multimodal = "<|begin_of_image|>" in hf_chat_template
     if multimodal != (template is GLM53_FLASH):
+        # Some converted Flash checkpoints retain the GLM-5.3 text template.
+        # A serving configuration that actually loads the vision tower must
+        # render its image/video markers with the canonical Flash renderer.
+        if enable_multimodal and template is GLM53_FLASH:
+            return template
         return None
     return template
 

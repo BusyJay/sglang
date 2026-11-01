@@ -184,27 +184,43 @@ class MlxMTPServing:
 
     def _flush_heads(self, states):
         outputs = [self._flush_head(state, submit=False) for state in states]
-        active = [(state, out) for state, out in zip(states, outputs) if out is not None]
+        active = [
+            (state, out) for state, out in zip(states, outputs) if out is not None
+        ]
         if active:
-            mx.async_eval([out for _, out in active], [state.head.cache for state, _ in active])
+            mx.async_eval(
+                [out for _, out in active], [state.head.cache for state, _ in active]
+            )
 
-    def prefill(self, rid, inputs, cache):
+    def prefill(self, rid, inputs, cache, *, inputs_embeds=None):
         state = self._state(rid, cache)
         state.rows.clear()
         state.cycle_start = 0.0
         self._flush_head(state)
-        hidden = self.model.model(inputs, cache)
-        pairs_h, pairs_t = [], []
+        hidden = (
+            self.model.model(inputs, cache)
+            if inputs_embeds is None
+            else self.model.model(inputs, cache, inputs_embeds=inputs_embeds)
+        )
+        pairs_h, pairs_t, pairs_e = [], [], []
         if state.hidden is not None:
             pairs_h.append(state.hidden)
             pairs_t.append(inputs[:, :1])
+            if inputs_embeds is not None:
+                pairs_e.append(inputs_embeds[:, :1])
         if inputs.shape[1] > 1:
             pairs_h.append(hidden[:, :-1])
             pairs_t.append(inputs[:, 1:])
+            if inputs_embeds is not None:
+                pairs_e.append(inputs_embeds[:, 1:])
         if pairs_h:
             out = self.model.mtp(
                 mx.concatenate(pairs_h, axis=1),
-                self.model.model.embed_tokens(mx.concatenate(pairs_t, axis=1)),
+                (
+                    mx.concatenate(pairs_e, axis=1)
+                    if inputs_embeds is not None
+                    else self.model.model.embed_tokens(mx.concatenate(pairs_t, axis=1))
+                ),
                 state.head,
             )
             mx.async_eval(out, state.head.cache)

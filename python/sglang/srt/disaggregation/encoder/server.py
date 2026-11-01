@@ -17,7 +17,6 @@ import numpy as np
 import torch
 import zmq
 import zmq.asyncio
-
 from sglang.srt.configs.device_config import DeviceConfig
 from sglang.srt.configs.load_config import LoadConfig
 from sglang.srt.configs.model_config import ModelConfig
@@ -583,48 +582,65 @@ class MMEncoder:
             gpu_id=self.gpu_id,
         )
 
-        torch.get_device_module(self.device).set_device(self.gpu_id)
+        from sglang.srt.hardware_backend.mlx.runtime import use_mlx
 
-        init_distributed_environment(
-            backend=get_default_distributed_backend(self.device),
-            world_size=get_parallel().tp_size,
-            rank=rank,
-            distributed_init_method=dist_init_method,
-            local_rank=rank,
-        )
-        # The encoder uses a separate WORLD with tensor and attention-CP parallelism.
-        parallel = get_parallel()
-        attn_cp_size = parallel.attn_cp_size
-        attn_tp_size = parallel.tp_size // attn_cp_size
-        attn_cp_rank, attn_tp_rank = divmod(rank, attn_tp_size)
-        parallel.override_permanently(
-            tp_rank=rank,
-            pp_size=1,
-            pp_rank=0,
-            attn_dp_size=1,
-            attn_dp_rank=0,
-            attn_tp_size=attn_tp_size,
-            attn_tp_rank=attn_tp_rank,
-            attn_cp_rank=attn_cp_rank,
-            attn_dcp_size=1,
-            moe_ep_size=1,
-            moe_ep_rank=0,
-            moe_dp_size=1,
-            moe_tp_size=parallel.tp_size,
-        )
-        initialize_model_parallel()
-        initialize_dp_attention_flags(server_args)
-        init_dp_gathered_buffer(self.model_config)
+        if use_mlx() and self.model_type == "glm5_next":
+            from sglang.srt.hardware_backend.mlx.remote_code_gate import (
+                resolve_model_directory,
+            )
+            from sglang.srt.hardware_backend.mlx.vision import MlxEncoderModel
 
-        self.model = load_model(
-            model_config=self.model_config,
-            load_config=self.load_config,
-            device_config=self.device_config,
-        )
-        encoder_media_processor_config = resolve_encoder_media_processor_config(
-            self.model
-        )
-        maybe_precompile_model_kernels_after_loading(self.model, self.device)
+            self.model = MlxEncoderModel(
+                resolve_model_directory(
+                    get_model().model_path, revision=get_model().revision
+                )
+            )
+            encoder_media_processor_config = resolve_encoder_media_processor_config(
+                self.model
+            )
+        else:
+            torch.get_device_module(self.device).set_device(self.gpu_id)
+
+            init_distributed_environment(
+                backend=get_default_distributed_backend(self.device),
+                world_size=get_parallel().tp_size,
+                rank=rank,
+                distributed_init_method=dist_init_method,
+                local_rank=rank,
+            )
+            # The encoder uses a separate WORLD with tensor and attention-CP parallelism.
+            parallel = get_parallel()
+            attn_cp_size = parallel.attn_cp_size
+            attn_tp_size = parallel.tp_size // attn_cp_size
+            attn_cp_rank, attn_tp_rank = divmod(rank, attn_tp_size)
+            parallel.override_permanently(
+                tp_rank=rank,
+                pp_size=1,
+                pp_rank=0,
+                attn_dp_size=1,
+                attn_dp_rank=0,
+                attn_tp_size=attn_tp_size,
+                attn_tp_rank=attn_tp_rank,
+                attn_cp_rank=attn_cp_rank,
+                attn_dcp_size=1,
+                moe_ep_size=1,
+                moe_ep_rank=0,
+                moe_dp_size=1,
+                moe_tp_size=parallel.tp_size,
+            )
+            initialize_model_parallel()
+            initialize_dp_attention_flags(server_args)
+            init_dp_gathered_buffer(self.model_config)
+
+            self.model = load_model(
+                model_config=self.model_config,
+                load_config=self.load_config,
+                device_config=self.device_config,
+            )
+            encoder_media_processor_config = resolve_encoder_media_processor_config(
+                self.model
+            )
+            maybe_precompile_model_kernels_after_loading(self.model, self.device)
 
         # CPU preprocessing pipeline (Rust-replaceable)
         self.preprocessor = EncoderPreprocessor(
@@ -1292,7 +1308,8 @@ class MMEncoder:
         layout_digest: tuple[int, int],
     ) -> List[torch.Tensor]:
         """Raise the same preparation error on every TP rank."""
-        tp_group = get_parallel().tp_group
+        world_size = get_parallel().tp_size
+        tp_group = get_parallel().tp_group if world_size > 1 else None
         error_code = (
             int(
                 local_error.code
@@ -1305,8 +1322,8 @@ class MMEncoder:
         local_status = torch.tensor(
             [error_code, error_phase, *layout_digest], dtype=torch.int64
         )
-        statuses = [torch.empty_like(local_status) for _ in range(tp_group.world_size)]
-        if tp_group.world_size > 1:
+        statuses = [torch.empty_like(local_status) for _ in range(world_size)]
+        if world_size > 1:
             torch.distributed.all_gather(
                 statuses,
                 local_status,
@@ -1331,7 +1348,7 @@ class MMEncoder:
             tp_group.all_gather_object(
                 str(local_error) if local_error is not None else None
             )
-            if tp_group.world_size > 1
+            if world_size > 1
             else [str(local_error)]
         )
         rank, failure_code, failure_phase = next(

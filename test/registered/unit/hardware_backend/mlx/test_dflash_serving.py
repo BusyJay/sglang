@@ -128,6 +128,36 @@ class TestMlxDFlashServing(CustomTestCase):
         self.target.configure_mtp_verification("ffn")
         self.target.prepare_for_inference()
 
+    def test_image_embeddings_preserve_dflash_features_across_prefill_chunks(self):
+        """Image spans must feed target captures, not hashed placeholder embeddings."""
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.dflash_serving import MlxDFlashServing
+        from sglang.srt.hardware_backend.mlx.vision import VisionPrompt
+
+        values = mx.random.normal((5, self.target.args.hidden_size))
+        ids = self.prompt[:2] + [1000000] * 5 + self.prompt[7:]
+        prompt = VisionPrompt(((2, 7, values),))
+        cache = self.target.make_cache()
+        drafter = _TapeDrafter(self.prompt + [1] * 16)
+        engine = MlxDFlashServing(self.target, None, 2, drafter=drafter)
+        oracle_cache = self.ar.make_cache()
+        for start, end in ((0, 4), (4, 8), (8, len(ids))):
+            inputs = self._inputs(ids[start:end])
+            embeds = prompt.embed(self.target.model.embed_tokens, inputs, start)
+            actual = engine.prefill("image", inputs, cache, inputs_embeds=embeds)
+            oracle_embeds = prompt.embed(self.ar.model.embed_tokens, inputs, start)
+            expected, _ = self.ar.model(
+                inputs,
+                oracle_cache,
+                capture_layer_ids=engine.capture_layer_ids,
+                inputs_embeds=oracle_embeds,
+            )
+            self._assert_array(actual, expected)
+            self._assert_cache(cache, oracle_cache)
+        self.assertEqual(engine.states["image"].offset, len(ids))
+        self.assertTrue(engine.remove("image"))
+
     def _inputs(self, tokens):
         import mlx.core as mx
 

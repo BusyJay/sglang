@@ -39,6 +39,7 @@ from sglang.srt.model_executor.forward_batch_info import (
 )
 from sglang.srt.runtime_context import (
     get_device,
+    get_disagg,
     get_exec,
     get_memory,
     get_model,
@@ -90,6 +91,7 @@ class MlxTpModelWorker(TpModelWorker):
         logger.info("Initializing MlxModelRunner for end-to-end MLX inference")
         init_kwargs = dict(
             model_path=get_model().model_path,
+            language_only=get_disagg().language_only,
             trust_remote_code=get_model().trust_remote_code,
             disable_radix_cache=get_memory().disable_radix_cache,
             mem_fraction_static=get_schedule().mem_fraction_static,
@@ -132,8 +134,10 @@ class MlxTpModelWorker(TpModelWorker):
         self._mlx_pool_initialized = False
 
     def get_pad_input_ids_func(self):
-        """Override since the stub ModelRunner has no real model."""
-        return None
+        """Hash vision spans so radix prefixes distinguish media contents."""
+        from sglang.srt.managers.mm_utils import pad_mm_tokens
+
+        return pad_mm_tokens
 
     def _ensure_mlx_pool_initialized(self):
         """Lazily initialize MLX cache pools after the stub pools are ready."""
@@ -523,6 +527,11 @@ class MlxTpModelWorker(TpModelWorker):
 
             self._drop_state_if_retracted(req)
             route = self._route_extend_request(req.rid, decoding_rids)
+            if route != "decode":
+                if getattr(req, "multimodal_inputs", None) is not None:
+                    self._mlx_runner.prepare_vision_input(
+                        req.rid, req.multimodal_inputs
+                    )
             if route == "prefill":
                 self._req_retraction_count[req.rid] = req.retraction_count
             if route == "continuation":

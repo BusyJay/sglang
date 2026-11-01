@@ -68,6 +68,7 @@ def _runner(req_to_token_pool, *, head_dim=16, pool_size=32):
     runner._max_seq_len = 64
     runner._cache_pool = []
     runner._req_caches = {}
+    runner._req_vision = {}
     runner._req_token_ids = {}
     runner._req_sampling = {}
     runner._req_pool_idx = {}

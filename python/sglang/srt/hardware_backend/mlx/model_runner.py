@@ -184,6 +184,7 @@ class MlxModelRunner:
         dflash_draft_path: str | None = None,
         dflash_num_drafts: int | None = None,
         dflash_draft_revision: str | None = None,
+        language_only: bool = False,
     ):
         if not -1 <= mtp_num_steps <= 16:
             raise ValueError("mtp_num_steps must be -1 (auto), or 0-16")
@@ -193,6 +194,9 @@ class MlxModelRunner:
         if dflash_num_drafts is not None and dflash_num_drafts < 1:
             raise ValueError("dflash_num_drafts must be positive")
         self._mtp = None
+        self._language_only = language_only
+        self._vision_encoder = None
+        self._req_vision = {}
         self._dflash_draft_path = dflash_draft_path
         self.model_path = model_path
         self.trust_remote_code = trust_remote_code
@@ -580,6 +584,17 @@ class MlxModelRunner:
                 tokenizer_config={"trust_remote_code": self.trust_remote_code},
                 return_config=True,
             )
+
+        if (
+            checkpoint_config.get("model_type") == "glm5_next"
+            and checkpoint_config.get("vision_config")
+            and not self._language_only
+        ):
+            from sglang.srt.hardware_backend.mlx.models.glm5_vision import (
+                load_glm5_vision,
+            )
+
+            self._vision_encoder = load_glm5_vision(model_dir)
 
         if self._quantization in _MLX_QUANTIZATION_PRESETS:
             bits, group_size = _MLX_QUANTIZATION_PRESETS[self._quantization]
@@ -981,6 +996,7 @@ class MlxModelRunner:
         if not self.disable_radix_cache:
             self._sync_decode_kv_to_pool(req_id, end=owned_len)
         self._req_pool_idx.pop(req_id, None)
+        getattr(self, "_req_vision", {}).pop(req_id, None)
         if self._mtp is not None and self._mtp.remove(req_id):
             logger.info(
                 "MLX %s stats: %s",
@@ -1034,7 +1050,9 @@ class MlxModelRunner:
 
         if self.disable_radix_cache:
             cache = self._acquire_cache()
-            input_ids = mx.array([new_token_ids], dtype=mx.int32)
+            input_ids = mx.array(
+                [new_token_ids], dtype=self._prompt_token_dtype(req_id)
+            )
             lazy_token, lazy_logprobs = self._forward_lazy_token(
                 input_ids, cache, needs_logits, req_id, logit_edit_row, logprob_spec
             )
@@ -1109,7 +1127,10 @@ class MlxModelRunner:
                 # full-prompt fallback for that edge while still syncing newly
                 # allocated attention KV below.
                 cache = self._acquire_cache()
-                input_ids = mx.array([full_token_ids or new_token_ids], dtype=mx.int32)
+                input_ids = mx.array(
+                    [full_token_ids or new_token_ids],
+                    dtype=self._prompt_token_dtype(req_id),
+                )
                 lazy_token, lazy_logprobs = self._forward_lazy_token(
                     input_ids, cache, needs_logits, req_id, logit_edit_row, logprob_spec
                 )
@@ -1133,7 +1154,10 @@ class MlxModelRunner:
             if track_new_count is not None and 0 < track_new_count < new_token_count:
                 # aux + SWA is rejected at init, so run_token_ids is
                 # new_token_ids on this branch.
-                input_ids = mx.array([new_token_ids[:track_new_count]], dtype=mx.int32)
+                input_ids = mx.array(
+                    [new_token_ids[:track_new_count]],
+                    dtype=self._prompt_token_dtype(req_id),
+                )
                 # Cache side effects only — this intermediate forward's
                 # output is never read, so skip the head when possible.
                 if self._trunk_forward(input_ids, cache) is None:
@@ -1153,7 +1177,7 @@ class MlxModelRunner:
             for c in cache:
                 c.offset = max(c.offset - 1, 0)
 
-        input_ids = mx.array([extend_tokens], dtype=mx.int32)
+        input_ids = mx.array([extend_tokens], dtype=self._prompt_token_dtype(req_id))
         lazy_token, lazy_logprobs = self._forward_lazy_token(
             input_ids, cache, needs_logits, req_id, logit_edit_row, logprob_spec
         )
@@ -1228,7 +1252,9 @@ class MlxModelRunner:
                     if split is not None and consumed < split < end:
                         end = split
                     token, _ = self._forward_lazy_token(
-                        mx.array([run_tokens[consumed:end]], mx.int32),
+                        mx.array(
+                            [run_tokens[consumed:end]], self._prompt_token_dtype(req_id)
+                        ),
                         cache,
                         False,
                         req_id,
@@ -1241,15 +1267,12 @@ class MlxModelRunner:
                 if split is not None:
                     split -= consumed
         if split is not None and 0 < split < len(run_tokens):
-            inputs = mx.array([run_tokens[:split]], mx.int32)
-            if self._mtp is not None:
-                self._mtp.prefill(req_id, inputs, cache)
-            elif self._trunk_forward(inputs, cache) is None:
-                self.model(inputs, cache=cache)
+            inputs = mx.array([run_tokens[:split]], self._prompt_token_dtype(req_id))
+            self._forward_lazy_token(inputs, cache, False, req_id)
             self._store_tracked_auxiliary_state(req, cache, track_len)
             run_tokens = run_tokens[split:]
         lazy_token, lazy_logprobs = self._forward_lazy_token(
-            mx.array([run_tokens], mx.int32),
+            mx.array([run_tokens], self._prompt_token_dtype(req_id)),
             cache,
             needs_logits,
             req_id,
@@ -1315,7 +1338,7 @@ class MlxModelRunner:
                 logit_edit_row,
                 logprob_spec,
             )
-        input_ids = mx.array([new_token_ids], dtype=mx.int32)
+        input_ids = mx.array([new_token_ids], dtype=self._prompt_token_dtype(req_id))
         lazy_token, lazy_logprobs = self._forward_lazy_token(
             input_ids, cache, needs_logits, req_id, logit_edit_row, logprob_spec
         )
@@ -1349,7 +1372,7 @@ class MlxModelRunner:
         # Chunked handoff publishes the live all-layer state at the end of
         # this chunk through extend_finalize. No attention pool scatter.
         lazy_token, lazy_logprobs = self._forward_lazy_token(
-            mx.array([new_token_ids], mx.int32),
+            mx.array([new_token_ids], self._prompt_token_dtype(req_id)),
             cache,
             needs_logits,
             req_id,
@@ -1411,6 +1434,33 @@ class MlxModelRunner:
             )
         )
 
+    def prepare_vision_input(self, req_id, mm_inputs):
+        if mm_inputs is None:
+            return
+        previous = self._req_vision.get(req_id)
+        if previous is not None and previous.source is mm_inputs:
+            return
+        from sglang.srt.hardware_backend.mlx.vision import prepare_vision_prompt
+
+        prompt = prepare_vision_prompt(mm_inputs, self._vision_encoder)
+        if any(
+            values.shape[1] != self.model.args.hidden_size
+            for _, _, values in prompt.spans
+        ):
+            raise ValueError("Vision embedding width must match target hidden_size")
+        self._req_vision[req_id] = prompt
+
+    def _prompt_token_dtype(self, req_id):
+        # Scheduler media identities are wide int64 sentinels. Preserve them
+        # until covered spans are masked before the vocabulary lookup.
+        return mx.int64 if req_id in getattr(self, "_req_vision", {}) else mx.int32
+
+    def _vision_chunk_embeddings(self, req_id, input_ids, cache):
+        prompt = getattr(self, "_req_vision", {}).get(req_id)
+        if prompt is None:
+            return None
+        return prompt.embed(self.model.model.embed_tokens, input_ids, cache[0].offset)
+
     def _forward_lazy_token(
         self,
         input_ids: mx.array,
@@ -1424,6 +1474,21 @@ class MlxModelRunner:
 
         Skips the logit head for discarded-output chunks when possible.
         """
+        inputs_embeds = self._vision_chunk_embeddings(req_id, input_ids, cache)
+        if inputs_embeds is not None:
+            if self._mtp is not None:
+                hidden = self._mtp.prefill(
+                    req_id, input_ids, cache, inputs_embeds=inputs_embeds
+                )
+            else:
+                hidden = self.model.model(input_ids, cache, inputs_embeds=inputs_embeds)
+            if not needs_logits:
+                return self._dummy_next_token(hidden), None
+            logits = self.model.lm_head(hidden[:, -1:, :])
+            edits = logit_edit_row[None, :] if logit_edit_row is not None else None
+            return self._select_tokens_with_logprobs(
+                logits[:, -1], [req_id], [cache], edits, logprob_spec
+            )
         if self._mtp is not None:
             hidden = self._mtp.prefill(req_id, input_ids, cache)
             if not needs_logits:
@@ -2042,6 +2107,7 @@ class MlxModelRunner:
                 "DFLASH" if self._dflash_draft_path is not None else "MTP",
                 self._mtp.stats(),
             )
+        self._req_vision.pop(req_id, None)
         self._req_token_ids.pop(req_id, None)
         self._req_sampling.pop(req_id, None)
         cache = self._req_caches.pop(req_id, None)
@@ -2058,6 +2124,7 @@ class MlxModelRunner:
         self._req_sampling.clear()
         for cache in self._req_caches.values():
             self._release_cache(cache)
+        self._req_vision.clear()
         self._req_caches.clear()
         self._req_pool_idx.clear()
         self._req_synced_offset.clear()

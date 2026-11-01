@@ -2904,10 +2904,10 @@ class TextModel(nn.Module):
                 layer._fixed_mla_attention = _FixedMLAAttention(layer.self_attn)
                 layer._fixed_mla_layer = _FixedMLALayer(layer)
 
-    def __call__(self, inputs, cache, *, capture_layer_ids=()):
+    def __call__(self, inputs, cache, *, capture_layer_ids=(), inputs_embeds=None):
         capture_layer_ids = tuple(capture_layer_ids)
         captures = {}
-        x = self.embed_tokens(inputs)
+        x = self.embed_tokens(inputs) if inputs_embeds is None else inputs_embeds
         if self.args.mhc:
             x = mx.repeat(x[..., None, :], self.args.hc_mult, axis=-2)
         group_size = (

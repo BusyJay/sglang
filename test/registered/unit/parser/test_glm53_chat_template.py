@@ -12,10 +12,6 @@ import unittest
 from types import ModuleType, SimpleNamespace
 from unittest.mock import Mock, patch
 
-from tokenizers import Tokenizer, models, pre_tokenizers
-from transformers import AutoTokenizer, PreTrainedTokenizerFast
-from transformers.utils.chat_template_utils import _compile_jinja_template
-
 from sglang.srt.entrypoints.openai.parallel_prompt_encode import encode_prompt_segments
 from sglang.srt.parser.glm53_chat_template import render_glm53, render_glm53_flash
 from sglang.srt.parser.jinja_template_utils import detect_jinja_template_content_format
@@ -35,6 +31,9 @@ from sglang.srt.parser.template_manager import TemplateManager
 from sglang.srt.server_args import ServerArgs
 from sglang.test.ci.ci_register import register_cpu_ci
 from sglang.test.test_utils import CustomTestCase
+from tokenizers import Tokenizer, models, pre_tokenizers
+from transformers import AutoTokenizer, PreTrainedTokenizerFast
+from transformers.utils.chat_template_utils import _compile_jinja_template
 
 register_cpu_ci(est_time=3.0, suite="base-a-test-cpu")
 
@@ -419,6 +418,22 @@ class TestPythonChatTemplateSelection(CustomTestCase):
 
 
 class TestTemplateManagerPythonChatTemplate(CustomTestCase):
+    def test_multimodal_flash_checkpoint_with_text_jinja(self):
+        tokenizer_manager = self._tokenizer_manager(
+            "Glm5NextForConditionalGeneration", _glm53_like_template(False)
+        )
+        tokenizer_manager.model_config.is_multimodal = True
+        manager = TemplateManager()
+        manager.load_chat_template(
+            tokenizer_manager, None, "mlx-community/GLM-5.3-Flash-4bit"
+        )
+        self.assertIs(manager.python_chat_template, GLM53_FLASH)
+        messages = CASES["media"][0]["messages"]
+        self.assertEqual(
+            tokenizer_manager.tokenizer.apply_chat_template(messages, tokenize=False),
+            render_glm53_flash(messages),
+        )
+
     def _tokenizer_manager(self, architecture, chat_template):
         return SimpleNamespace(
             tokenizer=_tiny_tokenizer(chat_template),

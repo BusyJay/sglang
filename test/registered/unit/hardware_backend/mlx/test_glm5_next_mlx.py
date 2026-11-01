@@ -598,7 +598,7 @@ class TestGlm5NextMlx(CustomTestCase):
                     self.assertTrue(resolved.disable_overlap_schedule)
                     self.assertEqual(resolved.page_size, 1)
                     self.assertNotEqual(resolved.attention_backend, "dsa")
-                    self.assertFalse(ModelConfig.from_server_args(args).is_multimodal)
+                    self.assertTrue(ModelConfig.from_server_args(args).is_multimodal)
             finally:
                 use_mlx.cache_clear()
 
