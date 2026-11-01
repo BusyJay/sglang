@@ -408,9 +408,9 @@ class ClampedSwitchGLU(SwitchGLU):
         fused = copy.copy(gate)
         for field in fields:
             fused[field] = mx.concatenate([gate[field], up[field]], axis=1)
-        mx.eval([fused[f] for f in fields])
-        for field in fields:
-            gate[field], up[field] = mx.split(fused[field], 2, axis=1)
+        # Paired kernels read the original operands with independent strides.
+        # Keep the joined native projection lazy for uncovered dispatch shapes;
+        # preparation must not copy every expert's gate/up checkpoint storage.
         self._fused_gate_up = fused
         self._gate_up_sources = self._current_gate_up_sources()
         self._gate_up_metadata = self._current_gate_up_metadata()
@@ -2481,6 +2481,7 @@ class _FixedLayerGroup(_FixedGraphOwner):
                 switch = layer.mlp.switch_mlp
                 if (
                     switch._fused_gate_up is not None
+                    and not switch.compile_decode
                     and getattr(switch, "_gate_up_metadata", None)
                     == switch._current_gate_up_metadata()
                     and all(

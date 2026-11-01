@@ -609,7 +609,23 @@ class TestGlm5NextMlx(CustomTestCase):
             block = copy.deepcopy(original)
             block.compile_decode = mode == "compile"
             block.fuse_gate_up = mode == "gate_up"
+            canonical = tuple(
+                value
+                for proj in (block.gate_proj, block.up_proj)
+                for value in (proj.weight, proj.scales, proj.biases)
+            )
             block.prepare_for_inference()
+            # Preparation must retain checkpoint arrays instead of replacing
+            # them with slices of an eager full-expert concatenation.
+            current = tuple(
+                value
+                for proj in (block.gate_proj, block.up_proj)
+                for value in (proj.weight, proj.scales, proj.biases)
+            )
+            self.assertTrue(all(a is b for a, b in zip(canonical, current)))
+            joined = block._fused_gate_up
+            block.prepare_for_inference()
+            self.assertIs(block._fused_gate_up, joined)
             reference = copy.deepcopy(original)
             for batch, tokens in ((1, 1), (2, 1), (1, 40)):
                 x = mx.random.normal((batch, tokens, args.hidden_size)).astype(
