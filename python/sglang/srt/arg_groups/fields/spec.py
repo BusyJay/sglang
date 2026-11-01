@@ -32,6 +32,12 @@ class Spec(msgspec.Struct):
         Optional[str],
         "Speculative algorithm. Builtins: EAGLE, EAGLE3, NEXTN, STANDALONE, NGRAM, DFLASH, DSPARK, UNO. Or any name registered via `SpeculativeAlgorithm.register`.",
     ] = None
+    # MLX transactional lookahead uses ordinary scheduler batches. Preserve the
+    # requested algorithm separately from the generic speculative worker mode.
+    mlx_speculative_algorithm: A[
+        Optional[str], Arg(no_cli=True, resolvable=True)
+    ] = None
+    mlx_dflash_num_drafts: A[Optional[int], Arg(no_cli=True, resolvable=True)] = None
     uno_lora_path: A[Optional[str], "Path to the UNO draft LoRA checkpoint."] = None
     speculative_draft_model_path: A[
         Optional[str],

@@ -5458,5 +5458,124 @@ class TestPrefillWeightVersionCompatibility(CustomTestCase):
                 handle_cache_compatibility(args)
 
 
+class TestMlxDFlashResolution(CustomTestCase):
+    """Transactional MLX mode must survive resolution without a generic worker."""
+
+    def setUp(self):
+        from sglang.srt import runtime_context as rc
+        from sglang.srt.environ import EnvField
+
+        self.rc = rc
+        rc.reset_context()
+        self.addCleanup(rc.reset_context)
+        self.enterContext(patch.dict(os.environ))
+        for klass in type(envs).__mro__:
+            for field in vars(klass).values():
+                if isinstance(field, EnvField):
+                    self.addCleanup(setattr, field, "_set_to_none", field._set_to_none)
+
+        # Mock hardware boundaries only. ModelConfig, the resolution pipeline,
+        # declarations and namespace projection all execute normally.
+        for module in (
+            "server_args",
+            "arg_groups.platform_hook",
+            "arg_groups.model_hook",
+            "hardware_backend.mlx.runtime",
+        ):
+            self.enterContext(patch(f"sglang.srt.{module}.use_mlx", return_value=True))
+        self.enterContext(
+            override_platform(
+                is_mps=True,
+                is_cuda=False,
+                is_hip=False,
+                is_npu=False,
+                is_xpu=False,
+                is_sm90=False,
+                is_sm100=False,
+                is_blackwell=False,
+            )
+        )
+        self.enterContext(
+            patch(
+                "sglang.srt.arg_groups.memory_hook.get_device_memory_capacity",
+                return_value=16000,
+            )
+        )
+        folder = self.enterContext(
+            tempfile.TemporaryDirectory(prefix="mlx_dflash_", dir=Path(__file__).parent)
+        )
+        self.model_path = folder
+        (Path(folder) / "config.json").write_text(
+            json.dumps(
+                {
+                    "architectures": ["LlamaForCausalLM"],
+                    "model_type": "llama",
+                    "hidden_size": 16,
+                    "intermediate_size": 32,
+                    "num_attention_heads": 2,
+                    "num_key_value_heads": 2,
+                    "num_hidden_layers": 2,
+                    "vocab_size": 128,
+                    "max_position_embeddings": 2048,
+                }
+            )
+        )
+
+    def _args(self, **options):
+        return ServerArgs(
+            model_path=self.model_path,
+            device="mps",
+            attention_backend="torch_native",
+            random_seed=42,
+            speculative_algorithm="dflash",
+            # No draft config is needed during resolution: omitted sizes are
+            # inferred by the serving constructor, not a generic HF worker.
+            speculative_draft_model_path=str(Path(self.model_path) / "draft"),
+            **options,
+        )
+
+    def test_full_resolution_preserves_input_and_publishes_transactional_mode(self):
+        for options, num_drafts in (
+            ({}, None),
+            ({"speculative_num_draft_tokens": 8}, 7),
+            ({"speculative_dflash_block_size": 2}, 1),
+            (
+                {"speculative_dflash_block_size": 8, "speculative_num_draft_tokens": 8},
+                7,
+            ),
+        ):
+            with self.subTest(options=options):
+                args = self._args(**options)
+                args.resolve_once()
+                self.rc.publish(args, role="scheduler")
+                spec = self.rc.get_spec()
+                self.assertEqual(args.speculative_algorithm, "dflash")
+                self.assertIsNone(args.mlx_speculative_algorithm)
+                self.assertIsNone(args.mlx_dflash_num_drafts)
+                self.assertFalse(args.disable_overlap_schedule)
+                for field, value in options.items():
+                    self.assertEqual(getattr(args, field), value)
+                self.assertEqual(spec.mlx_speculative_algorithm, "DFLASH")
+                self.assertEqual(spec.mlx_dflash_num_drafts, num_drafts)
+                self.assertEqual(
+                    spec.speculative_draft_model_path, args.speculative_draft_model_path
+                )
+                self.assertIsNone(spec.speculative_algorithm)
+                self.assertIsNone(spec.speculative_num_draft_tokens)
+                self.assertIsNone(max_speculative_num_draft_tokens(args))
+                self.assertEqual(self.rc.get_device().mlx_mtp_num_steps, 0)
+                self.assertTrue(self.rc.get_schedule().disable_overlap_schedule)
+
+    def test_full_resolution_rejects_native_mtp_conflict(self):
+        for steps in (-1, 1, 16):
+            with self.subTest(steps=steps):
+                args = self._args(mlx_mtp_num_steps=steps)
+                with self.assertRaisesRegex(ValueError, "Native MLX MTP.*speculative"):
+                    args.resolve_once()
+                self.assertEqual(args.speculative_algorithm, "dflash")
+                self.assertEqual(args.mlx_mtp_num_steps, steps)
+                self.assertIsNone(args.mlx_speculative_algorithm)
+
+
 if __name__ == "__main__":
     unittest.main()

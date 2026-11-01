@@ -181,10 +181,19 @@ class MlxModelRunner:
         sampling_rng_seed: int = 0,
         deterministic_seeding: bool = False,
         mtp_num_steps: int = 0,
+        dflash_draft_path: str | None = None,
+        dflash_num_drafts: int | None = None,
+        dflash_draft_revision: str | None = None,
     ):
         if not -1 <= mtp_num_steps <= 16:
             raise ValueError("mtp_num_steps must be -1 (auto), or 0-16")
         self._mtp_num_steps = mtp_num_steps
+        if dflash_draft_path is not None and mtp_num_steps:
+            raise ValueError("MLX DFLASH cannot be combined with native MLX MTP")
+        if dflash_num_drafts is not None and dflash_num_drafts < 1:
+            raise ValueError("dflash_num_drafts must be positive")
+        self._mtp = None
+        self._dflash_draft_path = dflash_draft_path
         self.model_path = model_path
         self.trust_remote_code = trust_remote_code
         self.revision = revision
@@ -234,7 +243,17 @@ class MlxModelRunner:
             mx.set_wired_limit(max_wired)
             logger.info(f"Wired memory limit set to {max_wired / (1024**3):.1f} GB")
 
-        if mtp_num_steps:
+        if dflash_draft_path is not None:
+            from sglang.srt.hardware_backend.mlx.dflash_serving import MlxDFlashServing
+
+            draft_dir = resolve_model_directory(
+                dflash_draft_path, revision=dflash_draft_revision
+            )
+            ensure_remote_code_allowed(draft_dir, self.trust_remote_code)
+            self._mtp = MlxDFlashServing(
+                self.model, draft_dir, dflash_num_drafts
+            )
+        elif mtp_num_steps:
             from sglang.srt.hardware_backend.mlx.mtp_serving import MlxMTPServing
 
             self._mtp = MlxMTPServing(self.model, mtp_num_steps)
@@ -630,6 +649,18 @@ class MlxModelRunner:
             prepare_for_inference = getattr(self.model, "prepare_for_inference", None)
             if callable(prepare_for_inference):
                 prepare_for_inference()
+            if self._dflash_draft_path is not None:
+                # Native MTP preparation warms its greedy head only when MTP
+                # weights are loaded. DFLASH borrows the target head without
+                # those weights; compile its token-only path during startup.
+                mx.eval(
+                    self.model.target_tokens(
+                        mx.zeros(
+                            (1, 1, self.model.args.hidden_size),
+                            self.model.lm_head.weight.dtype,
+                        )
+                    )
+                )
 
         # Force-evaluate weights so mx.get_active_memory() reflects
         # actual usage before attention KV pool sizing.
@@ -951,7 +982,11 @@ class MlxModelRunner:
             self._sync_decode_kv_to_pool(req_id, end=owned_len)
         self._req_pool_idx.pop(req_id, None)
         if self._mtp is not None and self._mtp.remove(req_id):
-            logger.info("MLX MTP stats: %s", self._mtp.stats())
+            logger.info(
+                "MLX %s stats: %s",
+                "DFLASH" if self._dflash_draft_path is not None else "MTP",
+                self._mtp.stats(),
+            )
 
     def decode_batch(self, req_ids: list[str]) -> list[int]:
         """Decode one token per request.
@@ -2002,7 +2037,11 @@ class MlxModelRunner:
         """Release request state without syncing: decode KV reaches the pool
         only through release_request_row, while the request owns its row."""
         if self._mtp is not None and self._mtp.remove(req_id):
-            logger.info("MLX MTP stats: %s", self._mtp.stats())
+            logger.info(
+                "MLX %s stats: %s",
+                "DFLASH" if self._dflash_draft_path is not None else "MTP",
+                self._mtp.stats(),
+            )
         self._req_token_ids.pop(req_id, None)
         self._req_sampling.pop(req_id, None)
         cache = self._req_caches.pop(req_id, None)

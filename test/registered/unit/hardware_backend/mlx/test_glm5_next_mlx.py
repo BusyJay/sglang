@@ -271,6 +271,293 @@ class TestGlm5NextMlx(CustomTestCase):
         )
         cls.tokens = list(range(1, 14))
 
+    def _capture_layer_oracle(self, model, inputs, cache, capture_layer_ids):
+        """Execute singleton rows and explicit layers, bypassing target wrappers."""
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
+
+        hidden_rows, feature_rows, snapshots = [], [], []
+        for j in range(inputs.shape[1]):
+            x = model.model.embed_tokens(inputs[:, j : j + 1])
+            if model.args.mhc:
+                x = mx.repeat(x[..., None, :], model.args.hc_mult, axis=-2)
+            completed = {}
+            for i, layer in enumerate(model.layers):
+                x = layer(x, cache[i])
+                # The feature is the completed residual's arithmetic mHC mean,
+                # not a branch projection, one stream, or the final RMSNorm.
+                if i in capture_layer_ids:
+                    completed[i] = (
+                        mx.sum(x, axis=-2) / model.args.hc_mult
+                        if model.args.mhc
+                        else x
+                    )
+            contracted = (
+                mx.sum(x, axis=-2) / model.args.hc_mult if model.args.mhc else x
+            )
+            hidden_rows.append(model.model.norm(contracted))
+            feature_rows.append(
+                mx.concatenate([completed[i] for i in capture_layer_ids], axis=-1)
+            )
+            snapshots.append([clone_cache(c) for c in cache])
+        hidden = mx.concatenate(hidden_rows, axis=1)
+        logits = mx.concatenate([model.lm_head(v) for v in hidden_rows], axis=1)
+        return logits, hidden, snapshots, mx.concatenate(feature_rows, axis=1)
+
+    def _assert_capture_array_close(self, actual, expected):
+        import numpy as np
+
+        self.assertEqual(actual.shape, expected.shape)
+        # Use the existing small FP32 fixture's reference tolerance. Compiled
+        # grouping may change reductions, but must preserve the target equation.
+        np.testing.assert_allclose(
+            np.array(actual), np.array(expected), rtol=2e-4, atol=2e-5
+        )
+
+    def _assert_capture_cache_close(self, actual, expected):
+        self.assertEqual(len(actual), len(expected))
+        for got, want in zip(actual, expected):
+            self.assertEqual(got.offset, want.offset)
+            self.assertEqual(len(got.cache), len(want.cache))
+            for a, b in zip(got.cache, want.cache):
+                if a is None or b is None:
+                    self.assertIs(a, b)
+                else:
+                    self._assert_capture_array_close(a, b)
+
+    def test_target_capture_matches_layers_across_prefill_decode_groups(self):
+        """Captures inside compiled groups must preserve layer order and caches."""
+        import copy
+
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
+
+        # Deliberately non-sorted: feature columns follow the caller's order.
+        capture_ids = (3, 0, 1)
+        for compiled, group_size in ((False, 4), (True, 4), (True, 2)):
+            with self.subTest(compiled=compiled, group_size=group_size):
+                model = copy.deepcopy(self.model)
+                model.configure_fixed_groups(compiled)
+                model.configure_eval_groups(
+                    decode=group_size, prefill=group_size, verification=group_size
+                )
+                actual_cache, plain_cache, oracle_cache = (
+                    model.make_cache() for _ in range(3)
+                )
+                # Warm the uncaptured group before requesting an internal tap.
+                prefix = mx.array([[19, 23, 29]])
+                for cache in (actual_cache, plain_cache, oracle_cache):
+                    mx.eval(model.forward_with_hidden(prefix, cache))
+                for tokens in ((5, 7, 11, 13, 17, 31), (37,), (41,)):
+                    inputs = mx.array([tokens])
+                    expected = self._capture_layer_oracle(
+                        model, inputs, oracle_cache, capture_ids
+                    )
+                    actual = model.forward_with_capture(
+                        inputs, actual_cache, capture_ids
+                    )
+                    plain = model.forward_with_hidden(inputs, plain_cache)
+                    self.assertEqual(len(actual), 3)
+                    for got, want in zip(actual[:2], expected[:2]):
+                        self._assert_capture_array_close(got, want)
+                    self._assert_capture_array_close(actual[2], expected[3])
+                    self.assertEqual(actual[2].shape, (1, len(tokens), 96))
+                    for got, want in zip(actual[:2], plain):
+                        self._assert_capture_array_close(got, want)
+                    self._assert_capture_cache_close(actual_cache, plain_cache)
+                    self._assert_capture_cache_close(actual_cache, oracle_cache)
+                    # The final layer tap precedes norm, so normalizing its
+                    # feature slice must recover hidden, not another feature.
+                    self._assert_capture_array_close(
+                        model.model.norm(actual[2][..., :32]), actual[1]
+                    )
+                    self.assertGreater(
+                        mx.max(mx.abs(actual[2][..., :32] - actual[1])).item(),
+                        1e-3,
+                    )
+                token_cache = [clone_cache(c) for c in actual_cache]
+                logits_cache = [clone_cache(c) for c in actual_cache]
+                inputs = mx.array([[43]])
+                token, hidden, features = model.forward_with_capture(
+                    inputs, token_cache, capture_ids, token_only=True
+                )
+                logits, expected_hidden = model.forward_with_hidden(
+                    inputs, logits_cache
+                )
+                self.assertTrue(mx.array_equal(token, mx.argmax(logits, -1)).item())
+                self._assert_capture_array_close(hidden, expected_hidden)
+                oracle = self._capture_layer_oracle(
+                    model, inputs, [clone_cache(c) for c in actual_cache], capture_ids
+                )
+                self._assert_capture_array_close(features, oracle[3])
+                self._assert_capture_cache_close(token_cache, logits_cache)
+
+    def test_verification_capture_preserves_rejection_snapshots(self):
+        """Every verified row tap and rejected-prefix continuation must agree."""
+        import copy
+
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
+
+        capture_ids = (2, 0, 3)
+        for mode in ("serial", "head", "ffn"):
+            for count in (1, 4):
+                with self.subTest(mode=mode, count=count):
+                    model = copy.deepcopy(self.model)
+                    model.configure_mtp_verification(mode)
+                    model.configure_fixed_groups(True)
+                    model.configure_eval_groups(decode=4, prefill=4, verification=4)
+                    base = model.make_cache()
+                    mx.eval(model(mx.array([[1, 3, 5, 7, 9, 11]]), base))
+                    inputs = mx.array([[13, 17, 19, 23][:count]])
+                    oracle_cache = [clone_cache(c) for c in base]
+                    expected = self._capture_layer_oracle(
+                        model, inputs, oracle_cache, capture_ids
+                    )
+                    plain_cache = [clone_cache(c) for c in base]
+                    plain = model.verify_mtp_rows(inputs, plain_cache)
+                    self.assertEqual(len(plain), 3)
+                    for token_only in (False, True):
+                        with self.subTest(token_only=token_only):
+                            actual_cache = [clone_cache(c) for c in base]
+                            actual = model.verify_mtp_rows(
+                                inputs,
+                                actual_cache,
+                                capture_layer_ids=capture_ids,
+                                token_only=token_only,
+                            )
+                            self.assertEqual(len(actual), 4)
+                            if token_only:
+                                self.assertTrue(
+                                    mx.array_equal(
+                                        actual[0], mx.argmax(plain[0], -1)
+                                    ).item()
+                                )
+                            else:
+                                self._assert_capture_array_close(actual[0], plain[0])
+                                self._assert_capture_array_close(actual[0], expected[0])
+                            self._assert_capture_array_close(actual[1], expected[1])
+                            self._assert_capture_array_close(actual[3], expected[3])
+                            self._assert_capture_cache_close(actual_cache, plain_cache)
+                            self._assert_capture_cache_close(actual_cache, oracle_cache)
+                            self.assertEqual(len(actual[2]), count)
+                            for j, snapshot in enumerate(actual[2]):
+                                self._assert_capture_cache_close(snapshot, plain[2][j])
+                                self._assert_capture_cache_close(
+                                    snapshot, expected[2][j]
+                                )
+                                self.assertTrue(
+                                    all(c.offset == 7 + j for c in snapshot)
+                                )
+                                # Reject the remaining draft rows and consume a
+                                # different token from each retained boundary.
+                                resumed = [clone_cache(c) for c in snapshot]
+                                continuation = mx.array([[31 + j]])
+                                got = model.forward_with_capture(
+                                    continuation, resumed, capture_ids
+                                )
+                                want_cache = [clone_cache(c) for c in expected[2][j]]
+                                want = self._capture_layer_oracle(
+                                    model, continuation, want_cache, capture_ids
+                                )
+                                for a, b in zip(got[:2], want[:2]):
+                                    self._assert_capture_array_close(a, b)
+                                self._assert_capture_array_close(got[2], want[3])
+                                self._assert_capture_cache_close(resumed, want_cache)
+                                # Resuming a clone must not mutate its snapshot.
+                                self._assert_capture_cache_close(
+                                    snapshot, expected[2][j]
+                                )
+
+    def test_ragged_request_capture_keeps_features_and_prefix_owners_separate(self):
+        """Ragged projection splits and rejected rows must stay request-local."""
+        import copy
+
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
+
+        model = copy.deepcopy(self.model)
+        model.configure_mtp_verification("ffn")
+        model.configure_fixed_groups(True)
+        capture_ids = (3, 1, 0)
+        # Singleton also exercises the requests API's delegation to verify_rows.
+        for counts in ((3,), (1, 3, 5)):
+            bases, inputs, expected = [], [], []
+            for request, count in enumerate(counts):
+                base = model.make_cache()
+                prefix = mx.array([list(range(1 + request, 4 + 4 * request))])
+                mx.eval(model(prefix, base))
+                chain = mx.array(
+                    [list(range(17 + 7 * request, 17 + 7 * request + count))]
+                )
+                bases.append(base)
+                inputs.append(chain)
+                expected.append(
+                    self._capture_layer_oracle(
+                        model, chain, [clone_cache(c) for c in base], capture_ids
+                    )
+                )
+            plain_caches = [[clone_cache(c) for c in base] for base in bases]
+            plain = model.verify_mtp_requests(inputs, plain_caches)
+            self.assertEqual(len(plain), len(counts))
+            self.assertTrue(all(len(entry) == 3 for entry in plain))
+            for token_only in (False, True):
+                with self.subTest(counts=counts, token_only=token_only):
+                    caches = [[clone_cache(c) for c in base] for base in bases]
+                    actual = model.verify_mtp_requests(
+                        inputs,
+                        caches,
+                        capture_layer_ids=capture_ids,
+                        token_only=token_only,
+                    )
+                    self.assertEqual(len(actual), len(counts))
+                    for request, (got, want) in enumerate(zip(actual, expected)):
+                        self.assertEqual(len(got), 4)
+                        self.assertEqual(got[3].shape, (1, counts[request], 96))
+                        if token_only:
+                            self.assertTrue(
+                                mx.array_equal(
+                                    got[0], mx.argmax(plain[request][0], -1)
+                                ).item()
+                            )
+                        else:
+                            self._assert_capture_array_close(got[0], want[0])
+                            self._assert_capture_array_close(got[0], plain[request][0])
+                        self._assert_capture_array_close(got[1], want[1])
+                        self._assert_capture_array_close(got[3], want[3])
+                        self._assert_capture_cache_close(
+                            caches[request], plain_caches[request]
+                        )
+                        self.assertEqual(len(got[2]), counts[request])
+                        for j, snapshot in enumerate(got[2]):
+                            self._assert_capture_cache_close(snapshot, want[2][j])
+                            self._assert_capture_cache_close(
+                                snapshot, plain[request][2][j]
+                            )
+                        # Use different rejection depths and continuation tokens
+                        # per request, then check all owners again for aliasing.
+                        retained = min(request, counts[request] - 1)
+                        resumed = [clone_cache(c) for c in got[2][retained]]
+                        oracle_cache = [clone_cache(c) for c in want[2][retained]]
+                        continuation = mx.array([[47 + request]])
+                        result = model.forward_with_capture(
+                            continuation, resumed, capture_ids
+                        )
+                        oracle = self._capture_layer_oracle(
+                            model, continuation, oracle_cache, capture_ids
+                        )
+                        for a, b in zip(result[:2], oracle[:2]):
+                            self._assert_capture_array_close(a, b)
+                        self._assert_capture_array_close(result[2], oracle[3])
+                        self._assert_capture_cache_close(resumed, oracle_cache)
+                    for got, want in zip(actual, expected):
+                        for a, b in zip(got[2], want[2]):
+                            self._assert_capture_cache_close(a, b)
+
     def test_mlx_startup_resolves_without_cuda_dsa_defaults(self):
         import json
         import tempfile

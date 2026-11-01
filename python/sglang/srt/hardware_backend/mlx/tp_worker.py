@@ -43,6 +43,7 @@ from sglang.srt.runtime_context import (
     get_memory,
     get_model,
     get_schedule,
+    get_spec,
 )
 
 logger = logging.getLogger(__name__)
@@ -101,6 +102,13 @@ class MlxTpModelWorker(TpModelWorker):
                 get_exec().deterministic.enable_deterministic_inference
             ),
         )
+        if get_spec().mlx_speculative_algorithm == "DFLASH":
+            init_kwargs.update(
+                mtp_num_steps=0,
+                dflash_draft_path=get_spec().speculative_draft_model_path,
+                dflash_num_drafts=get_spec().mlx_dflash_num_drafts,
+                dflash_draft_revision=get_spec().speculative_draft_model_revision,
+            )
         if get_schedule().max_total_tokens is not None:
             init_kwargs["pool_size"] = get_schedule().max_total_tokens
         self._mlx_runner = MlxModelRunner(**init_kwargs)
@@ -438,7 +446,7 @@ class MlxTpModelWorker(TpModelWorker):
 
         self._cleanup_stale_rids(forward_mode, {req.rid for req in reqs})
 
-        if get_device().mlx_mtp_num_steps:
+        if getattr(self._mlx_runner, "_mtp", None) is not None:
             for req in reqs:
                 self._mlx_runner._mtp.set_remaining(
                     req.rid, req.sampling_params.max_new_tokens - len(req.output_ids)

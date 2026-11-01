@@ -2906,7 +2906,9 @@ class TextModel(nn.Module):
                 layer._fixed_mla_attention = _FixedMLAAttention(layer.self_attn)
                 layer._fixed_mla_layer = _FixedMLALayer(layer)
 
-    def __call__(self, inputs, cache):
+    def __call__(self, inputs, cache, *, capture_layer_ids=()):
+        capture_layer_ids = tuple(capture_layer_ids)
+        captures = {}
         x = self.embed_tokens(inputs)
         if self.args.mhc:
             x = mx.repeat(x[..., None, :], self.args.hc_mult, axis=-2)
@@ -2923,10 +2925,12 @@ class TextModel(nn.Module):
                     if not self.layers[cursor].is_linear:
                         layer = self.layers[cursor]
                         x = layer(x, cache[cursor])
+                        if cursor in capture_layer_ids:
+                            captures[cursor] = x.mean(-2) if self.args.mhc else x
                         cursor += 1
                         continue
                     stop = cursor + 1
-                    while stop < end and self.layers[stop].is_linear:
+                    while stop < end and self.layers[stop].is_linear and stop - 1 not in capture_layer_ids:
                         stop += 1
                     key = (cursor, stop)
                     group = self._fixed_groups.get(key)
@@ -2934,6 +2938,8 @@ class TextModel(nn.Module):
                         group = _FixedLayerGroup(self.layers[cursor:stop])
                         self._fixed_groups[key] = group
                     x = group(x, cache[cursor:stop], layers=self.layers[cursor:stop])
+                    if stop - 1 in capture_layer_ids:
+                        captures[stop - 1] = x.mean(-2) if self.args.mhc else x
                     cursor = stop
                 mx.async_eval(x, [c.cache for c in cache[start:end]])
         else:
@@ -2942,13 +2948,18 @@ class TextModel(nn.Module):
                 zip(self.layers[: self.args.num_hidden_layers], cache)
             ):
                 x = layer(x, cache=state, shared_stream=self._shared_stream)
+                if i in capture_layer_ids:
+                    captures[i] = x.mean(-2) if self.args.mhc else x
                 final_layer = i + 1 == self.args.num_hidden_layers
                 if (i + 1) % group_size == 0 or final_layer:
                     mx.async_eval(x, [c.cache for c in cache[group_start : i + 1]])
                     group_start = i + 1
         if self.args.mhc:
             x = x.mean(axis=-2)
-        return self.norm(x)
+        hidden = self.norm(x)
+        if capture_layer_ids:
+            return hidden, mx.concatenate([captures[i] for i in capture_layer_ids], -1)
+        return hidden
 
 
 class Model(nn.Module):
@@ -3046,6 +3057,12 @@ class Model(nn.Module):
         output = self.target_tokens(hidden) if token_only else self.lm_head(hidden)
         return output, hidden
 
+    def forward_with_capture(self, inputs, cache, capture_layer_ids, *, token_only=False):
+        """Capture completed layer outputs before final norm, with mHC contracted."""
+        hidden, features = self.model(inputs, cache, capture_layer_ids=capture_layer_ids)
+        logits = self.target_tokens(hidden) if token_only else self.lm_head(hidden)
+        return logits, hidden, features
+
     def draft_token(self, hidden):
         normalized = self.mtp.shared_head.norm(hidden)
         token = None
@@ -3124,7 +3141,7 @@ class Model(nn.Module):
                 layer.self_attn.cache_latent_projection = enabled
                 layer.self_attn._latent_projection = None
 
-    def verify_mtp_requests(self, inputs, caches, *, token_only=False):
+    def verify_mtp_requests(self, inputs, caches, *, token_only=False, capture_layer_ids=()):
         """Layerwise ragged MTP trunks with private per-depth cache owners."""
         if not inputs or len(inputs) != len(caches):
             raise ValueError("Each verification chain requires its own cache")
@@ -3135,16 +3152,20 @@ class Model(nn.Module):
         if any(len(c) != len(self.layers) for c in caches):
             raise ValueError("Each chain must own all target layer caches")
         if len(inputs) == 1:
-            return [self.verify_mtp_rows(inputs[0], caches[0], token_only=token_only)]
+            return [self.verify_mtp_rows(inputs[0], caches[0], token_only=token_only, capture_layer_ids=capture_layer_ids)]
         rows = [self.model.embed_tokens(v) for v in inputs]
         if self.args.mhc:
             rows = [mx.repeat(v[..., None, :], self.args.hc_mult, -2) for v in rows]
         snapshots = [[[] for _ in range(v.shape[1])] for v in inputs]
+        captures = [{} for _ in inputs]
         start = 0
         for i, layer in enumerate(self.layers):
             rows, states = layer.verify_requests(
                 rows, [c[i] for c in caches], shared_stream=self.model._shared_stream
             )
+            if i in capture_layer_ids:
+                for capture, value in zip(captures, rows):
+                    capture[i] = value.mean(-2) if self.args.mhc else value
             for owner, chain in zip(snapshots, states):
                 for destination, state in zip(owner, chain):
                     destination.append(state)
@@ -3159,13 +3180,16 @@ class Model(nn.Module):
         logits = (self.target_tokens(mx.concatenate(hidden, 1)) if token_only
                   else _project_rows(self.lm_head, mx.concatenate(hidden, 1)))
         result, cursor = [], 0
-        for value, states in zip(hidden, snapshots):
+        for value, states, capture in zip(hidden, snapshots, captures):
             count = value.shape[1]
-            result.append((logits[:, cursor : cursor + count], value, states))
+            entry = (logits[:, cursor : cursor + count], value, states)
+            if capture_layer_ids:
+                entry += (mx.concatenate([capture[i] for i in capture_layer_ids], -1),)
+            result.append(entry)
             cursor += count
         return result
 
-    def verify_mtp_rows(self, inputs, cache, *, token_only=False):
+    def verify_mtp_rows(self, inputs, cache, *, token_only=False, capture_layer_ids=()):
         """Verify a draft chain with per-position attention state.
 
         Fused recurrence emits every row boundary; MLA batches explicit projected
@@ -3180,6 +3204,7 @@ class Model(nn.Module):
             raise ValueError("MTP verification requires one cache per target layer")
         if inputs.ndim != 2 or inputs.shape[0] != 1 or not 1 <= inputs.shape[1] <= 17:
             raise ValueError("GLM MTP verification requires one chain of 1-17 rows")
+        captures = {}
         count = inputs.shape[1]
         mode = getattr(self, "_mtp_verification_mode", "serial")
         x = self.model.embed_tokens(inputs)
@@ -3203,7 +3228,7 @@ class Model(nn.Module):
                     len(self.layers),
                 )
                 stop = i + 1
-                while stop < end and self.layers[stop].is_linear:
+                while stop < end and self.layers[stop].is_linear and stop - 1 not in capture_layer_ids:
                     stop += 1
                 key = ("verify", i, stop)
                 group = self.model._fixed_groups.get(key)
@@ -3237,6 +3262,8 @@ class Model(nn.Module):
                     snapshot.offset = state.offset
                     snapshots[j].append(snapshot)
                 x = mx.concatenate(rows, 1)
+            if i in capture_layer_ids:
+                captures[i] = x.mean(-2) if self.args.mhc else x
             if (i + 1) % self.model._verification_eval_group_size == 0 or i + 1 == len(
                 cache
             ):
@@ -3248,7 +3275,10 @@ class Model(nn.Module):
         hidden_rows = [self.model.norm(x[:, j : j + 1]) for j in range(count)]
         hidden = mx.concatenate(hidden_rows, axis=1)
         if token_only:
-            return self.target_tokens(hidden), hidden, snapshots
+            entry = (self.target_tokens(hidden), hidden, snapshots)
+            if capture_layer_ids:
+                entry += (mx.concatenate([captures[i] for i in capture_layer_ids], -1),)
+            return entry
         logits = None
         if (
             mode != "serial"
@@ -3279,7 +3309,10 @@ class Model(nn.Module):
             logits = mlx_dense_rows(hidden, self.lm_head.weight)
         if logits is None:
             logits = mx.concatenate([self.lm_head(row) for row in hidden_rows], axis=1)
-        return logits, hidden, snapshots
+        entry = (logits, hidden, snapshots)
+        if capture_layer_ids:
+            entry += (mx.concatenate([captures[i] for i in capture_layer_ids], -1),)
+        return entry
 
     def make_cache(self):
         # KDA stores conv/recurrent state; MLA stores latent KV, raw indexer

@@ -9,6 +9,7 @@ from sglang.kernels.selector import get_kernel
 from sglang.kernels.spec import (
     CUDA_ONLY,
     CapabilityRequirement,
+    DeviceType,
     KernelBackend,
     KernelSpec,
 )
@@ -87,3 +88,21 @@ register_kernel(
         capabilities=CUDA_ONLY,
     )
 )
+
+
+register_kernel(
+    KernelSpec(
+        op="sampling.mlx_topk",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.sampling.mlx_topk:mlx_topk",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)
+
+
+def mlx_topk(logits, k=16):
+    """Exact MLX top-k, descending values with lower-id ties."""
+    return get_kernel("sampling.mlx_topk", KernelBackend.MLX)(logits, k)
+
+
+__all__.append("mlx_topk")

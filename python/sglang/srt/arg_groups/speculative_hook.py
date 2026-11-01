@@ -123,6 +123,12 @@ def _resolve_speculative_algorithm_alias(
 
 def handle_speculative_decoding(server_args: ServerArgs) -> None:
     cfg = resolving_view(server_args)
+    if cfg.device == "mps" and cfg.speculative_algorithm is not None:
+        from sglang.srt.hardware_backend.mlx.runtime import use_mlx
+
+        if cfg.speculative_algorithm.upper() == "DFLASH" and use_mlx():
+            _handle_mlx_dflash(server_args)
+            return
     if (
         cfg.speculative_draft_model_path is not None
         and cfg.speculative_draft_model_revision is None
@@ -285,6 +291,46 @@ def handle_speculative_decoding(server_args: ServerArgs) -> None:
             # itself: handed the stand-in, its `declare_resolution` calls would
             # stash on that instead.
             algo.handle_server_args(server_args)
+
+
+def _handle_mlx_dflash(server_args: ServerArgs) -> None:
+    """Resolve transactional MLX lookahead without generic draft-worker setup."""
+    cfg = resolving_view(server_args)
+    if not cfg.speculative_draft_model_path:
+        raise ValueError("MLX DFLASH requires --speculative-draft-model-path.")
+    if cfg.mlx_mtp_num_steps:
+        raise ValueError("MLX DFLASH cannot be combined with native MLX MTP.")
+
+    block_size = cfg.speculative_dflash_block_size
+    if block_size is not None:
+        if block_size <= 1:
+            raise ValueError("MLX DFLASH requires a block size greater than 1.")
+        if (
+            cfg.speculative_num_draft_tokens is not None
+            and cfg.speculative_num_draft_tokens != block_size
+        ):
+            raise ValueError(
+                "--speculative-num-draft-tokens and --speculative-dflash-block-size "
+                "must match for DFLASH."
+            )
+    else:
+        block_size = cfg.speculative_num_draft_tokens
+        if block_size is not None and block_size <= 1:
+            raise ValueError("MLX DFLASH requires a block size greater than 1.")
+
+    # The serving constructor infers an omitted block size from the draft's
+    # config. Public block sizes include the anchor; serving counts only drafts.
+    # Clearing the generic mode keeps scheduler/FutureMap/cache accounting on
+    # the ordinary one-token path; the startup record retains the CLI request.
+    declare_resolution(
+        server_args,
+        "_handle_mlx_dflash",
+        mlx_speculative_algorithm="DFLASH",
+        mlx_dflash_num_drafts=block_size - 1 if block_size is not None else None,
+        speculative_algorithm=None,
+        speculative_num_draft_tokens=None,
+        disable_overlap_schedule=True,
+    )
 
 
 def _handle_dflash(server_args: ServerArgs) -> None:
