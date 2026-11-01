@@ -354,6 +354,28 @@ inline void glm_load_packed(const device uchar* base, size_t stride,
 """
 
 
+_MASK4_HEADER = r"""
+// Load four native ushort packs as two aligned words. Keep the original
+// four-term sum and affine rounding, while reusing masks across matched rows.
+inline uint4 glm_load_masks4(const device uchar* base, size_t stride, size_t offset) {
+    const device uint* words = (const device uint*)base;
+    const uint a = words[(offset / 4) * stride];
+    const uint b = words[(offset / 4 + 1) * stride];
+    return uint4(a & 65535, a >> 16, b & 65535, b >> 16);
+}
+inline float glm_mask_qdot4(uint4 packed, const thread float* x,
+                            float scale, float bias, float sum) {
+    float accum = 0;
+    for (int i = 0; i < 4; ++i)
+        accum += (x[4*i] * (packed[i] & 0x000f) +
+                  x[4*i+1] * (packed[i] & 0x00f0) +
+                  x[4*i+2] * (packed[i] & 0x0f00) +
+                  x[4*i+3] * (packed[i] & 0xf000));
+    return scale * accum + sum * bias;
+}
+"""
+
+
 _ROUTED_GATE_UP = r"""
     const uint lane = thread_index_in_simdgroup;
     const uint sg = simdgroup_index_in_threadgroup;
@@ -528,6 +550,41 @@ _GROUPED_GATE_UP = (
 )
 
 
+def _masked_gate_up_source():
+    source = _GROUPED_GATE_UP
+    source = source.replace(
+        "uchar gp[2*BYTES], upack[2*BYTES];",
+        "uint4 gp = glm_load_masks4((const device uchar*)gw+gr, gw_strides[2], packed);"
+        "uint4 upack = glm_load_masks4((const device uchar*)uw+ur, uw_strides[2], packed);",
+    )
+    for name, weight in (("gp", "gw"), ("upack", "uw")):
+        source = source.replace(
+            f"glm_load_packed<2*BYTES>((const device uchar*){weight}+"
+            f"{'gr' if weight == 'gw' else 'ur'},{weight}_strides[2],packed,{name});",
+            "",
+        )
+        for signature in ("VPT, BITS", "VPT,BITS"):
+            source = source.replace(
+                f"glm_qdot_shared<{signature}>({name}", f"glm_mask_qdot4({name}"
+            )
+    return source
+
+
+@cache
+def _masked_gate_up_kernel():
+    return mx.fast.metal_kernel(
+        name="sglang_routed_masked_swiglu",
+        input_names=[
+            "x", "gw", "gs", "gb", "uw", "us", "ub", "indices",
+            "limit", "grouped", "counts",
+        ],
+        output_names=["out"],
+        source=_masked_gate_up_source(),
+        header=_SHARED_HEADER + _MASK4_HEADER,
+        ensure_row_contiguous=False,
+    )
+
+
 @cache
 def _grouped_gate_up_kernel():
     return mx.fast.metal_kernel(
@@ -569,7 +626,7 @@ def mlx_affine_routed_swiglu(
 ):
     """Fuse routed gate/up and rounded activation without duplicating weights.
 
-    Each SIMD owns four outputs. Three-token tiles group actual matching
+    Each SIMD owns bounded output rows. Three-token tiles group actual matching
     experts on-device, sharing packed weights and metadata across their rows.
     Outputs scatter to the original token/top-k slots, including duplicates.
     """
@@ -617,7 +674,14 @@ def mlx_affine_routed_swiglu(
             if grouped is None
             else tuple(mx.contiguous(v) for v in grouped)
         )
-    return (_grouped_gate_up_kernel() if x.shape[1] > 1 else _routed_gate_up_kernel())(
+    kernel = (
+        _masked_gate_up_kernel()
+        if bits == 4
+        and x.shape[1] > 1
+        and mx.device_info()["architecture"].startswith("applegpu_g17")
+        else (_grouped_gate_up_kernel() if x.shape[1] > 1 else _routed_gate_up_kernel())
+    )
+    return kernel(
         inputs=inputs,
         template=[
             ("T", x.dtype),

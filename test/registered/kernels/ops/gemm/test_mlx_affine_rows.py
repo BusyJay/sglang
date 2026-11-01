@@ -12,6 +12,42 @@ register_mlx_ci(est_time=5, suite="stage-a-unit-test-mlx")
 
 @unittest.skipUnless(importlib.util.find_spec("mlx"), "requires MLX")
 class TestMlxAffineRows(CustomTestCase):
+    def test_four_bit_masks_preserve_native_rounding_and_duplicate_picks(self):
+        import mlx.core as mx
+
+        from sglang.kernels.ops.gemm.mlx_affine_rows import (
+            _grouped_gate_up_kernel,
+            mlx_affine_routed_swiglu,
+        )
+        from sglang.kernels.ops.moe.mlx_glm import _group_picks
+
+        for dtype in (mx.float16, mx.bfloat16):
+            gate = mx.quantize(
+                mx.random.normal((8, 32, 512)).astype(dtype), group_size=64, bits=4
+            )
+            up = mx.quantize(
+                mx.random.normal((8, 32, 512)).astype(dtype), group_size=64, bits=4
+            )
+            for count in (2, 3, 5, 17):
+                x = mx.random.normal((1, count, 512)).astype(dtype)
+                ids = (mx.arange(count * 8).reshape(1, count, 8) % 4).astype(mx.uint32)
+                grouped = _group_picks(ids, min(3, count))
+                actual = mlx_affine_routed_swiglu(
+                    x, gate, up, ids, bits=4, group_size=64, limit=10.0,
+                    grouped=grouped,
+                )
+                expected = _grouped_gate_up_kernel()(
+                    inputs=[x, *gate, *up, ids, mx.array([10.0], mx.float32), *grouped],
+                    template=[
+                        ("T", dtype), ("K", 512), ("N", 32), ("GS", 64),
+                        ("BITS", 4), ("TOPK", 8), ("COUNT", count),
+                        ("TILE", min(3, count)), ("RPS", 2), ("HAS_LIMIT", True),
+                    ],
+                    grid=(128 * 4, count * 8, 1), threadgroup=(128, 1, 1),
+                    output_shapes=[(1, count, 8, 32)], output_dtypes=[dtype],
+                )[0]
+                self.assertTrue(mx.array_equal(actual, expected).item())
+
     def test_routed_gate_up_reads_independent_strided_views(self):
         """Prepared expert views and packed columns retain native arithmetic."""
         import mlx.core as mx
