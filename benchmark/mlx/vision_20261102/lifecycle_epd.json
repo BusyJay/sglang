@@ -1,0 +1,180 @@
+{
+  "cases": [
+    {
+      "name": "same_shape_red",
+      "text": "Red",
+      "seconds": 0.3487272090278566,
+      "usage": {
+        "prompt_tokens": 42,
+        "total_tokens": 47,
+        "completion_tokens": 5,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "image_tokens": 16
+        },
+        "reasoning_tokens": 3,
+        "completion_tokens_details": {
+          "reasoning_tokens": 3
+        }
+      }
+    },
+    {
+      "name": "same_shape_blue",
+      "text": "Blue",
+      "seconds": 0.2879169160150923,
+      "usage": {
+        "prompt_tokens": 42,
+        "total_tokens": 45,
+        "completion_tokens": 3,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "image_tokens": 16
+        },
+        "reasoning_tokens": 1,
+        "completion_tokens_details": {
+          "reasoning_tokens": 1
+        }
+      }
+    },
+    {
+      "name": "same_shape_red",
+      "text": "Red",
+      "seconds": 0.19516295898938552,
+      "usage": {
+        "prompt_tokens": 42,
+        "total_tokens": 47,
+        "completion_tokens": 5,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "image_tokens": 16
+        },
+        "reasoning_tokens": 3,
+        "completion_tokens_details": {
+          "reasoning_tokens": 3
+        }
+      }
+    },
+    {
+      "name": "long_prefix_0",
+      "text": "Red",
+      "seconds": 5.660422957967967,
+      "usage": {
+        "prompt_tokens": 1242,
+        "total_tokens": 1245,
+        "completion_tokens": 3,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "image_tokens": 16
+        },
+        "reasoning_tokens": 1,
+        "completion_tokens_details": {
+          "reasoning_tokens": 1
+        }
+      }
+    },
+    {
+      "name": "long_prefix_1",
+      "text": "Red",
+      "seconds": 0.22475987498182803,
+      "usage": {
+        "prompt_tokens": 1242,
+        "total_tokens": 1245,
+        "completion_tokens": 3,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "image_tokens": 16
+        },
+        "reasoning_tokens": 1,
+        "completion_tokens_details": {
+          "reasoning_tokens": 1
+        }
+      }
+    },
+    {
+      "name": "concurrent_blue",
+      "text": "Blue",
+      "seconds": 0.6250104170176201,
+      "usage": {
+        "prompt_tokens": 42,
+        "total_tokens": 45,
+        "completion_tokens": 3,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "image_tokens": 16
+        },
+        "reasoning_tokens": 1,
+        "completion_tokens_details": {
+          "reasoning_tokens": 1
+        }
+      }
+    },
+    {
+      "name": "concurrent_red",
+      "text": "Red",
+      "seconds": 0.627264707989525,
+      "usage": {
+        "prompt_tokens": 42,
+        "total_tokens": 47,
+        "completion_tokens": 5,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "image_tokens": 16
+        },
+        "reasoning_tokens": 3,
+        "completion_tokens_details": {
+          "reasoning_tokens": 3
+        }
+      }
+    },
+    {
+      "name": "post_abort",
+      "text": "Blue",
+      "seconds": 0.17904804204590619,
+      "usage": {
+        "prompt_tokens": 42,
+        "total_tokens": 45,
+        "completion_tokens": 3,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "image_tokens": 16
+        },
+        "reasoning_tokens": 1,
+        "completion_tokens_details": {
+          "reasoning_tokens": 1
+        }
+      }
+    }
+  ],
+  "abort": {
+    "id": "vision-abort-case",
+    "finish_reason": {
+      "type": "abort",
+      "message": "Aborted",
+      "status_code": null,
+      "err_type": null
+    },
+    "prompt_tokens": 25,
+    "weight_version": "default",
+    "num_retractions": 0,
+    "reasoning_tokens": 0,
+    "completion_tokens": 10,
+    "cached_tokens": 0,
+    "weight_versions": [
+      {
+        "version": "default",
+        "start": 0,
+        "end": 10
+      }
+    ],
+    "cached_tokens_details": null,
+    "image_tokens": 16,
+    "dp_rank": null,
+    "e2e_latency": 0.5255391250248067
+  },
+  "text_regression": {
+    "role": "assistant",
+    "content": "4",
+    "reasoning_content": null
+  },
+  "complete": true
+}

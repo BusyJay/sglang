@@ -108,3 +108,55 @@ PYTHONPATH=/Users/jay/workspace/sglang/python SGLANG_USE_MLX=1 MLX_ENABLE_TF32=0
 最终 HTTP 期间共享机器 swap used 从 1229.81 增至 1624.06 MiB，归因未确认；
 不宣称服务内存成本完全解决。首次请求 TTFT 约 1.5 秒，后续约 0.112–0.145 秒，
 启动约 55 秒。没有修改系统 wired-memory 配置。
+
+## Attention 执行路径
+
+本脚本使用 MLX/Metal。DFlash2 草稿直接调用 `mx.fast.scaled_dot_product_attention`，
+目标模型使用原生 MLX KDA/MLA kernel。通用 `--attention-backend fa4` 不选择这些
+调用，因此命令不填写该参数。这份性能结果只对应上述 MLX 路径。
+
+
+## Vision：本机 encoder 与 EPD 分离
+
+GLM-5.3-Flash 默认加载原生 MLX BF16 vision tower；语言模型继续使用原 checkpoint
+4-bit 权重和 DFlash2。DFlash 启用时不加载 native MTP。Vision encoder 同分辨率的帧
+批量进行非因果 attention，不同分辨率保持独立 attention 域。像素由原 HF processor
+处理，图片绝对 token span 跨 chunk 注入 target embedding，并同时进入 DFlash target captures。
+
+本机 encoder（默认模式）：
+
+```bash
+cd /Users/jay/workspace/sglang
+bash llm-online/start.sh
+```
+
+EPD：先启动 encoder，再在另一个终端启动语言服务。
+
+```bash
+cd /Users/jay/workspace/sglang
+bash llm-online/start-encoder.sh
+```
+
+```bash
+cd /Users/jay/workspace/sglang
+bash llm-online/start-language.sh
+```
+
+`start-language.sh` 使用 `--language-only`，不会加载本机视觉权重；从 encoder 接收
+CPU BF16 embeddings，转换为 MLX 进行同样的 span 注入。传输后端是现有
+`zmq_to_tokenizer`，encoder HTTP 地址由 `ENCODER_URL` 覆盖。默认均监听 localhost，
+跨机器部署需设置 encoder 的 `HOST`、语言端 `ENCODER_URL`，并确保双方可达传输端口；
+当前实测是同一 M5 Ultra 上的独立进程，并未验证跨主机网络。
+
+这个转换 checkpoint 的 `chat_template.jinja` 是纯文本 GLM-5.3 模板。视觉服务现在
+自动使用仓库 GLM-5.3-Flash Python renderer，生成 image/video 标记；用户显式
+指定的 chat template 仍优先。图像预算使用 `--mm-process-config
+'{"image":{"max_image_tokens":256}}'`，新版 GLM processor 不接收 `max_pixels`。
+
+复现材料位于 `benchmark/mlx/vision_20261102/`。完整验证报告和性能记录在
+`llm-online/vision-validation.md`。HTTP 响应耗时包含 encoder、prefill、decode、
+序列化和调度；真实 decode 数字来自单独等待输出与 cache 完成的 decoder 循环。
+
+长图文前缀复用已验证。需要在 OpenAI usage 中显示命中 token 数时，启动参数加
+`--enable-cache-report`；默认未开启时 usage 的 cached_tokens 为 0，不能据此判断
+是否重算。最终生命周期验证以 scheduler 命中日志、设备状态回归和实际耗时为证据。

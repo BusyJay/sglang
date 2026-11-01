@@ -1,0 +1,476 @@
+{
+  "commands": {
+    "local": [
+      "/Users/jay/workspace/prod/common/sglang-metal/bin/python",
+      "-u",
+      "-m",
+      "sglang.launch_server",
+      "--model-path",
+      "/Users/jay/workspace/prod/huggingface/hub/models--mlx-community--GLM-5.3-Flash-4bit/snapshots/fa04cbc3622b16aa7475404060b05e506d81bd4e",
+      "--served-model-name",
+      "glm-vision",
+      "--host",
+      "127.0.0.1",
+      "--disable-cuda-graph",
+      "--disable-overlap-schedule",
+      "--mm-process-config",
+      "{\"image\":{\"max_image_tokens\":256}}",
+      "--port",
+      "30007",
+      "--context-length",
+      "8192",
+      "--max-total-tokens",
+      "17024",
+      "--chunked-prefill-size",
+      "32",
+      "--max-running-requests",
+      "2",
+      "--mlx-enable-sampling",
+      "--random-seed",
+      "1234",
+      "--enable-deterministic-inference",
+      "--speculative-algorithm",
+      "DFLASH",
+      "--speculative-draft-model-path",
+      "/Users/jay/workspace/prod/huggingface/hub/models--incoai--GLM-5.3-Flash-DFlash2/snapshots/bf582e4eacc1810f76656d1811693ff6c6737d2a",
+      "--speculative-dflash-block-size",
+      "4",
+      "--reasoning-parser",
+      "glm45"
+    ],
+    "encoder": [
+      "/Users/jay/workspace/prod/common/sglang-metal/bin/python",
+      "-u",
+      "-m",
+      "sglang.launch_server",
+      "--model-path",
+      "/Users/jay/workspace/prod/huggingface/hub/models--mlx-community--GLM-5.3-Flash-4bit/snapshots/fa04cbc3622b16aa7475404060b05e506d81bd4e",
+      "--served-model-name",
+      "glm-vision",
+      "--host",
+      "127.0.0.1",
+      "--disable-cuda-graph",
+      "--disable-overlap-schedule",
+      "--mm-process-config",
+      "{\"image\":{\"max_image_tokens\":256}}",
+      "--port",
+      "30008",
+      "--encoder-only",
+      "--encoder-transfer-backend",
+      "zmq_to_tokenizer"
+    ],
+    "epd": [
+      "/Users/jay/workspace/prod/common/sglang-metal/bin/python",
+      "-u",
+      "-m",
+      "sglang.launch_server",
+      "--model-path",
+      "/Users/jay/workspace/prod/huggingface/hub/models--mlx-community--GLM-5.3-Flash-4bit/snapshots/fa04cbc3622b16aa7475404060b05e506d81bd4e",
+      "--served-model-name",
+      "glm-vision",
+      "--host",
+      "127.0.0.1",
+      "--disable-cuda-graph",
+      "--disable-overlap-schedule",
+      "--mm-process-config",
+      "{\"image\":{\"max_image_tokens\":256}}",
+      "--port",
+      "30007",
+      "--context-length",
+      "8192",
+      "--max-total-tokens",
+      "17024",
+      "--chunked-prefill-size",
+      "32",
+      "--max-running-requests",
+      "2",
+      "--mlx-enable-sampling",
+      "--random-seed",
+      "1234",
+      "--enable-deterministic-inference",
+      "--speculative-algorithm",
+      "DFLASH",
+      "--speculative-draft-model-path",
+      "/Users/jay/workspace/prod/huggingface/hub/models--incoai--GLM-5.3-Flash-DFlash2/snapshots/bf582e4eacc1810f76656d1811693ff6c6737d2a",
+      "--speculative-dflash-block-size",
+      "4",
+      "--reasoning-parser",
+      "glm45",
+      "--language-only",
+      "--encoder-urls",
+      "http://127.0.0.1:30008",
+      "--encoder-transfer-backend",
+      "zmq_to_tokenizer"
+    ]
+  },
+  "modes": {
+    "local": {
+      "startup": 57.37929812504444,
+      "samples": [
+        {
+          "images": [
+            0
+          ],
+          "repeat": 0,
+          "seconds": 1.1622891660081223,
+          "text": "Red",
+          "reasoning": "Red.",
+          "usage": {
+            "prompt_tokens": 42,
+            "total_tokens": 47,
+            "completion_tokens": 5,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "image_tokens": 16
+            },
+            "reasoning_tokens": 3,
+            "completion_tokens_details": {
+              "reasoning_tokens": 3
+            }
+          }
+        },
+        {
+          "images": [
+            0
+          ],
+          "repeat": 1,
+          "seconds": 0.19056283397367224,
+          "text": "Red",
+          "reasoning": "Red.",
+          "usage": {
+            "prompt_tokens": 42,
+            "total_tokens": 47,
+            "completion_tokens": 5,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "image_tokens": 16
+            },
+            "reasoning_tokens": 3,
+            "completion_tokens_details": {
+              "reasoning_tokens": 3
+            }
+          }
+        },
+        {
+          "images": [
+            1
+          ],
+          "repeat": 0,
+          "seconds": 0.37505679100286216,
+          "text": "Blue",
+          "reasoning": "Blue.",
+          "usage": {
+            "prompt_tokens": 50,
+            "total_tokens": 55,
+            "completion_tokens": 5,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "image_tokens": 24
+            },
+            "reasoning_tokens": 3,
+            "completion_tokens_details": {
+              "reasoning_tokens": 3
+            }
+          }
+        },
+        {
+          "images": [
+            1
+          ],
+          "repeat": 1,
+          "seconds": 0.21328904101392254,
+          "text": "Blue",
+          "reasoning": "Blue.",
+          "usage": {
+            "prompt_tokens": 50,
+            "total_tokens": 55,
+            "completion_tokens": 5,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "image_tokens": 24
+            },
+            "reasoning_tokens": 3,
+            "completion_tokens_details": {
+              "reasoning_tokens": 3
+            }
+          }
+        },
+        {
+          "images": [
+            0,
+            1
+          ],
+          "repeat": 0,
+          "seconds": 0.5335687089827843,
+          "text": "The first image is red, and the second image is blue.",
+          "reasoning": null,
+          "usage": {
+            "prompt_tokens": 65,
+            "total_tokens": 80,
+            "completion_tokens": 15,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "image_tokens": 40
+            },
+            "reasoning_tokens": 1,
+            "completion_tokens_details": {
+              "reasoning_tokens": 1
+            }
+          }
+        },
+        {
+          "images": [
+            0,
+            1
+          ],
+          "repeat": 1,
+          "seconds": 0.2393650829908438,
+          "text": "The first image is red, and the second image is blue.",
+          "reasoning": null,
+          "usage": {
+            "prompt_tokens": 65,
+            "total_tokens": 80,
+            "completion_tokens": 15,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "image_tokens": 40
+            },
+            "reasoning_tokens": 1,
+            "completion_tokens_details": {
+              "reasoning_tokens": 1
+            }
+          }
+        },
+        {
+          "images": [
+            2
+          ],
+          "repeat": 0,
+          "seconds": 1.3995586250093766,
+          "text": "HELLO 123",
+          "reasoning": null,
+          "usage": {
+            "prompt_tokens": 283,
+            "total_tokens": 289,
+            "completion_tokens": 6,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "image_tokens": 256
+            },
+            "reasoning_tokens": 1,
+            "completion_tokens_details": {
+              "reasoning_tokens": 1
+            }
+          }
+        },
+        {
+          "images": [
+            2
+          ],
+          "repeat": 1,
+          "seconds": 0.2580082920030691,
+          "text": "HELLO 123",
+          "reasoning": null,
+          "usage": {
+            "prompt_tokens": 283,
+            "total_tokens": 289,
+            "completion_tokens": 6,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "image_tokens": 256
+            },
+            "reasoning_tokens": 1,
+            "completion_tokens_details": {
+              "reasoning_tokens": 1
+            }
+          }
+        }
+      ]
+    },
+    "epd": {
+      "startup": 58.346051207976416,
+      "samples": [
+        {
+          "images": [
+            0
+          ],
+          "repeat": 0,
+          "seconds": 0.5157042079954408,
+          "text": "Red",
+          "reasoning": "Red.",
+          "usage": {
+            "prompt_tokens": 42,
+            "total_tokens": 47,
+            "completion_tokens": 5,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "image_tokens": 16
+            },
+            "reasoning_tokens": 3,
+            "completion_tokens_details": {
+              "reasoning_tokens": 3
+            }
+          }
+        },
+        {
+          "images": [
+            0
+          ],
+          "repeat": 1,
+          "seconds": 0.1947248749784194,
+          "text": "Red",
+          "reasoning": "Red.",
+          "usage": {
+            "prompt_tokens": 42,
+            "total_tokens": 47,
+            "completion_tokens": 5,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "image_tokens": 16
+            },
+            "reasoning_tokens": 3,
+            "completion_tokens_details": {
+              "reasoning_tokens": 3
+            }
+          }
+        },
+        {
+          "images": [
+            1
+          ],
+          "repeat": 0,
+          "seconds": 0.3834378750179894,
+          "text": "Blue",
+          "reasoning": "Blue.",
+          "usage": {
+            "prompt_tokens": 50,
+            "total_tokens": 55,
+            "completion_tokens": 5,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "image_tokens": 24
+            },
+            "reasoning_tokens": 3,
+            "completion_tokens_details": {
+              "reasoning_tokens": 3
+            }
+          }
+        },
+        {
+          "images": [
+            1
+          ],
+          "repeat": 1,
+          "seconds": 0.21832829201593995,
+          "text": "Blue",
+          "reasoning": "Blue.",
+          "usage": {
+            "prompt_tokens": 50,
+            "total_tokens": 55,
+            "completion_tokens": 5,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "image_tokens": 24
+            },
+            "reasoning_tokens": 3,
+            "completion_tokens_details": {
+              "reasoning_tokens": 3
+            }
+          }
+        },
+        {
+          "images": [
+            0,
+            1
+          ],
+          "repeat": 0,
+          "seconds": 0.5419277910259552,
+          "text": "The first image is red, and the second image is blue.",
+          "reasoning": null,
+          "usage": {
+            "prompt_tokens": 65,
+            "total_tokens": 80,
+            "completion_tokens": 15,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "image_tokens": 40
+            },
+            "reasoning_tokens": 1,
+            "completion_tokens_details": {
+              "reasoning_tokens": 1
+            }
+          }
+        },
+        {
+          "images": [
+            0,
+            1
+          ],
+          "repeat": 1,
+          "seconds": 0.24092537502292544,
+          "text": "The first image is red, and the second image is blue.",
+          "reasoning": null,
+          "usage": {
+            "prompt_tokens": 65,
+            "total_tokens": 80,
+            "completion_tokens": 15,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "image_tokens": 40
+            },
+            "reasoning_tokens": 1,
+            "completion_tokens_details": {
+              "reasoning_tokens": 1
+            }
+          }
+        },
+        {
+          "images": [
+            2
+          ],
+          "repeat": 0,
+          "seconds": 1.4165393330040388,
+          "text": "HELLO 123",
+          "reasoning": null,
+          "usage": {
+            "prompt_tokens": 283,
+            "total_tokens": 289,
+            "completion_tokens": 6,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "image_tokens": 256
+            },
+            "reasoning_tokens": 1,
+            "completion_tokens_details": {
+              "reasoning_tokens": 1
+            }
+          }
+        },
+        {
+          "images": [
+            2
+          ],
+          "repeat": 1,
+          "seconds": 0.26715383399277925,
+          "text": "HELLO 123",
+          "reasoning": null,
+          "usage": {
+            "prompt_tokens": 283,
+            "total_tokens": 289,
+            "completion_tokens": 6,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "image_tokens": 256
+            },
+            "reasoning_tokens": 1,
+            "completion_tokens_details": {
+              "reasoning_tokens": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  "swap_before": "vm.swapusage: total = 3072.00M  used = 1587.06M  free = 1484.94M  (encrypted)\n",
+  "swap_after": "vm.swapusage: total = 3072.00M  used = 1621.06M  free = 1450.94M  (encrypted)\n"
+}
