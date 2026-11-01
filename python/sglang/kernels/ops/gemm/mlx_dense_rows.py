@@ -231,7 +231,7 @@ def _argmax_rows_kernel():
             for (ushort off = 16; off >= 1; off >>= 1)
                 acc[t][r] += simd_shuffle_down(acc[t][r], off);
             const float value = float(O(acc[t][r]));
-            if (row+r < N && (value > best || (value == best && uint(row+r) < token))) {
+            if (row+r < N && ((isnan(value) && !isnan(best)) || (!isnan(best) && value > best) || ((value == best || (isnan(value) && isnan(best))) && uint(row+r) < token))) {
                 best = value; token = uint(row+r);
             }
         }
@@ -248,7 +248,7 @@ def _argmax_rows_kernel():
             for (int i = 0; i < BM; ++i) {
                 float value = winners[t*BM+i];
                 uint id = tokens[t*BM+i];
-                if (value > best || (value == best && id < token)) {
+                if ((isnan(value) && !isnan(best)) || (!isnan(best) && value > best) || ((value == best || (isnan(value) && isnan(best))) && id < token)) {
                     best = value; token = id;
                 }
             }

@@ -33,6 +33,23 @@ class TestMlxDenseRows(CustomTestCase):
                     ).item()
                 )
 
+    def test_greedy_target_keeps_first_nan_and_finite_ties(self):
+        import mlx.core as mx
+
+        from sglang.kernels.ops.gemm.mlx_dense_rows import mlx_dense_argmax_rows
+
+        for dtype in (mx.float16, mx.bfloat16):
+            x = mx.ones((1, 3, 256), dtype)
+            weight = mx.zeros((256, 256), dtype)
+            weight[31, 0] = float("nan")
+            weight[65, 0] = float("nan")
+            expected = mx.argmax(
+                mx.concatenate([x[:, j : j + 1] @ weight.T for j in range(3)], 1), -1
+            )
+            self.assertTrue(
+                mx.array_equal(mlx_dense_argmax_rows(x, weight), expected).item()
+            )
+
     def test_shared_loads_match_singletons_and_tail_rows(self):
         import mlx.core as mx
 
