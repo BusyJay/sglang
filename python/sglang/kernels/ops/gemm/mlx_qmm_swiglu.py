@@ -67,13 +67,9 @@ _SOURCE = r"""
 _NAX_SOURCE = r"""
  using namespace mlx::steel;
  const uint lane=thread_index_in_simdgroup,sg=simdgroup_index_in_threadgroup;
- const uint expert=threadgroup_position_in_grid.z;
- uint lo=0,hi=M;
- while(lo<hi){uint mid=(lo+hi)/2;if(ids[mid]<int(expert))lo=mid+1;else hi=mid;}
- const uint begin=lo;hi=M;
- while(lo<hi){uint mid=(lo+hi)/2;if(ids[mid]<=int(expert))lo=mid+1;else hi=mid;}
- const uint end=lo,row=begin+threadgroup_position_in_grid.y*BM;
- if(row>=end)return;
+ const uint task=threadgroup_position_in_grid.y;
+ if(task>=work_count[0])return;
+ const uint expert=work[task*3],row=work[task*3+1],end=work[task*3+2];
  const uint col=threadgroup_position_in_grid.x*64;
  constexpr short SM=BM/2,SN=32,TM=SM/16,TN=2,TK=2;
  constexpr uint pad=64+16/sizeof(T);
@@ -178,12 +174,66 @@ def _kernel():
 
 
 @cache
+def _expert_ranges_kernel():
+    return mx.fast.metal_kernel(
+        name="sglang_sorted_expert_ranges",
+        input_names=["ids"], output_names=["ranges"],
+        source=r"""
+        const uint expert=thread_position_in_grid.x;
+        if(expert>=E)return;
+        uint lo=0,hi=M;
+        while(lo<hi){uint mid=(lo+hi)/2;if(ids[mid]<int(expert))lo=mid+1;else hi=mid;}
+        uint begin=lo;hi=M;
+        while(lo<hi){uint mid=(lo+hi)/2;if(ids[mid]<=int(expert))lo=mid+1;else hi=mid;}
+        ranges[expert*2]=begin;ranges[expert*2+1]=lo;
+        """,
+    )
+
+
+@cache
+def _expert_worklist_kernel():
+    return mx.fast.metal_kernel(
+        name="sglang_sorted_expert_worklist",
+        input_names=["ranges"], output_names=["work", "work_count"],
+        source=r"""
+        const uint expert=thread_position_in_grid.x;
+        if(expert>=E)return;
+        uint offset=0;
+        for(uint e=0;e<expert;++e)
+            offset+=(ranges[e*2+1]-ranges[e*2]+BM-1)/BM;
+        const uint begin=ranges[expert*2],end=ranges[expert*2+1];
+        const uint tiles=(end-begin+BM-1)/BM;
+        for(uint t=0;t<tiles;++t){
+            work[(offset+t)*3]=expert;
+            work[(offset+t)*3+1]=begin+t*BM;
+            work[(offset+t)*3+2]=end;
+        }
+        if(expert==E-1)work_count[0]=offset+tiles;
+        """,
+    )
+
+
+def _expert_worklist(ids, experts, rows, bm):
+    # At most ceil(M/BM)+E-1 tiles; bounded metadata independent of N.
+    capacity=(rows+bm-1)//bm+experts-1
+    ranges=_expert_ranges_kernel()(
+        inputs=[ids],template=[("E",experts),("M",rows)],
+        grid=(experts,1,1),threadgroup=(min(experts,256),1,1),
+        output_shapes=[(experts,2)],output_dtypes=[mx.uint32])[0]
+    return _expert_worklist_kernel()(
+        inputs=[ranges],template=[("E",experts),("BM",bm)],
+        grid=(experts,1,1),threadgroup=(min(experts,256),1,1),
+        output_shapes=[(capacity,3),(1,)],output_dtypes=[mx.uint32,mx.uint32])
+
+
+@cache
 def _nax_kernel():
     return mx.fast.metal_kernel(
         name="sglang_sorted_qmm_swiglu_nax",
         input_names=[
             "x",
-            "ids",
+            "work",
+            "work_count",
             "gate_w",
             "gate_s",
             "gate_b",
@@ -290,7 +340,9 @@ def _qmv_kernel():
     )
 
 
-def mlx_sorted_qmm_swiglu(x, indices, gate, up, *, bits, group_size, limit=None):
+def mlx_sorted_qmm_swiglu(
+    x, indices, gate, up, *, bits, group_size, limit=None, tasks=None
+):
     """Sorted picks [M,1,K] -> [M,1,N], retaining native T rounding."""
     if x.ndim != 3 or x.shape[1] != 1 or x.dtype not in (mx.float16, mx.bfloat16):
         return None
@@ -347,10 +399,14 @@ def mlx_sorted_qmm_swiglu(x, indices, gate, up, *, bits, group_size, limit=None)
         if k % 64 or group_size < 64 or n % 64:
             return None
         bm = 32 if m // e < 64 else 64
+        work, work_count = (
+            _expert_worklist(indices, e, m, bm) if tasks is None else tasks
+        )
         return _nax_kernel()(
             inputs=[
                 x,
-                indices.astype(mx.int32),
+                work,
+                work_count,
                 *gate,
                 *up,
                 mx.array([limit or 0.0], mx.float32),
@@ -365,7 +421,7 @@ def mlx_sorted_qmm_swiglu(x, indices, gate, up, *, bits, group_size, limit=None)
                 ("HAS_LIMIT", limit is not None),
                 ("BM", bm),
             ],
-            grid=(128 * (n // 64), (m + bm - 1) // bm, e),
+            grid=(128 * (n // 64), (m + bm - 1) // bm + e - 1, 1),
             threadgroup=(128, 1, 1),
             output_shapes=[(m, 1, n)],
             output_dtypes=[x.dtype],

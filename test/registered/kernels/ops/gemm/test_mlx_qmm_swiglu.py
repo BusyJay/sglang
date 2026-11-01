@@ -225,6 +225,27 @@ class TestMlxQmmSwiGLU(CustomTestCase):
                     mx.array_equal(actual, _compiled_swiglu(g, u, 1.3)).item()
                 )
 
+    def test_compact_worklist_preserves_expert_row_order_and_capacity(self):
+        """Every sorted row belongs to exactly one bounded tile, including tails."""
+        import mlx.core as mx
+
+        from sglang.kernels.ops.gemm.mlx_qmm_swiglu import _expert_worklist
+
+        for rows, experts, bm in ((26, 288, 32), (2048, 288, 32), (257, 8, 64)):
+            for active in (1, 8, experts):
+                ids = mx.sort(mx.arange(rows) % active).astype(mx.int32)
+                work, count = _expert_worklist(ids, experts, rows, bm)
+                mx.eval(work, count)
+                self.assertLessEqual(count.item(), (rows + bm - 1) // bm + experts - 1)
+                covered = []
+                values = ids.tolist()
+                for expert, start, end in work[:count.item()].tolist():
+                    stop = min(start + bm, end)
+                    self.assertGreater(stop, start)
+                    self.assertTrue(all(values[row] == expert for row in range(start, stop)))
+                    covered.extend(range(start, stop))
+                self.assertEqual(covered, list(range(rows)))
+
     def test_sorted_paired_qmm_matches_native_epilogue(self):
         import mlx.core as mx
 
