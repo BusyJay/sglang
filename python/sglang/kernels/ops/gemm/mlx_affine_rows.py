@@ -575,8 +575,17 @@ def _masked_gate_up_kernel():
     return mx.fast.metal_kernel(
         name="sglang_routed_masked_swiglu",
         input_names=[
-            "x", "gw", "gs", "gb", "uw", "us", "ub", "indices",
-            "limit", "grouped", "counts",
+            "x",
+            "gw",
+            "gs",
+            "gb",
+            "uw",
+            "us",
+            "ub",
+            "indices",
+            "limit",
+            "grouped",
+            "counts",
         ],
         output_names=["out"],
         source=_masked_gate_up_source(),
@@ -700,3 +709,237 @@ def mlx_affine_routed_swiglu(
         output_shapes=[(1, x.shape[1], topk, n)],
         output_dtypes=[x.dtype],
     )[0]
+
+
+@cache
+def _multi_mixed_kernel(parts):
+    names = ["x"]
+    outputs, body = [], []
+    offset = 0
+    for i, (bits, group_size, width) in enumerate(parts):
+        names.extend([f"w{i}", f"s{i}", f"b{i}"])
+        outputs.append(f"out{i}")
+        text = _MIXED_SOURCE
+        text = text.replace(
+            "const int row = int(threadgroup_position_in_grid.x) * 4 + int(sg);",
+            f"const int row = (int(threadgroup_position_in_grid.x)-{offset})*4+int(sg); if(row>={width}) return;",
+        )
+        text = text.replace(
+            "x+size_t(t)*K+k+lane*VPT",
+            "x+(size_t(threadgroup_position_in_grid.y)*3+t)*K+k+lane*VPT",
+        )
+        text = text.replace(
+            "const device uchar* src=(const device uchar*)w+size_t(row)*(K*BITS/8)+(k/PACK+lane*2)*BYTES;\n        for(int i=0;i<2*BYTES;++i) packed[i]=src[i];",
+            "const device uchar* src=(const device uchar*)w+size_t(row)*w_strides[0]*4;\n        glm_load_packed<2*BYTES>(src,w_strides[1],(k/PACK+lane*2)*BYTES,packed);",
+        )
+        text = text.replace(
+            "s[size_t(row)*(K/GS)+k/GS+lane/(GS/VPT)]",
+            "s[size_t(row)*s_strides[0]+(k/GS+lane/(GS/VPT))*s_strides[1]]",
+        )
+        text = text.replace(
+            "b[size_t(row)*(K/GS)+k/GS+lane/(GS/VPT)]",
+            "b[size_t(row)*b_strides[0]+(k/GS+lane/(GS/VPT))*b_strides[1]]",
+        )
+        text = text.replace(
+            "out[size_t(t)*N+row]",
+            "out[(size_t(threadgroup_position_in_grid.y)*3+t)*N+row]",
+        )
+        text = text.replace(
+            "for(int t=0;t<ROWS;++t) {",
+            "for(int t=0;t<ROWS;++t) { if(threadgroup_position_in_grid.y*3+t>=COUNT) break;",
+        )
+        text = text.replace(
+            "for (int t = 0; t < ROWS; ++t)\n            sums[t]",
+            "for (int t = 0; t < ROWS; ++t)\n            sums[t]",
+        )
+        # Tail inputs alias the final valid row; guarded stores exclude them.
+        text = text.replace(
+            "(size_t(threadgroup_position_in_grid.y)*3+t)*K",
+            "size_t(min(uint(threadgroup_position_in_grid.y*3+t),uint(COUNT-1)))*K",
+        )
+        import re
+
+        for symbol in ("w", "s", "b", "out"):
+            text = re.sub(r"\b" + symbol + r"\b", symbol + str(i), text)
+            text = text.replace(symbol + "_strides", symbol + str(i) + "_strides")
+        for symbol, value in (("BITS", bits), ("GS", group_size), ("N", width)):
+            text = re.sub(r"\b" + symbol + r"\b", str(value), text)
+        text = re.sub(r"\bO\b", f"O{i}", text)
+        tiles = (width + 3) // 4
+        body.append(
+            f"if(threadgroup_position_in_grid.x>={offset} && threadgroup_position_in_grid.x<{offset + tiles}) {{\n{text}\n}}"
+        )
+        offset += tiles
+    return mx.fast.metal_kernel(
+        name="sglang_affine_multi_rows",
+        input_names=names,
+        output_names=outputs,
+        source="\n".join(body),
+        header=_SHARED_HEADER + _PACKED_LOAD,
+        ensure_row_contiguous=False,
+    )
+
+
+def mlx_affine_multi_rows(x, parts, *, prepared_strides=None):
+    """Independent affine projections in one dispatch, preserving local promotion.
+
+    Each part is (weight, scales, biases, bits, group_size). Weight and metadata
+    strides remain independent; only the bounded activation is made contiguous.
+    """
+    if (
+        x.ndim != 3
+        or x.shape[0] != 1
+        or not 1 <= x.shape[1] <= 17
+        or x.dtype not in (mx.float16, mx.bfloat16, mx.float32)
+        or not parts
+    ):
+        return None
+    count, dim = x.shape[1:]
+    specs, inputs, dtypes = [], [mx.contiguous(x)], []
+    for w, s, b, bits, gs in parts:
+        pack = (
+            8 if bits == 5 else 4 if bits == 6 else 32 // bits if bits in (4, 8) else 0
+        )
+        if (
+            not pack
+            or gs not in (32, 64, 128)
+            or dim % (64 * pack)
+            or dim % gs
+            or w.ndim != 2
+            or w.dtype != mx.uint32
+            or w.shape[1] * 32 != dim * bits
+            or s is None
+            or b is None
+            or s.shape != (w.shape[0], dim // gs)
+            or b.shape != s.shape
+            or s.dtype != b.dtype
+            or s.dtype not in (mx.float16, mx.bfloat16, mx.float32)
+        ):
+            return None
+        specs.append((bits, gs, w.shape[0]))
+        inputs.extend((w, s, b))
+        dtypes.append(mx.result_type(x.dtype, s.dtype, b.dtype))
+    return (
+        _multi_mixed_kernel(tuple(specs))
+        if prepared_strides is None
+        else _e_prepared_kernel(tuple(specs), tuple(tuple(v) for v in prepared_strides))
+    )(
+        inputs=inputs,
+        template=[("X", x.dtype), ("K", dim), ("ROWS", min(3, count)), ("COUNT", count)]
+        + [(f"O{i}", dtype) for i, dtype in enumerate(dtypes)],
+        grid=(128 * sum((n + 3) // 4 for _, _, n in specs), (count + 2) // 3, 1),
+        threadgroup=(128, 1, 1),
+        output_shapes=[(1, count, n) for _, _, n in specs],
+        output_dtypes=dtypes,
+    )
+
+
+@cache
+def _e_prepared_kernel(parts, strides):
+    if len(strides) != len(parts) or any(
+        len(v) != 6 or any(type(x) is not int or x < 0 for x in v) for v in strides
+    ):
+        raise ValueError("explicit prepared element strides required")
+    names = ["x"]
+    outputs, body = [], []
+    offset = 0
+    for i, (bits, group_size, width) in enumerate(parts):
+        names.extend([f"w{i}", f"s{i}", f"b{i}"])
+        outputs.append(f"out{i}")
+        text = _MIXED_SOURCE
+        text = text.replace(
+            "const int row = int(threadgroup_position_in_grid.x) * 4 + int(sg);",
+            f"const int row = (int(threadgroup_position_in_grid.x)-{offset})*4+int(sg); if(row>={width}) return;",
+        )
+        text = text.replace(
+            "x+size_t(t)*K+k+lane*VPT",
+            "x+(size_t(threadgroup_position_in_grid.y)*3+t)*K+k+lane*VPT",
+        )
+        text = text.replace(
+            "const device uchar* src=(const device uchar*)w+size_t(row)*(K*BITS/8)+(k/PACK+lane*2)*BYTES;\n        for(int i=0;i<2*BYTES;++i) packed[i]=src[i];",
+            "const device uchar* src=(const device uchar*)w+size_t(row)*w_strides[0]*4;\n        glm_load_packed<2*BYTES>(src,w_strides[1],(k/PACK+lane*2)*BYTES,packed);",
+        )
+        text = text.replace(
+            "s[size_t(row)*(K/GS)+k/GS+lane/(GS/VPT)]",
+            "s[size_t(row)*s_strides[0]+(k/GS+lane/(GS/VPT))*s_strides[1]]",
+        )
+        text = text.replace(
+            "b[size_t(row)*(K/GS)+k/GS+lane/(GS/VPT)]",
+            "b[size_t(row)*b_strides[0]+(k/GS+lane/(GS/VPT))*b_strides[1]]",
+        )
+        text = text.replace(
+            "out[size_t(t)*N+row]",
+            "out[(size_t(threadgroup_position_in_grid.y)*3+t)*N+row]",
+        )
+        text = text.replace(
+            "for(int t=0;t<ROWS;++t) {",
+            "for(int t=0;t<ROWS;++t) { if(threadgroup_position_in_grid.y*3+t>=COUNT) break;",
+        )
+        # Tail inputs alias the final valid row; guarded stores exclude them.
+        text = text.replace(
+            "(size_t(threadgroup_position_in_grid.y)*3+t)*K",
+            "size_t(min(uint(threadgroup_position_in_grid.y*3+t),uint(COUNT-1)))*K",
+        )
+        # Same geometries and accumulation expressions; only metadata accesses
+        # become constants. Specialize actual prepared viewstrides, not lengths.
+        for symbol, pair in zip(
+            ("w", "s", "b"), (strides[i][:2], strides[i][2:4], strides[i][4:])
+        ):
+            for axis, value in enumerate(pair):
+                text = text.replace(
+                    symbol + "_strides[" + str(axis) + "]",
+                    "size_t(" + str(value) + "ul)",
+                )
+        import re
+
+        for symbol in ("w", "s", "b", "out"):
+            text = re.sub(r"\b" + symbol + r"\b", symbol + str(i), text)
+            text = text.replace(symbol + "_strides", symbol + str(i) + "_strides")
+        for symbol, value in (("BITS", bits), ("GS", group_size), ("N", width)):
+            text = re.sub(r"\b" + symbol + r"\b", str(value), text)
+        text = re.sub(r"\bO\b", f"O{i}", text)
+        tiles = (width + 3) // 4
+        body.append(
+            f"if(threadgroup_position_in_grid.x>={offset} && threadgroup_position_in_grid.x<{offset + tiles}) {{\n{text}\n}}"
+        )
+        offset += tiles
+    return mx.fast.metal_kernel(
+        name="sglang_affine_e_static_strides",
+        input_names=names,
+        output_names=outputs,
+        source="\n".join(body),
+        header=_SHARED_HEADER + _PACKED_LOAD,
+        ensure_row_contiguous=False,
+    )
+
+
+@cache
+def _multi_stride_metadata_kernel(count):
+    names = [f"a{i}" for i in range(count)]
+    return mx.fast.metal_kernel(
+        name=f"sglang_affine_multi_stride_metadata_{count}",
+        input_names=names,
+        output_names=["table"],
+        ensure_row_contiguous=False,
+        source="\n".join(
+            f"table[{2 * i}]=a{i}_strides[0];table[{2 * i + 1}]=a{i}_strides[1];"
+            for i in range(count)
+        ),
+    )
+
+
+def mlx_affine_multi_prepare_strides(parts):
+    """Extract actual element strides outside compiled calls and serving timing."""
+    arrays = [a for part in parts for a in part[:3]]
+    if not arrays or any(a is None or a.ndim != 2 for a in arrays):
+        raise ValueError("nonempty 2D affine operands required")
+    table = _multi_stride_metadata_kernel(len(arrays))(
+        inputs=arrays,
+        grid=(1, 1, 1),
+        threadgroup=(1, 1, 1),
+        output_shapes=[(2 * len(arrays),)],
+        output_dtypes=[mx.uint64],
+    )[0]
+    mx.eval(table)
+    values = table.tolist()
+    return tuple(tuple(values[i : i + 6]) for i in range(0, len(values), 6))

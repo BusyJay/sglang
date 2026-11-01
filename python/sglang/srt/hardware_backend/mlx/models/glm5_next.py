@@ -24,11 +24,12 @@ from mlx_lm.models.switch_layers import (
     _gather_sort,
     _scatter_unsort,
 )
-
 from sglang.kernels.ops.attention.linear.mlx_kda import mlx_kda_decode
 from sglang.kernels.ops.attention.mlx_ragged import mlx_ragged_latent_attention
 from sglang.kernels.ops.gemm.mlx_affine_rows import (
     mlx_affine_mixed_rows,
+    mlx_affine_multi_prepare_strides,
+    mlx_affine_multi_rows,
     mlx_affine_routed_swiglu,
     mlx_affine_rows,
     mlx_affine_swiglu_rows,
@@ -205,6 +206,20 @@ def _project_rows(projection, x):
             [projection(x[:, j : j + 1]) for j in range(x.shape[1])], axis=1
         )
     return out
+
+
+def _project_multi_rows(projections, x, *, prepared_strides=None):
+    """Original E group eligibility; specialize prepared actual strides only."""
+    if x.shape[1] <= 17 and all(_e_affine_projection(p) for p in projections):
+        strides = prepared_strides
+        if strides is not None and any(v is None for v in strides):
+            strides = None
+        result = mlx_affine_multi_rows(
+            x, _e_parts(projections), prepared_strides=strides
+        )
+        if result is not None:
+            return tuple(result)
+    return tuple(_project_rows(p, x) for p in projections)
 
 
 def _row_exact_affine_ffn(block, x, indices=None, *, gate_up_only=False, grouped=None):
@@ -691,6 +706,7 @@ def _compiled_routed_gate_up(block, x, indices):
 
 
 class MoE(nn.Module):
+
     fuse_decode = False
 
     def __init__(self, args):
@@ -732,6 +748,7 @@ class MoE(nn.Module):
         self._router_weight = weight.astype(mx.float32)
         mx.eval(self._router_weight)
         self._router_sources = sources
+
 
     def __call__(self, x, *, batch_fusion=False, shared_stream=None):
         # The router uses FP32, including the matrix multiplication.
@@ -1333,6 +1350,7 @@ class Indexer(nn.Module):
         return indices
 
 
+
 class MLA(nn.Module):
     cache_latent_projection = False
 
@@ -1423,11 +1441,100 @@ class MLA(nn.Module):
         )
         self.indexer = Indexer(args)
 
-    def project_verify_rows(self, x):
-        qr = self.q_a_layernorm(_project_rows(self.q_a_proj, x))
-        q = _project_rows(self.q_b_proj, qr)
-        kv = self.kv_a_layernorm(_project_rows(self.kv_a_proj_with_mqa, x))
-        return qr, q, kv, self.indexer.project_verify_rows(x, qr)
+
+    def prepare_e_projections(self):
+        groups = (
+            (self.q_a_proj, self.kv_a_proj_with_mqa, self.indexer.wk),
+            (
+                self.q_a_proj,
+                self.kv_a_proj_with_mqa,
+                self.indexer.wk,
+                self.indexer.weights_proj,
+            ),
+            (self.q_b_proj, self.indexer.wq_b),
+        )
+        signature = tuple(
+            (
+                p,
+                tuple(p[k] for k in ("weight", "scales", "biases") if k in p),
+                getattr(p, "bits", None),
+                getattr(p, "group_size", None),
+                getattr(p, "mode", None),
+                "bias" in p,
+                getattr(p, "global_scale", None),
+            )
+            for group in groups
+            for p in group
+        )
+        old = getattr(self, "_e_projection_sources", None)
+        if (
+            old is not None
+            and len(old) == len(signature)
+            and all(
+                a[0] is b[0]
+                and len(a[1]) == len(b[1])
+                and all(x is y for x, y in zip(a[1], b[1]))
+                and a[2:] == b[2:]
+                for a, b in zip(old, signature)
+            )
+        ):
+            return False
+        tables = []
+        for group in groups:
+            ids = [i for i, p in enumerate(group) if _e_affine_projection(p)]
+            table = [None] * len(group)
+            if len(ids) == len(group) and len(ids) >= 2:
+                values = mlx_affine_multi_prepare_strides(
+                    _e_parts([group[i] for i in ids])
+                )
+                for i, value in zip(ids, values):
+                    table[i] = value
+            tables.append(tuple(table))
+        # Object attributes are observed/copied with the model, not parameters.
+        object.__setattr__(self, "_e_projection_sources", signature)
+        object.__setattr__(self, "_e_projection_strides", tuple(tables))
+        return True
+
+    def project_verify_rows(self, x, *, selecting=True):
+        indexer = self.indexer
+        projections = [self.q_a_proj, self.kv_a_proj_with_mqa, indexer.wk]
+        if selecting:
+            projections.append(indexer.weights_proj)
+        values = _project_multi_rows(
+            projections,
+            x,
+            prepared_strides=(
+                getattr(self, "_e_projection_strides", (None, None, None))[
+                    1 if selecting else 0
+                ]
+            ),
+        )
+        qr = self.q_a_layernorm(values[0])
+        kv = self.kv_a_layernorm(values[1])
+        if selecting:
+            q, iq = _project_multi_rows(
+                (self.q_b_proj, indexer.wq_b),
+                qr,
+                prepared_strides=getattr(
+                    self, "_e_projection_strides", (None, None, None)
+                )[2],
+            )
+            iw = values[3]
+        else:
+            q, iq, iw = _project_rows(self.q_b_proj, qr), None, None
+        index = (
+            indexer.k_norm(values[2]),
+            iq,
+            iw,
+            _project_weight_rows(indexer.index_kpool_compress_gate, x),
+        )
+        return qr, q, kv, index
+
+    def _selection_needed(self, offset, rows):
+        return not (
+            offset + rows <= self.args.index_topk
+            and self.args.index_kpool_always_select_tail
+        )
 
     def verify_rows(
         self, x, cache, *, projected=None, project_output=True,
@@ -1437,7 +1544,8 @@ class MLA(nn.Module):
         a = self.args
         b, count, _ = x.shape
         qr, q, new_kv, index_projection = (
-            self.project_verify_rows(x) if projected is None else projected
+            self.project_verify_rows(x, selecting=self._selection_needed(cache.offset, count))
+            if projected is None else projected
         )
         offset = cache.offset
         if isinstance(cache, MLACache):
@@ -1457,7 +1565,7 @@ class MLA(nn.Module):
                 qr[:, j : j + 1],
                 cache,
                 offset + j,
-                projected=tuple(v[:, j : j + 1] for v in index_projection),
+                projected=tuple(v[:, j : j + 1] if v is not None else None for v in index_projection),
             )
             if indices is None:
                 indices = mx.arange(length)[None, None, :]
@@ -1587,13 +1695,16 @@ class MLA(nn.Module):
         out = out.transpose(0, 2, 1, 3).reshape(b, count, -1)
         return out
 
+
     def decode_requests(self, rows, caches):
         if self.args.kv_lora_rank < 256:
             # Tiny reference fixtures use an expanded SDPA reduction rather
             # than the covered GLM latent kernel. Preserve that equation.
             return [self(row, cache) for row, cache in zip(rows, caches)]
         x = mx.concatenate(rows, axis=1)
-        qr, q, kv, index = self.project_verify_rows(x)
+        qr, q, kv, index = self.project_verify_rows(
+            x, selecting=any(self._selection_needed(c.offset, 1) for c in caches)
+        )
         outputs = []
         for j, cache in enumerate(caches):
             branch, _ = self.verify_rows(
@@ -1604,7 +1715,7 @@ class MLA(nn.Module):
                     qr[:, j : j + 1],
                     q[:, j : j + 1],
                     kv[:, j : j + 1],
-                    tuple(v[:, j : j + 1] for v in index),
+                    tuple(v[:, j : j + 1] if v is not None else None for v in index),
                 ),
             )
             outputs.append(branch)
@@ -1763,6 +1874,7 @@ class DecoderLayer(nn.Module):
     compile_residual = False
     preserve_residual_dtype = False
     fuse_hc = False
+
 
     def __init__(self, args, index):
         super().__init__()
@@ -1957,7 +2069,7 @@ class DecoderLayer(nn.Module):
                 def slice_rows(value):
                     if isinstance(value, tuple):
                         return tuple(slice_rows(v) for v in value)
-                    return value[:, cursor : cursor + count]
+                    return value[:, cursor : cursor + count] if value is not None else None
 
                 local = tuple(slice_rows(v) for v in projected)
             result = self.self_attn.verify_rows(
@@ -2181,6 +2293,7 @@ def _graph_configuration(modules):
         "_gate_up_sources",
         "_router_sources",
         "_fused_qkv_sources",
+        "_e_projection_sources",
     }
     records, pending, memo = [], [modules], {id(modules): 0}
     primitive = (bool, int, float, str, type(mx.float32))
@@ -2226,18 +2339,7 @@ class _GraphObservation:
     neither this plan nor graph clones copy their device storage.
     """
 
-    _excluded = frozenset(
-        {
-            "_fixed_mla_layer",
-            "_fixed_mla_attention",
-            "_latent_projection",
-            "_no_grad",
-            "_training",
-            "_gate_up_sources",
-            "_router_sources",
-            "_fused_qkv_sources",
-        }
-    )
+    _excluded = frozenset({'_fixed_mla_layer', '_fixed_mla_attention', '_latent_projection', '_no_grad', '_training', '_gate_up_sources', '_router_sources', '_fused_qkv_sources', '_e_projection_sources'})
 
     def __init__(self, modules):
         self.modules = modules
@@ -2332,10 +2434,13 @@ class _GraphObservation:
 
 
 def _observe_graph(owner, modules):
+    _prepare_e_modules(modules)
+    # Run on live modules before parameters are collected or clones updated
+    # with tracers. No operand identity checks or layout readbacks in capture.
     plan = getattr(owner, "_observation", None)
     if plan is None or not plan.current(modules):
         plan = owner._observation = _GraphObservation(modules)
-    return plan.key, plan.parameters, plan.sources
+    return (plan.key, _e_layout_key(modules)), plan.parameters, plan.sources
 
 
 def _clone_graph_modules(modules, excluded=()):
@@ -2457,14 +2562,16 @@ class _FixedMLALayer(_FixedGraphOwner):
 
     def __call__(self, x, cache):
         configuration, weights, sources = _observe_graph(self, self.layer)
+        selecting = self.layer.self_attn._selection_needed(cache.offset, (x).shape[1])
         spec = (
             configuration,
-            x.shape,
-            x.dtype,
+            (x).shape,
+            (x).dtype,
             self.layer.fuse_hc,
             self.layer.compile_residual,
             self.layer.preserve_residual_dtype,
             sources,
+            selecting,
         )
         graphs = self.graphs.get(spec)
         if graphs is None:
@@ -2482,12 +2589,16 @@ class _FixedMLALayer(_FixedGraphOwner):
                 layer.update(parameters)
                 parts = [
                     layer._branch_inputs(
-                        value[:, j : j + 1], "attn", layer.input_layernorm
+                        (value)[:, j : j + 1], "attn", layer.input_layernorm
                     )
-                    for j in range(value.shape[1])
+                    for j in range((value).shape[1])
                 ]
                 normed = mx.concatenate([v[0] for v in parts], 1)
-                return parts, normed, layer.self_attn.project_verify_rows(normed)
+                return (
+                    parts,
+                    normed,
+                    layer.self_attn.project_verify_rows(normed, selecting=selecting),
+                )
 
             def finish(branch, parts, parameters, router_weight):
                 layer.update(parameters)
@@ -2518,7 +2629,10 @@ class _FixedMLALayer(_FixedGraphOwner):
         # A replaced attention module belongs to this transaction's layer.
         self.attention.attention = self.layer.self_attn
         branch, snapshots = self.layer.self_attn.verify_rows(
-            normed, cache, projected=projected, attention_graph=self.attention,
+            normed,
+            cache,
+            projected=projected,
+            attention_graph=self.attention,
             graph_observation=(configuration, weights["self_attn"], sources),
         )
         router_weight = None
@@ -3109,6 +3223,7 @@ class Model(nn.Module):
             # Materialize remaining projections per layer rather than submitting
             # the full checkpoint in one command buffer at runner startup.
             mx.eval(layer.parameters())
+            _prepare_e_modules(layer)
         mx.eval(self.model.embed_tokens.parameters(), self.model.norm.parameters())
         mx.eval(self.lm_head.parameters())
         if self.mtp is not None:
@@ -3236,3 +3351,45 @@ class Model(nn.Module):
                 len(self.model.layers),
             )
         return result
+
+def _e_layout_key(modules):
+    pending = list(modules) if isinstance(modules, (list, tuple)) else [modules]
+    result = []
+    for value in pending:
+        if isinstance(value, MLA):
+            result.append(getattr(value, "_e_projection_strides", None))
+        elif hasattr(value, "self_attn"):
+            pending.append(value.self_attn)
+        elif hasattr(value, "layers"):
+            pending.extend(value.layers)
+    return tuple(result)
+
+
+def _e_affine_projection(p):
+    return (
+        type(p) is nn.QuantizedLinear
+        and p.mode == "affine"
+        and "bias" not in p
+        and getattr(p, "global_scale", None) is None
+    )
+
+
+def _e_parts(projections):
+    return [(p.weight, p.scales, p.biases, p.bits, p.group_size) for p in projections]
+
+
+def _prepare_e_modules(modules):
+    # Live containers only, called before graph observation/compiled entry.
+    pending = list(modules) if isinstance(modules, (list, tuple)) else [modules]
+    seen = set()
+    while pending:
+        value = pending.pop()
+        if id(value) in seen:
+            continue
+        seen.add(id(value))
+        if isinstance(value, MLA):
+            value.prepare_e_projections()
+        elif hasattr(value, "self_attn"):
+            pending.append(value.self_attn)
+        elif hasattr(value, "layers"):
+            pending.extend(value.layers)

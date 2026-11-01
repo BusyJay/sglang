@@ -12,6 +12,53 @@ register_mlx_ci(est_time=5, suite="stage-a-unit-test-mlx")
 
 @unittest.skipUnless(importlib.util.find_spec("mlx"), "requires MLX")
 class TestMlxAffineRows(CustomTestCase):
+    def test_multi_projection_independent_strides_and_promotion(self):
+        """Independent banks must not inherit another bank's strides or dtype."""
+        import mlx.core as mx
+        from sglang.kernels.ops.gemm.mlx_affine_rows import (
+            mlx_affine_mixed_rows,
+            mlx_affine_multi_rows,
+        )
+
+        mx.random.seed(111)
+        for count in (1, 2, 3, 5):
+            x = mx.random.normal((1, count, 512)).astype(mx.bfloat16)
+            parts, contiguous = [], []
+            for n, dtype, bits, gs in (
+                (32, mx.bfloat16, 4, 64),
+                (36, mx.float16, 5, 32),
+                (28, mx.bfloat16, 6, 128),
+            ):
+                bank = mx.quantize(
+                    mx.random.normal((n * 2, 512 * 2)).astype(dtype),
+                    bits=bits,
+                    group_size=gs,
+                )
+                # Different row and packed/metadata strides, with nonzero offsets.
+                w, s, b = bank
+                w = w[1::2, ::2]
+                s = s[1::2, ::2]
+                b = b[1::2, ::2]
+                # Put poison in distinct physical padding for every operand.
+                w = mx.stack((mx.full(w.shape, 0xFFFFFFFF, mx.uint32), w), -1).reshape(
+                    n, -1
+                )[:, 1::2]
+                s = mx.stack((s, mx.full(s.shape, float("nan"), s.dtype)), -1).reshape(
+                    n, -1
+                )[:, ::2]
+                b = mx.stack(
+                    (mx.full(b.shape, float("nan"), b.dtype), b, mx.zeros_like(b)), -1
+                ).reshape(n, -1)[:, 1::3]
+                parts.append((w, s, b, bits, gs))
+                contiguous.append(tuple(mx.contiguous(v) for v in (w, s, b)))
+            outputs = mlx_affine_multi_rows(x, parts)
+            for actual, part, bank in zip(outputs, parts, contiguous):
+                expected = mlx_affine_mixed_rows(
+                    x, *bank, bits=part[3], group_size=part[4]
+                )
+                self.assertEqual(actual.dtype, expected.dtype)
+                self.assertTrue(mx.array_equal(actual, expected).item())
+
     def test_four_bit_masks_preserve_native_rounding_and_duplicate_picks(self):
         import mlx.core as mx
 
