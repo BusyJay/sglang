@@ -1,0 +1,21 @@
+[Perf] Accelerate GLM verification head with M5 tensor operations
+
+Use MPP tensor views and in-threadgroup split-K accumulation for the BF16
+GLM vocabulary head at 8-16 verification rows. Store rounded local top1
+instead of full vocabulary logits; preserve first ties and first NaNs.
+Read non-contiguous column layouts into cooperative registers without
+materializing checkpoint weights.
+
+M5 Ultra 256 GB, GLM-5.3-Flash fa04cbc / DFlash2 bf582e4, original mixed
+quantization, TF32=0. Final 2050-token/128-output ABBA: sky51.078->51.239,
+Fibonacci78.053->79.280, Chinese61.679->62.569 tok/s. Tokens and draft
+accept/reject counts match; engine peak memory essentially unchanged.
+
+Eight dense M5 device tests pass, including stride/tail/NaN/ties.
+HTTP cold/prefix/logprob/sample/stop/concurrent/abort recovery passes;
+warm concurrency1.871183->1.870516s shows no stable regression.
+Ruff/format/isort/registration/diff checks pass. Namespace117pass/1fail
+due to pre-existing missing Triton in AMX lazy-import test.
+Full pre-commit and clang-format unavailable. Global swap rose in one
+full service run; service memory parity and broader quality remain
+unproven. Block-size4 and ordinary AR are outside measured speedup.
