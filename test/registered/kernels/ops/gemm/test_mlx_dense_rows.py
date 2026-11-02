@@ -116,6 +116,37 @@ class TestMlxDenseRows(CustomTestCase):
             ):
                 self.assertIsNone(mlx_dense_rows(value, matrix))
 
+    def test_headed_tiles_preserve_singleton_and_tail_rows(self):
+        import mlx.core as mx
+        from sglang.kernels.ops.gemm.mlx_dense_rows import mlx_headed_dense_rows
+
+        mx.random.seed(20261103)
+        for dtype in (mx.float16, mx.bfloat16, mx.float32):
+            for transposed in (False, True):
+                w = mx.random.normal((64, 256, 512)).astype(mx.bfloat16)
+                for count in (1, 4, 5, 6, 7, 8, 17):
+                    x = mx.random.normal((1, 64, count, 512 if transposed else 256)).astype(
+                        dtype
+                    )
+                    operand = w.swapaxes(-1, -2) if transposed else w
+                    actual = mlx_headed_dense_rows(
+                        x,
+                        operand if transposed else operand.swapaxes(-1, -2),
+                        transposed=transposed,
+                    )
+                    expected = mx.concatenate(
+                        [
+                            mlx_headed_dense_rows(
+                                x[:, :, j : j + 1],
+                                operand if transposed else operand.swapaxes(-1, -2),
+                                transposed=transposed,
+                            )
+                            for j in range(count)
+                        ],
+                        2,
+                    )
+                    self.assertTrue(mx.array_equal(actual, expected).item())
+
     def test_mixed_projection_and_latent_singleton_reductions(self):
         import mlx.core as mx
 

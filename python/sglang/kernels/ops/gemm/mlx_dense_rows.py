@@ -345,7 +345,7 @@ _HEAD_TRANSPOSE = r"""
             for (uint i = 0; i < 4; ++i)
                 values[i] = float(w[(size_t(h) * K + k + j) * N + col + i]);
             for (uint t = 0; t < ROWS; ++t) {
-                const float input = float(x[(size_t(h) * COUNT + start + t) * K + k + j]);
+                const float input = start + t < COUNT ? float(x[(size_t(h) * COUNT + start + t) * K + k + j]) : 0.0f;
                 for (uint i = 0; i < 4; ++i) acc[t][i] += input * values[i];
             }
         }
@@ -354,7 +354,7 @@ _HEAD_TRANSPOSE = r"""
         for (uint i = 0; i < 4; ++i) {
             for (ushort off = 4; off >= 1; off >>= 1)
                 acc[t][i] += simd_shuffle_down(acc[t][i], 4 * off);
-            if (lane < 4)
+            if (lane < 4 && start + t < COUNT)
                 out[(size_t(h) * COUNT + start + t) * N + col + i] = O(acc[t][i]);
         }
 """
@@ -372,7 +372,10 @@ def _head_kernel(transposed):
             "    const uint lane",
             1,
         )
-        .replace("x[t * K + k + i]", "x[(size_t(h) * COUNT + start + t) * K + k + i]")
+        .replace(
+            "x[t * K + k + i]",
+            "(start + t < COUNT ? x[(size_t(h) * COUNT + start + t) * K + k + i] : 0)",
+        )
         .replace(
             "w[size_t(row + r) * K + k + i]", "w[(size_t(h) * N + row + r) * K + k + i]"
         )
@@ -380,6 +383,10 @@ def _head_kernel(transposed):
             "out[t * N + row + r]", "out[(size_t(h) * COUNT + start + t) * N + row + r]"
         )
     )
+    if not transposed:
+        source = source.replace(
+            "lane == 0 && row + r < N", "lane == 0 && row + r < N && start + t < COUNT"
+        )
     return mx.fast.metal_kernel(
         name="sglang_headed_gemvt_rows" if transposed else "sglang_headed_gemv_rows",
         input_names=["x", "w"],
@@ -418,7 +425,7 @@ def mlx_headed_dense_rows(x, weight, *, transposed):
             return None
         bm, bn = (8 if n >= 4096 else 4), 1
         groups, threads = (n + 4 * bm - 1) // (4 * bm), bm * 32
-    rows = 3 if count % 3 == 0 else 1
+    rows = 3 if count % 3 == 0 else min(count, 4)
     return _head_kernel(transposed)(
         inputs=[x, weight],
         template=[
@@ -430,7 +437,7 @@ def mlx_headed_dense_rows(x, weight, *, transposed):
             ("BM", bm),
             ("BN", bn),
         ],
-        grid=(threads * groups, heads, count // rows),
+        grid=(threads * groups, heads, (count + rows - 1) // rows),
         threadgroup=(threads, 1, 1),
         output_shapes=[(1, heads, count, n)],
         output_dtypes=[mx.result_type(x.dtype, weight.dtype)],
