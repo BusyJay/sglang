@@ -12,25 +12,24 @@ from pathlib import Path
 import mlx.core as mx
 import mlx.nn as nn
 import numpy as np
-
 from sglang.kernels.ops.gemm.mlx_fp8_rows import mlx_fp8_dynamic_32, mlx_fp8_rows
 from sglang.kernels.ops.quantization.mlx_csf import mlx_csf32_restore
 
 
 def mxfp8_project_rows(x, weight, scales):
-    """Use the same eight-row reduction geometry for AR and verification.
+    """Use the same four-row reduction geometry for AR and verification.
 
     Rows are independent; zero padding only stabilizes the native dispatch.
     Packed operands and output dtype are preserved, and real rows share weights.
     """
     values = x.reshape(-1, x.shape[-1])
     outputs = []
-    for start in range(0, values.shape[0], 8):
-        tile = values[start : start + 8]
+    for start in range(0, values.shape[0], 4):
+        tile = values[start : start + 4]
         count = tile.shape[0]
-        if count < 8:
+        if count < 4:
             tile = mx.concatenate(
-                [tile, mx.zeros((8 - count, tile.shape[1]), tile.dtype)], 0
+                [tile, mx.zeros((4 - count, tile.shape[1]), tile.dtype)], 0
             )
         out = mx.quantized_matmul(
             tile,
