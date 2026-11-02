@@ -1,0 +1,21 @@
+/Users/jay/workspace/sglang/python/sglang/srt/layers/quantization/awq/awq.py:53: UserWarning: Only CUDA, HIP and XPU support AWQ currently.
+  warnings.warn(f"Only CUDA, HIP and XPU support AWQ currently.")
+[CI Test Method] TestMlxRuntimeWeightCache.test_decoded_projection_survives_roundtrip
+Traceback (most recent call last):
+  File "/Users/jay/workspace/sglang/python/sglang/srt/utils/common.py", line 3817, in retry
+    return fn()
+           ^^^^
+  File "/Users/jay/workspace/sglang/python/sglang/test/test_utils.py", line 2452, in <lambda>
+    lambda: super(CustomTestCase, self)._callTestMethod(method),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jay/.local/share/uv/python/cpython-3.12.16-macos-aarch64-none/lib/python3.12/unittest/case.py", line 589, in _callTestMethod
+    if method() is not None:
+       ^^^^^^^^
+  File "test/registered/unit/hardware_backend/mlx/test_mlx_runtime_weight_cache.py", line 45, in test_decoded_projection_survives_roundtrip
+    self.assertIn("decoded_weight", projection)
+  File "/Users/jay/.local/share/uv/python/cpython-3.12.16-macos-aarch64-none/lib/python3.12/unittest/case.py", line 1152, in assertIn
+    self.fail(self._formatMessage(msg, standardMsg))
+  File "/Users/jay/.local/share/uv/python/cpython-3.12.16-macos-aarch64-none/lib/python3.12/unittest/case.py", line 715, in fail
+    raise self.failureException(msg)
+AssertionError: 'decoded_weight' not found in FP8Linear()
+REGRESSION confirmed old loader fails decoded-weight roundtrip

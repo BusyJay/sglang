@@ -1,0 +1,33 @@
+{
+  "code_commit": "50f587d8bb4f4c504bd185883756ba2af3466921",
+  "final_source_sha256": {
+    "python/sglang/srt/hardware_backend/mlx/models/glm5_fp4.py": "c8c196c68886b3c1658678f3bad30830f872352231b86d66873c9eae15aae425",
+    "python/sglang/srt/hardware_backend/mlx/models/mlx_fp4_cache.py": "639b585cbc9e8579e8de6482624b721fce958dc6ae77c24cce112fbe482ffe35",
+    "python/sglang/srt/hardware_backend/mlx/models/glm5_next.py": "226edbd9a79c14c0523160f7bde9468786c529bead34a7b15af9a9b32411c411",
+    "python/sglang/srt/hardware_backend/mlx/mtp_serving.py": "dc8bc896239ed9b24d46c2efe8ba84670380f129606478d40651593d62543923",
+    "python/sglang/kernels/ops/attention/linear/mlx_kda.py": "1e1316d42e4e461a7cd5023720b822ddcb86372f7f23caf79512c67def20057a",
+    "python/sglang/kernels/ops/gemm/mlx_dense_rows.py": "8d10816d5ae52cb271b41165ae10864b09e1b434156e36ec4d2c93344e35f716",
+    "python/sglang/kernels/ops/gemm/mlx_fp8_rows.py": "391b3c54739b68ecfad04cd2e595b17a1d00830e69b26a3a01cc4754bd5199e9"
+  },
+  "qualified_source_equivalence": {
+    "python/sglang/srt/hardware_backend/mlx/models/glm5_fp4.py": true,
+    "python/sglang/srt/hardware_backend/mlx/models/mlx_fp4_cache.py": true,
+    "python/sglang/srt/hardware_backend/mlx/models/glm5_next.py": true,
+    "python/sglang/srt/hardware_backend/mlx/mtp_serving.py": true,
+    "python/sglang/kernels/ops/attention/linear/mlx_kda.py": true,
+    "python/sglang/kernels/ops/gemm/mlx_dense_rows.py": true,
+    "python/sglang/kernels/ops/gemm/mlx_fp8_rows.py": true
+  },
+  "equivalence_note": "Only formatting/import grouping and removal of unused n = length // pool differ from frozen arithmetic/source literals. Device tests rerun on final source. Frozen reference is unchanged.",
+  "tests": {
+    "fp8": 2,
+    "nvfp4": 2,
+    "csf": 1,
+    "runtime_cache": 2,
+    "dense": 9,
+    "glm_reference_cache_mtp": 64,
+    "namespace_pass": 117,
+    "namespace_existing_failure": "AMX lazy probe in unchanged srt/utils/common.py"
+  },
+  "precommit_note": "pre-commit executable and hook unavailable; available ruff/isort and AST/diff checks used. Existing full-file lint warnings preserved and recorded; no new violations."
+}
