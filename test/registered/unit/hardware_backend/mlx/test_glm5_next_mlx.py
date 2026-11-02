@@ -1851,6 +1851,62 @@ class TestGlm5NextMlx(CustomTestCase):
         )
         self.assertTrue(mx.array_equal(ref, got).item())
 
+    def test_indexer_block_preserves_prefix_sets_and_rejected_cache(self):
+        """Batch scoring must never expose a later completed pool to an earlier row."""
+        import mlx.core as mx
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import NativeCache
+        from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
+
+        indexer = self.model.layers[3].self_attn.indexer
+        width = self.model.args.hidden_size
+        rank = self.model.args.q_lora_rank
+        mx.random.seed(303)
+        for offset in (0, 7, 8, 15, 63, 255):
+            base = NativeCache(4)
+            if offset:
+                indexer(
+                    mx.random.normal((1, offset, width)),
+                    mx.random.normal((1, offset, rank)),
+                    base,
+                    0,
+                )
+                mx.eval(base.cache)
+            for count in (4, 6, 8):
+                x = mx.random.normal((1, count, width))
+                qr = mx.random.normal((1, count, rank))
+                projected = indexer.project_verify_rows(x, qr)
+                c = clone_cache(base)
+                expected = []
+                states = []
+                for j in range(count):
+                    expected.append(
+                        indexer(
+                            x[:, j : j + 1],
+                            qr[:, j : j + 1],
+                            c,
+                            offset + j,
+                            projected=tuple(v[:, j : j + 1] for v in projected),
+                        )
+                    )
+                    states.append(
+                        [v.view(v.dtype) if v is not None else None for v in c.cache[1:]]
+                    )
+                actual, snapshots = indexer.verify_rows(
+                    clone_cache(base), offset, projected=projected
+                )
+                for want, got, ws, gs in zip(expected, actual, states, snapshots):
+                    if want is None:
+                        self.assertIsNone(got)
+                    else:
+                        self.assertTrue(
+                            mx.array_equal(mx.sort(want, -1), mx.sort(got, -1)).item()
+                        )
+                    for w, g in zip(ws, gs):
+                        if w is None:
+                            self.assertIsNone(g)
+                        else:
+                            self.assertTrue(mx.array_equal(w, g).item())
+
     def test_mla_verify_rows_match_legal_prefixes_and_index_pool_growth(self):
         import copy
 

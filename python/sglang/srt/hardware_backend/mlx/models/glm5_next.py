@@ -184,6 +184,10 @@ def _project_rows(projection, x):
             ],
             1,
         )
+    from sglang.srt.hardware_backend.mlx.models.glm5_fp4 import FP8Linear
+
+    if isinstance(projection, FP8Linear):
+        return projection(x)
     out = None
     if type(projection) is nn.Linear and "bias" not in projection:
         out = mlx_dense_rows(x, projection.weight)
@@ -293,6 +297,11 @@ class MLP(nn.Module):
         self.limit = args.swiglu_limit
 
     def __call__(self, x, *, batch_fusion=False):
+        from sglang.srt.hardware_backend.mlx.models.glm5_fp4 import FP8Linear
+
+        if isinstance(self.gate_proj, FP8Linear):
+            gate, up = self.gate_proj(x), self.up_proj(x)
+            return self.down_proj(clamped_swiglu(gate, up, self.limit))
         restore_dtype = self.match_affine_dtype and _uses_fp16_affine_ffn(
             x, (self.gate_proj, self.up_proj, self.down_proj)
         )
@@ -436,13 +445,19 @@ class ClampedSwitchGLU(SwitchGLU):
         return True
 
     def __call__(self, x, indices):
+        from sglang.srt.hardware_backend.mlx.models.glm5_fp4 import NVFP4SwitchLinear
+
+        if isinstance(self.gate_proj, NVFP4SwitchLinear):
+            expanded = x[..., None, None, :]
+            gate = self.gate_proj(expanded, indices)
+            up = self.up_proj(expanded, indices)
+            activated = self.activation(up, gate)
+            return self.down_proj(activated, indices).squeeze(-2)
         if self._fused_gate_up is not None and (
             getattr(self, "_gate_up_metadata", None) != self._current_gate_up_metadata()
             or not all(
                 old is new
-                for old, new in zip(
-                    self._gate_up_sources, self._current_gate_up_sources()
-                )
+                for old, new in zip(self._gate_up_sources, self._current_gate_up_sources())
             )
         ):
             self._fused_gate_up = None
@@ -476,15 +491,14 @@ class ClampedSwitchGLU(SwitchGLU):
                 limit=self.activation.limit,
             )
             if act is not None:
-                out = self.down_proj(
-                    act[..., None, :], mx.stop_gradient(indices)
-                ).squeeze(-2)
+                out = self.down_proj(act[..., None, :], mx.stop_gradient(indices)).squeeze(
+                    -2
+                )
                 return out.astype(dtype) if restore_dtype else out
         if (
             indices.size >= 64
             and self._fused_gate_up is not None
-            and getattr(self, "_gate_up_metadata", None)
-            == self._current_gate_up_metadata()
+            and getattr(self, "_gate_up_metadata", None) == self._current_gate_up_metadata()
             and x.dtype != mx.float32
         ):
             # Sorted QMM shares input tiles and fuses both MMA projections and
@@ -496,9 +510,8 @@ class ClampedSwitchGLU(SwitchGLU):
             sorted_x = x.reshape(-1, x.shape[-1])[order // indices.shape[-1]][:, None]
             tasks = None
             rows, experts = sorted_idx.size, gate.weight.shape[0]
-            if (
-                rows // experts >= 4
-                and mx.device_info()["architecture"].startswith("applegpu_g17")
+            if rows // experts >= 4 and mx.device_info()["architecture"].startswith(
+                "applegpu_g17"
             ):
                 bm = 32 if rows // experts < 64 else 64
                 tasks = _expert_worklist(sorted_idx, experts, rows, bm)
@@ -515,20 +528,23 @@ class ClampedSwitchGLU(SwitchGLU):
             if activated is None:
                 joined = self._fused_gate_up(sorted_x, sorted_idx, sorted_indices=True)
                 gate_values, up_values = mx.split(joined, 2, axis=-1)
-                activated = _compiled_swiglu(
-                    gate_values, up_values, self.activation.limit
-                )
+                activated = _compiled_swiglu(gate_values, up_values, self.activation.limit)
             output = None
             down = self.down_proj
             if (
                 type(down) is QuantizedSwitchLinear
-                and down.mode == "affine" and "bias" not in down
+                and down.mode == "affine"
+                and "bias" not in down
                 and getattr(down, "global_scale", None) is None
             ):
                 output = mlx_sorted_qmm_scatter(
-                    activated, sorted_idx, order,
+                    activated,
+                    sorted_idx,
+                    order,
                     (down.weight, down.scales, down.biases),
-                    bits=down.bits, group_size=down.group_size, tasks=tasks,
+                    bits=down.bits,
+                    group_size=down.group_size,
+                    tasks=tasks,
                 )
             if output is None:
                 output = self.down_proj(activated, sorted_idx, sorted_indices=True)
@@ -564,13 +580,10 @@ class ClampedSwitchGLU(SwitchGLU):
             self.fuse_gate_up
             and x.dtype != mx.float32
             and self._fused_gate_up is not None
-            and getattr(self, "_gate_up_metadata", None)
-            == self._current_gate_up_metadata()
+            and getattr(self, "_gate_up_metadata", None) == self._current_gate_up_metadata()
             and all(
                 old is new
-                for old, new in zip(
-                    self._gate_up_sources, self._current_gate_up_sources()
-                )
+                for old, new in zip(self._gate_up_sources, self._current_gate_up_sources())
             )
         ):
             gate_up = self._fused_gate_up(x, indices)
@@ -775,12 +788,7 @@ class MoE(nn.Module):
         bounded = x.shape[0] == 1 and (
             x.shape[1] == 1 or batch_fusion and 1 < x.shape[1] <= 17
         )
-        if (
-            self.fuse_decode
-            and bounded
-            and a.n_group == 1
-            and a.scoring_func == "sigmoid"
-        ):
+        if self.fuse_decode and bounded and a.n_group == 1 and a.scoring_func == "sigmoid":
             selected = mlx_glm_router(
                 x,
                 weight,
@@ -790,7 +798,24 @@ class MoE(nn.Module):
                 renormalize=a.norm_topk_prob,
             )
         if selected is None:
-            scores = x.astype(mx.float32) @ weight.astype(mx.float32).T
+            from sglang.srt.hardware_backend.mlx.models.glm5_fp4 import NVFP4SwitchLinear
+
+            if isinstance(self.switch_mlp.gate_proj, NVFP4SwitchLinear):
+                # A fixed row tile keeps FP32 router logits identical for AR
+                # and verification while sharing the small weight matrix.
+                values = x.astype(mx.float32).reshape(-1, x.shape[-1])
+                blocks = []
+                for start in range(0, values.shape[0], 8):
+                    tile = values[start : start + 8]
+                    count = tile.shape[0]
+                    if count < 8:
+                        tile = mx.concatenate(
+                            [tile, mx.zeros((8 - count, tile.shape[1]), mx.float32)], 0
+                        )
+                    blocks.append((tile @ weight.astype(mx.float32).T)[:count])
+                scores = mx.concatenate(blocks, 0).reshape(*x.shape[:-1], weight.shape[0])
+            else:
+                scores = x.astype(mx.float32) @ weight.astype(mx.float32).T
             selected = _group_expert_select(
                 scores,
                 self.e_score_correction_bias,
@@ -848,9 +873,7 @@ class MoE(nn.Module):
                     ):
                         act = _compiled_routed_gate_up(sw, local, indices)
                     if act is None:
-                        act = _compiled_quantized_ffn(
-                            sw, local, indices, gate_up_only=True
-                        )
+                        act = _compiled_quantized_ffn(sw, local, indices, gate_up_only=True)
                     result = mlx_glm_down_combine(
                         act,
                         indices,
@@ -940,6 +963,33 @@ class KDA(nn.Module):
         """
         if self._fused_qkv_is_current():
             return True
+        from sglang.srt.hardware_backend.mlx.models.glm5_fp4 import (
+            FP8KDAInputs,
+            FP8Linear,
+        )
+
+        if all(
+            isinstance(getattr(self, name + "_proj"), FP8Linear) for name in ("q", "k", "v")
+        ):
+            names = ("q_proj", "k_proj", "v_proj", "f_a_proj", "g_a_proj", "b_proj")
+            self._fused_qkv = FP8KDAInputs(
+                tuple(getattr(self, name) for name in names),
+                packed=getattr(self, "_cached_fp8_qkv", None),
+            )
+            if hasattr(self, "_cached_fp8_qkv"):
+                object.__delattr__(self, "_cached_fp8_qkv")
+            self._fused_qkv3 = None
+            self._fused_input_names = names
+            self._fused_input_splits = (
+                self.dim,
+                2 * self.dim,
+                3 * self.dim,
+                3 * self.dim + self.head_dim,
+                3 * self.dim + 2 * self.head_dim,
+            )
+            self._fused_qkv_sources = self._qkv_sources()
+            self._fused_qkv_metadata = self._qkv_metadata()
+            return True
         self._fused_qkv = None
         self._fused_qkv3 = None
         self._fused_qkv_sources = ()
@@ -1005,15 +1055,24 @@ class KDA(nn.Module):
 
     def project_verify_rows(self, x):
         """Share dense input weights across rows, keeping recurrence transactional."""
+        from sglang.srt.hardware_backend.mlx.models.glm5_fp4 import FP8KDAInputs
+
         if (
             not self.fuse_decode
             or self.head_dim != 128
             or len(self._fused_input_names) != 6
             or not self._fused_qkv_is_current()
-            or type(self._fused_qkv) is not nn.Linear
+            or not (
+                type(self._fused_qkv) is nn.Linear
+                or isinstance(self._fused_qkv, FP8KDAInputs)
+            )
         ):
             return None
-        proj = mlx_dense_rows(x, self._fused_qkv.weight)
+        proj = (
+            self._fused_qkv(x)
+            if isinstance(self._fused_qkv, FP8KDAInputs)
+            else mlx_dense_rows(x, self._fused_qkv.weight)
+        )
         if proj is None:
             return None
         _, _, _, fa_end, ga_end = self._fused_input_splits
@@ -1123,15 +1182,14 @@ class KDA(nn.Module):
             if projected is None:
                 proj = self._fused_qkv(x)
                 _, _, _, fa_end, ga_end = self._fused_input_splits
-                a = self.f_b_proj(proj[..., 3 * self.dim : fa_end])
-                gate = self.g_b_proj(proj[..., fa_end:ga_end])
+                a = _project_rows(self.f_b_proj, proj[..., 3 * self.dim : fa_end])
+                gate = _project_rows(self.g_b_proj, proj[..., fa_end:ga_end])
             else:
                 proj, a, gate = projected
             result = mlx_kda_decode(
                 proj,
                 tuple(
-                    getattr(self, name + "_conv").conv.weight
-                    for name in ("q", "k", "v")
+                    getattr(self, name + "_conv").conv.weight for name in ("q", "k", "v")
                 ),
                 tuple(cache[i] for i in range(3)),
                 cache[3],
@@ -1153,9 +1211,7 @@ class KDA(nn.Module):
                 return self.o_proj(out)
         if self._fused_qkv_is_current():
             if x.dtype == mx.float32 and self._fused_qkv3 is not None:
-                inputs = mx.split(
-                    self._fused_qkv3(x), (self.dim, 2 * self.dim), axis=-1
-                )
+                inputs = mx.split(self._fused_qkv3(x), (self.dim, 2 * self.dim), axis=-1)
             else:
                 inputs = mx.split(self._fused_qkv(x), self._fused_input_splits, axis=-1)
             projected = inputs[:3]
@@ -1311,22 +1367,33 @@ class Indexer(nn.Module):
         # are selected. Still retain indexer state for future sparse steps.
         if length <= a.index_topk and a.index_kpool_always_select_tail:
             return None
-        n = length // pool
         q = (self.wq_b(qr) if projected is None else projected[1]).reshape(
             b,
             t,
             a.index_n_heads,
             a.index_head_dim,
         )
+        scores = self._score_pools(
+            q,
+            weights=(self.weights_proj(x) if projected is None else projected[2]),
+            pooled=pooled,
+        )
+        return self._select_scores(scores, offset=offset)
+
+    def _score_pools(self, q, *, weights, pooled):
+        a = self.args
         scores = mx.maximum(
             q.astype(mx.float32) @ pooled.astype(mx.float32).swapaxes(-1, -2)[:, None],
             0,
         )
         scores *= a.index_head_dim**-0.5
-        weights = (self.weights_proj(x) if projected is None else projected[2]).astype(
-            mx.float32
-        ) * a.index_n_heads**-0.5
-        scores = (scores * weights[..., None]).sum(axis=2)
+        weights = weights.astype(mx.float32) * a.index_n_heads**-0.5
+        return (scores * weights[..., None]).sum(axis=2)
+
+    def _select_scores(self, scores, *, offset):
+        a = self.args
+        b, t, n = scores.shape
+        pool = a.index_kpool
         pool_ends = mx.arange(n) * pool + pool - 1
         valid = pool_ends[None, :] <= (offset + mx.arange(t))[:, None]
         scores = mx.where(valid[None], scores, -float("inf"))
@@ -1348,6 +1415,38 @@ class Indexer(nn.Module):
             tail = mx.broadcast_to(tail, (b, t, pool - 1))
             indices = mx.concatenate([indices, tail], axis=-1)
         return indices
+
+
+    def verify_rows(self, cache, offset, *, projected):
+        """Score a block once, retaining each prefix's pool state and causal set."""
+        a = self.args
+        keys, queries, weights, gates = projected
+        b, count, _ = keys.shape
+        states = []
+        pooled = None
+        for j in range(count):
+            pooled = self._update_pool_cache(
+                keys[:, j : j + 1], gates[:, j : j + 1], cache, offset + j
+            )
+            states.append(
+                [v.view(v.dtype) if v is not None else None for v in cache.cache[1:]]
+            )
+        if offset + count <= a.index_topk and a.index_kpool_always_select_tail:
+            return [None] * count, states
+        q = queries.reshape(b, count, a.index_n_heads, a.index_head_dim)
+        scores = self._score_pools(q, weights=weights, pooled=pooled)
+        selected = []
+        for j in range(count):
+            length = offset + j + 1
+            if length <= a.index_topk and a.index_kpool_always_select_tail:
+                selected.append(None)
+            else:
+                selected.append(
+                    self._select_scores(
+                        scores[:, j : j + 1, : length // a.index_kpool], offset=offset + j
+                    )
+                )
+        return selected, states
 
 
 def _f_visible_indices(indices, selected_lengths, visible_ends):
@@ -1377,6 +1476,15 @@ class MLA(nn.Module):
         layout rather than changing it by casting the interleaved parent.
         """
         projection = self.kv_b_proj
+        if "decoded_weight" in projection:
+            weight = projection.decoded_weight
+            a = self.args
+            wk, wv = mx.split(
+                weight.reshape(a.num_attention_heads, -1, a.kv_lora_rank),
+                [a.qk_nope_head_dim],
+                axis=1,
+            )
+            return wk, wv.swapaxes(-1, -2)
         quantized = isinstance(projection, nn.QuantizedLinear)
         sources = (
             tuple(projection.get(k) for k in ("weight", "scales", "biases"))
@@ -1576,23 +1684,14 @@ class MLA(nn.Module):
             cache.append_latent(new_kv, materialize=False)
             kv = cache.cache[0]
         else:
-            kv = (
-                mx.concatenate([cache[0], new_kv], 1)
-                if cache[0] is not None
-                else new_kv
-            )
+            kv = mx.concatenate([cache[0], new_kv], 1) if cache[0] is not None else new_kv
         snapshots, selected = [], []
+        index_rows, index_states = self.indexer.verify_rows(
+            cache, offset, projected=index_projection
+        )
         for j in range(count):
             length = offset + j + 1
-            indices = self.indexer(
-                x[:, j : j + 1],
-                qr[:, j : j + 1],
-                cache,
-                offset + j,
-                projected=tuple(
-                    v[:, j : j + 1] if v is not None else None for v in index_projection
-                ),
-            )
+            indices = index_rows[j]
             if indices is None:
                 indices = mx.arange(length)[None, None, :]
             else:
@@ -1606,9 +1705,7 @@ class MLA(nn.Module):
             selected.append(indices)
             snapshot = type(cache)(4)
             prefix = cache.cache[0] if isinstance(cache, MLACache) else kv[:, :length]
-            snapshot.cache = [prefix] + [
-                v.view(v.dtype) if v is not None else None for v in cache.cache[1:]
-            ]
+            snapshot.cache = [prefix] + index_states[j]
             snapshot.offset = length
             snapshots.append(snapshot)
         cache.cache = [
@@ -1624,9 +1721,7 @@ class MLA(nn.Module):
             width = max(32, 1 << (width - 1).bit_length())
         indices = mx.concatenate(
             [
-                mx.pad(
-                    v, [(0, 0), (0, 0), (0, width - v.shape[-1])], constant_values=-1
-                )
+                mx.pad(v, [(0, 0), (0, 0), (0, width - v.shape[-1])], constant_values=-1)
                 for v in selected
             ],
             axis=1,
@@ -3226,14 +3321,20 @@ class Model(nn.Module):
                     len(self.layers),
                 )
                 stop = i + 1
-                while stop < end and self.layers[stop].is_linear and stop - 1 not in capture_layer_ids:
+                while (
+                    stop < end
+                    and self.layers[stop].is_linear
+                    and stop - 1 not in capture_layer_ids
+                ):
                     stop += 1
                 key = ("verify", i, stop)
                 group = self.model._fixed_groups.get(key)
                 if group is None:
                     group = _FixedLayerGroup(self.layers[i:stop])
                     self.model._fixed_groups[key] = group
-                x, states = group(x, cache[i:stop], verification=True, layers=self.layers[i:stop])
+                x, states = group(
+                    x, cache[i:stop], verification=True, layers=self.layers[i:stop]
+                )
                 for owner, values in zip(snapshots, states):
                     owner.extend(values)
                 i = stop - 1
@@ -3278,11 +3379,7 @@ class Model(nn.Module):
                 entry += (mx.concatenate([captures[i] for i in capture_layer_ids], -1),)
             return entry
         logits = None
-        if (
-            mode != "serial"
-            and count > 1
-            and isinstance(self.lm_head, nn.QuantizedLinear)
-        ):
+        if mode != "serial" and count > 1 and isinstance(self.lm_head, nn.QuantizedLinear):
             p = self.lm_head
             if (
                 p.mode == "affine"
@@ -3306,7 +3403,13 @@ class Model(nn.Module):
         ):
             logits = mlx_dense_rows(hidden, self.lm_head.weight)
         if logits is None:
-            logits = mx.concatenate([self.lm_head(row) for row in hidden_rows], axis=1)
+            from sglang.srt.hardware_backend.mlx.models.glm5_fp4 import FP8Linear
+
+            logits = (
+                self.lm_head(hidden)
+                if isinstance(self.lm_head, FP8Linear)
+                else mx.concatenate([self.lm_head(row) for row in hidden_rows], axis=1)
+            )
         entry = (logits, hidden, snapshots)
         if capture_layer_ids:
             entry += (mx.concatenate([captures[i] for i in capture_layer_ids], -1),)

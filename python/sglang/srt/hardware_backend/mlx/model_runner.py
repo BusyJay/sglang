@@ -238,14 +238,18 @@ class MlxModelRunner:
             mx.set_cache_limit(int(cache_limit_gb * (1024**3)))
             logger.info(f"MLX buffer cache limit set to {cache_limit_gb:.1f} GB")
 
-        self._load_model()
-
-        # Pin MLX allocations to prevent OS paging
+        # Apply the process allocation and wired budgets before loading;
+        # checkpoint assembly is the largest transient in the runner lifecycle.
         device_info = mx.device_info()
-        max_wired = int(device_info.get("max_recommended_working_set_size", 0))
-        if max_wired > 0:
-            mx.set_wired_limit(max_wired)
-            logger.info(f"Wired memory limit set to {max_wired / (1024**3):.1f} GB")
+        recommended = int(device_info.get("max_recommended_working_set_size", 0))
+        self._mlx_memory_budget = int(recommended * self._mem_fraction_static)
+        if self._mlx_memory_budget > 0:
+            mx.set_memory_limit(self._mlx_memory_budget)
+            mx.set_wired_limit(self._mlx_memory_budget)
+            logger.info(
+                "MLX process memory/wired budget %.2f GiB", self._mlx_memory_budget / 2**30
+            )
+        self._load_model()
 
         if dflash_draft_path is not None:
             from sglang.srt.hardware_backend.mlx.dflash_serving import MlxDFlashServing
@@ -254,9 +258,7 @@ class MlxModelRunner:
                 dflash_draft_path, revision=dflash_draft_revision
             )
             ensure_remote_code_allowed(draft_dir, self.trust_remote_code)
-            self._mtp = MlxDFlashServing(
-                self.model, draft_dir, dflash_num_drafts
-            )
+            self._mtp = MlxDFlashServing(self.model, draft_dir, dflash_num_drafts)
         elif mtp_num_steps:
             from sglang.srt.hardware_backend.mlx.mtp_serving import MlxMTPServing
 
@@ -276,9 +278,7 @@ class MlxModelRunner:
         )
         if self._cache_layout.num_attention_layers == 0 and not self._native_cache:
             raise RuntimeError("MLX model has no supported attention layers")
-        if self._cache_layout.has_auxiliary_state and not hasattr(
-            self.model, "make_cache"
-        ):
+        if self._cache_layout.has_auxiliary_state and not hasattr(self.model, "make_cache"):
             raise RuntimeError(
                 "MLX models with auxiliary cache state require model.make_cache()."
             )
@@ -564,20 +564,30 @@ class MlxModelRunner:
                 # allocator from retaining the whole checkpoint a second time.
                 mx.set_cache_limit(1024**3)
             from mlx_lm.utils import load_model
-
+            from sglang.srt.hardware_backend.mlx.models.glm5_fp4 import (
+                checkpoint_recipe,
+                load_fp4_model,
+            )
             from sglang.srt.hardware_backend.mlx.models.glm5_next import (
                 Model,
                 ModelArgs,
             )
 
-            self.model, config = load_model(
-                model_dir,
-                lazy=True,
-                get_model_classes=lambda config: (
-                    lambda args: Model(args, enable_mtp=bool(self._mtp_num_steps)),
-                    ModelArgs,
-                ),
-            )
+            if checkpoint_recipe(checkpoint_config):
+                self.model, config = load_fp4_model(
+                    model_dir,
+                    enable_mtp=bool(self._mtp_num_steps),
+                    memory_budget=self._mlx_memory_budget,
+                )
+            else:
+                self.model, config = load_model(
+                    model_dir,
+                    lazy=True,
+                    get_model_classes=lambda config: (
+                        lambda args: Model(args, enable_mtp=bool(self._mtp_num_steps)),
+                        ModelArgs,
+                    ),
+                )
         else:
             self.model, _tokenizer, config = mlx_lm_load(
                 str(model_dir),
@@ -590,11 +600,19 @@ class MlxModelRunner:
             and checkpoint_config.get("vision_config")
             and not self._language_only
         ):
+            from sglang.srt.hardware_backend.mlx.models.glm5_fp4 import (
+                checkpoint_recipe,
+                load_fp4_vision,
+            )
             from sglang.srt.hardware_backend.mlx.models.glm5_vision import (
                 load_glm5_vision,
             )
 
-            self._vision_encoder = load_glm5_vision(model_dir)
+            self._vision_encoder = (
+                load_fp4_vision(model_dir)
+                if checkpoint_recipe(checkpoint_config)
+                else load_glm5_vision(model_dir)
+            )
 
         if self._quantization in _MLX_QUANTIZATION_PRESETS:
             bits, group_size = _MLX_QUANTIZATION_PRESETS[self._quantization]
@@ -612,8 +630,7 @@ class MlxModelRunner:
                 # forces them to be peak-resident in memory at once (which on a 64 GB
                 # Mac running a 32 B model would put us within a few GB of OOM).
                 bytes_before = sum(
-                    p.size * p.itemsize
-                    for _, p in tree_flatten(self.model.parameters())
+                    p.size * p.itemsize for _, p in tree_flatten(self.model.parameters())
                 )
                 q_start = time.time()
                 logger.info(
@@ -627,8 +644,7 @@ class MlxModelRunner:
                     bits=bits,
                 )
                 bytes_after = sum(
-                    p.size * p.itemsize
-                    for _, p in tree_flatten(self.model.parameters())
+                    p.size * p.itemsize for _, p in tree_flatten(self.model.parameters())
                 )
                 q_time = time.time() - q_start
                 pct_reduction = (1 - bytes_after / max(bytes_before, 1)) * 100
@@ -642,9 +658,7 @@ class MlxModelRunner:
             self.model.configure_optimizations(
                 envs.SGLANG_MLX_GLM_OPTIMIZATION_PROFILE.get()
             )
-            self.model.configure_mtp_verification(
-                envs.SGLANG_MLX_GLM_MTP_VERIFY_MODE.get()
-            )
+            self.model.configure_mtp_verification(envs.SGLANG_MLX_GLM_MTP_VERIFY_MODE.get())
             self.model.configure_latent_projection_cache(
                 envs.SGLANG_MLX_GLM_CACHE_LATENT_PROJECTION.get()
             )
@@ -653,9 +667,7 @@ class MlxModelRunner:
                 prefill=envs.SGLANG_MLX_GLM_PREFILL_EVAL_GROUP.get(),
                 verification=envs.SGLANG_MLX_GLM_VERIFY_EVAL_GROUP.get(),
             )
-            self.model.configure_fixed_groups(
-                envs.SGLANG_MLX_GLM_ENABLE_FIXED_GROUPS.get()
-            )
+            self.model.configure_fixed_groups(envs.SGLANG_MLX_GLM_ENABLE_FIXED_GROUPS.get())
             self.model.configure_shared_stream(
                 mx.new_stream(mx.gpu)
                 if envs.SGLANG_MLX_GLM_ENABLE_SHARED_STREAM.get()
@@ -706,9 +718,7 @@ class MlxModelRunner:
             )
 
             n_patched = patch_switch_glu_with_fused_swiglu(self.model)
-            logger.info(
-                f"MLX SwiGLU activation fusion enabled: patched {n_patched} blocks"
-            )
+            logger.info(f"MLX SwiGLU activation fusion enabled: patched {n_patched} blocks")
 
     def _attention_module_for_layer(self, layer_idx: int) -> Any:
         attn = getattr(
