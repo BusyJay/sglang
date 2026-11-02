@@ -378,13 +378,32 @@ class MlxMTPServing:
         # them; publication never reads unfinished cache contents on the host.
         drafting = [p for p in pending if p.draft_steps]
         if drafting:
-            self._flush_heads([p.state for p in drafting])
             chains = [[p.inputs] for p in drafting]
-            outputs = self.model.mtp.decode_requests(
-                [p.state.hidden for p in drafting],
-                [self.model.model.embed_tokens(p.inputs) for p in drafting],
-                [p.state.head for p in drafting],
-            )
+            head = self.model.mtp
+            if hasattr(head, "consume_requests"):
+                outputs = head.consume_requests(
+                    [
+                        mx.concatenate([*p.state.pending_hidden, p.state.hidden], 1)
+                        for p in drafting
+                    ],
+                    [
+                        self.model.model.embed_tokens(
+                            mx.concatenate([*p.state.pending_tokens, p.inputs], 1)
+                        )
+                        for p in drafting
+                    ],
+                    [p.state.head for p in drafting],
+                )
+                for p in drafting:
+                    p.state.pending_hidden.clear()
+                    p.state.pending_tokens.clear()
+            else:
+                self._flush_heads([p.state for p in drafting])
+                outputs = head.decode_requests(
+                    [p.state.hidden for p in drafting],
+                    [self.model.model.embed_tokens(p.inputs) for p in drafting],
+                    [p.state.head for p in drafting],
+                )
             scratch_heads = [clone_cache(p.state.head) for p in drafting]
             active = list(range(len(drafting)))
             for depth in range(max(p.draft_steps for p in drafting)):
@@ -421,11 +440,20 @@ class MlxMTPServing:
                     continue
                 scratch = [[clone_cache(c) for c in p.cache] for p in group]
                 results = (
-                    self.model.verify_mtp_requests([p.chain for p in group], scratch, token_only=True)
-                    if token_only else self.model.verify_mtp_requests([p.chain for p in group], scratch)
+                    self.model.verify_mtp_requests(
+                        [p.chain for p in group], scratch, token_only=True
+                    )
+                    if token_only
+                    else self.model.verify_mtp_requests(
+                        [p.chain for p in group], scratch
+                    )
                 )
                 for transaction, (logits, hidden, snapshots) in zip(group, results):
-                    transaction.logits, transaction.hidden, transaction.snapshots = logits, hidden, snapshots
+                    transaction.logits, transaction.hidden, transaction.snapshots = (
+                        logits,
+                        hidden,
+                        snapshots,
+                    )
         if verifying:
             mx.async_eval(
                 [p.chain for p in verifying],

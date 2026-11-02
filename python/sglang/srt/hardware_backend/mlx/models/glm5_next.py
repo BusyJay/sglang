@@ -2402,6 +2402,44 @@ class MTPHead(DecoderLayer):
             return super().__call__(x, cache)
         return self.verify_ffn_rows(x, cache)[0]
 
+    def consume_requests(self, hidden, embeddings, caches):
+        """Consume ragged committed history and root together for private head caches."""
+        blocks = []
+        counts = []
+        for values, tokens, state in zip(hidden, embeddings, caches):
+            # Keep historical tiles at the existing eight-row expert boundary.
+            start = 0
+            while values.shape[1] - start > 8:
+                self.consume_rows(
+                    values[:, start : start + 8], tokens[:, start : start + 8], state
+                )
+                start += 8
+            values, tokens = values[:, start:], tokens[:, start:]
+            counts.append(values.shape[1])
+            blocks.append(
+                mx.concatenate(
+                    [
+                        mx.concatenate(
+                            [
+                                self.enorm(tokens[:, j : j + 1]),
+                                self.hnorm(values[:, j : j + 1]),
+                            ],
+                            -1,
+                        )
+                        for j in range(values.shape[1])
+                    ],
+                    1,
+                )
+            )
+        projected = _project_rows(self.eh_proj, mx.concatenate(blocks, 1))
+        cursor = 0
+        rows = []
+        for count in counts:
+            rows.append(projected[:, cursor : cursor + count])
+            cursor += count
+        outputs, _ = super().verify_requests(rows, caches)
+        return [value[:, -1:] for value in outputs]
+
     def decode_requests(self, hidden, embeddings, caches, *, shared_stream=None):
         joined = mx.concatenate(
             [

@@ -2499,6 +2499,36 @@ class TestGlm5NextMlx(CustomTestCase):
                 self._assert_optimized_cache_equal(x, y)
             self._assert_optimized_cache_equal(a, b)
 
+    def test_merged_head_history_keeps_ragged_request_owners(self):
+        """A root merged with history must advance each private head exactly once."""
+        import mlx.core as mx
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import NativeCache
+        from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
+
+        model = self._optimized_mtp_model()
+        for counts in ((1,), (4,), (2, 5), (9, 17)):
+            hs = [
+                mx.random.normal((1, n, model.args.hidden_size)).astype(mx.bfloat16)
+                for n in counts
+            ]
+            es = [mx.random.normal(h.shape).astype(mx.bfloat16) for h in hs]
+            base = [NativeCache(4) for _ in counts]
+            refs = [clone_cache(c) for c in base]
+            expected = []
+            for h, e, c in zip(hs, es, refs):
+                if h.shape[1] > 1:
+                    model.mtp.consume_rows(h[:, :-1], e[:, :-1], c)
+                expected.append(model.mtp(h[:, -1:], e[:, -1:], c))
+            actual = model.mtp.consume_requests(hs, es, base)
+            for got, want, c, r in zip(actual, expected, base, refs):
+                self.assertTrue(mx.array_equal(got, want).item())
+                self.assertEqual(c.offset, r.offset)
+                for v, w in zip(c.cache, r.cache):
+                    if v is None:
+                        self.assertIsNone(w)
+                    else:
+                        self.assertTrue(mx.array_equal(v, w).item())
+
     def test_consumed_head_rows_preserve_singleton_cache_boundaries(self):
         """Deferred accepted rows must retain head arithmetic across tile ends."""
         import mlx.core as mx
