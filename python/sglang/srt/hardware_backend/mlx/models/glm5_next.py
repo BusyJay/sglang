@@ -2559,12 +2559,7 @@ class _GraphObservation:
                 )
                 if isinstance(value, nn.Module):
                     for cls in type(value).__mro__:
-                        self.classes.setdefault(
-                            cls,
-                            tuple((k, v) for k, v in vars(cls).items()
-                                  if not k.startswith("__")
-                                  and isinstance(v, (bool, int, float, str))),
-                        )
+                        self.classes.setdefault(cls, dict(vars(cls)))
                     # Discover current defaults on rebuild, including added flags.
                     defaults = {}
                     for cls in reversed(type(value).__mro__):
@@ -2608,8 +2603,7 @@ class _GraphObservation:
         if modules is not self.modules:
             return False
         for cls, fields in self.classes.items():
-            if tuple((k, v) for k, v in vars(cls).items()
-                     if not k.startswith("__") and isinstance(v, (bool, int, float, str))) != fields:
+            if vars(cls) != fields:
                 return False
         for value, keys, length, observed in self.nodes:
             if keys is None:
