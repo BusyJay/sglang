@@ -13,34 +13,13 @@ import mlx.core as mx
 import mlx.nn as nn
 import numpy as np
 from sglang.kernels.ops.gemm.mlx_fp8_rows import mlx_fp8_dynamic_32, mlx_fp8_rows
+from sglang.kernels.ops.gemm.mlx_mxfp8_rows import mlx_mxfp8_rows
 from sglang.kernels.ops.quantization.mlx_csf import mlx_csf32_restore
 
 
 def mxfp8_project_rows(x, weight, scales):
-    """Use the same four-row reduction geometry for AR and verification.
-
-    Rows are independent; zero padding only stabilizes the native dispatch.
-    Packed operands and output dtype are preserved, and real rows share weights.
-    """
-    values = x.reshape(-1, x.shape[-1])
-    outputs = []
-    for start in range(0, values.shape[0], 4):
-        tile = values[start : start + 4]
-        count = tile.shape[0]
-        if count < 4:
-            tile = mx.concatenate(
-                [tile, mx.zeros((4 - count, tile.shape[1]), tile.dtype)], 0
-            )
-        out = mx.quantized_matmul(
-            tile,
-            weight.view(mx.uint32),
-            scales,
-            mode="mxfp8",
-            group_size=32,
-            bits=8,
-        )
-        outputs.append(out[:count])
-    return mx.concatenate(outputs, 0).reshape(*x.shape[:-1], weight.shape[0])
+    """Preserve native wide reduction order without padded activation rows."""
+    return mlx_mxfp8_rows(x, weight, scales)
 
 
 class FP8Linear(nn.Module):

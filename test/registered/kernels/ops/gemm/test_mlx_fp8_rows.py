@@ -90,6 +90,59 @@ class TestMlxFP8Rows(CustomTestCase):
             ).item()
         )
 
+    def test_mxfp8_wide_order_unpadded_rows_and_views(self):
+        """Changing lane grouping or scale placement must not change native rounding."""
+        import mlx.core as mx
+        from sglang.kernels.ops.gemm.mlx_mxfp8_rows import mlx_mxfp8_rows
+
+        mx.random.seed(20261103)
+        for dtype in (mx.bfloat16, mx.float32):
+            for n, k in ((3, 32), (7, 544), (64, 1024)):
+                w, scales = mx.quantize(mx.random.normal((n, k)), mode="mxfp8")
+                for count in (1, 3, 4, 6, 9):
+                    x = mx.random.normal((count, k * 2)).astype(dtype)[:, ::2]
+                    parts = []
+                    for j in range(0, count, 4):
+                        tile = x[j : j + 4]
+                        real = tile.shape[0]
+                        tile = mx.concatenate([tile, mx.zeros((4 - real, k), dtype)])
+                        parts.append(
+                            mx.quantized_matmul(
+                                tile, w, scales, mode="mxfp8", group_size=32, bits=8
+                            )[:real]
+                        )
+                    expected = mx.concatenate(parts)
+                    bits = mx.uint16 if dtype == mx.bfloat16 else mx.uint32
+                    for packed in (w, w.view(mx.uint8)):
+                        actual = mlx_mxfp8_rows(x, packed, scales)
+                        self.assertTrue(
+                            mx.array_equal(
+                                actual.view(bits), expected.view(bits)
+                            ).item()
+                        )
+
+    def test_mxfp8_scale_extremes_and_signed_codes(self):
+        """UE8M0 zero is subnormal and E4M3 signed subnormals retain their sign."""
+        import mlx.core as mx
+        from sglang.kernels.ops.gemm.mlx_mxfp8_rows import mlx_mxfp8_rows
+
+        x = mx.ones((3, 32), mx.float32)
+        weights = mx.zeros((3, 32), mx.uint8)
+        weights[:, 0] = mx.array([1, 129, 56], mx.uint8)
+        scales = mx.array([[127], [127], [0]], mx.uint8)
+        actual = mlx_mxfp8_rows(x, weights, scales)
+        expected = mx.quantized_matmul(
+            mx.concatenate([x, mx.zeros((1, 32), mx.float32)]),
+            weights.view(mx.uint32),
+            scales,
+            mode="mxfp8",
+            group_size=32,
+            bits=8,
+        )[:3]
+        self.assertTrue(
+            mx.array_equal(actual.view(mx.uint32), expected.view(mx.uint32)).item()
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
