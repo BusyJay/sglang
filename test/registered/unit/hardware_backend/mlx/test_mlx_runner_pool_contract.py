@@ -49,6 +49,36 @@ if _HAS_MLX:
 class TestMlxRunnerPoolContract(CustomTestCase):
     """Guard the stub's scheduler-facing ``ModelRunner`` contracts."""
 
+    def test_dflash_warmup_uses_activation_dtype_with_packed_head(self):
+        """Packed uint8 head storage must never become a projection activation."""
+        import mlx.core as mx
+        from mlx import nn
+        from sglang.srt.hardware_backend.mlx.model_runner import MlxModelRunner
+        from sglang.srt.hardware_backend.mlx.models.glm5_fp4 import FP8Linear
+
+        hidden, vocab = 32, 64
+        head = FP8Linear(
+            mx.full((vocab, hidden), 0x38, mx.uint8),
+            mx.full((vocab, hidden // 32), 127, mx.uint8),
+            block_size=32,
+            activation_mode="a16",
+        )
+        trunk = SimpleNamespace(
+            embed_tokens=nn.Embedding(vocab, hidden), norm=nn.RMSNorm(hidden)
+        )
+        trunk.embed_tokens.weight = trunk.embed_tokens.weight.astype(mx.bfloat16)
+        model = SimpleNamespace(model=trunk, lm_head=head)
+        model.target_tokens = lambda values: mx.argmax(head(values), -1)
+        runner = object.__new__(MlxModelRunner)
+        runner.model = model
+        runner._warmup_dflash_target_head()
+        activation = trunk.norm(
+            mx.zeros_like(trunk.embed_tokens(mx.zeros((1, 1), mx.int32)))
+        )
+        mx.eval(activation)
+        self.assertIn(activation.dtype, (mx.bfloat16, mx.float32))
+        self.assertEqual(model.target_tokens(activation).shape, (1, 1))
+
     def test_worker_startup_uses_mlx_token_capacity(self):
         """MLX startup must report its own pool capacity without a Torch configurator."""
         runner = object.__new__(MlxModelRunnerStub)

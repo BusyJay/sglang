@@ -680,14 +680,7 @@ class MlxModelRunner:
                 # Native MTP preparation warms its greedy head only when MTP
                 # weights are loaded. DFLASH borrows the target head without
                 # those weights; compile its token-only path during startup.
-                mx.eval(
-                    self.model.target_tokens(
-                        mx.zeros(
-                            (1, 1, self.model.args.hidden_size),
-                            self.model.lm_head.weight.dtype,
-                        )
-                    )
-                )
+                self._warmup_dflash_target_head()
 
         # Force-evaluate weights so mx.get_active_memory() reflects
         # actual usage before attention KV pool sizing.
@@ -719,6 +712,14 @@ class MlxModelRunner:
 
             n_patched = patch_switch_glu_with_fused_swiglu(self.model)
             logger.info(f"MLX SwiGLU activation fusion enabled: patched {n_patched} blocks")
+
+    def _warmup_dflash_target_head(self):
+        # Packed quantized weights carry integer codes, not the activation dtype.
+        # Follow the trunk's embedding/norm dtype without running its layers.
+        hidden = self.model.model.norm(
+            mx.zeros_like(self.model.model.embed_tokens(mx.zeros((1, 1), mx.int32)))
+        )
+        mx.eval(self.model.target_tokens(hidden))
 
     def _attention_module_for_layer(self, layer_idx: int) -> Any:
         attn = getattr(
