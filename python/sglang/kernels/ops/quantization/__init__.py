@@ -8,6 +8,8 @@ from sglang.kernels.registry import register_kernel
 from sglang.kernels.selector import get_kernel
 from sglang.kernels.spec import (
     CUDA_ONLY,
+    CapabilityRequirement,
+    DeviceType,
     KernelBackend,
     KernelSpec,
 )
@@ -148,5 +150,15 @@ register_kernel(
         backend=KernelBackend.TRITON,
         target="sglang.kernels.ops.quantization.bf16x3_split:split_fp32_to_bf16x3",
         capabilities=CUDA_ONLY,
+    )
+)
+
+
+register_kernel(
+    KernelSpec(
+        op="quantization.mlx_csf32_restore",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.quantization.mlx_csf:mlx_csf32_restore",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
     )
 )

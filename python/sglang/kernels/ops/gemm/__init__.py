@@ -699,3 +699,21 @@ register_kernel(
 
 
 # Independent shared/routed native gate/up; lazy inventory, no runtime import.
+
+register_kernel(
+    KernelSpec(
+        op="gemm.mlx_fp8_rows",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.gemm.mlx_fp8_rows:mlx_fp8_rows",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)
+
+register_kernel(
+    KernelSpec(
+        op="gemm.mlx_fp8_dynamic_32",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.gemm.mlx_fp8_rows:mlx_fp8_dynamic_32",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)

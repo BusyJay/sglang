@@ -387,3 +387,12 @@ register_kernel(
         capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
     )
 )
+
+register_kernel(
+    KernelSpec(
+        op="moe.mlx_nvfp4_routed",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.moe.mlx_nvfp4:mlx_nvfp4_routed",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)
