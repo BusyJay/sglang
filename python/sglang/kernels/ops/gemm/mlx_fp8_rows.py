@@ -20,6 +20,23 @@ uint row = (threadgroup_position_in_grid.x * 4 + simdgroup_index_in_threadgroup)
 uint start = threadgroup_position_in_grid.z * ROWS;
 if (row >= N) return;
 float acc[ROWS][RPS] = {0};
+if constexpr (BLOCK == 128) {
+for (uint block=0;block<K/128;++block) {
+    float ws[RPS];
+    for(uint r=0;r<RPS;++r)ws[r]=row+r<N ? block_scales[((row+r)/128)*(K/128)+block] : 0.0f;
+    for(uint step=0;step<4;++step) {
+        uint k=block*128+step*32+lane;
+        float inputs[ROWS];
+        for(uint t=0;t<ROWS;++t)inputs[t]=start+t<COUNT ? (A8 ? e4m3(xq[(start+t)*K+k])*xscale[(start+t)*(K/32)+k/32] : float(x[(start+t)*K+k])) : 0.0f;
+        for(uint r=0;r<RPS;++r){
+            if(row+r>=N)continue;
+            float wv=e4m3(weight[size_t(row+r)*K+k])*ws[r];
+            for(uint t=0;t<ROWS;++t)acc[t][r]+=inputs[t]*wv;
+        }
+    }
+}
+
+} else {
 for (uint k = lane; k < K; k += 32) {
     float inputs[ROWS];
     for (uint t = 0; t < ROWS; ++t) {
@@ -33,6 +50,8 @@ for (uint k = lane; k < K; k += 32) {
         for (uint t = 0; t < ROWS; ++t) acc[t][r] += inputs[t] * wv;
     }
 }
+}
+
 for (uint t = 0; t < ROWS; ++t) for (uint r = 0; r < RPS; ++r) {
     for (ushort off = 16; off >= 1; off >>= 1) acc[t][r] += simd_shuffle_down(acc[t][r], off);
     if (lane == 0 && start + t < COUNT && row + r < N) out[(start + t) * N + row + r] = O(acc[t][r]);
