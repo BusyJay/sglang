@@ -41,6 +41,36 @@ class TestMlxFP8Rows(CustomTestCase):
             )
         self.assertTrue(mx.array_equal(y, mx.concatenate(parts, 1)).item())
 
+    def test_block_fp8_output_tile_keeps_batch_rounding_and_tail(self):
+        import mlx.core as mx
+        from sglang.kernels.ops.gemm.mlx_fp8_rows import (
+            mlx_fp8_dynamic_32,
+            mlx_fp8_rows,
+        )
+
+        mx.random.seed(453)
+        # Real MLA output geometry selects the two-output SIMD tile.
+        weights = mx.random.randint(0, 127, (4096, 512)).astype(mx.uint8)
+        scales = mx.full((32, 4), 0.001, mx.float32)
+        x = mx.random.normal((1, 7, 512)).astype(mx.bfloat16)
+        y = mlx_fp8_rows(
+            x, weights, scales, block_size=128, quantized_input=mlx_fp8_dynamic_32(x)
+        )
+        expected = mx.concatenate(
+            [
+                mlx_fp8_rows(
+                    x[:, j : j + 1],
+                    weights,
+                    scales,
+                    block_size=128,
+                    quantized_input=mlx_fp8_dynamic_32(x[:, j : j + 1]),
+                )
+                for j in range(7)
+            ],
+            axis=1,
+        )
+        self.assertTrue(mx.array_equal(y, expected).item())
+
     def test_e4m3_signed_subnormal_and_block_scale(self):
         import mlx.core as mx
 

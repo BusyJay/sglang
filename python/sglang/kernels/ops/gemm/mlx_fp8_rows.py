@@ -76,7 +76,7 @@ def mlx_fp8_rows(x, weight, scales, *, block_size=32, quantized_input=None):
             raise ValueError("Invalid block FP32 scales")
         ws = mx.zeros((1,), mx.uint8)
         bs = scales.reshape(-1)
-    rps = 4 if n >= 4096 else 1
+    rps = 2 if block_size == 128 and n >= 4096 else 4 if n >= 4096 else 1
     xq, xs = (
         quantized_input
         if quantized_input is not None
