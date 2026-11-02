@@ -207,7 +207,7 @@ class NVFP4SwitchLinear(nn.Module):
         )
 
 
-def load_fp4_model(path, *, enable_mtp=False, memory_budget=None):
+def load_fp4_model(path, *, enable_mtp=False, memory_budget=None, runtime_cache=True):
     """Build model from indexed operands, one target layer at a time."""
     from sglang.srt.hardware_backend.mlx.models.glm5_next import Model, ModelArgs, MoE
 
@@ -218,7 +218,9 @@ def load_fp4_model(path, *, enable_mtp=False, memory_budget=None):
     model = Model(ModelArgs.from_dict(config), enable_mtp=enable_mtp)
     reader = IndexedWeights(path)
     recipes = config["quantization_config"]["quantized_layers"]
+    from .mlx_fp4_cache import RuntimeWeightCache
 
+    weight_cache = RuntimeWeightCache(path, config) if runtime_cache else None
 
     def replace_projection(owner, name, prefix, recipe):
         values = read_projection(reader, prefix, recipe)
@@ -265,6 +267,11 @@ def load_fp4_model(path, *, enable_mtp=False, memory_budget=None):
 
     for i, layer in enumerate(model.model.layers):
         prefix = f"model.language_model.layers.{i}"
+        if weight_cache is not None and weight_cache.load(f"layer-{i:02d}", layer):
+            if mx.get_active_memory() > memory_budget:
+                raise MemoryError("Cached FP4 weights exceed load budget")
+            print(f"FP4 cache hit layer {i + 1}/{len(model.model.layers)}", flush=True)
+            continue
         # Conv layout uses the canonical checkpoint name, not MLX ShortConv.
         if layer.is_linear:
             for name in ("q", "k", "v"):
@@ -307,6 +314,10 @@ def load_fp4_model(path, *, enable_mtp=False, memory_budget=None):
                 group_size=32,
                 bits=8,
             )
+        if weight_cache is not None:
+            if layer.is_linear:
+                layer.self_attn.prepare_for_inference()
+            weight_cache.save(f"layer-{i:02d}", layer)
         mx.eval(layer.parameters())
         mx.clear_cache()
         print(
@@ -324,13 +335,21 @@ def load_fp4_model(path, *, enable_mtp=False, memory_budget=None):
     auxiliary.embed_tokens = model.model.embed_tokens
     auxiliary.norm = model.model.norm
     auxiliary.lm_head = model.lm_head
-    model.model.embed_tokens.weight = reader.get(
-        "model.language_model.embed_tokens.weight"
-    )
-    model.model.norm.weight = reader.get("model.language_model.norm.weight")
-    replace_projection(model, "lm_head", "lm_head", recipes["lm_head"])
-    auxiliary.lm_head = model.lm_head
-    mx.eval(auxiliary.parameters())
+    if weight_cache is not None and weight_cache.load("auxiliary", auxiliary):
+        model.model.embed_tokens = auxiliary.embed_tokens
+        model.model.norm = auxiliary.norm
+        model.lm_head = auxiliary.lm_head
+        print("FP4 cache hit embedding/norm/head", flush=True)
+    else:
+        model.model.embed_tokens.weight = reader.get(
+            "model.language_model.embed_tokens.weight"
+        )
+        model.model.norm.weight = reader.get("model.language_model.norm.weight")
+        replace_projection(model, "lm_head", "lm_head", recipes["lm_head"])
+        auxiliary.lm_head = model.lm_head
+        mx.eval(auxiliary.parameters())
+        if weight_cache is not None:
+            weight_cache.save("auxiliary", auxiliary)
     model.eval()
     return model, config
 
