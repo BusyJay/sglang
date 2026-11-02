@@ -1,0 +1,95 @@
+/Users/jay/workspace/sglang/python/sglang/srt/layers/quantization/awq/awq.py:53: UserWarning: Only CUDA, HIP and XPU support AWQ currently.
+  warnings.warn(f"Only CUDA, HIP and XPU support AWQ currently.")
+[CI Test Method] TestGlm5NextMlx.test_absorbed_sparse_mla_matches_expanded_kv
+.[CI Test Method] TestGlm5NextMlx.test_adaptive_mtp_scores_consumed_tokens_and_reexplores
+.[CI Test Method] TestGlm5NextMlx.test_affine_mla_verify_and_rejected_prefix_resume
+.[CI Test Method] TestGlm5NextMlx.test_affine_profile_preserves_residual_with_quantized_mla
+.[CI Test Method] TestGlm5NextMlx.test_async_layer_groups_preserve_chunked_state
+.[CI Test Method] TestGlm5NextMlx.test_compiled_joint_gate_up_observes_weight_and_limit_updates
+.[CI Test Method] TestGlm5NextMlx.test_compiled_mhc_matches_reference_with_twenty_sinkhorn_rounds
+.[CI Test Method] TestGlm5NextMlx.test_consumed_head_rows_preserve_singleton_cache_boundaries
+.[CI Test Method] TestGlm5NextMlx.test_decode_ffn_candidates_preserve_updates_and_batch_fallback
+.[CI Test Method] TestGlm5NextMlx.test_dense_latent_cache_tracks_dtype_and_weight_replacement
+.[CI Test Method] TestGlm5NextMlx.test_f_parallel_verify_causal_split_and_rejected_prefix
+.[CI Test Method] TestGlm5NextMlx.test_fixed_graphs_reuse_alternating_verification_depths
+.[CI Test Method] TestGlm5NextMlx.test_fixed_groups_refresh_replaced_layer_container
+.[CI Test Method] TestGlm5NextMlx.test_fixed_mla_preserves_prepared_router_precision
+.[CI Test Method] TestGlm5NextMlx.test_fp16_affine_ffn_preserves_bf16_residual_dtype
+.[CI Test Method] TestGlm5NextMlx.test_graph_observation_rebuilds_mutated_structure_and_parameters
+.[CI Test Method] TestGlm5NextMlx.test_incremental_indexer_pool_growth_and_state_roundtrip
+.[CI Test Method] TestGlm5NextMlx.test_indexer_block_preserves_prefix_sets_and_rejected_cache
+.[CI Test Method] TestGlm5NextMlx.test_kda_fusion_does_not_retain_duplicate_projection_storage
+.[CI Test Method] TestGlm5NextMlx.test_kda_qkv_fusion_preserves_quantization_and_canonical_weights
+.[CI Test Method] TestGlm5NextMlx.test_kda_shared_projection_preserves_each_recurrent_snapshot
+.[CI Test Method] TestGlm5NextMlx.test_last_logits_preserves_full_forward_and_cache_continuation
+.[CI Test Method] TestGlm5NextMlx.test_latent_append_snapshots_restore_inside_and_across_blocks
+.[CI Test Method] TestGlm5NextMlx.test_merged_head_history_keeps_ragged_request_owners
+.[CI Test Method] TestGlm5NextMlx.test_missing_native_prefix_snapshot_keeps_prefill_bound
+.[CI Test Method] TestGlm5NextMlx.test_mla_retained_projection_invalidates_quantization_updates
+.[CI Test Method] TestGlm5NextMlx.test_mla_verify_empty_sparse_rows_are_zero_and_causal
+.[CI Test Method] TestGlm5NextMlx.test_mla_verify_rows_match_legal_prefixes_and_index_pool_growth
+.[CI Test Method] TestGlm5NextMlx.test_mlx_startup_resolves_without_cuda_dsa_defaults
+[2026-11-03 03:06:27] Attention backend not specified. Use torch_native backend by default.
+[2026-11-03 03:06:27] Cuda graph is disabled because of using torch native attention backend
+.[CI Test Method] TestGlm5NextMlx.test_moe_sorted_batch_matches_reference
+.[CI Test Method] TestGlm5NextMlx.test_mtp_batched_ffn_preserves_two_row_commit_boundaries
+.[CI Test Method] TestGlm5NextMlx.test_mtp_generation_matches_ar_on_accept_and_reject
+.[CI Test Method] TestGlm5NextMlx.test_mtp_head_matches_plain_reference_equations
+.[CI Test Method] TestGlm5NextMlx.test_mtp_shared_execute_boundary_preserves_request_isolation
+.[CI Test Method] TestGlm5NextMlx.test_mtp_snapshots_share_storage_and_isolate_slice_assignment
+.[CI Test Method] TestGlm5NextMlx.test_mtp_verify_preserves_both_cache_commit_paths
+.[CI Test Method] TestGlm5NextMlx.test_native_prefix_snapshot_restores_kda_and_mla_together
+.[CI Test Method] TestGlm5NextMlx.test_optimized_decode_batch_shares_drafting_and_preserves_owners
+[2026-11-03 03:06:28] Fused GLM5-Next KDA input projections in 3 layers
+.[CI Test Method] TestGlm5NextMlx.test_optimized_deferred_prefix_accept_reject_and_release
+[2026-11-03 03:06:30] Fused GLM5-Next KDA input projections in 3 layers
+.[CI Test Method] TestGlm5NextMlx.test_optimized_fixed_graphs_refresh_scalar_equations
+[2026-11-03 03:06:30] Fused GLM5-Next KDA input projections in 3 layers
+.[CI Test Method] TestGlm5NextMlx.test_optimized_fixed_groups_invalidate_weights_and_flags
+[2026-11-03 03:06:30] Fused GLM5-Next KDA input projections in 3 layers
+.[CI Test Method] TestGlm5NextMlx.test_optimized_fixed_verification_returns_every_depth
+[2026-11-03 03:06:30] Fused GLM5-Next KDA input projections in 3 layers
+.[CI Test Method] TestGlm5NextMlx.test_optimized_mla_fixed_model_preserves_growth_and_snapshots
+[2026-11-03 03:06:30] Fused GLM5-Next KDA input projections in 3 layers
+.[CI Test Method] TestGlm5NextMlx.test_optimized_mla_fixed_width_includes_pool_tails
+[2026-11-03 03:06:30] Fused GLM5-Next KDA input projections in 3 layers
+.[CI Test Method] TestGlm5NextMlx.test_optimized_mla_graph_uses_runtime_visibility
+[2026-11-03 03:06:31] Fused GLM5-Next KDA input projections in 3 layers
+.[CI Test Method] TestGlm5NextMlx.test_optimized_mtp_request_trunks_preserve_ragged_snapshots
+[2026-11-03 03:06:31] Fused GLM5-Next KDA input projections in 3 layers
+.[CI Test Method] TestGlm5NextMlx.test_optimized_sorted_prefill_matches_expert_reference
+[2026-11-03 03:06:31] Fused GLM5-Next KDA input projections in 3 layers
+.[CI Test Method] TestGlm5NextMlx.test_phase_submission_groups_preserve_partial_group_cache
+.[CI Test Method] TestGlm5NextMlx.test_quantized_expert_decode_checkpoints_preserve_switch_glu
+.[CI Test Method] TestGlm5NextMlx.test_quantized_loader_and_request_cache_isolation
+[2026-11-03 03:06:31] MLX process memory/wired budget 192.00 GiB
+[2026-11-03 03:06:31] Loading MLX model: /var/folders/cn/lndl4hcx4v99bj3zx_l566mr0000gn/T/tmpz6anws4o
+[2026-11-03 03:06:31] Prepared GLM5-Next MLX experts for layer 4/4
+[2026-11-03 03:06:31] Fused GLM5-Next KDA input projections in 3 layers
+[2026-11-03 03:06:31] MLX model loaded in 0.01s
+.[CI Test Method] TestGlm5NextMlx.test_ragged_request_capture_keeps_features_and_prefix_owners_separate
+.[CI Test Method] TestGlm5NextMlx.test_request_batch_preserves_ragged_cache_and_prefix_owners
+[2026-11-03 03:06:31] Fused GLM5-Next KDA input projections in 3 layers
+[2026-11-03 03:06:31] Fused GLM5-Next KDA input projections in 3 layers
+.[CI Test Method] TestGlm5NextMlx.test_router_preparation_preserves_scores_and_invalidates_updates
+.[CI Test Method] TestGlm5NextMlx.test_segmented_mla_verification_seal_and_rejected_suffix
+.[CI Test Method] TestGlm5NextMlx.test_serving_mtp_can_resume_after_ordinary_decode
+.[CI Test Method] TestGlm5NextMlx.test_serving_mtp_prefix_snapshot_and_chunk_handoff
+.[CI Test Method] TestGlm5NextMlx.test_serving_mtp_publishes_only_consumed_rows
+.[CI Test Method] TestGlm5NextMlx.test_sparse_indices_match_reference_pool_and_tail_selection
+.[CI Test Method] TestGlm5NextMlx.test_sparse_reference_and_cached_continuation
+[transformers] `causal_conv1d_fn` is falling back to its reference PyTorch implementation because `causal_conv1d` is not installed. This is correct but much slower; install `causal_conv1d` for the optimized kernel.
+[transformers] `chunk_kda` is falling back to its reference PyTorch implementation because `flash-linear-attention` is not installed. This is correct but much slower; install `flash-linear-attention` for the optimized kernel.
+.[CI Test Method] TestGlm5NextMlx.test_target_capture_matches_layers_across_prefill_decode_groups
+.[CI Test Method] TestGlm5NextMlx.test_token_only_serving_switches_contract_at_consumption_boundary
+[2026-11-03 03:06:33] Fused GLM5-Next KDA input projections in 3 layers
+.[CI Test Method] TestGlm5NextMlx.test_token_only_target_retains_logits_and_cache_contract
+[2026-11-03 03:06:33] Fused GLM5-Next KDA input projections in 3 layers
+.[CI Test Method] TestGlm5NextMlx.test_verification_capture_preserves_rejection_snapshots
+.[CI Test Method] TestGlm5NextMlx.test_verification_submission_has_independent_bounds_and_cache_scope
+.[CI Test Method] TestGlm5NextMlx.test_zero_step_decode_keeps_lazy_graph_and_cache_publication
+.
+----------------------------------------------------------------------
+Ran 65 tests in 7.374s
+
+OK

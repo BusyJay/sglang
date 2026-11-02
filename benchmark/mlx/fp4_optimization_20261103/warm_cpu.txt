@@ -1,0 +1,53 @@
+         1429276 function calls (1424055 primitive calls) in 1.557 seconds
+
+   Ordered by: cumulative time
+   List reduced from 239 to 45 due to restriction <45>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.045    0.045    1.557    1.557 /Users/jay/workspace/sglang/benchmark/mlx/fp4_optimization_20261103/warm_cpu.py:14(generate)
+       63    0.001    0.000    1.328    0.021 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/mtp_serving.py:453(decode_batch)
+       63    0.008    0.000    1.289    0.020 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/mtp_serving.py:375(execute_batch)
+       24    0.000    0.000    1.266    0.053 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:3264(verify_mtp_requests)
+       24    0.903    0.038    1.266    0.053 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:3312(verify_mtp_rows)
+      587    0.091    0.000    0.259    0.000 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:2874(__call__)
+        2    0.190    0.095    0.213    0.107 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:3029(__call__)
+      851    0.001    0.000    0.185    0.000 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:2624(_observe_graph)
+        1    0.003    0.003    0.182    0.182 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/mtp_serving.py:195(prefill)
+      851    0.096    0.000    0.164    0.000 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:2596(current)
+      264    0.000    0.000    0.118    0.000 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:2299(verify_ffn_rows)
+      264    0.036    0.000    0.118    0.000 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:2780(__call__)
+       63    0.002    0.000    0.037    0.001 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/mtp_serving.py:246(build_decode)
+        1    0.000    0.000    0.035    0.035 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:3175(forward_with_hidden)
+    24492    0.017    0.000    0.032    0.000 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:2600(<genexpr>)
+      312    0.005    0.000    0.024    0.000 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:1664(verify_rows)
+     1471    0.000    0.000    0.022    0.000 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:2881(<genexpr>)
+   152225    0.011    0.000    0.022    0.000 {built-in method builtins.getattr}
+      884    0.001    0.000    0.022    0.000 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:949(_fused_qkv_is_current)
+   100418    0.017    0.000    0.021    0.000 /Users/jay/workspace/prod/common/sglang-metal/lib/python3.12/site-packages/mlx/nn/layers/base.py:99(__getattr__)
+      851    0.002    0.000    0.017    0.000 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:3633(_prepare_e_modules)
+   387874    0.016    0.000    0.016    0.000 {built-in method builtins.isinstance}
+   125413    0.014    0.000    0.014    0.000 {built-in method builtins.id}
+      884    0.001    0.000    0.011    0.000 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:938(_qkv_metadata)
+   176714    0.011    0.000    0.011    0.000 {method 'startswith' of 'str' objects}
+      264    0.001    0.000    0.011    0.000 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:1570(prepare_e_projections)
+     6188    0.002    0.000    0.011    0.000 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:939(<genexpr>)
+       48    0.001    0.000    0.009    0.000 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:2203(verify_requests)
+      981    0.001    0.000    0.009    0.000 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_fp4.py:61(project)
+      839    0.000    0.000    0.008    0.000 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_fp4.py:57(__call__)
+     2652    0.000    0.000    0.008    0.000 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:2961(<genexpr>)
+      884    0.000    0.000    0.008    0.000 /Users/jay/workspace/prod/common/sglang-metal/lib/python3.12/site-packages/mlx/nn/layers/base.py:281(parameters)
+      722    0.001    0.000    0.008    0.000 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:177(_project_rows)
+      312    0.002    0.000    0.008    0.000 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:1422(verify_rows)
+      884    0.001    0.000    0.008    0.000 /Users/jay/workspace/prod/common/sglang-metal/lib/python3.12/site-packages/mlx/nn/layers/base.py:246(filter_and_map)
+     2640    0.001    0.000    0.007    0.000 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:1581(<genexpr>)
+      884    0.001    0.000    0.007    0.000 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:931(_qkv_sources)
+4831/2455    0.003    0.000    0.006    0.000 {built-in method builtins.all}
+   116311    0.006    0.000    0.006    0.000 {method 'get' of 'dict' objects}
+       24    0.000    0.000    0.006    0.000 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:2407(consume_requests)
+      899    0.005    0.000    0.006    0.000 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:1284(_update_pool_cache)
+    43377    0.004    0.000    0.006    0.000 {built-in method builtins.hasattr}
+     1141    0.001    0.000    0.006    0.000 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:739(_current_router_sources)
+    22100    0.003    0.000    0.005    0.000 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:932(<genexpr>)
+7072/4420    0.002    0.000    0.005    0.000 /Users/jay/workspace/prod/common/sglang-metal/lib/python3.12/site-packages/mlx/nn/layers/base.py:680(_unwrap)
+
+
