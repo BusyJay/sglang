@@ -160,6 +160,54 @@ class TestMlxDenseRows(CustomTestCase):
                 w[32] = x[0, 0]
                 self.assertEqual(mlx_dense_argmax(x, w).item(), 31)
 
+    def test_nax_greedy_tensor_views_tail_nan_and_ties(self):
+        """MPP head loads preserve views and rounded first-top1 semantics."""
+        import mlx.core as mx
+
+        from sglang.kernels.ops.gemm.mlx_dense_argmax_nax import (
+            _mlx_dense_argmax_nax,
+        )
+
+        if not mx.device_info()["architecture"].startswith("applegpu_g17"):
+            self.skipTest("requires M5 MPP tensor operations")
+        n, k = 211, 256
+        mx.random.seed(20261102)
+        storage = mx.random.normal((n * 2, k * 2)).astype(mx.bfloat16)
+        weight = storage[::2, ::2]
+        for count in (8, 9, 16):
+            inputs = mx.random.normal((1, count * 2, k * 2)).astype(mx.bfloat16)
+            x = inputs[:, ::2, ::2]
+            actual = _mlx_dense_argmax_nax(x, weight)
+            expected = mx.argmax(x @ weight.T, -1)
+            self.assertTrue(mx.array_equal(actual, expected).item(), count)
+        x = mx.ones((1, 8, k), mx.bfloat16)
+        # Integer-valued dots are exact in both reductions. Equal maxima
+        # straddle output tiles, and NaNs must select their first index.
+        weight = mx.zeros((n, k), mx.bfloat16)
+        weight[35] = 1
+        weight[71] = 1
+        self.assertTrue(
+            mx.array_equal(
+                _mlx_dense_argmax_nax(x, weight),
+                mx.full((1, 8), 35, mx.uint32),
+            ).item()
+        )
+        weight[42, 0] = float("nan")
+        weight[85, 0] = float("nan")
+        self.assertTrue(
+            mx.array_equal(
+                _mlx_dense_argmax_nax(x, weight),
+                mx.full((1, 8), 42, mx.uint32),
+            ).item()
+        )
+        weight = mx.zeros((n, k), mx.bfloat16)
+        self.assertTrue(
+            mx.array_equal(
+                _mlx_dense_argmax_nax(x, weight),
+                mx.zeros((1, 8), mx.uint32),
+            ).item()
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

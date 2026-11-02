@@ -297,6 +297,17 @@ def mlx_dense_argmax_rows(x, weight):
     if x.shape[-1] != k or k % 128 or n < 4 or k >= 16 * n:
         return None
     count = x.shape[1]
+    if (
+        8 <= count <= 16
+        and x.dtype == mx.bfloat16
+        and (n, k) == (154880, 4096)
+        and mx.device_info()["architecture"].startswith("applegpu_g17")
+    ):
+        from sglang.kernels.ops.gemm.mlx_dense_argmax_nax import (
+            _mlx_dense_argmax_nax,
+        )
+
+        return _mlx_dense_argmax_nax(x, weight)
     bm, rps = _dense_geometry(n, k, count)
     rows = min(count, 4)
     blocks = (n + bm * rps - 1) // (bm * rps)
