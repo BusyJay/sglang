@@ -1,0 +1,349 @@
+{
+  "device": {
+    "device_name": "Apple M5 Ultra",
+    "max_recommended_working_set_size": 257698037760,
+    "memory_size": 274877906944,
+    "architecture": "applegpu_g17d",
+    "max_buffer_length": 193273528320,
+    "resource_limit": 499000
+  },
+  "target": "/Users/jay/workspace/prod/huggingface/hub/models--nvidia--GLM-5.3-Flash-FP4-Local/snapshots/76348ddb2be2e35e39ecfc00e75dc07703f4f3d5",
+  "draft": "/Users/jay/workspace/prod/huggingface/hub/models--incoai--GLM-5.3-Flash-DFlash2/snapshots/bf582e4eacc1810f76656d1811693ff6c6737d2a",
+  "args": {
+    "modes": "reference,batch_fp8",
+    "rounds": 2,
+    "prompts": 3,
+    "tokens": 300
+  },
+  "source_sha256": {
+    "/Users/jay/workspace/sglang/benchmark/mlx/dflash_verify_20261104/residency_causal.py": "38fda73516ac1ece21866a716772303abbc4e226f2759d6ad5188b1711b5f68d",
+    "/Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py": "7bde9e42538edb61545889f691c842b959189c46b09275f4116e110293d2f2f1",
+    "/Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_fp4.py": "f6c3cec1ff0ea976c22d7bcc8a074eb5d3ffc668c0e8e484d8bfaf95e34b1272"
+  },
+  "samples": [
+    {
+      "arm": "original",
+      "raw": [
+        {
+          "step": 0,
+          "seconds": 0.1611850829795003,
+          "verify": true
+        },
+        {
+          "step": 1,
+          "seconds": 0.00015674997121095657,
+          "verify": false
+        },
+        {
+          "step": 2,
+          "seconds": 8.645805064588785e-05,
+          "verify": false
+        },
+        {
+          "step": 3,
+          "seconds": 8.404196705669165e-05,
+          "verify": false
+        },
+        {
+          "step": 4,
+          "seconds": 7.291696965694427e-05,
+          "verify": false
+        },
+        {
+          "step": 5,
+          "seconds": 0.09504183405078948,
+          "verify": true
+        },
+        {
+          "step": 6,
+          "seconds": 0.00042687496170401573,
+          "verify": false
+        },
+        {
+          "step": 7,
+          "seconds": 8.862500544637442e-05,
+          "verify": false
+        },
+        {
+          "step": 8,
+          "seconds": 7.745798211544752e-05,
+          "verify": false
+        },
+        {
+          "step": 9,
+          "seconds": 9.14580887183547e-05,
+          "verify": false
+        },
+        {
+          "step": 10,
+          "seconds": 0.0899565409636125,
+          "verify": true
+        },
+        {
+          "step": 11,
+          "seconds": 0.00018974998965859413,
+          "verify": false
+        },
+        {
+          "step": 12,
+          "seconds": 0.00012104201596230268,
+          "verify": false
+        },
+        {
+          "step": 13,
+          "seconds": 8.716701995581388e-05,
+          "verify": false
+        },
+        {
+          "step": 14,
+          "seconds": 8.279201574623585e-05,
+          "verify": false
+        },
+        {
+          "step": 15,
+          "seconds": 8.204102050513029e-05,
+          "verify": false
+        }
+      ],
+      "tokens": [
+        785,
+        1196,
+        374,
+        10156,
+        264,
+        11411,
+        8037,
+        3405,
+        25,
+        3170,
+        374,
+        279,
+        12877,
+        6303,
+        30,
+        1096,
+        374
+      ],
+      "original_wired": 0,
+      "active_bytes": 185156780902,
+      "peak_bytes": 186401994632
+    },
+    {
+      "arm": "runner",
+      "raw": [
+        {
+          "step": 0,
+          "seconds": 0.09757220803294331,
+          "verify": true
+        },
+        {
+          "step": 1,
+          "seconds": 0.00016404211055487394,
+          "verify": false
+        },
+        {
+          "step": 2,
+          "seconds": 8.370901923626661e-05,
+          "verify": false
+        },
+        {
+          "step": 3,
+          "seconds": 8.420809172093868e-05,
+          "verify": false
+        },
+        {
+          "step": 4,
+          "seconds": 7.083301898092031e-05,
+          "verify": false
+        },
+        {
+          "step": 5,
+          "seconds": 0.10472420800942928,
+          "verify": true
+        },
+        {
+          "step": 6,
+          "seconds": 0.00043866701889783144,
+          "verify": false
+        },
+        {
+          "step": 7,
+          "seconds": 0.00011395895853638649,
+          "verify": false
+        },
+        {
+          "step": 8,
+          "seconds": 8.095800876617432e-05,
+          "verify": false
+        },
+        {
+          "step": 9,
+          "seconds": 8.170900400727987e-05,
+          "verify": false
+        },
+        {
+          "step": 10,
+          "seconds": 0.09497654193546623,
+          "verify": true
+        },
+        {
+          "step": 11,
+          "seconds": 0.0001538749784231186,
+          "verify": false
+        },
+        {
+          "step": 12,
+          "seconds": 9.27080400288105e-05,
+          "verify": false
+        },
+        {
+          "step": 13,
+          "seconds": 8.01250571385026e-05,
+          "verify": false
+        },
+        {
+          "step": 14,
+          "seconds": 0.00012654101010411978,
+          "verify": false
+        },
+        {
+          "step": 15,
+          "seconds": 8.645898196846247e-05,
+          "verify": false
+        }
+      ],
+      "tokens": [
+        785,
+        1196,
+        374,
+        10156,
+        264,
+        11411,
+        8037,
+        3405,
+        25,
+        3170,
+        374,
+        279,
+        12877,
+        6303,
+        30,
+        1096,
+        374
+      ],
+      "original_wired": 0,
+      "active_bytes": 185156698342,
+      "peak_bytes": 186401994632
+    },
+    {
+      "arm": "original",
+      "raw": [
+        {
+          "step": 0,
+          "seconds": 0.09184270794503391,
+          "verify": true
+        },
+        {
+          "step": 1,
+          "seconds": 0.00014370796270668507,
+          "verify": false
+        },
+        {
+          "step": 2,
+          "seconds": 8.345802780240774e-05,
+          "verify": false
+        },
+        {
+          "step": 3,
+          "seconds": 8.425000123679638e-05,
+          "verify": false
+        },
+        {
+          "step": 4,
+          "seconds": 7.175002247095108e-05,
+          "verify": false
+        },
+        {
+          "step": 5,
+          "seconds": 0.09034316695760936,
+          "verify": true
+        },
+        {
+          "step": 6,
+          "seconds": 0.00018633296713232994,
+          "verify": false
+        },
+        {
+          "step": 7,
+          "seconds": 0.0001467911060899496,
+          "verify": false
+        },
+        {
+          "step": 8,
+          "seconds": 8.558400440961123e-05,
+          "verify": false
+        },
+        {
+          "step": 9,
+          "seconds": 8.379202336072922e-05,
+          "verify": false
+        },
+        {
+          "step": 10,
+          "seconds": 0.09069945896044374,
+          "verify": true
+        },
+        {
+          "step": 11,
+          "seconds": 0.00023008405696600676,
+          "verify": false
+        },
+        {
+          "step": 12,
+          "seconds": 9.400001727044582e-05,
+          "verify": false
+        },
+        {
+          "step": 13,
+          "seconds": 9.304191917181015e-05,
+          "verify": false
+        },
+        {
+          "step": 14,
+          "seconds": 8.27079638838768e-05,
+          "verify": false
+        },
+        {
+          "step": 15,
+          "seconds": 8.233403787016869e-05,
+          "verify": false
+        }
+      ],
+      "tokens": [
+        785,
+        1196,
+        374,
+        10156,
+        264,
+        11411,
+        8037,
+        3405,
+        25,
+        3170,
+        374,
+        279,
+        12877,
+        6303,
+        30,
+        1096,
+        374
+      ],
+      "original_wired": 0,
+      "active_bytes": 185156747590,
+      "peak_bytes": 186402207440
+    }
+  ],
+  "diagnostics": [],
+  "projection_checks": [],
+  "swap_before": "vm.swapusage: total = 3072.00M  used = 1688.06M  free = 1383.94M  (encrypted)\n"
+}

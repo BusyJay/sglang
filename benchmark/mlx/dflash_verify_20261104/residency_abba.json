@@ -1,0 +1,456 @@
+{
+  "device": {
+    "device_name": "Apple M5 Ultra",
+    "max_recommended_working_set_size": 257698037760,
+    "memory_size": 274877906944,
+    "architecture": "applegpu_g17d",
+    "max_buffer_length": 193273528320,
+    "resource_limit": 499000
+  },
+  "target": "/Users/jay/workspace/prod/huggingface/hub/models--nvidia--GLM-5.3-Flash-FP4-Local/snapshots/76348ddb2be2e35e39ecfc00e75dc07703f4f3d5",
+  "draft": "/Users/jay/workspace/prod/huggingface/hub/models--incoai--GLM-5.3-Flash-DFlash2/snapshots/bf582e4eacc1810f76656d1811693ff6c6737d2a",
+  "args": {
+    "modes": "reference,batch_fp8",
+    "rounds": 2,
+    "prompts": 3,
+    "tokens": 300
+  },
+  "source_sha256": {
+    "/Users/jay/workspace/sglang/benchmark/mlx/dflash_verify_20261104/residency_abba.py": "36d48a260b0609efc02444f5c0c3c8f06ce6cbd92794482c27d03104e2aab113",
+    "/Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py": "7bde9e42538edb61545889f691c842b959189c46b09275f4116e110293d2f2f1",
+    "/Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_fp4.py": "f6c3cec1ff0ea976c22d7bcc8a074eb5d3ffc668c0e8e484d8bfaf95e34b1272"
+  },
+  "samples": [
+    {
+      "arm": "runner",
+      "raw": [
+        {
+          "step": 0,
+          "seconds": 0.15767666697502136,
+          "verify": true
+        },
+        {
+          "step": 1,
+          "seconds": 0.00016416702419519424,
+          "verify": false
+        },
+        {
+          "step": 2,
+          "seconds": 8.558400440961123e-05,
+          "verify": false
+        },
+        {
+          "step": 3,
+          "seconds": 8.549995254725218e-05,
+          "verify": false
+        },
+        {
+          "step": 4,
+          "seconds": 7.700000423938036e-05,
+          "verify": false
+        },
+        {
+          "step": 5,
+          "seconds": 0.11544362502172589,
+          "verify": true
+        },
+        {
+          "step": 6,
+          "seconds": 0.00014066696166992188,
+          "verify": false
+        },
+        {
+          "step": 7,
+          "seconds": 0.0002327919937670231,
+          "verify": false
+        },
+        {
+          "step": 8,
+          "seconds": 9.391596540808678e-05,
+          "verify": false
+        },
+        {
+          "step": 9,
+          "seconds": 8.666689973324537e-05,
+          "verify": false
+        },
+        {
+          "step": 10,
+          "seconds": 0.09417487506289035,
+          "verify": true
+        },
+        {
+          "step": 11,
+          "seconds": 0.00020254100672900677,
+          "verify": false
+        },
+        {
+          "step": 12,
+          "seconds": 8.162506856024265e-05,
+          "verify": false
+        },
+        {
+          "step": 13,
+          "seconds": 8.741708006709814e-05,
+          "verify": false
+        },
+        {
+          "step": 14,
+          "seconds": 7.745798211544752e-05,
+          "verify": false
+        },
+        {
+          "step": 15,
+          "seconds": 8.179200813174248e-05,
+          "verify": false
+        }
+      ],
+      "tokens": [
+        785,
+        1196,
+        374,
+        10156,
+        264,
+        11411,
+        8037,
+        3405,
+        25,
+        3170,
+        374,
+        279,
+        12877,
+        6303,
+        30,
+        1096,
+        374
+      ],
+      "original_wired": 0,
+      "active_bytes": 185156715002,
+      "peak_bytes": 186388643453
+    },
+    {
+      "arm": "original",
+      "raw": [
+        {
+          "step": 0,
+          "seconds": 0.0919541249750182,
+          "verify": true
+        },
+        {
+          "step": 1,
+          "seconds": 0.00015716603957116604,
+          "verify": false
+        },
+        {
+          "step": 2,
+          "seconds": 8.337490726262331e-05,
+          "verify": false
+        },
+        {
+          "step": 3,
+          "seconds": 8.474988862872124e-05,
+          "verify": false
+        },
+        {
+          "step": 4,
+          "seconds": 7.262500002980232e-05,
+          "verify": false
+        },
+        {
+          "step": 5,
+          "seconds": 0.09045762498863041,
+          "verify": true
+        },
+        {
+          "step": 6,
+          "seconds": 0.0002268750686198473,
+          "verify": false
+        },
+        {
+          "step": 7,
+          "seconds": 9.983405470848083e-05,
+          "verify": false
+        },
+        {
+          "step": 8,
+          "seconds": 9.595905430614948e-05,
+          "verify": false
+        },
+        {
+          "step": 9,
+          "seconds": 0.00010137504432350397,
+          "verify": false
+        },
+        {
+          "step": 10,
+          "seconds": 0.09037141699809581,
+          "verify": true
+        },
+        {
+          "step": 11,
+          "seconds": 0.0001996669452637434,
+          "verify": false
+        },
+        {
+          "step": 12,
+          "seconds": 9.054201655089855e-05,
+          "verify": false
+        },
+        {
+          "step": 13,
+          "seconds": 9.016599506139755e-05,
+          "verify": false
+        },
+        {
+          "step": 14,
+          "seconds": 8.56249826028943e-05,
+          "verify": false
+        },
+        {
+          "step": 15,
+          "seconds": 9.299989324063063e-05,
+          "verify": false
+        }
+      ],
+      "tokens": [
+        785,
+        1196,
+        374,
+        10156,
+        264,
+        11411,
+        8037,
+        3405,
+        25,
+        3170,
+        374,
+        279,
+        12877,
+        6303,
+        30,
+        1096,
+        374
+      ],
+      "original_wired": 0,
+      "active_bytes": 185156731002,
+      "peak_bytes": 186402221948
+    },
+    {
+      "arm": "original",
+      "raw": [
+        {
+          "step": 0,
+          "seconds": 0.09243395796511322,
+          "verify": true
+        },
+        {
+          "step": 1,
+          "seconds": 0.0001615419751033187,
+          "verify": false
+        },
+        {
+          "step": 2,
+          "seconds": 8.358294144272804e-05,
+          "verify": false
+        },
+        {
+          "step": 3,
+          "seconds": 8.38330015540123e-05,
+          "verify": false
+        },
+        {
+          "step": 4,
+          "seconds": 7.308297790586948e-05,
+          "verify": false
+        },
+        {
+          "step": 5,
+          "seconds": 0.09031058300752193,
+          "verify": true
+        },
+        {
+          "step": 6,
+          "seconds": 0.0001598329981788993,
+          "verify": false
+        },
+        {
+          "step": 7,
+          "seconds": 0.0001177499070763588,
+          "verify": false
+        },
+        {
+          "step": 8,
+          "seconds": 8.15410166978836e-05,
+          "verify": false
+        },
+        {
+          "step": 9,
+          "seconds": 8.104206062853336e-05,
+          "verify": false
+        },
+        {
+          "step": 10,
+          "seconds": 0.08981645898893476,
+          "verify": true
+        },
+        {
+          "step": 11,
+          "seconds": 0.00018629198893904686,
+          "verify": false
+        },
+        {
+          "step": 12,
+          "seconds": 0.00011150003410875797,
+          "verify": false
+        },
+        {
+          "step": 13,
+          "seconds": 8.849997539073229e-05,
+          "verify": false
+        },
+        {
+          "step": 14,
+          "seconds": 8.654198609292507e-05,
+          "verify": false
+        },
+        {
+          "step": 15,
+          "seconds": 8.108303882181644e-05,
+          "verify": false
+        }
+      ],
+      "tokens": [
+        785,
+        1196,
+        374,
+        10156,
+        264,
+        11411,
+        8037,
+        3405,
+        25,
+        3170,
+        374,
+        279,
+        12877,
+        6303,
+        30,
+        1096,
+        374
+      ],
+      "original_wired": 0,
+      "active_bytes": 185156797578,
+      "peak_bytes": 186402293544
+    },
+    {
+      "arm": "runner",
+      "raw": [
+        {
+          "step": 0,
+          "seconds": 0.09875229210592806,
+          "verify": true
+        },
+        {
+          "step": 1,
+          "seconds": 0.0001479999627918005,
+          "verify": false
+        },
+        {
+          "step": 2,
+          "seconds": 8.291692938655615e-05,
+          "verify": false
+        },
+        {
+          "step": 3,
+          "seconds": 8.091703057289124e-05,
+          "verify": false
+        },
+        {
+          "step": 4,
+          "seconds": 7.062498480081558e-05,
+          "verify": false
+        },
+        {
+          "step": 5,
+          "seconds": 0.10417179204523563,
+          "verify": true
+        },
+        {
+          "step": 6,
+          "seconds": 0.00014899997040629387,
+          "verify": false
+        },
+        {
+          "step": 7,
+          "seconds": 0.00011670798994600773,
+          "verify": false
+        },
+        {
+          "step": 8,
+          "seconds": 7.491698488593102e-05,
+          "verify": false
+        },
+        {
+          "step": 9,
+          "seconds": 7.883296348154545e-05,
+          "verify": false
+        },
+        {
+          "step": 10,
+          "seconds": 0.0944942090427503,
+          "verify": true
+        },
+        {
+          "step": 11,
+          "seconds": 0.00015016598626971245,
+          "verify": false
+        },
+        {
+          "step": 12,
+          "seconds": 0.00012587499804794788,
+          "verify": false
+        },
+        {
+          "step": 13,
+          "seconds": 8.195906411856413e-05,
+          "verify": false
+        },
+        {
+          "step": 14,
+          "seconds": 7.804203778505325e-05,
+          "verify": false
+        },
+        {
+          "step": 15,
+          "seconds": 0.00011829205323010683,
+          "verify": false
+        }
+      ],
+      "tokens": [
+        785,
+        1196,
+        374,
+        10156,
+        264,
+        11411,
+        8037,
+        3405,
+        25,
+        3170,
+        374,
+        279,
+        12877,
+        6303,
+        30,
+        1096,
+        374
+      ],
+      "original_wired": 0,
+      "active_bytes": 185156716426,
+      "peak_bytes": 186402293544
+    }
+  ],
+  "diagnostics": [],
+  "projection_checks": [],
+  "swap_before": "vm.swapusage: total = 3072.00M  used = 1679.94M  free = 1392.06M  (encrypted)\n"
+}

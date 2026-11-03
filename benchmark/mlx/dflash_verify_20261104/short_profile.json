@@ -1,0 +1,34 @@
+{
+  "device": {
+    "device_name": "Apple M5 Ultra",
+    "max_recommended_working_set_size": 257698037760,
+    "memory_size": 274877906944,
+    "architecture": "applegpu_g17d",
+    "max_buffer_length": 193273528320,
+    "resource_limit": 499000
+  },
+  "target": "/Users/jay/workspace/prod/huggingface/hub/models--nvidia--GLM-5.3-Flash-FP4-Local/snapshots/76348ddb2be2e35e39ecfc00e75dc07703f4f3d5",
+  "draft": "/Users/jay/workspace/prod/huggingface/hub/models--incoai--GLM-5.3-Flash-DFlash2/snapshots/bf582e4eacc1810f76656d1811693ff6c6737d2a",
+  "args": {
+    "modes": "reference,batch_fp8",
+    "rounds": 2,
+    "prompts": 3,
+    "tokens": 300
+  },
+  "source_sha256": {
+    "/Users/jay/workspace/sglang/benchmark/mlx/dflash_verify_20261104/short_profile.py": "a7cfb522ae621e42ab4271f63717f445b004e529667b38a6d2689c3d24a9cc63",
+    "/Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py": "7bde9e42538edb61545889f691c842b959189c46b09275f4116e110293d2f2f1",
+    "/Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_fp4.py": "f6c3cec1ff0ea976c22d7bcc8a074eb5d3ffc668c0e8e484d8bfaf95e34b1272"
+  },
+  "samples": [],
+  "diagnostics": [],
+  "projection_checks": [],
+  "swap_before": "vm.swapusage: total = 3072.00M  used = 1552.88M  free = 1519.12M  (encrypted)\n",
+  "profiles": [
+    {
+      "step": 0,
+      "seconds": 2.228227791027166,
+      "profile": "         68068 function calls (65337 primitive calls) in 2.035 seconds\n\n   Ordered by: cumulative time\n   List reduced from 180 to 14 due to restriction <14>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n        1    0.001    0.001    2.035    2.035 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/dflash_serving.py:133(decode_batch)\n        1    0.000    0.000    2.034    2.034 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:3291(verify_mtp_requests)\n        1    1.936    1.936    2.034    2.034 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:3339(verify_mtp_rows)\n       11    0.000    0.000    0.080    0.007 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:2319(verify_ffn_rows)\n       11    0.006    0.001    0.080    0.007 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:2807(__call__)\n       11    0.000    0.000    0.069    0.006 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:1684(verify_rows)\n       11    0.000    0.000    0.067    0.006 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:1442(verify_rows)\n       88    0.001    0.000    0.067    0.001 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:1304(_update_pool_cache)\n      198    0.066    0.000    0.066    0.000 /Users/jay/workspace/prod/common/sglang-metal/lib/python3.12/site-packages/mlx_lm/models/cache.py:614(__setitem__)\n       24    0.010    0.000    0.017    0.001 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:2901(__call__)\n       35    0.000    0.000    0.008    0.000 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:2651(_observe_graph)\n       35    0.004    0.000    0.006    0.000 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:2624(current)\n        2    0.000    0.000    0.002    0.001 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:2661(_clone_graph_modules)\n   1710/2    0.001    0.000    0.002    0.001 /Users/jay/.local/share/uv/python/cpython-3.12.16-macos-aarch64-none/lib/python3.12/copy.py:118(deepcopy)\n\n\n"
+    }
+  ]
+}

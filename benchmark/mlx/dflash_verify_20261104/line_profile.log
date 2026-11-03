@@ -1,0 +1,73 @@
+FP4 cache hit layer 1/45
+FP4 cache hit layer 2/45
+FP4 cache hit layer 3/45
+FP4 cache hit layer 4/45
+FP4 cache hit layer 5/45
+FP4 cache hit layer 6/45
+FP4 cache hit layer 7/45
+FP4 cache hit layer 8/45
+FP4 cache hit layer 9/45
+FP4 cache hit layer 10/45
+FP4 cache hit layer 11/45
+FP4 cache hit layer 12/45
+FP4 cache hit layer 13/45
+FP4 cache hit layer 14/45
+FP4 cache hit layer 15/45
+FP4 cache hit layer 16/45
+FP4 cache hit layer 17/45
+FP4 cache hit layer 18/45
+FP4 cache hit layer 19/45
+FP4 cache hit layer 20/45
+FP4 cache hit layer 21/45
+FP4 cache hit layer 22/45
+FP4 cache hit layer 23/45
+FP4 cache hit layer 24/45
+FP4 cache hit layer 25/45
+FP4 cache hit layer 26/45
+FP4 cache hit layer 27/45
+FP4 cache hit layer 28/45
+FP4 cache hit layer 29/45
+FP4 cache hit layer 30/45
+FP4 cache hit layer 31/45
+FP4 cache hit layer 32/45
+FP4 cache hit layer 33/45
+FP4 cache hit layer 34/45
+FP4 cache hit layer 35/45
+FP4 cache hit layer 36/45
+FP4 cache hit layer 37/45
+FP4 cache hit layer 38/45
+FP4 cache hit layer 39/45
+FP4 cache hit layer 40/45
+FP4 cache hit layer 41/45
+FP4 cache hit layer 42/45
+FP4 cache hit layer 43/45
+FP4 cache hit layer 44/45
+FP4 cache hit layer 45/45
+FP4 cache hit embedding/norm/head
+MODEL_READY 32.260423208004795 171.33910305798054
+LINE_TIMES [(3423, 1.7936268749181181), (3396, 0.08381341898348182), (3389, 0.021492253988981247), (3363, 0.00027271220460534096), (3392, 0.00012153584975749254), (3393, 0.0001057551708072424), (3364, 0.00010487099643796682), (3424, 9.383191354572773e-05), (3420, 7.008318789303303e-05), (3399, 6.620283238589764e-05), (3385, 6.275100167840719e-05), (3390, 6.0373335145413876e-05), (3380, 5.7875062339007854e-05), (3375, 5.7752011343836784e-05), (3431, 5.629099905490875e-05)]
+SHORT_STEP 0 2.0598429159726948 1 activeGiB 172.44087740033865
+         68068 function calls (65337 primitive calls) in 1.903 seconds
+
+   Ordered by: cumulative time
+   List reduced from 180 to 14 due to restriction <14>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.001    0.001    1.903    1.903 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/dflash_serving.py:133(decode_batch)
+        1    0.000    0.000    1.901    1.901 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:3291(verify_mtp_requests)
+        1    1.795    1.795    1.901    1.901 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:3339(verify_mtp_rows)
+       11    0.000    0.000    0.084    0.008 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:2319(verify_ffn_rows)
+       11    0.006    0.001    0.084    0.008 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:2807(__call__)
+       11    0.001    0.000    0.070    0.006 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:1684(verify_rows)
+       11    0.000    0.000    0.067    0.006 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:1442(verify_rows)
+       88    0.066    0.001    0.067    0.001 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:1304(_update_pool_cache)
+       24    0.011    0.000    0.021    0.001 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:2901(__call__)
+       35    0.000    0.000    0.011    0.000 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:2651(_observe_graph)
+       35    0.006    0.000    0.007    0.000 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:2624(current)
+        2    0.000    0.000    0.003    0.002 /Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py:2661(_clone_graph_modules)
+   1710/2    0.001    0.000    0.003    0.001 /Users/jay/.local/share/uv/python/cpython-3.12.16-macos-aarch64-none/lib/python3.12/copy.py:118(deepcopy)
+     82/2    0.000    0.000    0.003    0.001 /Users/jay/.local/share/uv/python/cpython-3.12.16-macos-aarch64-none/lib/python3.12/copy.py:247(_reconstruct)
+
+
+
+SHORT_FINISHED

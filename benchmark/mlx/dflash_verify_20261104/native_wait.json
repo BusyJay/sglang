@@ -1,0 +1,79 @@
+{
+  "device": {
+    "device_name": "Apple M5 Ultra",
+    "max_recommended_working_set_size": 257698037760,
+    "memory_size": 274877906944,
+    "architecture": "applegpu_g17d",
+    "max_buffer_length": 193273528320,
+    "resource_limit": 499000
+  },
+  "target": "/Users/jay/workspace/prod/huggingface/hub/models--nvidia--GLM-5.3-Flash-FP4-Local/snapshots/76348ddb2be2e35e39ecfc00e75dc07703f4f3d5",
+  "draft": "/Users/jay/workspace/prod/huggingface/hub/models--incoai--GLM-5.3-Flash-DFlash2/snapshots/bf582e4eacc1810f76656d1811693ff6c6737d2a",
+  "args": {
+    "modes": "reference,batch_fp8",
+    "rounds": 2,
+    "prompts": 3,
+    "tokens": 300
+  },
+  "source_sha256": {
+    "/Users/jay/workspace/sglang/benchmark/mlx/dflash_verify_20261104/native_wait.py": "33c98353ce770f2b72aea87220ddba943d8c5f4c008e315687cd2e3b33e63d63",
+    "/Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py": "7bde9e42538edb61545889f691c842b959189c46b09275f4116e110293d2f2f1",
+    "/Users/jay/workspace/sglang/python/sglang/srt/hardware_backend/mlx/models/glm5_fp4.py": "f6c3cec1ff0ea976c22d7bcc8a074eb5d3ffc668c0e8e484d8bfaf95e34b1272"
+  },
+  "samples": [
+    {
+      "step": 0,
+      "seconds": 0.17696316703222692,
+      "token": 1196,
+      "counters": {
+        "verify_ct": 1,
+        "num_proposed_drafts": 7,
+        "num_accept_tokens": 1
+      },
+      "active": 185164122696,
+      "peak": 185357253743
+    },
+    {
+      "step": 1,
+      "seconds": 0.00018208299297839403,
+      "token": 374,
+      "counters": {
+        "verify_ct": 1,
+        "num_proposed_drafts": 7,
+        "num_accept_tokens": 2,
+        "num_correct_drafts": 1
+      },
+      "active": 185156924464,
+      "peak": 185357253743
+    },
+    {
+      "step": 2,
+      "seconds": 9.079207666218281e-05,
+      "token": 10156,
+      "counters": {
+        "verify_ct": 1,
+        "num_proposed_drafts": 7,
+        "num_accept_tokens": 3,
+        "num_correct_drafts": 2
+      },
+      "active": 185156913204,
+      "peak": 185357253743
+    },
+    {
+      "step": 3,
+      "seconds": 9.712507016956806e-05,
+      "token": 264,
+      "counters": {
+        "verify_ct": 1,
+        "num_proposed_drafts": 7,
+        "num_accept_tokens": 4,
+        "num_correct_drafts": 3
+      },
+      "active": 185156707256,
+      "peak": 185357253743
+    }
+  ],
+  "diagnostics": [],
+  "projection_checks": [],
+  "swap_before": "vm.swapusage: total = 3072.00M  used = 1651.62M  free = 1420.38M  (encrypted)\n"
+}
