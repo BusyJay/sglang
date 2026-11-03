@@ -1,0 +1,39 @@
+{
+  "sdk": "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk",
+  "header_sha256": {
+    "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLTensor.h": "6eb530b64f80c91da1715ac3e4e93c77fae26a68eeeebd79f7d66b68d12b982b",
+    "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLTypes.h": "22cbc7d8debea369bc66336dae01f2cca7023feab5f9598d6fad0da7e2fd999f"
+  },
+  "tensor_api_fp_types": [
+    "E2M1 FP4",
+    "E4M3 FP8",
+    "E5M2 FP8",
+    "UE8M0 FP8"
+  ],
+  "availability": "macOS 27.0 / iOS 27.0",
+  "scale_plane_type": "UE8M0",
+  "scale_plane_block_factors": [
+    32,
+    1
+  ],
+  "quantized_tensor_inner_extent_multiple": 32,
+  "quantized_buffer_tensor_outer_stride_alignment_bytes": 128,
+  "evidence_header": "MTLTensor.h",
+  "evidence_lines": [
+    57,
+    66,
+    69,
+    72,
+    178,
+    199,
+    231,
+    252
+  ],
+  "checkpoint_nvfp4": {
+    "group_size": 16,
+    "scale_type": "E4M3",
+    "global_scale_encoded_factor": 2688,
+    "remote_source_sha256": "f6c3cec1ff0ea976c22d7bcc8a074eb5d3ffc668c0e8e484d8bfaf95e34b1272"
+  },
+  "scope": "Header declarations and model source inspection; no tensor allocation, numerical or performance verification. Host MTLTensor restrictions are not a blanket restriction on custom inline/cooperative tensors."
+}
