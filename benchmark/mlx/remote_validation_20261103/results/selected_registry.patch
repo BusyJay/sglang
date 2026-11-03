@@ -1,0 +1,69 @@
+diff --git a/python/sglang/kernels/ops/gemm/__init__.py b/python/sglang/kernels/ops/gemm/__init__.py
+index edbed7eab0..0a202bb58c 100644
+--- a/python/sglang/kernels/ops/gemm/__init__.py
++++ b/python/sglang/kernels/ops/gemm/__init__.py
+@@ -727,3 +727,30 @@ register_kernel(
+         capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+     )
+ )
++
++register_kernel(
++    KernelSpec(
++        op="gemm.mlx_block_fp8_pair",
++        backend=KernelBackend.MLX,
++        target="sglang.kernels.ops.gemm.mlx_block_fp8:mlx_block_fp8_pair",
++        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
++    )
++)
++
++register_kernel(
++    KernelSpec(
++        op="gemm.mlx_nvfp4_gather_rows",
++        backend=KernelBackend.MLX,
++        target="sglang.kernels.ops.gemm.mlx_nvfp4_gather:mlx_nvfp4_gather_rows",
++        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
++    )
++)
++
++register_kernel(
++    KernelSpec(
++        op="gemm.mlx_nvfp4_swiglu",
++        backend=KernelBackend.MLX,
++        target="sglang.kernels.ops.gemm.mlx_nvfp4_swiglu:mlx_nvfp4_swiglu",
++        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
++    )
++)
+diff --git a/python/sglang/kernels/ops/moe/__init__.py b/python/sglang/kernels/ops/moe/__init__.py
+index d1b7969623..8d0e526e5c 100644
+--- a/python/sglang/kernels/ops/moe/__init__.py
++++ b/python/sglang/kernels/ops/moe/__init__.py
+@@ -396,3 +396,12 @@ register_kernel(
+         capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+     )
+ )
++
++register_kernel(
++    KernelSpec(
++        op="moe.mlx_expert_pair_worklist",
++        backend=KernelBackend.MLX,
++        target="sglang.kernels.ops.moe.mlx_expert_pairs:mlx_expert_pair_worklist",
++        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
++    )
++)
+diff --git a/python/sglang/kernels/ops/quantization/__init__.py b/python/sglang/kernels/ops/quantization/__init__.py
+index 3dc4e3c9ca..fcf67611f3 100644
+--- a/python/sglang/kernels/ops/quantization/__init__.py
++++ b/python/sglang/kernels/ops/quantization/__init__.py
+@@ -162,3 +162,12 @@ register_kernel(
+         capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+     )
+ )
++
++register_kernel(
++    KernelSpec(
++        op="quantization.mlx_fp8_dynamic_32",
++        backend=KernelBackend.MLX,
++        target="sglang.kernels.ops.quantization.mlx_fp8_dynamic:mlx_fp8_dynamic_32",
++        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
++    )
++)

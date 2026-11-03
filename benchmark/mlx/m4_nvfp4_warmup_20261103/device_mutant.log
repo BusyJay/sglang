@@ -1,0 +1,55 @@
+test_materializes_every_dtype_and_small_batch_variant (device_startup_test.TestMlxStartupWarmup.test_materializes_every_dtype_and_small_batch_variant)
+A lazy failed pipeline cannot escape startup into the first request. ... 
+  test_materializes_every_dtype_and_small_batch_variant (device_startup_test.TestMlxStartupWarmup.test_materializes_every_dtype_and_small_batch_variant) (dtype=mlx.core.float32, count=1)
+A lazy failed pipeline cannot escape startup into the first request. ... FAIL
+  test_materializes_every_dtype_and_small_batch_variant (device_startup_test.TestMlxStartupWarmup.test_materializes_every_dtype_and_small_batch_variant) (dtype=mlx.core.float32, count=2)
+A lazy failed pipeline cannot escape startup into the first request. ... FAIL
+  test_materializes_every_dtype_and_small_batch_variant (device_startup_test.TestMlxStartupWarmup.test_materializes_every_dtype_and_small_batch_variant) (dtype=mlx.core.bfloat16, count=1)
+A lazy failed pipeline cannot escape startup into the first request. ... FAIL
+  test_materializes_every_dtype_and_small_batch_variant (device_startup_test.TestMlxStartupWarmup.test_materializes_every_dtype_and_small_batch_variant) (dtype=mlx.core.bfloat16, count=2)
+A lazy failed pipeline cannot escape startup into the first request. ... FAIL
+
+======================================================================
+FAIL: test_materializes_every_dtype_and_small_batch_variant (device_startup_test.TestMlxStartupWarmup.test_materializes_every_dtype_and_small_batch_variant) (dtype=mlx.core.float32, count=1)
+A lazy failed pipeline cannot escape startup into the first request.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rustyli/workspace/sglang/test/registered/unit/hardware_backend/mlx/test_mlx_startup_warmup.py", line 57, in test_materializes_every_dtype_and_small_batch_variant
+    with self.assertRaisesRegex(Exception, "sglang_deliberate_invalid_startup_shader"):
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Exception not raised
+
+======================================================================
+FAIL: test_materializes_every_dtype_and_small_batch_variant (device_startup_test.TestMlxStartupWarmup.test_materializes_every_dtype_and_small_batch_variant) (dtype=mlx.core.float32, count=2)
+A lazy failed pipeline cannot escape startup into the first request.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rustyli/workspace/sglang/test/registered/unit/hardware_backend/mlx/test_mlx_startup_warmup.py", line 57, in test_materializes_every_dtype_and_small_batch_variant
+    with self.assertRaisesRegex(Exception, "sglang_deliberate_invalid_startup_shader"):
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Exception not raised
+
+======================================================================
+FAIL: test_materializes_every_dtype_and_small_batch_variant (device_startup_test.TestMlxStartupWarmup.test_materializes_every_dtype_and_small_batch_variant) (dtype=mlx.core.bfloat16, count=1)
+A lazy failed pipeline cannot escape startup into the first request.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rustyli/workspace/sglang/test/registered/unit/hardware_backend/mlx/test_mlx_startup_warmup.py", line 57, in test_materializes_every_dtype_and_small_batch_variant
+    with self.assertRaisesRegex(Exception, "sglang_deliberate_invalid_startup_shader"):
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Exception not raised
+
+======================================================================
+FAIL: test_materializes_every_dtype_and_small_batch_variant (device_startup_test.TestMlxStartupWarmup.test_materializes_every_dtype_and_small_batch_variant) (dtype=mlx.core.bfloat16, count=2)
+A lazy failed pipeline cannot escape startup into the first request.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rustyli/workspace/sglang/test/registered/unit/hardware_backend/mlx/test_mlx_startup_warmup.py", line 57, in test_materializes_every_dtype_and_small_batch_variant
+    with self.assertRaisesRegex(Exception, "sglang_deliberate_invalid_startup_shader"):
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Exception not raised
+
+----------------------------------------------------------------------
+Ran 1 test in 0.007s
+
+FAILED (failures=4)

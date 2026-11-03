@@ -1,0 +1,70 @@
+gpudebug> {"notification":"Profile data loaded.","op":1,"elapsed_ms":1316,"success":true}
+gpudebug> Replayer ready.
+{
+  "Commands" : "4",
+  "Consistent state" : "yes",
+  "Encoders" : "2",
+  "Execution mode" : "overlapping",
+  "GPU" : "Apple M4 Pro",
+  "GPU time" : "1.06 ms",
+  "Overlap enabled" : "yes",
+  "Performance state" : "default",
+  "Profiler mode" : "full",
+  "Session" : "Apple M4 Pro [perf-state: medium, overlapping, 2026-11-03 13:38, 00006040-000A013A01EA801C]",
+  "Shader cores" : "20 sampled \/ 20 total"
+}
+gpudebug> {"children":[{"actions":"go, info","name":"comp0","values":[{"type":"string","value":"custom_kernel_sglang_nvfp4_two_rows_1__float_4_0_1_float_uint8_t_uint8_t_float_uint32_t_int32_tc_uint32_t_uint32_t_float"},{"type":"string","value":"@cps2 \"MTLComputePipelineState 3\""},{"type":"percentage","value":51.84643684350646},{"type":"string","value":"1"}]},{"actions":"go, info","name":"comp1","values":[{"type":"string","value":"custom_kernel_sglang_nvfp4_two_rows_0__float_4_0_1_float_uint8_t_uint8_t_float_uint32_t_int32_tc_uint32_t_uint32_t_float"},{"type":"string","value":"@cps1 \"MTLComputePipelineState 2\""},{"type":"percentage","value":48.100772613789871},{"type":"string","value":"1"}]},{"actions":"go, info","name":"comp2","values":[{"type":"string","value":"vs_Multiplyfloat32"},{"type":"string","value":"@cps0 \"MTLComputePipelineState 1\""},{"type":"percentage","value":0.052790542703663554},{"type":"string","value":"2"}]}],"totalCount":3}
+gpudebug performance/shaders> {"children":[{"actions":"go, info","name":"comp0","values":[{"type":"string","value":"custom_kernel_sglang_nvfp4_two_rows_1__float_4_0_1_float_uint8_t_uint8_t_float_uint32_t_int32_tc_uint32_t_uint32_t_float"},{"type":"string","value":"@cps2 \"MTLComputePipelineState 3\""},{"type":"percentage","value":51.84643684350646},{"type":"string","value":"1"}]},{"actions":"go, info","name":"comp1","values":[{"type":"string","value":"custom_kernel_sglang_nvfp4_two_rows_0__float_4_0_1_float_uint8_t_uint8_t_float_uint32_t_int32_tc_uint32_t_uint32_t_float"},{"type":"string","value":"@cps1 \"MTLComputePipelineState 2\""},{"type":"percentage","value":48.100772613789871},{"type":"string","value":"1"}]},{"actions":"go, info","name":"comp2","values":[{"type":"string","value":"vs_Multiplyfloat32"},{"type":"string","value":"@cps0 \"MTLComputePipelineState 1\""},{"type":"percentage","value":0.052790542703663554},{"type":"string","value":"2"}]}],"totalCount":3}
+gpudebug performance/shaders> {
+  "ALU" : "1289",
+  "Branch" : "25",
+  "Cost" : "51.85%",
+  "Device atomics" : "0",
+  "Device loads" : "34",
+  "Device stores" : "12",
+  "FP16" : "136",
+  "FP32" : "310",
+  "Instructions" : "1397",
+  "INT16" : "284",
+  "INT32" : "149",
+  "Invocations" : "1",
+  "SIMD groups" : "16404",
+  "Spilled bytes" : "0",
+  "Stage" : "compute",
+  "Temp registers" : "64",
+  "Texture reads" : "0",
+  "Texture writes" : "0",
+  "Threadgroup atomics" : "0",
+  "Threadgroup loads" : "0",
+  "Threadgroup memory (bytes)" : "0",
+  "Threadgroup stores" : "0",
+  "Uniform registers" : "40",
+  "Wait" : "0"
+}
+gpudebug performance/shaders> {
+  "ALU" : "1271",
+  "Branch" : "23",
+  "Cost" : "48.10%",
+  "Device atomics" : "0",
+  "Device loads" : "33",
+  "Device stores" : "12",
+  "FP16" : "136",
+  "FP32" : "310",
+  "Instructions" : "1363",
+  "INT16" : "280",
+  "INT32" : "145",
+  "Invocations" : "1",
+  "SIMD groups" : "16404",
+  "Spilled bytes" : "0",
+  "Stage" : "compute",
+  "Temp registers" : "64",
+  "Texture reads" : "0",
+  "Texture writes" : "0",
+  "Threadgroup atomics" : "0",
+  "Threadgroup loads" : "0",
+  "Threadgroup memory (bytes)" : "0",
+  "Threadgroup stores" : "0",
+  "Uniform registers" : "40",
+  "Wait" : "0"
+}
+gpudebug performance/shaders> 

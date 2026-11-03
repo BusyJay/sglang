@@ -1,0 +1,44 @@
+gpudebug> {"notification":"Profile data loaded.","op":1,"elapsed_ms":1359,"success":true}
+gpudebug> Replayer ready.
+{
+  "Commands" : "22",
+  "Consistent state" : "yes",
+  "Encoders" : "1",
+  "Execution mode" : "overlapping",
+  "GPU" : "Apple M4 Pro",
+  "GPU time" : "1.18 ms",
+  "Overlap enabled" : "yes",
+  "Performance state" : "default",
+  "Profiler mode" : "full",
+  "Session" : "Apple M4 Pro [perf-state: medium, overlapping, 2026-11-03 12:25, 00006040-000A013A01EA801C]",
+  "Shader cores" : "20 sampled \/ 20 total"
+}
+gpudebug> {"children":[{"actions":"go, info","name":"comp0","values":[{"type":"string","value":"custom_kernel_sglang_mlx_block_fp8_pair__float_2_4_uint8_t_float_uint8_t_float_uint8_t_float_uint32_tc_float_float"},{"type":"string","value":"@cps8 \"MTLComputePipelineState 9\""},{"type":"percentage","value":54.07045717281003},{"type":"string","value":"2"}]},{"actions":"go, info","name":"comp1","values":[{"type":"string","value":"custom_kernel_sglang_fp8_shared_rows__float_2_4096_2048_128_0_1_4_4_float_uint8_t_uint8_tc_float_uint8_t_float_float"},{"type":"string","value":"@cps5 \"MTLComputePipelineState 6\""},{"type":"percentage","value":44.702471646332995},{"type":"string","value":"2"}]},{"actions":"go, info","name":"comp2","values":[{"type":"string","value":"custom_kernel_sglang_mlx_fp8_dynamic_direct_float_uint32_tc_uint8_t_float"},{"type":"string","value":"@cps7 \"MTLComputePipelineState 8\""},{"type":"percentage","value":0.62349333281018293},{"type":"string","value":"4"}]},{"actions":"go, info","name":"comp3","values":[{"type":"string","value":"vv_Addfloat32"},{"type":"string","value":"@cps6 \"MTLComputePipelineState 7\""},{"type":"percentage","value":0.22796991756260454},{"type":"string","value":"2"}]},{"actions":"go, info","name":"comp4","values":[{"type":"string","value":"vv_Multiplyfloat32"},{"type":"string","value":"@cps4 \"MTLComputePipelineState 5\""},{"type":"percentage","value":0.11566884422018263},{"type":"string","value":"2"}]},{"actions":"go, info","name":"comp5","values":[{"type":"string","value":"vs_Minimumfloat32"},{"type":"string","value":"@cps0 \"MTLComputePipelineState 1\""},{"type":"percentage","value":0.1049970621991224},{"type":"string","value":"4"}]},{"actions":"go, info","name":"comp6","values":[{"type":"string","value":"vs_Maximumfloat32"},{"type":"string","value":"@cps2 \"MTLComputePipelineState 3\""},{"type":"percentage","value":0.093317248999723226},{"type":"string","value":"2"}]},{"actions":"go, info","name":"comp7","values":[{"type":"string","value":"Bf4ISigmoidACf4IBroadcastABDf4IBroadcastBAEf4OMultiplyCD_V_f4_11160318154034397263_contiguous"},{"type":"string","value":"@cps3 \"MTLComputePipelineState 4\""},{"type":"percentage","value":0.058336729678973465},{"type":"string","value":"2"}]},{"actions":"go, info","name":"comp8","values":[{"type":"string","value":"s_copyuint8uint8"},{"type":"string","value":"@cps1 \"MTLComputePipelineState 2\""},{"type":"percentage","value":0.0032880453861889401},{"type":"string","value":"2"}]}],"totalCount":9}
+gpudebug performance/shaders> {"children":[{"actions":"go, info","name":"comp0","values":[{"type":"string","value":"custom_kernel_sglang_mlx_block_fp8_pair__float_2_4_uint8_t_float_uint8_t_float_uint8_t_float_uint32_tc_float_float"},{"type":"string","value":"@cps8 \"MTLComputePipelineState 9\""},{"type":"percentage","value":54.07045717281003},{"type":"string","value":"2"}]},{"actions":"go, info","name":"comp1","values":[{"type":"string","value":"custom_kernel_sglang_fp8_shared_rows__float_2_4096_2048_128_0_1_4_4_float_uint8_t_uint8_tc_float_uint8_t_float_float"},{"type":"string","value":"@cps5 \"MTLComputePipelineState 6\""},{"type":"percentage","value":44.702471646332995},{"type":"string","value":"2"}]},{"actions":"go, info","name":"comp2","values":[{"type":"string","value":"custom_kernel_sglang_mlx_fp8_dynamic_direct_float_uint32_tc_uint8_t_float"},{"type":"string","value":"@cps7 \"MTLComputePipelineState 8\""},{"type":"percentage","value":0.62349333281018293},{"type":"string","value":"4"}]},{"actions":"go, info","name":"comp3","values":[{"type":"string","value":"vv_Addfloat32"},{"type":"string","value":"@cps6 \"MTLComputePipelineState 7\""},{"type":"percentage","value":0.22796991756260454},{"type":"string","value":"2"}]},{"actions":"go, info","name":"comp4","values":[{"type":"string","value":"vv_Multiplyfloat32"},{"type":"string","value":"@cps4 \"MTLComputePipelineState 5\""},{"type":"percentage","value":0.11566884422018263},{"type":"string","value":"2"}]},{"actions":"go, info","name":"comp5","values":[{"type":"string","value":"vs_Minimumfloat32"},{"type":"string","value":"@cps0 \"MTLComputePipelineState 1\""},{"type":"percentage","value":0.1049970621991224},{"type":"string","value":"4"}]},{"actions":"go, info","name":"comp6","values":[{"type":"string","value":"vs_Maximumfloat32"},{"type":"string","value":"@cps2 \"MTLComputePipelineState 3\""},{"type":"percentage","value":0.093317248999723226},{"type":"string","value":"2"}]},{"actions":"go, info","name":"comp7","values":[{"type":"string","value":"Bf4ISigmoidACf4IBroadcastABDf4IBroadcastBAEf4OMultiplyCD_V_f4_11160318154034397263_contiguous"},{"type":"string","value":"@cps3 \"MTLComputePipelineState 4\""},{"type":"percentage","value":0.058336729678973465},{"type":"string","value":"2"}]},{"actions":"go, info","name":"comp8","values":[{"type":"string","value":"s_copyuint8uint8"},{"type":"string","value":"@cps1 \"MTLComputePipelineState 2\""},{"type":"percentage","value":0.0032880453861889401},{"type":"string","value":"2"}]}],"totalCount":9}
+gpudebug performance/shaders> {
+  "ALU" : "591",
+  "Branch" : "26",
+  "Cost" : "54.07%",
+  "Device atomics" : "0",
+  "Device loads" : "26",
+  "Device stores" : "16",
+  "FP16" : "0",
+  "FP32" : "144",
+  "Instructions" : "692",
+  "INT16" : "79",
+  "INT32" : "145",
+  "Invocations" : "2",
+  "SIMD groups" : "2088",
+  "Spilled bytes" : "0",
+  "Stage" : "compute",
+  "Temp registers" : "46",
+  "Texture reads" : "0",
+  "Texture writes" : "0",
+  "Threadgroup atomics" : "0",
+  "Threadgroup loads" : "0",
+  "Threadgroup memory (bytes)" : "0",
+  "Threadgroup stores" : "0",
+  "Uniform registers" : "28",
+  "Wait" : "0"
+}
+gpudebug performance/shaders> 

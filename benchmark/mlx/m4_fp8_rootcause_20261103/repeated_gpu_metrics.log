@@ -1,0 +1,44 @@
+gpudebug> {"notification":"Profile data loaded.","op":1,"elapsed_ms":3222,"success":true}
+gpudebug> Replayer ready.
+{
+  "Commands" : "36",
+  "Consistent state" : "yes",
+  "Encoders" : "1",
+  "Execution mode" : "overlapping",
+  "GPU" : "Apple M4 Pro",
+  "GPU time" : "6.14 ms",
+  "Overlap enabled" : "yes",
+  "Performance state" : "default",
+  "Profiler mode" : "full",
+  "Session" : "Apple M4 Pro [perf-state: medium, overlapping, 2026-11-03 12:23, 00006040-000A013A01EA801C]",
+  "Shader cores" : "17 sampled \/ 20 total"
+}
+gpudebug> {"children":[{"actions":"go, info","name":"comp0","values":[{"type":"string","value":"custom_kernel_diagnostic_fp8_quant_fused__float_1_2048_4096_128_0_1_4_4_float_uint8_t_uint8_tc_float_uint8_tc_floatc_float"},{"type":"string","value":"@cps7 \"MTLComputePipelineState 8\""},{"type":"percentage","value":76.586341697858089},{"type":"string","value":"4"}]},{"actions":"go, info","name":"comp1","values":[{"type":"string","value":"custom_kernel_diagnostic_fp8_quant_fused__float_2_4096_2048_128_0_1_4_4_float_uint8_t_uint8_tc_float_uint8_tc_floatc_float"},{"type":"string","value":"@cps8 \"MTLComputePipelineState 9\""},{"type":"percentage","value":23.234394028137299},{"type":"string","value":"2"}]},{"actions":"go, info","name":"comp2","values":[{"type":"string","value":"vv_Addfloat32"},{"type":"string","value":"@cps6 \"MTLComputePipelineState 7\""},{"type":"percentage","value":0.075471904856290697},{"type":"string","value":"2"}]},{"actions":"go, info","name":"comp3","values":[{"type":"string","value":"vs_Minimumfloat32"},{"type":"string","value":"@cps1 \"MTLComputePipelineState 2\""},{"type":"percentage","value":0.034690954260264695},{"type":"string","value":"4"}]},{"actions":"go, info","name":"comp4","values":[{"type":"string","value":"vs_Maximumfloat32"},{"type":"string","value":"@cps3 \"MTLComputePipelineState 4\""},{"type":"percentage","value":0.033063031970509242},{"type":"string","value":"2"}]},{"actions":"go, info","name":"comp5","values":[{"type":"string","value":"vv_Multiplyfloat32"},{"type":"string","value":"@cps5 \"MTLComputePipelineState 6\""},{"type":"percentage","value":0.018344519249285967},{"type":"string","value":"2"}]},{"actions":"go, info","name":"comp6","values":[{"type":"string","value":"Bf4ISigmoidACf4IBroadcastABDf4IBroadcastBAEf4OMultiplyCD_V_f4_11160318154034397263_contiguous"},{"type":"string","value":"@cps4 \"MTLComputePipelineState 5\""},{"type":"percentage","value":0.012467388137175735},{"type":"string","value":"2"}]},{"actions":"go, info","name":"comp7","values":[{"type":"string","value":"s_copyuint8uint8"},{"type":"string","value":"@cps2 \"MTLComputePipelineState 3\""},{"type":"percentage","value":0.0029613558010948551},{"type":"string","value":"12"}]},{"actions":"go, info","name":"comp8","values":[{"type":"string","value":"s_copyfloat32float32"},{"type":"string","value":"@cps0 \"MTLComputePipelineState 1\""},{"type":"percentage","value":0.0022651197299039709},{"type":"string","value":"6"}]}],"totalCount":9}
+gpudebug performance/shaders> {"children":[{"actions":"go, info","name":"comp0","values":[{"type":"string","value":"custom_kernel_diagnostic_fp8_quant_fused__float_1_2048_4096_128_0_1_4_4_float_uint8_t_uint8_tc_float_uint8_tc_floatc_float"},{"type":"string","value":"@cps7 \"MTLComputePipelineState 8\""},{"type":"percentage","value":76.586341697858089},{"type":"string","value":"4"}]},{"actions":"go, info","name":"comp1","values":[{"type":"string","value":"custom_kernel_diagnostic_fp8_quant_fused__float_2_4096_2048_128_0_1_4_4_float_uint8_t_uint8_tc_float_uint8_tc_floatc_float"},{"type":"string","value":"@cps8 \"MTLComputePipelineState 9\""},{"type":"percentage","value":23.234394028137299},{"type":"string","value":"2"}]},{"actions":"go, info","name":"comp2","values":[{"type":"string","value":"vv_Addfloat32"},{"type":"string","value":"@cps6 \"MTLComputePipelineState 7\""},{"type":"percentage","value":0.075471904856290697},{"type":"string","value":"2"}]},{"actions":"go, info","name":"comp3","values":[{"type":"string","value":"vs_Minimumfloat32"},{"type":"string","value":"@cps1 \"MTLComputePipelineState 2\""},{"type":"percentage","value":0.034690954260264695},{"type":"string","value":"4"}]},{"actions":"go, info","name":"comp4","values":[{"type":"string","value":"vs_Maximumfloat32"},{"type":"string","value":"@cps3 \"MTLComputePipelineState 4\""},{"type":"percentage","value":0.033063031970509242},{"type":"string","value":"2"}]},{"actions":"go, info","name":"comp5","values":[{"type":"string","value":"vv_Multiplyfloat32"},{"type":"string","value":"@cps5 \"MTLComputePipelineState 6\""},{"type":"percentage","value":0.018344519249285967},{"type":"string","value":"2"}]},{"actions":"go, info","name":"comp6","values":[{"type":"string","value":"Bf4ISigmoidACf4IBroadcastABDf4IBroadcastBAEf4OMultiplyCD_V_f4_11160318154034397263_contiguous"},{"type":"string","value":"@cps4 \"MTLComputePipelineState 5\""},{"type":"percentage","value":0.012467388137175735},{"type":"string","value":"2"}]},{"actions":"go, info","name":"comp7","values":[{"type":"string","value":"s_copyuint8uint8"},{"type":"string","value":"@cps2 \"MTLComputePipelineState 3\""},{"type":"percentage","value":0.0029613558010948551},{"type":"string","value":"12"}]},{"actions":"go, info","name":"comp8","values":[{"type":"string","value":"s_copyfloat32float32"},{"type":"string","value":"@cps0 \"MTLComputePipelineState 1\""},{"type":"percentage","value":0.0022651197299039709},{"type":"string","value":"6"}]}],"totalCount":9}
+gpudebug performance/shaders> {
+  "ALU" : "507",
+  "Branch" : "3",
+  "Cost" : "76.59%",
+  "Device atomics" : "0",
+  "Device loads" : "6",
+  "Device stores" : "4",
+  "FP16" : "0",
+  "FP32" : "134",
+  "Instructions" : "538",
+  "INT16" : "19",
+  "INT32" : "169",
+  "Invocations" : "4",
+  "SIMD groups" : "9075",
+  "Spilled bytes" : "0",
+  "Stage" : "compute",
+  "Temp registers" : "42",
+  "Texture reads" : "0",
+  "Texture writes" : "0",
+  "Threadgroup atomics" : "0",
+  "Threadgroup loads" : "0",
+  "Threadgroup memory (bytes)" : "0",
+  "Threadgroup stores" : "0",
+  "Uniform registers" : "32",
+  "Wait" : "0"
+}
+gpudebug performance/shaders> 

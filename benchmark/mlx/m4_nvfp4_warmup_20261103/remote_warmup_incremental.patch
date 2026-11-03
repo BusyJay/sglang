@@ -1,0 +1,222 @@
+--- a/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py
++++ b/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py
+@@ -3524,6 +3524,19 @@
+             # the full checkpoint in one command buffer at runner startup.
+             mx.eval(layer.parameters())
+             _prepare_e_modules(layer)
++            if isinstance(layer.mlp, MoE):
++                switch = layer.mlp.switch_mlp
++                if (
++                    switch.gate_proj.weight.ndim == 3
++                    and switch.gate_proj.weight.dtype == mx.uint8
++                ):
++                    from sglang.srt.hardware_backend.mlx.warmup import (
++                        warmup_mlx_switch_glu,
++                    )
++
++                    warmup_mlx_switch_glu(
++                        switch, picks=self.args.num_experts_per_tok
++                    )
+         mx.eval(self.model.embed_tokens.parameters(), self.model.norm.parameters())
+         mx.eval(self.lm_head.parameters())
+         if self.mtp is not None:
+@@ -3537,6 +3550,29 @@
+             )
+             if token is not None:
+                 mx.eval(token)
++
++        self.warmup_for_inference()
++
++    def warmup_for_inference(
++
++        self, *, verification_counts=(), capture_layer_ids=(), token_only=False
++    ):
++        """Warm the loaded NVFP4 model's real graph owners before serving."""
++        if not any(
++            isinstance(layer.mlp, MoE)
++            and layer.mlp.switch_mlp.gate_proj.weight.dtype == mx.uint8
++            for layer in self.layers
++        ):
++            return False
++        from sglang.srt.hardware_backend.mlx.warmup import warmup_mlx_model
++
++        warmup_mlx_model(
++            self,
++            verification_counts=verification_counts,
++            capture_layer_ids=capture_layer_ids,
++            token_only=token_only,
++        )
++        return True
+ 
+     def configure_optimizations(self, profile):
+         """Select independent decode candidates before load-time preparation."""
+--- a/python/sglang/srt/hardware_backend/mlx/model_runner.py
++++ b/python/sglang/srt/hardware_backend/mlx/model_runner.py
+@@ -263,6 +263,7 @@
+             from sglang.srt.hardware_backend.mlx.mtp_serving import MlxMTPServing
+ 
+             self._mtp = MlxMTPServing(self.model, mtp_num_steps)
++        self._warmup_model_for_inference()
+         self._native_cache = getattr(self.model, "native_cache", False)
+         if self._native_cache:
+             layer_list = self.model.layers
+@@ -535,6 +536,27 @@
+             for cache in cache_list
+             for s in MlxModelRunner._cache_arrays(cache)
+         ]
++
++    def _warmup_model_for_inference(self):
++        warmup = getattr(self.model, "warmup_for_inference", None)
++        if callable(warmup):
++            steps = (
++                getattr(self._mtp, "num_drafts", 0)
++                if self._dflash_draft_path is not None
++                else max(self._mtp_num_steps, 8 if self._mtp_num_steps == -1 else 0)
++            )
++            start = time.perf_counter()
++            warmed = warmup(
++                verification_counts=tuple(sorted({2, min(steps + 1, 8)}))
++                if steps > 0 else (),
++                capture_layer_ids=getattr(self._mtp, "capture_layer_ids", ()),
++                token_only=not self._enable_sampling,
++            )
++            if warmed:
++                logger.info(
++                    "MLX startup graph warmup completed in %.2fs",
++                    time.perf_counter() - start,
++                )
+ 
+     def _load_model(self):
+         """Load model using mlx_lm. If ``self._quantization`` requests a preset
+--- /dev/null
++++ b/python/sglang/srt/hardware_backend/mlx/warmup.py
+@@ -0,0 +1,63 @@
++# SPDX-License-Identifier: Apache-2.0
++"""Startup evaluation of small routed FFNs without request or cache state."""
++
++import mlx.core as mx
++
++
++def warmup_mlx_switch_glu(block, *, picks, token_counts=(1, 2), dtypes=None):
++    """Evaluate the serving FFN callable before exposing the model to requests.
++
++    Use the loaded projection banks directly, with bounded synthetic activation
++    and routing arrays. The all-equal route also exercises expert-pair sharing.
++    No checkpoint copies, request caches or RNG state are created or modified.
++    This warms the eager FFN path and its Metal pipelines; callers using an
++    outer compiled graph must additionally evaluate that same graph at startup.
++    """
++    if dtypes is None:
++        dtypes = (mx.float32, mx.bfloat16)
++    if picks < 1 or not token_counts or any(c < 1 or c > 8 for c in token_counts):
++        raise ValueError("Expected positive picks and token counts in 1..8")
++    hidden_size = block.gate_proj.weight.shape[-1] * 2
++    for dtype in dtypes:
++        for count in token_counts:
++            # match the model's token layout; singleton routes are valid even
++            # when a compact test checkpoint contains fewer experts than picks.
++            x = mx.zeros((1, count, hidden_size), dtype)
++            indices = mx.zeros((1, count, picks), mx.uint32)
++            mx.eval(block(x, indices))
++
++
++def warmup_mlx_model(
++    model, *, verification_counts=(), capture_layer_ids=(), token_only=False
++):
++    """Evaluate real decode/verification graph owners with disposable caches.
++
++    These calls retain the model's normal compiled graph instances. Only private
++    startup caches advance; no request is registered and no prefix is published.
++    Later unseen cache layouts or request shapes can still require compilation.
++    """
++    if any(c < 2 or c > 8 for c in verification_counts):
++        raise ValueError("Expected verification counts in 2..8")
++    cache = model.make_cache()
++
++    def finish(value):
++        mx.eval(value, [state.state for state in cache])
++
++    finish(model.forward_last_logits(mx.zeros((1, 2), mx.int32), cache))
++    # Verification publishes its normal snapshots but they are private and
++    # discarded here. Counts are explicit serving shapes, not template values.
++    for count in verification_counts:
++        finish(
++            model.verify_mtp_rows(
++                mx.zeros((1, count), mx.int32),
++                cache,
++                token_only=token_only,
++                capture_layer_ids=capture_layer_ids,
++            )
++        )
++    # Decode last so bounded graph-owner caches retain the AR variant. Limiting
++    # verification warmup to configured depths avoids compiling every possible
++    # shape and evicting the very graphs that startup is intended to retain.
++    decode = model.forward_last_tokens if token_only else model.forward_last_logits
++    for _ in range(2):
++        finish(decode(mx.zeros((1, 1), mx.int32), cache))
+--- /dev/null
++++ b/test/registered/unit/hardware_backend/mlx/test_mlx_startup_warmup.py
+@@ -0,0 +1,63 @@
++# SPDX-License-Identifier: Apache-2.0
++"""Startup warmup must materialize lazy GPU work before returning readiness."""
++
++import importlib.util
++import unittest
++from types import SimpleNamespace
++
++from sglang.test.ci.ci_register import register_mlx_ci
++from sglang.test.test_utils import CustomTestCase
++
++register_mlx_ci(est_time=2, suite="stage-a-unit-test-mlx")
++
++
++@unittest.skipUnless(importlib.util.find_spec("mlx"), "requires MLX")
++class TestMlxStartupWarmup(CustomTestCase):
++    def test_materializes_every_dtype_and_small_batch_variant(self):
++        """A lazy failed pipeline cannot escape startup into the first request.
++
++        Metal's compile error is observed only when its output is evaluated.
++        Changing warmup to graph construction alone, or omitting BF16/pair
++        variants, would allow this real device failure to escape readiness.
++        """
++        import mlx.core as mx
++        import mlx.nn as nn
++
++        from sglang.srt.hardware_backend.mlx.warmup import warmup_mlx_switch_glu
++
++        for dtype, count in (
++            (mx.float32, 1), (mx.float32, 2),
++            (mx.bfloat16, 1), (mx.bfloat16, 2),
++        ):
++            with self.subTest(dtype=dtype, count=count):
++                bad = mx.fast.metal_kernel(
++                    name="sglang_warmup_failure_probe",
++                    input_names=["x"],
++                    output_names=["out"],
++                    source="sglang_deliberate_invalid_startup_shader;",
++                )
++
++                class StartupBlock(nn.Module):
++                    def __init__(self):
++                        super().__init__()
++                        self.gate_proj = SimpleNamespace(
++                            weight=mx.zeros((1, 8, 256), mx.uint8)
++                        )
++
++                    def __call__(self, x, indices):
++                        if x.dtype == dtype and x.shape[1] == count:
++                            return bad(
++                                inputs=[x], grid=(1, 1, 1), threadgroup=(1, 1, 1),
++                                output_shapes=[(1,)], output_dtypes=[mx.float32],
++                            )[0]
++                        return x
++
++                block = StartupBlock()
++                weight = block.gate_proj.weight
++                with self.assertRaisesRegex(Exception, "sglang_deliberate_invalid_startup_shader"):
++                    warmup_mlx_switch_glu(block, picks=8)
++                self.assertIs(block.gate_proj.weight, weight)
++
++
++if __name__ == "__main__":
++    unittest.main()

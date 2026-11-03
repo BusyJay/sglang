@@ -1,0 +1,155 @@
+{
+  "final_source_sha256": {
+    "python/sglang/kernels/ops/gemm/mlx_nvfp4_gather.py": "263f908c49e3be18c61d67fe8f46938d89f35d25b32b14657aa95897fa7825e7",
+    "python/sglang/kernels/ops/moe/mlx_expert_pairs.py": "56d9dd147c36c0765a53a6d087fc8790f5edf88ba9819a67a79626fe8c5a719a",
+    "test/registered/kernels/ops/gemm/test_mlx_nvfp4_gather.py": "750827383a7a3f239c49beb70f3eb45f813f118d104030fb1d9e65f7279e47b6"
+  },
+  "macro_runs": [
+    {
+      "file": "moe_macro_none_c4_fp32_4layers_production,production_inline.json",
+      "source_matches_final_production": false,
+      "args": {
+        "count": 4,
+        "layers": 4,
+        "steps": 300,
+        "pattern": "none",
+        "dtype": "fp32",
+        "modes": "production,production_inline"
+      },
+      "median_ms": {
+        "native": 7.5842881250234,
+        "production": 8.002466805046424,
+        "production_inline": 8.268447501662498
+      },
+      "peak_bytes": 2415920896,
+      "swap_after": "vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)\n"
+    },
+    {
+      "file": "moe_macro_real_c1_fp32_4layers_scoped,inline.json",
+      "source_matches_final_production": false,
+      "args": {
+        "count": 1,
+        "layers": 4,
+        "steps": 300,
+        "pattern": "real",
+        "dtype": "fp32",
+        "modes": "scoped,inline"
+      },
+      "median_ms": {
+        "native": 2.2080977782995133,
+        "scoped": 2.1991255550528876,
+        "inline": 2.2253342365729623
+      },
+      "peak_bytes": 603980320,
+      "swap_after": "vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)\n"
+    },
+    {
+      "file": "moe_macro_real_c4_bf16_4layers_production,production_inline.json",
+      "source_matches_final_production": false,
+      "args": {
+        "count": 4,
+        "layers": 4,
+        "steps": 300,
+        "pattern": "real",
+        "dtype": "bf16",
+        "modes": "production,production_inline"
+      },
+      "median_ms": {
+        "native": 7.825353889978335,
+        "production": 5.610770973338125,
+        "production_inline": 5.496372500007661
+      },
+      "peak_bytes": 1283458096,
+      "swap_after": "vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)\n"
+    },
+    {
+      "file": "moe_macro_real_c4_bf16_4layers_production.json",
+      "source_matches_final_production": true,
+      "args": {
+        "count": 4,
+        "layers": 4,
+        "steps": 300,
+        "pattern": "real",
+        "dtype": "bf16",
+        "modes": "production"
+      },
+      "median_ms": {
+        "native": 7.512841876693225,
+        "production": 5.390906111667087
+      },
+      "peak_bytes": 1283458096,
+      "swap_after": "vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)\n"
+    },
+    {
+      "file": "moe_macro_real_c4_fp32_4layers_pair,list.json",
+      "source_matches_final_production": false,
+      "args": {
+        "count": 4,
+        "layers": 4,
+        "steps": 300,
+        "pattern": "real",
+        "dtype": "fp32",
+        "modes": "pair,list"
+      },
+      "median_ms": {
+        "native": 7.597233958270712,
+        "pair": 5.736649791748883,
+        "list": 9.012786736614848
+      },
+      "peak_bytes": 1283458096,
+      "swap_after": "vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)\n"
+    },
+    {
+      "file": "moe_macro_real_c4_fp32_4layers_production,production_inline.json",
+      "source_matches_final_production": true,
+      "args": {
+        "count": 4,
+        "layers": 4,
+        "steps": 300,
+        "pattern": "real",
+        "dtype": "fp32",
+        "modes": "production,production_inline"
+      },
+      "median_ms": {
+        "native": 7.448205484931047,
+        "production": 5.411710208378887,
+        "production_inline": 5.581842778386393
+      },
+      "peak_bytes": 1283458096,
+      "swap_after": "vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)\n"
+    },
+    {
+      "file": "moe_macro_real_c4_fp32_4layers_scoped,inline.json",
+      "source_matches_final_production": false,
+      "args": {
+        "count": 4,
+        "layers": 4,
+        "steps": 300,
+        "pattern": "real",
+        "dtype": "fp32",
+        "modes": "scoped,inline"
+      },
+      "median_ms": {
+        "native": 7.886007361618492,
+        "scoped": 5.499775973439682,
+        "inline": 5.661774581628075
+      },
+      "peak_bytes": 1283458096,
+      "swap_after": "vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)\n"
+    }
+  ],
+  "actual_class_abba300_mean_ms": {
+    "1": {
+      "baseline": 0.634621661932518,
+      "patched": 0.6320937210693955
+    },
+    "4": {
+      "baseline": 2.055970830648827,
+      "patched": 1.4869812581067285
+    }
+  },
+  "platform": "macOS-27.2-arm64-arm-64bit-Mach-O",
+  "python": "3.14.9",
+  "swap": "vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)\n",
+  "decision": "Adopt default small-batch verification expert pairs in reviewable remote patch; native AR and large prefill retained. Worklist-only and eight-output singleton candidates rejected after mechanism diagnosis. No remote deployment/full-model throughput validation."
+}

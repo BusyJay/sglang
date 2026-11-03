@@ -1,0 +1,72 @@
+gpudebug> {"notification":"Profile data loaded.","op":1,"elapsed_ms":1195,"success":true}
+gpudebug> Replayer ready.
+{
+  "Commands" : "14",
+  "Consistent state" : "yes",
+  "Encoders" : "2",
+  "Execution mode" : "overlapping",
+  "GPU" : "Apple M4 Pro",
+  "GPU time" : "0.71 ms",
+  "Overlap enabled" : "yes",
+  "Performance state" : "default",
+  "Profiler mode" : "full",
+  "Session" : "Apple M4 Pro [perf-state: medium, overlapping, 2026-11-03 13:59, 00006040-000A013A01EA801C]",
+  "Shader cores" : "20 sampled \/ 20 total"
+}
+gpudebug> {"children":[{"actions":"go, info","name":"comp0","values":[{"type":"string","value":"nvfp4_gather_qmv_fast_float_gs_16_b_4_hgs"},{"type":"string","value":"@cps3 \"MTLComputePipelineState 4\""},{"type":"percentage","value":50.317056226269379},{"type":"string","value":"2"}]},{"actions":"go, info","name":"comp1","values":[{"type":"string","value":"custom_kernel_sglang_mlx_nvfp4_swiglu__float_1_0_1_float_uint8_t_uint8_t_float_uint8_t_uint8_t_float_uint32_t_int32_tc_floatc_float"},{"type":"string","value":"@cps7 \"MTLComputePipelineState 8\""},{"type":"percentage","value":48.814429430917315},{"type":"string","value":"1"}]},{"actions":"go, info","name":"comp2","values":[{"type":"string","value":"vv_Multiplyfloat32"},{"type":"string","value":"@cps6 \"MTLComputePipelineState 7\""},{"type":"percentage","value":0.22898374323105361},{"type":"string","value":"1"}]},{"actions":"go, info","name":"comp3","values":[{"type":"string","value":"vs_Maximumfloat32"},{"type":"string","value":"@cps4 \"MTLComputePipelineState 5\""},{"type":"percentage","value":0.21198060622925391},{"type":"string","value":"1"}]},{"actions":"go, info","name":"comp4","values":[{"type":"string","value":"vs_Multiplyfloat32"},{"type":"string","value":"@cps2 \"MTLComputePipelineState 3\""},{"type":"percentage","value":0.1824434709656472},{"type":"string","value":"4"}]},{"actions":"go, info","name":"comp5","values":[{"type":"string","value":"vs_Minimumfloat32"},{"type":"string","value":"@cps0 \"MTLComputePipelineState 1\""},{"type":"percentage","value":0.15304806756595277},{"type":"string","value":"2"}]},{"actions":"go, info","name":"comp6","values":[{"type":"string","value":"Bf4ISigmoidACf4IBroadcastABDf4IBroadcastBAEf4OMultiplyCD_V_f4_11160318154034397263_contiguous"},{"type":"string","value":"@cps5 \"MTLComputePipelineState 6\""},{"type":"percentage","value":0.073490483929309305},{"type":"string","value":"1"}]},{"actions":"go, info","name":"comp7","values":[{"type":"string","value":"arangeuint32"},{"type":"string","value":"@cps1 \"MTLComputePipelineState 2\""},{"type":"percentage","value":0.018567970892097205},{"type":"string","value":"2"}]}],"totalCount":8}
+gpudebug performance/shaders> {"children":[{"actions":"go, info","name":"comp0","values":[{"type":"string","value":"nvfp4_gather_qmv_fast_float_gs_16_b_4_hgs"},{"type":"string","value":"@cps3 \"MTLComputePipelineState 4\""},{"type":"percentage","value":50.317056226269379},{"type":"string","value":"2"}]},{"actions":"go, info","name":"comp1","values":[{"type":"string","value":"custom_kernel_sglang_mlx_nvfp4_swiglu__float_1_0_1_float_uint8_t_uint8_t_float_uint8_t_uint8_t_float_uint32_t_int32_tc_floatc_float"},{"type":"string","value":"@cps7 \"MTLComputePipelineState 8\""},{"type":"percentage","value":48.814429430917315},{"type":"string","value":"1"}]},{"actions":"go, info","name":"comp2","values":[{"type":"string","value":"vv_Multiplyfloat32"},{"type":"string","value":"@cps6 \"MTLComputePipelineState 7\""},{"type":"percentage","value":0.22898374323105361},{"type":"string","value":"1"}]},{"actions":"go, info","name":"comp3","values":[{"type":"string","value":"vs_Maximumfloat32"},{"type":"string","value":"@cps4 \"MTLComputePipelineState 5\""},{"type":"percentage","value":0.21198060622925391},{"type":"string","value":"1"}]},{"actions":"go, info","name":"comp4","values":[{"type":"string","value":"vs_Multiplyfloat32"},{"type":"string","value":"@cps2 \"MTLComputePipelineState 3\""},{"type":"percentage","value":0.1824434709656472},{"type":"string","value":"4"}]},{"actions":"go, info","name":"comp5","values":[{"type":"string","value":"vs_Minimumfloat32"},{"type":"string","value":"@cps0 \"MTLComputePipelineState 1\""},{"type":"percentage","value":0.15304806756595277},{"type":"string","value":"2"}]},{"actions":"go, info","name":"comp6","values":[{"type":"string","value":"Bf4ISigmoidACf4IBroadcastABDf4IBroadcastBAEf4OMultiplyCD_V_f4_11160318154034397263_contiguous"},{"type":"string","value":"@cps5 \"MTLComputePipelineState 6\""},{"type":"percentage","value":0.073490483929309305},{"type":"string","value":"1"}]},{"actions":"go, info","name":"comp7","values":[{"type":"string","value":"arangeuint32"},{"type":"string","value":"@cps1 \"MTLComputePipelineState 2\""},{"type":"percentage","value":0.018567970892097205},{"type":"string","value":"2"}]}],"totalCount":8}
+gpudebug performance/shaders> {
+  "ALU" : "653",
+  "Branch" : "12",
+  "Cost" : "50.32%",
+  "Device atomics" : "0",
+  "Device loads" : "23",
+  "Device stores" : "4",
+  "FP16" : "68",
+  "FP32" : "126",
+  "Instructions" : "739",
+  "INT16" : "160",
+  "INT32" : "94",
+  "Invocations" : "2",
+  "SIMD groups" : "8232",
+  "Spilled bytes" : "0",
+  "Stage" : "compute",
+  "Temp registers" : "62",
+  "Texture reads" : "0",
+  "Texture writes" : "0",
+  "Threadgroup atomics" : "0",
+  "Threadgroup loads" : "0",
+  "Threadgroup memory (bytes)" : "0",
+  "Threadgroup stores" : "0",
+  "Uniform registers" : "84",
+  "Wait" : "0"
+}
+gpudebug performance/shaders> {
+  "ALU" : "338",
+  "Branch" : "4",
+  "Cost" : "48.81%",
+  "Device atomics" : "0",
+  "Device loads" : "11",
+  "Device stores" : "1",
+  "FP16" : "34",
+  "FP32" : "88",
+  "Instructions" : "366",
+  "INT16" : "67",
+  "INT32" : "45",
+  "Invocations" : "1",
+  "SIMD groups" : "16404",
+  "Spilled bytes" : "0",
+  "Stage" : "compute",
+  "Temp registers" : "39",
+  "Texture reads" : "0",
+  "Texture writes" : "0",
+  "Threadgroup atomics" : "0",
+  "Threadgroup loads" : "0",
+  "Threadgroup memory (bytes)" : "0",
+  "Threadgroup stores" : "0",
+  "Uniform registers" : "56",
+  "Wait" : "0"
+}
+gpudebug performance/shaders> {"children":[{"actions":"go","name":"cb0","values":[{"type":"string","value":"1 encoder"},{"type":"string","value":"\"MTLCommandQueue 2\""}]},{"actions":"go","name":"cb1","values":[{"type":"string","value":"1 encoder"},{"type":"string","value":"\"MTLCommandQueue 2\""}]},{"actions":"go","name":"cb2","values":[{"type":"string","value":"0 encoders"},{"type":"string","value":"\"MTLCommandQueue 2\""}]},{"actions":"go","name":"cb3","values":[{"type":"string","value":"0 encoders"},{"type":"string","value":"\"MTLCommandQueue 2\""}]}],"totalCount":4}
+gpudebug commands> {"children":[{"actions":"go","name":"cb0","values":[{"type":"string","value":"1 encoder"},{"type":"string","value":"\"MTLCommandQueue 2\""}]},{"actions":"go","name":"cb1","values":[{"type":"string","value":"1 encoder"},{"type":"string","value":"\"MTLCommandQueue 2\""}]},{"actions":"go","name":"cb2","values":[{"type":"string","value":"0 encoders"},{"type":"string","value":"\"MTLCommandQueue 2\""}]},{"actions":"go","name":"cb3","values":[{"type":"string","value":"0 encoders"},{"type":"string","value":"\"MTLCommandQueue 2\""}]}],"totalCount":4}
+gpudebug commands> 

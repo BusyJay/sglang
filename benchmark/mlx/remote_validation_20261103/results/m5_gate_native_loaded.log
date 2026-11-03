@@ -1,0 +1,35 @@
+gpudebug> 1 profiling session:
+  [0] Apple M5 Ultra [perf-state: medium, serial, 2026-11-03 23:10, 00006050-0016181002C3C01C]
+gpudebug> {"notification":"Profile data loaded.","op":1,"elapsed_ms":673,"success":true}
+gpudebug> Replayer ready.
+No active operations.
+gpudebug> error: 'profile' not found in root
+gpudebug> {"children":[{"actions":"go, info","name":"comp0","values":[{"type":"string","value":"nvfp4_gather_qmv_fast_float_gs_16_b_4_hgs"},{"type":"string","value":"@cps3 \"MTLComputePipelineState 4\""},{"type":"percentage","value":99.314030722944693},{"type":"string","value":"1"}]},{"actions":"go, info","name":"comp1","values":[{"type":"string","value":"vs_Addfloat32"},{"type":"string","value":"@cps0 \"MTLComputePipelineState 1\""},{"type":"percentage","value":0.64630924601996032},{"type":"string","value":"1"}]},{"actions":"go, info","name":"comp2","values":[{"type":"string","value":"Cf4IBroadcastBDf4OMultiplyAC_VC_f4_1585159917456686769_contiguous"},{"type":"string","value":"@cps2 \"MTLComputePipelineState 3\""},{"type":"percentage","value":0.027403136967340015},{"type":"string","value":"1"}]},{"actions":"go, info","name":"comp3","values":[{"type":"string","value":"arangeuint32"},{"type":"string","value":"@cps1 \"MTLComputePipelineState 2\""},{"type":"percentage","value":0.01225689406801231},{"type":"string","value":"1"}]}],"totalCount":4}
+gpudebug performance/shaders> {"children":[{"actions":"go, info","name":"comp0","values":[{"type":"string","value":"nvfp4_gather_qmv_fast_float_gs_16_b_4_hgs"},{"type":"string","value":"@cps3 \"MTLComputePipelineState 4\""},{"type":"percentage","value":99.314030722944693},{"type":"string","value":"1"}]},{"actions":"go, info","name":"comp1","values":[{"type":"string","value":"vs_Addfloat32"},{"type":"string","value":"@cps0 \"MTLComputePipelineState 1\""},{"type":"percentage","value":0.64630924601996032},{"type":"string","value":"1"}]},{"actions":"go, info","name":"comp2","values":[{"type":"string","value":"Cf4IBroadcastBDf4OMultiplyAC_VC_f4_1585159917456686769_contiguous"},{"type":"string","value":"@cps2 \"MTLComputePipelineState 3\""},{"type":"percentage","value":0.027403136967340015},{"type":"string","value":"1"}]},{"actions":"go, info","name":"comp3","values":[{"type":"string","value":"arangeuint32"},{"type":"string","value":"@cps1 \"MTLComputePipelineState 2\""},{"type":"percentage","value":0.01225689406801231},{"type":"string","value":"1"}]}],"totalCount":4}
+gpudebug performance/shaders> {
+  "ALU" : "653",
+  "Branch" : "12",
+  "Cost" : "99.31%",
+  "Device atomics" : "0",
+  "Device loads" : "23",
+  "Device stores" : "4",
+  "FP16" : "68",
+  "FP32" : "126",
+  "Instructions" : "739",
+  "INT16" : "160",
+  "INT32" : "94",
+  "Invocations" : "1",
+  "SIMD groups" : "16464",
+  "Spilled bytes" : "0",
+  "Stage" : "compute",
+  "Temp registers" : "62",
+  "Texture reads" : "0",
+  "Texture writes" : "0",
+  "Threadgroup atomics" : "0",
+  "Threadgroup loads" : "0",
+  "Threadgroup memory (bytes)" : "0",
+  "Threadgroup stores" : "0",
+  "Uniform registers" : "84",
+  "Wait" : "0"
+}
+gpudebug performance/shaders> Session 35 terminated.

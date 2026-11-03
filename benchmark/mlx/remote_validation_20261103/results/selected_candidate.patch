@@ -1,0 +1,1269 @@
+--- a/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py
++++ b/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py
+@@ -300,7 +300,29 @@
+         from sglang.srt.hardware_backend.mlx.models.glm5_fp4 import FP8Linear
+ 
+         if isinstance(self.gate_proj, FP8Linear):
+-            gate, up = self.gate_proj(x), self.up_proj(x)
++            if (
++                self.gate_proj.block_size == self.up_proj.block_size == 128
++                and self.gate_proj.activation_mode == self.up_proj.activation_mode == "dynamic32"
++                and self.gate_proj.weight.shape == self.up_proj.weight.shape
++            ):
++                from sglang.kernels.ops.gemm.mlx_block_fp8 import mlx_block_fp8_pair
++                from sglang.kernels.ops.gemm.mlx_fp8_rows import mlx_fp8_dynamic_32
++
++                quantized = mlx_fp8_dynamic_32(x)
++                gate, up = mlx_block_fp8_pair(
++                    x,
++                    self.gate_proj.weight,
++                    self.gate_proj.scales,
++                    self.up_proj.weight,
++                    self.up_proj.scales,
++                    quantized,
++                )
++                if "bias" in self.gate_proj:
++                    gate = gate + self.gate_proj.bias
++                if "bias" in self.up_proj:
++                    up = up + self.up_proj.bias
++            else:
++                gate, up = self.gate_proj(x), self.up_proj(x)
+             return self.down_proj(clamped_swiglu(gate, up, self.limit))
+         restore_dtype = self.match_affine_dtype and _uses_fp16_affine_ffn(
+             x, (self.gate_proj, self.up_proj, self.down_proj)
+@@ -3481,6 +3503,19 @@
+             # the full checkpoint in one command buffer at runner startup.
+             mx.eval(layer.parameters())
+             _prepare_e_modules(layer)
++            if isinstance(layer.mlp, MoE):
++                switch = layer.mlp.switch_mlp
++                if (
++                    switch.gate_proj.weight.ndim == 3
++                    and switch.gate_proj.weight.dtype == mx.uint8
++                ):
++                    from sglang.srt.hardware_backend.mlx.warmup import (
++                        warmup_mlx_switch_glu,
++                    )
++
++                    warmup_mlx_switch_glu(
++                        switch, picks=self.args.num_experts_per_tok
++                    )
+         mx.eval(self.model.embed_tokens.parameters(), self.model.norm.parameters())
+         mx.eval(self.lm_head.parameters())
+         if self.mtp is not None:
+@@ -3495,6 +3530,29 @@
+             if token is not None:
+                 mx.eval(token)
+ 
++        self.warmup_for_inference()
++
++    def warmup_for_inference(
++
++        self, *, verification_counts=(), capture_layer_ids=(), token_only=False
++    ):
++        """Warm the loaded NVFP4 model's real graph owners before serving."""
++        if not any(
++            isinstance(layer.mlp, MoE)
++            and layer.mlp.switch_mlp.gate_proj.weight.dtype == mx.uint8
++            for layer in self.layers
++        ):
++            return False
++        from sglang.srt.hardware_backend.mlx.warmup import warmup_mlx_model
++
++        warmup_mlx_model(
++            self,
++            verification_counts=verification_counts,
++            capture_layer_ids=capture_layer_ids,
++            token_only=token_only,
++        )
++        return True
++
+     def configure_optimizations(self, profile):
+         """Select independent decode candidates before load-time preparation."""
+         if profile not in (
+--- a/python/sglang/srt/hardware_backend/mlx/model_runner.py
++++ b/python/sglang/srt/hardware_backend/mlx/model_runner.py
+@@ -263,6 +263,7 @@
+             from sglang.srt.hardware_backend.mlx.mtp_serving import MlxMTPServing
+ 
+             self._mtp = MlxMTPServing(self.model, mtp_num_steps)
++        self._warmup_model_for_inference()
+         self._native_cache = getattr(self.model, "native_cache", False)
+         if self._native_cache:
+             layer_list = self.model.layers
+@@ -535,6 +536,27 @@
+             for cache in cache_list
+             for s in MlxModelRunner._cache_arrays(cache)
+         ]
++
++    def _warmup_model_for_inference(self):
++        warmup = getattr(self.model, "warmup_for_inference", None)
++        if callable(warmup):
++            steps = (
++                getattr(self._mtp, "num_drafts", 0)
++                if self._dflash_draft_path is not None
++                else max(self._mtp_num_steps, 8 if self._mtp_num_steps == -1 else 0)
++            )
++            start = time.perf_counter()
++            warmed = warmup(
++                verification_counts=tuple(sorted({2, min(steps + 1, 8)}))
++                if steps > 0 else (),
++                capture_layer_ids=getattr(self._mtp, "capture_layer_ids", ()),
++                token_only=not self._enable_sampling,
++            )
++            if warmed:
++                logger.info(
++                    "MLX startup graph warmup completed in %.2fs",
++                    time.perf_counter() - start,
++                )
+ 
+     def _load_model(self):
+         """Load model using mlx_lm. If ``self._quantization`` requests a preset
+--- a/python/sglang/kernels/ops/gemm/mlx_block_fp8.py
++++ b/python/sglang/kernels/ops/gemm/mlx_block_fp8.py
+@@ -0,0 +1,146 @@
++# SPDX-License-Identifier: Apache-2.0
++"""Paired block-FP8 projections share input loads and preserve reductions."""
++
++from functools import cache
++
++import mlx.core as mx
++
++_DECODE = r"""
++inline float mlx_e4m3(uchar code) {
++    ushort magnitude = code & 127;
++    ushort sign_bit = ushort((code >> 7) & 1) << 15;
++    ushort bits = (magnitude << 7) | (((magnitude + 1) >> 7) << 14) | sign_bit;
++    half value = as_type<half>(bits);
++    return float(value * 256.0);
++}
++"""
++
++_SOURCE = r"""
++const uint K = dims[0], N = dims[1], COUNT = dims[2];
++uint lane = thread_index_in_simdgroup;
++uint row = (threadgroup_position_in_grid.x * 4 +
++    simdgroup_index_in_threadgroup) * RPS;
++uint start = threadgroup_position_in_grid.z * ROWS;
++if (row >= N) return;
++float g[ROWS][RPS] = {0}, u[ROWS][RPS] = {0};
++for (uint block = 0; block < K / 128; ++block) {
++    float gs[RPS], us[RPS];
++    for (uint r = 0; r < RPS; ++r) {
++        gs[r] = row + r < N ? gate_scales[((row+r)/128)*(K/128)+block] : 0;
++        us[r] = row + r < N ? up_scales[((row+r)/128)*(K/128)+block] : 0;
++    }
++    for (uint step = 0; step < 4; ++step) {
++        uint k = block * 128 + step * 32 + lane;
++        float inputs[ROWS];
++        for (uint t = 0; t < ROWS; ++t) {
++            inputs[t] = start + t < COUNT ?
++                mlx_e4m3(xq[(start+t)*K+k]) * xscale[(start+t)*(K/32)+k/32] : 0;
++        }
++        for (uint r = 0; r < RPS; ++r) {
++            if (row + r >= N) continue;
++            float gv = mlx_e4m3(gate_weight[size_t(row+r)*K+k]) * gs[r];
++            float uv = mlx_e4m3(up_weight[size_t(row+r)*K+k]) * us[r];
++            for (uint t = 0; t < ROWS; ++t) {
++                g[t][r] += inputs[t] * gv;
++                u[t][r] += inputs[t] * uv;
++            }
++        }
++    }
++}
++for (uint t = 0; t < ROWS; ++t) {
++    for (uint r = 0; r < RPS; ++r) {
++        for (ushort off = 16; off >= 1; off >>= 1) {
++            g[t][r] += simd_shuffle_down(g[t][r], off);
++            u[t][r] += simd_shuffle_down(u[t][r], off);
++        }
++        if (lane == 0 && start+t < COUNT && row+r < N) {
++            gate[(start+t)*N+row+r] = O(g[t][r]);
++            up[(start+t)*N+row+r] = O(u[t][r]);
++        }
++    }
++}
++"""
++
++
++@cache
++def _kernel():
++    return mx.fast.metal_kernel(
++        name="sglang_mlx_block_fp8_pair",
++        input_names=[
++            "gate_weight",
++            "gate_scales",
++            "up_weight",
++            "up_scales",
++            "xq",
++            "xscale",
++            "dims",
++        ],
++        output_names=["gate", "up"],
++        source=_SOURCE,
++        header=_DECODE,
++    )
++
++
++def mlx_block_fp8_pair(
++    x, gate_weight, gate_scales, up_weight, up_scales, quantized_input
++):
++    """Project the same quantized input through two /128 block-FP8 matrices.
++
++    ``x`` supplies the output shape/dtype. Its codes/scales are passed explicitly,
++    so callers can retain their activation quantization policy. Intermediate
++    gate/up values round separately to x.dtype, before any activation fusion.
++    """
++    return _pair(x, gate_weight, gate_scales, up_weight, up_scales, quantized_input)
++
++
++def _pair(x, gw, gs, uw, us, quantized, *, output_rows=2):
++    if x.ndim < 1 or x.dtype not in (mx.bfloat16, mx.float32):
++        raise ValueError("Expected BF16 or FP32 activation rows")
++    if (
++        gw.ndim != 2
++        or uw.shape != gw.shape
++        or gw.dtype != mx.uint8
++        or uw.dtype != mx.uint8
++    ):
++        raise ValueError("Expected equal uint8 gate/up matrices")
++    n, k = gw.shape
++    count = x.size // k if k else 0
++    if not n or not k or k % 128 or x.shape[-1] != k or not count:
++        raise ValueError("Expected nonempty matrices with input width divisible by128")
++    # Serialized ModelOpt scales retain singleton axes; the native
++    # projector consumes their row-major flattened /128 block layout.
++    scale_size = ((n + 127) // 128) * (k // 128)
++    if any(s.dtype != mx.float32 or s.size != scale_size for s in (gs, us)):
++        raise ValueError("Expected FP32 /128x128 block scales")
++    xq, xs = quantized
++    if (
++        xq.dtype != mx.uint8
++        or xq.shape != (count, k)
++        or xs.dtype != mx.float32
++        or xs.shape != (count, k // 32)
++    ):
++        raise ValueError("Expected explicit /32 input codes and scales")
++    if output_rows not in (1, 2, 4) or max(n * k, count * k, count * n) >= 2**32:
++        raise ValueError("Expected supported output tile and uint32 indexing")
++    rows = min(count, 4)
++    result = _kernel()(
++        inputs=[
++            gw,
++            gs.reshape(-1),
++            uw,
++            us.reshape(-1),
++            xq,
++            xs,
++            mx.array([k, n, count], mx.uint32),
++        ],
++        template=[("O", x.dtype), ("RPS", output_rows), ("ROWS", rows)],
++        grid=(
++            ((n + 4 * output_rows - 1) // (4 * output_rows)) * 128,
++            1,
++            (count + rows - 1) // rows,
++        ),
++        threadgroup=(128, 1, 1),
++        output_shapes=[(count, n), (count, n)],
++        output_dtypes=[x.dtype, x.dtype],
++    )
++    return tuple(v.reshape(*x.shape[:-1], n) for v in result)
+--- a/python/sglang/kernels/ops/gemm/mlx_nvfp4_gather.py
++++ b/python/sglang/kernels/ops/gemm/mlx_nvfp4_gather.py
+@@ -0,0 +1,243 @@
++# SPDX-License-Identifier: Apache-2.0
++"""Native-order NVFP4 gathered QMV with bounded two-vector weight reuse.
++
++M4 validation covers FP32/BF16, /16 scales, K divisible by 512 and N by 8.
++Global scales use MLX's encoded convention (checkpoint factor times 2688).
++No checkpoint conversion, activation quantization or mutable model state.
++"""
++
++from functools import cache
++
++import mlx.core as mx
++
++# qdot and fast-QMV arithmetic are derived from MLX 0.32.4 (Apple Inc., MIT).
++# Keep native half-intermediate FP4/E4M3 decoding and each block's rounding.
++_HEADER = r"""
++
++
++struct fp4_e2m1 {
++  operator float16_t() thread {
++    half converted = as_type<half>(ushort((bits & 7) << 9));
++    converted *= 16384.0;
++    return bits & 8 ? -converted : converted;
++  }
++
++  operator float() thread {
++    return static_cast<float>(this->operator float16_t());
++  }
++
++  operator bfloat16_t() thread {
++    return static_cast<bfloat16_t>(this->operator float16_t());
++  }
++
++  uint8_t bits;
++};
++
++
++struct fp8_e4m3 {
++  operator float16_t() thread {
++    uint16_t v = bits & 127;
++    uint16_t sign_bit = ((uint16_t)((bits >> 7) & 1)) << 15;
++    uint16_t u = (v << 7) | (((v + 1) >> 7) << 14) | sign_bit;
++    half converted = as_type<half>(u);
++    return converted * 256.0;
++  }
++
++  operator bfloat16_t() thread {
++    return static_cast<bfloat16_t>(this->operator float16_t());
++  }
++
++  operator float() thread {
++    return static_cast<float>(this->operator float16_t());
++  }
++
++  uint8_t bits;
++};
++
++"""
++
++_SOURCE = r"""
++uint pick=threadgroup_position_in_grid.z,nmatch=counts[pick];
++if(nmatch==0)return;
++uint expert=ids[pick],partner=partners[pick];
++const int K=dims[0],N=dims[1],PICKS=dims[2];
++uint lane=thread_index_in_simdgroup,sg=simdgroup_index_in_threadgroup;
++uint row=threadgroup_position_in_grid.y*(2*RPS)+sg*RPS;
++uint v0=EXPERT?pick:pick/PICKS,v1=EXPERT?partner:partner/PICKS;
++if(SINGLES&&nmatch==1){
++ float result[RPS]={0};
++ for(int k=0;k<K;k+=512){
++  float values[16];
++  #pragma unroll
++  for(int i=0;i<16;++i)values[i]=float(x[size_t(v0)*K+k+lane*16+i]);
++  #pragma unroll
++  for(int r=0;r<RPS;++r){
++   const auto* w=(const device ushort*)(weight+(size_t(expert)*N+row+r)*(K/2)+(k+lane*16)/2);
++   uchar s=scales[(size_t(expert)*N+row+r)*(K/16)+(k+lane*16)/16];
++   float scale=float(*(thread fp8_e4m3*)(&s)),accum=0;
++   #pragma unroll
++   for(int j=0;j<4;++j){
++    ushort packed=w[j];uchar c0=packed,c1=packed>>4,c2=packed>>8,c3=packed>>12;
++    accum+=(values[4*j]*float(*(thread fp4_e2m1*)(&c0))+
++            values[4*j+1]*float(*(thread fp4_e2m1*)(&c1))+
++            values[4*j+2]*float(*(thread fp4_e2m1*)(&c2))+
++            values[4*j+3]*float(*(thread fp4_e2m1*)(&c3)));
++   }
++   {
++#pragma clang fp contract(off)
++    result[r]+=scale*accum;
++   }
++  }
++ }
++ float global=global_scale[expert]/2688.0f;
++ #pragma unroll
++ for(int r=0;r<RPS;++r){
++  float value=simd_sum(result[r]);
++  if(lane==0)out[size_t(pick)*N+row+r]=O(value*global);
++ }
++ return;
++}
++float a[RPS]={0},b[RPS]={0};
++for(int k=0;k<K;k+=512){
++ float x0[16],x1[16];
++ #pragma unroll
++ for(int i=0;i<16;++i){
++  x0[i]=float(x[size_t(v0)*K+k+lane*16+i]);
++  x1[i]=float(x[size_t(v1)*K+k+lane*16+i]);
++ }
++ #pragma unroll
++ for(int r=0;r<RPS;++r){
++  if(row+r>=N)continue;
++  const device ushort* w=(const device ushort*)(weight+(size_t(expert)*N+row+r)*(K/2)+(k+lane*16)/2);
++  uchar s=scales[(size_t(expert)*N+row+r)*(K/16)+(k+lane*16)/16];
++  float scale=float(*(thread fp8_e4m3*)(&s)),d0=0,d1=0;
++  #pragma unroll
++  for(int j=0;j<4;++j){
++   ushort packed=w[j];uchar c0=packed,c1=packed>>4,c2=packed>>8,c3=packed>>12;
++   float w0=float(*(thread fp4_e2m1*)(&c0)),w1=float(*(thread fp4_e2m1*)(&c1));
++   float w2=float(*(thread fp4_e2m1*)(&c2)),w3=float(*(thread fp4_e2m1*)(&c3));
++   d0+=(x0[4*j]*w0+x0[4*j+1]*w1+x0[4*j+2]*w2+x0[4*j+3]*w3);
++   d1+=(x1[4*j]*w0+x1[4*j+1]*w1+x1[4*j+2]*w2+x1[4*j+3]*w3);
++  }
++  {
++#pragma clang fp contract(off)
++a[r]+=scale*d0;b[r]+=scale*d1;
++}
++ }
++}
++float global=global_scale[expert]/2688.0f;
++#pragma unroll
++for(int r=0;r<RPS;++r){
++ float y0=simd_sum(a[r]),y1=simd_sum(b[r]);
++ if(lane==0&&row+r<N){
++  out[size_t(pick)*N+row+r]=O(y0*global);
++  if(nmatch==2)out[size_t(partner)*N+row+r]=O(y1*global);
++ }
++}
++"""
++
++_INLINE = r"""
++uint pick=threadgroup_position_in_grid.z,expert=ids[pick],prior=0,partner=pick;
++for(uint i=0;i<pick;++i)prior+=ids[i]==expert;
++if(prior&1)return;
++for(uint i=pick+1;i<dims[3];++i)if(ids[i]==expert){partner=i;break;}
++uint nmatch=partner==pick?1:2;
++"""
++
++
++@cache
++def _kernel(inline):
++    source = _SOURCE
++    if inline:
++        source = source.replace(
++            "uint pick=threadgroup_position_in_grid.z,nmatch=counts[pick];\n"
++            "if(nmatch==0)return;\n"
++            "uint expert=ids[pick],partner=partners[pick];",
++            _INLINE,
++        )
++    return mx.fast.metal_kernel(
++        name="sglang_nvfp4_two_rows_" + str(int(inline)),
++        input_names=[
++            "x",
++            "weight",
++            "scales",
++            "global_scale",
++            "ids",
++            "dims",
++            "partners",
++            "counts",
++        ],
++        output_names=["out"],
++        source=source,
++        header=_HEADER,
++        compile_options={"math_mode": "safe"},
++    )
++
++
++def mlx_nvfp4_gather_rows(x, weight, scales, global_scale, indices, *, worklist=None):
++    """Gather native NVFP4 matrices, sharing each weight read across two picks.
++
++    ``indices`` is uint32 with final dimension top-k. Every index must be in
++    [0, num_experts). x holds either one vector per token, broadcast across
++    top-k, or one vector per pick. Results retain indices.shape+(1,N).
++    A supplied worklist must come from mlx_expert_pair_worklist for these same
++    indices. It can be shared across gate/up/down; it is not cached globally.
++    Without one, pairing occurs in this dispatch, with no CPU synchronization.
++    This specialized QMV contract covers K%512==0 and N%8==0, as native fast
++    gather-QMV does. It does not define a changed reduction for other widths.
++    """
++    if weight.ndim != 3 or weight.dtype != mx.uint8:
++        raise ValueError("Expected packed uint8 [experts,N,K/2] weights")
++    e, n, pk = weight.shape
++    k = pk * 2
++    if not e or not n or not k or k % 512 or n % 8:
++        raise ValueError("Expected nonempty fast-QMV widths K%512==0, N%8==0")
++    if scales.dtype != mx.uint8 or scales.shape != (e, n, k // 16):
++        raise ValueError("Expected uint8 E4M3 scales for each 16 weights")
++    if global_scale.dtype != mx.float32 or global_scale.size != e:
++        raise ValueError("Expected encoded FP32 scale per expert")
++    if (
++        indices.dtype != mx.uint32
++        or indices.ndim < 1
++        or not indices.size
++        or not indices.shape[-1]
++    ):
++        raise ValueError("Expected nonempty uint32 expert picks")
++    count, picks = indices.size, indices.shape[-1]
++    if (
++        x.ndim < 1
++        or x.dtype not in (mx.float32, mx.bfloat16)
++        or x.shape[-1] != k
++        or x.size // k not in (count, count // picks)
++    ):
++        raise ValueError("Expected FP32/BF16 token or per-pick vectors")
++    if max(count * k, count * n) >= 2**32 or count >= 2**31:
++        raise ValueError("Expected uint32 vector and int32 count indexing")
++    if worklist is None:
++        partners, counts = indices, indices
++    else:
++        partners, counts = worklist
++        if any(v.dtype != mx.uint32 or v.shape != (count,) for v in worklist):
++            raise ValueError("Expected explicit partner/count arrays for every pick")
++    return _kernel(worklist is None)(
++        inputs=[
++            x.reshape(-1, k),
++            weight,
++            scales,
++            global_scale.reshape(-1),
++            indices.reshape(-1),
++            mx.array([k, n, picks, count], mx.int32),
++            partners,
++            counts,
++        ],
++        template=[
++            ("O", x.dtype),
++            ("RPS", 4),
++            ("EXPERT", x.size // k == count),
++            ("SINGLES", True),
++        ],
++        grid=(32, 2 * ((n + 7) // 8), count),
++        threadgroup=(32, 2, 1),
++        output_shapes=[(count, n)],
++        output_dtypes=[x.dtype],
++    )[0].reshape(*indices.shape, 1, n)
+--- a/python/sglang/kernels/ops/gemm/mlx_nvfp4_swiglu.py
++++ b/python/sglang/kernels/ops/gemm/mlx_nvfp4_swiglu.py
+@@ -0,0 +1,174 @@
++# SPDX-License-Identifier: Apache-2.0
++"""Native NVFP4 gate/up projection with a rounded SwiGLU epilogue.
++
++Shares activation loads across two independent packed expert matrices. No
++weight concatenation or extra activation quantization. Gate/up round to the
++input dtype before clamping, native sigmoid and the two activation products.
++"""
++
++from functools import cache
++
++import mlx.core as mx
++
++from .mlx_nvfp4_gather import _HEADER
++
++_SOURCE = r"""
++uint lane=thread_index_in_simdgroup,sg=simdgroup_index_in_threadgroup;
++const int K=dims[0],N=dims[1],PICKS=dims[2];
++uint pick=threadgroup_position_in_grid.z;
++uint expert=ids[pick],token=EXPERT?pick:pick/PICKS;
++uint row=threadgroup_position_in_grid.y*(2*RPS)+sg*RPS;
++const device T* xv=x+size_t(token)*K;
++float rg[RPS]={0},ru[RPS]={0};
++for(int k=0;k<K;k+=512){
++ float values[16];
++ #pragma unroll
++ for(int i=0;i<16;++i)values[i]=float(xv[k+lane*16+i]);
++ #pragma unroll
++ for(int r=0;r<RPS;++r){
++  if(row+r>=N)continue;
++  size_t wi=(size_t(expert)*N+row+r)*(K/2)+(k+lane*16)/2;
++  size_t si=(size_t(expert)*N+row+r)*(K/16)+(k+lane*16)/16;
++  const device ushort* wgp=(const device ushort*)(wg+wi);
++  const device ushort* wup=(const device ushort*)(wu+wi);
++  float ag=0,au=0;
++  #pragma unroll
++  for(int i=0;i<4;++i){
++   ushort g=wgp[i],u=wup[i];
++   uchar g0=g,g1=g>>4,g2=g>>8,g3=g>>12;
++   uchar u0=u,u1=u>>4,u2=u>>8,u3=u>>12;
++   ag+=(values[4*i]*float(*(thread fp4_e2m1*)(&g0))+values[4*i+1]*float(*(thread fp4_e2m1*)(&g1))+values[4*i+2]*float(*(thread fp4_e2m1*)(&g2))+values[4*i+3]*float(*(thread fp4_e2m1*)(&g3)));
++   au+=(values[4*i]*float(*(thread fp4_e2m1*)(&u0))+values[4*i+1]*float(*(thread fp4_e2m1*)(&u1))+values[4*i+2]*float(*(thread fp4_e2m1*)(&u2))+values[4*i+3]*float(*(thread fp4_e2m1*)(&u3)));
++  }
++  uchar gs=sgate[si],us=sup[si];
++  {
++#pragma clang fp contract(off)
++  rg[r]+=float(*(thread fp8_e4m3*)(&gs))*ag;
++  ru[r]+=float(*(thread fp8_e4m3*)(&us))*au;
++  }
++ }
++}
++float gg=global_gate[expert]/2688.0f,gu=global_up[expert]/2688.0f;
++#pragma unroll
++for(int r=0;r<RPS;++r){
++ float g=simd_sum(rg[r]),u=simd_sum(ru[r]);
++ if(lane==0&&row+r<N){
++T gate=T(g*gg),up=T(u*gu);
++if(CLAMP){
++ float bound=float(T(limit[0]));
++ gate=T(metal::min(float(gate),bound));
++ up=T(metal::clamp(float(up),-bound,bound));
++}
++// Native Sigmoid's BF16 intermediate overloads are deliberate.
++auto fraction=1/(1+metal::precise::exp(metal::abs(gate)));
++T sigmoid=T(gate<T(0)?fraction:1-fraction);
++T activated=T(gate*sigmoid);
++out[size_t(pick)*N+row+r]=T(activated*up);
++}
++}
++"""
++
++
++@cache
++def _kernel():
++    return mx.fast.metal_kernel(
++        name="sglang_mlx_nvfp4_swiglu",
++        input_names=[
++            "x",
++            "wg",
++            "sgate",
++            "global_gate",
++            "wu",
++            "sup",
++            "global_up",
++            "ids",
++            "dims",
++            "limit",
++        ],
++        output_names=["out"],
++        source=_SOURCE,
++        header=_HEADER,
++        compile_options={"math_mode": "safe"},
++    )
++
++
++def mlx_nvfp4_swiglu(
++    x,
++    gate_weight,
++    gate_scales,
++    gate_global_scale,
++    up_weight,
++    up_scales,
++    up_global_scale,
++    indices,
++    *,
++    limit=None,
++):
++    """Project gathered native NVFP4 gate/up matrices and apply clamped SwiGLU.
++
++    Packed weights are uint8 [experts,N,K/2], scales are /16 uint8 E4M3, and
++    global factors use the MLX encoded convention (checkpoint factor *2688).
++    K must be divisible by 512 and N by 8 for the native-order fast-QMV contract.
++    x contains one vector per token or per pick; output is indices.shape+(1,N).
++    indices must be uint32 and in range. No CPU synchronization is introduced.
++    Gate/up outputs round separately to x.dtype, including BF16 sigmoid and
++    intermediate products. The default model integration uses this for AR;
++    multi-token expert weight sharing remains a separate mechanism.
++    """
++    if (
++        gate_weight.ndim != 3
++        or gate_weight.dtype != mx.uint8
++        or up_weight.dtype != mx.uint8
++        or up_weight.shape != gate_weight.shape
++    ):
++        raise ValueError("Expected equal packed uint8 [experts,N,K/2] banks")
++    experts, n, packed_k = gate_weight.shape
++    k = packed_k * 2
++    if not experts or not n or not k or k % 512 or n % 8:
++        raise ValueError("Expected nonempty fast-QMV widths K%512==0, N%8==0")
++    if any(
++        s.dtype != mx.uint8 or s.shape != (experts, n, k // 16)
++        for s in (gate_scales, up_scales)
++    ):
++        raise ValueError("Expected /16 uint8 E4M3 scales")
++    if any(
++        s.dtype != mx.float32 or s.size != experts
++        for s in (gate_global_scale, up_global_scale)
++    ):
++        raise ValueError("Expected encoded FP32 global scale per expert")
++    if indices.dtype != mx.uint32 or indices.ndim < 1 or not indices.size:
++        raise ValueError("Expected nonempty uint32 expert picks")
++    count, picks = indices.size, indices.shape[-1]
++    if (
++        x.ndim < 1
++        or x.dtype not in (mx.float32, mx.bfloat16)
++        or x.shape[-1] != k
++        or x.size // k not in (count, count // picks)
++    ):
++        raise ValueError("Expected FP32/BF16 token or per-pick activation vectors")
++    if max(count * k, count * n) >= 2**32 or count >= 2**31:
++        raise ValueError("Expected uint32 vector and int32 count indexing")
++    return _kernel()(
++        inputs=[
++            x.reshape(-1, k),
++            gate_weight,
++            gate_scales,
++            gate_global_scale.reshape(-1),
++            up_weight,
++            up_scales,
++            up_global_scale.reshape(-1),
++            indices.reshape(-1),
++            mx.array([k, n, picks], mx.int32),
++            mx.array([limit or 0], mx.float32),
++        ],
++        template=[
++            ("T", x.dtype),
++            ("RPS", 1),
++            ("EXPERT", x.size // k == count),
++            ("CLAMP", limit is not None),
++        ],
++        grid=(32, n, count),
++        threadgroup=(32, 2, 1),
++        output_shapes=[(count, n)],
++        output_dtypes=[x.dtype],
++    )[0].reshape(*indices.shape, 1, n)
+--- a/python/sglang/kernels/ops/quantization/mlx_fp8_dynamic.py
++++ b/python/sglang/kernels/ops/quantization/mlx_fp8_dynamic.py
+@@ -0,0 +1,72 @@
++# SPDX-License-Identifier: Apache-2.0
++"""Dynamic /32 E4M3 encoding with power-of-two scales and ties to even."""
++
++from functools import cache
++
++import mlx.core as mx
++
++_ENCODE = r"""
++inline uchar mlx_encode_e4m3(float input, float scale) {
++    float v = min(abs(input / scale), 448.0f);
++    uint code;
++    if (v < 0.015625f) {
++        code = uint(rint(v * 512.0f));
++    } else {
++        uint bits = as_type<uint>(v);
++        int exponent = int((bits >> 23) & 255) - 127;
++        uint mantissa = bits & 0x7fffff;
++        code = uint((exponent + 7) * 8) + (mantissa >> 20);
++        uint tail = mantissa & 0xfffff;
++        code += uint(tail > 0x80000 || (tail == 0x80000 && (code & 1)));
++        code = min(code, 126u);
++    }
++    return uchar(code | (signbit(input) ? 128 : 0));
++}
++"""
++
++_SOURCE = r"""
++const uint K = dims[0];
++uint lane = thread_index_in_simdgroup;
++uint row = threadgroup_position_in_grid.x;
++uint block = threadgroup_position_in_grid.y;
++uint i = row * K + block * 32 + lane;
++float value = float(x[i]);
++float maximum = simd_max(abs(value));
++float scale = maximum > 0.0f ? exp2(ceil(log2(maximum / 448.0f))) : 1.0f;
++if (lane == 0) scales[row * (K / 32) + block] = scale;
++out[i] = mlx_encode_e4m3(value, scale);
++"""
++
++
++@cache
++def _kernel():
++    return mx.fast.metal_kernel(
++        name="sglang_mlx_fp8_dynamic_direct",
++        input_names=["x", "dims"],
++        output_names=["out", "scales"],
++        source=_SOURCE,
++        header=_ENCODE,
++    )
++
++
++def mlx_fp8_dynamic_32(x):
++    """Encode finite BF16/F32 rows, retaining signed zero and E4M3 rounding.
++
++    Dimensions are runtime parameters; changing row counts does not specialize
++    the shader. Returns uint8 codes and FP32 power-of-two scales.
++    """
++    if x.ndim < 1 or x.dtype not in (mx.bfloat16, mx.float32):
++        raise ValueError("Expected BF16 or FP32 rows")
++    k = x.shape[-1]
++    count = x.size // k if k else 0
++    if not k or k % 32 or not count or x.size >= 2**32:
++        raise ValueError("Expected nonempty /32 rows fitting uint32 indexing")
++    return tuple(
++        _kernel()(
++            inputs=[x.reshape(count, k), mx.array([k], mx.uint32)],
++            grid=(count * 32, k // 32, 1),
++            threadgroup=(32, 1, 1),
++            output_shapes=[(count, k), (count, k // 32)],
++            output_dtypes=[mx.uint8, mx.float32],
++        )
++    )
+--- a/python/sglang/kernels/ops/moe/mlx_expert_pairs.py
++++ b/python/sglang/kernels/ops/moe/mlx_expert_pairs.py
+@@ -0,0 +1,47 @@
++# SPDX-License-Identifier: Apache-2.0
++"""GPU expert pairing reused explicitly across NVFP4 projections."""
++
++from functools import cache
++
++import mlx.core as mx
++
++_SOURCE = r"""
++uint pick=thread_position_in_grid.x,count=dims[0];
++if(pick>=count)return;
++uint expert=ids[pick],prior=0,next=pick;
++for(uint i=0;i<pick;++i)prior+=ids[i]==expert;
++if(prior&1){counts[pick]=0;partners[pick]=pick;return;}
++for(uint i=pick+1;i<count;++i)if(ids[i]==expert){next=i;break;}
++partners[pick]=next;counts[pick]=next==pick?1:2;
++"""
++
++
++@cache
++def _kernel():
++    return mx.fast.metal_kernel(
++        name="sglang_mlx_expert_pairs",
++        input_names=["ids", "dims"],
++        output_names=["partners", "counts"],
++        source=_SOURCE,
++    )
++
++
++def mlx_expert_pair_worklist(indices):
++    """Partition repeated expert picks into pairs, preserving output order.
++
++    Each pair is written by its first pick. Odd occurrences retain a singleton.
++    Supports repeated experts within one token and across tokens, including
++    three or more occurrences; outputs are uint32 arrays of indices.size.
++    Caller owns this per-forward result and passes it explicitly to projections.
++    """
++    if indices.dtype != mx.uint32 or not indices.size:
++        raise ValueError("Expected nonempty uint32 expert indices")
++    return tuple(
++        _kernel()(
++            inputs=[indices.reshape(-1), mx.array([indices.size], mx.uint32)],
++            grid=(indices.size, 1, 1),
++            threadgroup=(32, 1, 1),
++            output_shapes=[(indices.size,), (indices.size,)],
++            output_dtypes=[mx.uint32, mx.uint32],
++        )
++    )
+--- a/python/sglang/srt/hardware_backend/mlx/warmup.py
++++ b/python/sglang/srt/hardware_backend/mlx/warmup.py
+@@ -0,0 +1,63 @@
++# SPDX-License-Identifier: Apache-2.0
++"""Startup evaluation of small routed FFNs without request or cache state."""
++
++import mlx.core as mx
++
++
++def warmup_mlx_switch_glu(block, *, picks, token_counts=(1, 2), dtypes=None):
++    """Evaluate the serving FFN callable before exposing the model to requests.
++
++    Use the loaded projection banks directly, with bounded synthetic activation
++    and routing arrays. The all-equal route also exercises expert-pair sharing.
++    No checkpoint copies, request caches or RNG state are created or modified.
++    This warms the eager FFN path and its Metal pipelines; callers using an
++    outer compiled graph must additionally evaluate that same graph at startup.
++    """
++    if dtypes is None:
++        dtypes = (mx.float32, mx.bfloat16)
++    if picks < 1 or not token_counts or any(c < 1 or c > 8 for c in token_counts):
++        raise ValueError("Expected positive picks and token counts in 1..8")
++    hidden_size = block.gate_proj.weight.shape[-1] * 2
++    for dtype in dtypes:
++        for count in token_counts:
++            # match the model's token layout; singleton routes are valid even
++            # when a compact test checkpoint contains fewer experts than picks.
++            x = mx.zeros((1, count, hidden_size), dtype)
++            indices = mx.zeros((1, count, picks), mx.uint32)
++            mx.eval(block(x, indices))
++
++
++def warmup_mlx_model(
++    model, *, verification_counts=(), capture_layer_ids=(), token_only=False
++):
++    """Evaluate real decode/verification graph owners with disposable caches.
++
++    These calls retain the model's normal compiled graph instances. Only private
++    startup caches advance; no request is registered and no prefix is published.
++    Later unseen cache layouts or request shapes can still require compilation.
++    """
++    if any(c < 2 or c > 8 for c in verification_counts):
++        raise ValueError("Expected verification counts in 2..8")
++    cache = model.make_cache()
++
++    def finish(value):
++        mx.eval(value, [state.state for state in cache])
++
++    finish(model.forward_last_logits(mx.zeros((1, 2), mx.int32), cache))
++    # Verification publishes its normal snapshots but they are private and
++    # discarded here. Counts are explicit serving shapes, not template values.
++    for count in verification_counts:
++        finish(
++            model.verify_mtp_rows(
++                mx.zeros((1, count), mx.int32),
++                cache,
++                token_only=token_only,
++                capture_layer_ids=capture_layer_ids,
++            )
++        )
++    # Decode last so bounded graph-owner caches retain the AR variant. Limiting
++    # verification warmup to configured depths avoids compiling every possible
++    # shape and evicting the very graphs that startup is intended to retain.
++    decode = model.forward_last_tokens if token_only else model.forward_last_logits
++    for _ in range(2):
++        finish(decode(mx.zeros((1, 1), mx.int32), cache))
+--- a/test/registered/kernels/ops/gemm/test_mlx_block_fp8.py
++++ b/test/registered/kernels/ops/gemm/test_mlx_block_fp8.py
+@@ -0,0 +1,138 @@
++# SPDX-License-Identifier: Apache-2.0
++"""Paired FP8 projections retain codebook, scale and row-boundary semantics."""
++
++import importlib.util
++import unittest
++
++from sglang.test.ci.ci_register import register_mlx_ci
++from sglang.test.test_utils import CustomTestCase
++
++register_mlx_ci(est_time=5, suite="stage-a-unit-test-mlx")
++
++
++@unittest.skipUnless(importlib.util.find_spec("mlx"), "requires MLX")
++class TestMlxBlockFp8(CustomTestCase):
++    def test_encoding_midpoints_scales_and_signed_zero(self):
++        """Codebook ties must round to even, including the subnormal boundary."""
++        import mlx.core as mx
++        import numpy as np
++        from sglang.kernels.ops.quantization.mlx_fp8_dynamic import mlx_fp8_dynamic_32
++
++        book = np.array(
++            [
++                m * 2**-9 if e == 0 else (1 + m / 8) * 2 ** (e - 7)
++                for e in range(16)
++                for m in range(8)
++                if e * 8 + m < 127
++            ],
++            np.float32,
++        )
++        mid = (book[:-1] + book[1:]) / 2
++        values = np.concatenate(
++            (
++                book,
++                mid,
++                np.nextafter(mid, -np.inf),
++                np.nextafter(mid, np.inf),
++                [0.0, -0.0, 448.0, 1000.0],
++            )
++        ).astype(np.float32)
++        values = np.concatenate((values, -values))
++        blocks = np.zeros((len(values), 32), np.float32)
++        blocks[:, 0], blocks[:, 1] = values, 448
++        for dtype in (mx.float32, mx.bfloat16):
++            x = mx.array(blocks).astype(dtype)
++            actual = np.array(x.astype(mx.float32))
++            maximum = np.abs(actual).max(1)
++            scales = np.exp2(np.ceil(np.log2(maximum / 448))).astype(np.float32)
++            distance = np.abs(
++                np.minimum(np.abs(actual[:, 0]) / scales, 448)[:, None] - book
++            )
++            expected = []
++            for row in distance:
++                candidates = np.flatnonzero(row == row.min())
++                code = next((i for i in candidates if i % 2 == 0), candidates[0])
++                expected.append(code)
++            expected = np.array(expected, np.uint8)
++            expected |= np.where(np.signbit(actual[:, 0]), 128, 0).astype(np.uint8)
++            codes, actual_scales = mlx_fp8_dynamic_32(x)
++            self.assertTrue(np.array_equal(np.array(codes)[:, 0], expected))
++            self.assertTrue(np.array_equal(np.array(actual_scales).ravel(), scales))
++
++    def test_pair_block_scales_tails_and_singleton_reduction(self):
++        """A partial output block or row tile cannot alias the other matrix."""
++        import mlx.core as mx
++        from sglang.kernels.ops.gemm.mlx_block_fp8 import mlx_block_fp8_pair
++        from sglang.kernels.ops.quantization.mlx_fp8_dynamic import mlx_fp8_dynamic_32
++
++        mx.random.seed(20261103)
++        # Independent scalar FP32 reduction with the native 32-lane tree.
++        header = r"""
++inline float decode(uchar code) {
++    uint mag = uint(code) & 127, e = mag >> 3, m = mag & 7;
++    float v = e == 0 ? float(m) / 512.0f :
++        as_type<float>(((e+120)<<23)|(m<<20));
++    return code & 128 ? -v : v;
++}
++"""
++        kernel = mx.fast.metal_kernel(
++            name="test_block_fp8_single_matrix",
++            input_names=["w", "s", "q", "qs", "dims"],
++            output_names=["out"],
++            header=header,
++            source=r"""
++uint lane=thread_index_in_simdgroup, n=threadgroup_position_in_grid.x;
++uint t=threadgroup_position_in_grid.y,K=dims[0],N=dims[1];
++float acc=0;
++for(uint b=0;b<K/128;++b)for(uint step=0;step<4;++step){
++ uint k=b*128+step*32+lane;
++ float xv=decode(q[t*K+k])*qs[t*(K/32)+k/32];
++ float wv=decode(w[n*K+k])*s[(n/128)*(K/128)+b];
++ acc+=xv*wv;
++}
++for(ushort off=16;off>=1;off>>=1)acc+=simd_shuffle_down(acc,off);
++if(lane==0)out[t*N+n]=T(acc);
++""",
++        )
++        for dtype in (mx.float32, mx.bfloat16):
++            for count in (1, 3, 4, 5, 8, 17):
++                n, k = 259, 256
++                x = mx.random.normal((count, k)).astype(dtype)
++                gw = mx.random.randint(0, 126, (n, k), dtype=mx.uint8)
++                uw = mx.random.randint(128, 254, (n, k), dtype=mx.uint8)
++                gs = mx.random.uniform(0.001, 0.02, (3, 2))
++                us = mx.random.uniform(0.002, 0.03, (3, 2))
++                # Real ModelOpt checkpoint scales include singleton axes.
++                gs = gs.reshape(3, 1, 2, 1)
++                us = us.reshape(3, 1, 2, 1)
++                q = mlx_fp8_dynamic_32(x)
++                expected = [
++                    kernel(
++                        inputs=[w, s.reshape(-1), *q, mx.array([k, n], mx.uint32)],
++                        template=[("T", dtype)],
++                        grid=(n * 32, count, 1),
++                        threadgroup=(32, 1, 1),
++                        output_shapes=[(count, n)],
++                        output_dtypes=[dtype],
++                    )[0]
++                    for w, s in ((gw, gs), (uw, us))
++                ]
++                actual = mlx_block_fp8_pair(x, gw, gs, uw, us, q)
++                for a, b in zip(expected, actual):
++                    self.assertTrue(mx.array_equal(a, b).item())
++
++        # Cover all signed finite codes and independently varying block scales.
++        # A NaN code must propagate through its projection, not the other bank.
++        x = mx.ones((1, 256), mx.float32)
++        weight = mx.broadcast_to(mx.arange(256, dtype=mx.uint8), (259, 256))
++        scales = mx.ones((3, 2), mx.float32)
++        quant = mlx_fp8_dynamic_32(x)
++        gate, up = mlx_block_fp8_pair(
++            x, weight, scales, mx.zeros_like(weight), scales, quant
++        )
++        self.assertTrue(mx.all(mx.isnan(gate)).item())
++        self.assertTrue(mx.all(up == 0).item())
++
++
++if __name__ == "__main__":
++    unittest.main()
+--- a/test/registered/kernels/ops/gemm/test_mlx_nvfp4_gather.py
++++ b/test/registered/kernels/ops/gemm/test_mlx_nvfp4_gather.py
+@@ -0,0 +1,169 @@
++# SPDX-License-Identifier: Apache-2.0
++"""NVFP4 expert sharing must preserve native rounding and pick ordering."""
++
++import importlib.util
++import unittest
++
++from sglang.test.ci.ci_register import register_mlx_ci
++from sglang.test.test_utils import CustomTestCase
++
++register_mlx_ci(est_time=5, suite="stage-a-unit-test-mlx")
++
++
++@unittest.skipUnless(importlib.util.find_spec("mlx"), "requires MLX")
++class TestMlxNvfp4Gather(CustomTestCase):
++    def test_swiglu_native_dtype_boundaries(self):
++        """Projection fusion must retain BF16 sigmoid and product rounding.
++
++        FP32-promoting sigmoid intermediates caused the actual fused candidate
++        to diverge. Distinct banks, per-pick vectors and nonexact clamp limits
++        also guard accidental gate/up aliasing and scalar dtype promotion.
++        """
++        import mlx.core as mx
++        import numpy as np
++        from mlx import nn
++        from sglang.kernels.ops.gemm.mlx_nvfp4_swiglu import mlx_nvfp4_swiglu
++
++        rng = np.random.default_rng(11814)
++        for k in (512, 1024, 4096):
++            experts, n = 3, 24
++            ids = mx.array([[0, 1, 2], [2, 0, 1]], mx.uint32)
++            banks = []
++            for _ in range(2):
++                weight = mx.array(
++                    rng.integers(0, 256, (experts, n, k // 2), dtype=np.uint8)
++                )
++                scales = mx.array(
++                    rng.integers(30, 62, (experts, n, k // 16), dtype=np.uint8)
++                )
++                global_scale = mx.array([0.2, 2.731, 4.117], mx.float32)
++                banks.append((weight, scales, global_scale))
++            for dtype in (mx.float32, mx.bfloat16):
++                for per_pick in (False, True):
++                    x = mx.array(
++                        rng.normal(size=(2, 3 if per_pick else 1, 1, k)).astype(
++                            np.float32
++                        )
++                    ).astype(dtype)
++                    gate, up = [
++                        mx.gather_qmm(
++                            x,
++                            weight.view(mx.uint32),
++                            scales,
++                            rhs_indices=ids,
++                            mode="nvfp4",
++                            group_size=16,
++                            bits=4,
++                            global_scale=scale,
++                        )
++                        for weight, scales, scale in banks
++                    ]
++                    for limit in (None, 7.0, 0.337):
++                        expected = nn.silu(
++                            gate if limit is None else mx.minimum(gate, limit)
++                        ) * (up if limit is None else mx.clip(up, -limit, limit))
++                        actual = mlx_nvfp4_swiglu(
++                            x, *banks[0], *banks[1], ids, limit=limit
++                        )
++                        mx.eval(actual, expected)
++                        self.assertTrue(
++                            mx.array_equal(actual, expected).item(),
++                            (k, dtype, per_pick, limit),
++                        )
++
++    def test_shared_experts_native_rounding_and_per_pick_inputs(self):
++        """Contracting scale multiplication changes multi-block native results.
++
++        Covers odd/even repeated picks, within-token duplicates, stale worklist
++        reuse and global factors, including noncontiguous token activations.
++        """
++        import mlx.core as mx
++        import numpy as np
++        from sglang.kernels.ops.gemm.mlx_nvfp4_gather import mlx_nvfp4_gather_rows
++        from sglang.kernels.ops.moe.mlx_expert_pairs import mlx_expert_pair_worklist
++
++        rng = np.random.default_rng(9011)
++        for count, k in ((1, 512), (4, 1024), (8, 4096)):
++            e, n, picks = 5, 24, 3
++            weight = mx.array(rng.integers(0, 256, (e, n, k // 2), dtype=np.uint8))
++            # Include subnormal scale codes and the largest finite E4M3 value.
++            scales = mx.array(
++                rng.choice(
++                    np.array([0, 1, 7, 8, 40, 56, 126], np.uint8), size=(e, n, k // 16)
++                )
++            )
++            global_scale = mx.array([0.0, 1.0, 2.688, 3.731, 0.331], mx.float32)
++            for shift in (0, 1):
++                ids = mx.array(
++                    [[(i + shift) % e, 1, 1] for i in range(count)], mx.uint32
++                )
++                work = mlx_expert_pair_worklist(ids)
++                partners, sizes = [np.array(v) for v in work]
++                flat = np.array(ids).ravel()
++                covered = []
++                for pick, size in enumerate(sizes):
++                    if not size:
++                        continue
++                    covered.append(pick)
++                    if size == 2:
++                        covered.append(int(partners[pick]))
++                        self.assertEqual(flat[pick], flat[partners[pick]])
++                self.assertEqual(sorted(covered), list(range(ids.size)))
++                for per_pick in (False, True):
++                    shape = (count, picks if per_pick else 1, 1, k * 2)
++                    original = mx.array(rng.normal(size=shape).astype(np.float32))
++                    for dtype in (mx.float32, mx.bfloat16):
++                        x = original[..., ::2].astype(dtype)
++                        expected = mx.gather_qmm(
++                            x,
++                            weight.view(mx.uint32),
++                            scales,
++                            rhs_indices=ids,
++                            mode="nvfp4",
++                            group_size=16,
++                            bits=4,
++                            global_scale=global_scale,
++                        )
++                        for explicit in (None, work):
++                            actual = mlx_nvfp4_gather_rows(
++                                x,
++                                weight,
++                                scales,
++                                global_scale,
++                                ids,
++                                worklist=explicit,
++                            )
++                            mx.eval(actual, expected)
++                            self.assertTrue(
++                                mx.array_equal(actual, expected).item(),
++                                (count, k, shift, per_pick, dtype, explicit is None),
++                            )
++
++    def test_fp4_codes_and_finite_e4m3_scale_values(self):
++        """Sharing cannot alter nibble sign, subnormal decode or global scaling."""
++        import mlx.core as mx
++        import numpy as np
++        from sglang.kernels.ops.gemm.mlx_nvfp4_gather import mlx_nvfp4_gather_rows
++
++        codes = np.arange(16, dtype=np.uint8)
++        fp4 = np.array([0, 0.5, 1, 1.5, 2, 3, 4, 6], np.float32)
++        fp4 = np.concatenate((fp4, -fp4))
++        weight = np.zeros((1, 16, 256), np.uint8)
++        weight[0, :, 0] = codes
++        for scale_code, scale in ((1, 2**-9), (8, 2**-6), (56, 1), (126, 448)):
++            scales = mx.full((1, 16, 32), scale_code, mx.uint8)
++            x = np.zeros((3, 1, 1, 512), np.float32)
++            x[:, 0, 0, 0] = [1, 2, -4]
++            y = mlx_nvfp4_gather_rows(
++                mx.array(x),
++                mx.array(weight),
++                scales,
++                mx.array([2688.0]),
++                mx.zeros((3, 1), mx.uint32),
++            )
++            expected = x[:, 0, 0, 0, None] * fp4[None] * scale
++            self.assertTrue(np.array_equal(np.array(y).reshape(3, 16), expected))
++
++
++if __name__ == "__main__":
++    unittest.main()
+--- a/test/registered/unit/hardware_backend/mlx/test_mlx_startup_warmup.py
++++ b/test/registered/unit/hardware_backend/mlx/test_mlx_startup_warmup.py
+@@ -0,0 +1,69 @@
++# SPDX-License-Identifier: Apache-2.0
++"""Startup warmup must materialize lazy GPU work before returning readiness."""
++
++import importlib.util
++import unittest
++from types import SimpleNamespace
++
++from sglang.test.ci.ci_register import register_mlx_ci
++from sglang.test.test_utils import CustomTestCase
++
++register_mlx_ci(est_time=2, suite="stage-a-unit-test-mlx")
++
++
++@unittest.skipUnless(importlib.util.find_spec("mlx"), "requires MLX")
++class TestMlxStartupWarmup(CustomTestCase):
++    def test_materializes_every_dtype_and_small_batch_variant(self):
++        """A lazy failed pipeline cannot escape startup into the first request.
++
++        Metal's compile error is observed only when its output is evaluated.
++        Changing warmup to graph construction alone, or omitting BF16/pair
++        variants, would allow this real device failure to escape readiness.
++        """
++        import mlx.core as mx
++        from mlx import nn
++        from sglang.srt.hardware_backend.mlx.warmup import warmup_mlx_switch_glu
++
++        for dtype, count in (
++            (mx.float32, 1),
++            (mx.float32, 2),
++            (mx.bfloat16, 1),
++            (mx.bfloat16, 2),
++        ):
++            with self.subTest(dtype=dtype, count=count):
++                bad = mx.fast.metal_kernel(
++                    name="sglang_warmup_failure_probe",
++                    input_names=["x"],
++                    output_names=["out"],
++                    source="sglang_deliberate_invalid_startup_shader;",
++                )
++
++                class StartupBlock(nn.Module):
++                    def __init__(self):
++                        super().__init__()
++                        self.gate_proj = SimpleNamespace(
++                            weight=mx.zeros((1, 8, 256), mx.uint8)
++                        )
++
++                    def __call__(self, x, indices, dtype=dtype, count=count, bad=bad):
++                        if x.dtype == dtype and x.shape[1] == count:
++                            return bad(
++                                inputs=[x],
++                                grid=(1, 1, 1),
++                                threadgroup=(1, 1, 1),
++                                output_shapes=[(1,)],
++                                output_dtypes=[mx.float32],
++                            )[0]
++                        return x
++
++                block = StartupBlock()
++                weight = block.gate_proj.weight
++                with self.assertRaisesRegex(
++                    Exception, "sglang_deliberate_invalid_startup_shader"
++                ):
++                    warmup_mlx_switch_glu(block, picks=8)
++                self.assertIs(block.gate_proj.weight, weight)
++
++
++if __name__ == "__main__":
++    unittest.main()

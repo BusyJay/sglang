@@ -1,0 +1,100 @@
+gpudebug> 1 profiling session:
+  [0] Apple M5 Ultra [perf-state: medium, serial, 2026-11-03 23:36, 00006050-0016181002C3C01C]
+gpudebug> {"notification":"Profile data loaded.","op":1,"elapsed_ms":4935,"success":true}
+gpudebug> Replayer ready.
+No active operations.
+gpudebug> {"children":[{"actions":"go, info","name":"timeline","values":[{"type":"string","value":""}]},{"actions":"go","name":"encoders","values":[{"type":"string","value":"2 encoders, sorted by cost"}]},{"actions":"go","name":"commands","values":[{"type":"string","value":"7 commands, sorted by cost"}]},{"actions":"go","name":"shaders","values":[{"type":"string","value":"5 shaders, sorted by cost"}]}],"totalCount":4}
+gpudebug performance> {
+  "Commands" : "7",
+  "Consistent state" : "yes",
+  "Encoders" : "2",
+  "Execution mode" : "serial",
+  "GPU" : "Apple M5 Ultra",
+  "GPU time" : "0.54 ms",
+  "Overlap enabled" : "yes",
+  "Performance state" : "medium",
+  "Profiler mode" : "full",
+  "Session" : "Apple M5 Ultra [perf-state: medium, serial, 2026-11-03 23:36, 00006050-0016181002C3C01C]",
+  "Shader cores" : "80 sampled \/ 80 total"
+}
+gpudebug performance> {"children":[{"actions":"go, info","name":"comp0","values":[{"type":"string","value":"custom_kernel_sglang_mlx_nvfp4_swiglu__float_1_0_1_float_uint8_t_uint8_t_float_uint8_t_uint8_t_float_uint32_t_int32_tc_floatc_float"},{"type":"string","value":"@cps4 \"MTLComputePipelineState 5\""},{"type":"percentage","value":64.232412457390609},{"type":"string","value":"1"}]},{"actions":"go, info","name":"comp1","values":[{"type":"string","value":"nvfp4_gather_qmv_fast_float_gs_16_b_4_hgs"},{"type":"string","value":"@cps2 \"MTLComputePipelineState 3\""},{"type":"percentage","value":35.434724938091691},{"type":"string","value":"1"}]},{"actions":"go, info","name":"comp2","values":[{"type":"string","value":"vs_Addfloat32"},{"type":"string","value":"@cps3 \"MTLComputePipelineState 4\""},{"type":"percentage","value":0.19852165695403201},{"type":"string","value":"1"}]},{"actions":"go, info","name":"comp3","values":[{"type":"string","value":"Cf4IBroadcastBDf4OMultiplyAC_VC_f4_1585159917456686769_contiguous"},{"type":"string","value":"@cps1 \"MTLComputePipelineState 2\""},{"type":"percentage","value":0.13271754179685277},{"type":"string","value":"3"}]},{"actions":"go, info","name":"comp4","values":[{"type":"string","value":"arangeuint32"},{"type":"string","value":"@cps0 \"MTLComputePipelineState 1\""},{"type":"percentage","value":0.0016234057668251616},{"type":"string","value":"1"}]}],"totalCount":5}
+gpudebug performance/shaders> {"children":[{"actions":"go, info","name":"comp0","values":[{"type":"string","value":"custom_kernel_sglang_mlx_nvfp4_swiglu__float_1_0_1_float_uint8_t_uint8_t_float_uint8_t_uint8_t_float_uint32_t_int32_tc_floatc_float"},{"type":"string","value":"@cps4 \"MTLComputePipelineState 5\""},{"type":"percentage","value":64.232412457390609},{"type":"string","value":"1"}]},{"actions":"go, info","name":"comp1","values":[{"type":"string","value":"nvfp4_gather_qmv_fast_float_gs_16_b_4_hgs"},{"type":"string","value":"@cps2 \"MTLComputePipelineState 3\""},{"type":"percentage","value":35.434724938091691},{"type":"string","value":"1"}]},{"actions":"go, info","name":"comp2","values":[{"type":"string","value":"vs_Addfloat32"},{"type":"string","value":"@cps3 \"MTLComputePipelineState 4\""},{"type":"percentage","value":0.19852165695403201},{"type":"string","value":"1"}]},{"actions":"go, info","name":"comp3","values":[{"type":"string","value":"Cf4IBroadcastBDf4OMultiplyAC_VC_f4_1585159917456686769_contiguous"},{"type":"string","value":"@cps1 \"MTLComputePipelineState 2\""},{"type":"percentage","value":0.13271754179685277},{"type":"string","value":"3"}]},{"actions":"go, info","name":"comp4","values":[{"type":"string","value":"arangeuint32"},{"type":"string","value":"@cps0 \"MTLComputePipelineState 1\""},{"type":"percentage","value":0.0016234057668251616},{"type":"string","value":"1"}]}],"totalCount":5}
+gpudebug performance/shaders> {
+  "ALU" : "338",
+  "Branch" : "4",
+  "Cost" : "64.23%",
+  "Device atomics" : "0",
+  "Device loads" : "11",
+  "Device stores" : "1",
+  "FP16" : "34",
+  "FP32" : "88",
+  "Instructions" : "366",
+  "INT16" : "67",
+  "INT32" : "45",
+  "Invocations" : "1",
+  "SIMD groups" : "65616",
+  "Spilled bytes" : "0",
+  "Stage" : "compute",
+  "Temp registers" : "39",
+  "Texture reads" : "0",
+  "Texture writes" : "0",
+  "Threadgroup atomics" : "0",
+  "Threadgroup loads" : "0",
+  "Threadgroup memory (bytes)" : "0",
+  "Threadgroup stores" : "0",
+  "Uniform registers" : "56",
+  "Wait" : "0"
+}
+gpudebug performance/shaders> {
+  "ALU" : "653",
+  "Branch" : "12",
+  "Cost" : "35.43%",
+  "Device atomics" : "0",
+  "Device loads" : "23",
+  "Device stores" : "4",
+  "FP16" : "68",
+  "FP32" : "126",
+  "Instructions" : "739",
+  "INT16" : "160",
+  "INT32" : "94",
+  "Invocations" : "1",
+  "SIMD groups" : "32848",
+  "Spilled bytes" : "0",
+  "Stage" : "compute",
+  "Temp registers" : "62",
+  "Texture reads" : "0",
+  "Texture writes" : "0",
+  "Threadgroup atomics" : "0",
+  "Threadgroup loads" : "0",
+  "Threadgroup memory (bytes)" : "0",
+  "Threadgroup stores" : "0",
+  "Uniform registers" : "84",
+  "Wait" : "0"
+}
+gpudebug performance/shaders> {
+  "ALU" : "1",
+  "Branch" : "0",
+  "Cost" : "0.20%",
+  "Device atomics" : "0",
+  "Device loads" : "1",
+  "Device stores" : "1",
+  "FP16" : "0",
+  "FP32" : "1",
+  "Instructions" : "5",
+  "INT16" : "0",
+  "INT32" : "0",
+  "Invocations" : "1",
+  "SIMD groups" : "528",
+  "Spilled bytes" : "0",
+  "Stage" : "compute",
+  "Temp registers" : "2",
+  "Texture reads" : "0",
+  "Texture writes" : "0",
+  "Threadgroup atomics" : "0",
+  "Threadgroup loads" : "0",
+  "Threadgroup memory (bytes)" : "0",
+  "Threadgroup stores" : "0",
+  "Uniform registers" : "8",
+  "Wait" : "0"
+}
+gpudebug performance/shaders> Session 64 terminated.

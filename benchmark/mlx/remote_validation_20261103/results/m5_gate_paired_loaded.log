@@ -1,0 +1,35 @@
+gpudebug> 1 profiling session:
+  [0] Apple M5 Ultra [perf-state: medium, serial, 2026-11-03 23:11, 00006050-0016181002C3C01C]
+gpudebug> {"notification":"Profile data loaded.","op":1,"elapsed_ms":634,"success":true}
+gpudebug> Replayer ready.
+No active operations.
+gpudebug> error: 'profile' not found in root
+gpudebug> {"children":[{"actions":"go, info","name":"comp0","values":[{"type":"string","value":"custom_kernel_sglang_nvfp4_two_rows_0__float_4_0_1_float_uint8_t_uint8_t_float_uint32_t_int32_tc_uint32_t_uint32_t_float"},{"type":"string","value":"@cps2 \"MTLComputePipelineState 3\""},{"type":"percentage","value":99.409417250489412},{"type":"string","value":"1"}]},{"actions":"go, info","name":"comp1","values":[{"type":"string","value":"vs_Addfloat32"},{"type":"string","value":"@cps0 \"MTLComputePipelineState 1\""},{"type":"percentage","value":0.56888579441371934},{"type":"string","value":"1"}]},{"actions":"go, info","name":"comp2","values":[{"type":"string","value":"Cf4IBroadcastBDf4OMultiplyAC_VC_f4_1585159917456686769_contiguous"},{"type":"string","value":"@cps1 \"MTLComputePipelineState 2\""},{"type":"percentage","value":0.021696955096855278},{"type":"string","value":"1"}]}],"totalCount":3}
+gpudebug performance/shaders> {"children":[{"actions":"go, info","name":"comp0","values":[{"type":"string","value":"custom_kernel_sglang_nvfp4_two_rows_0__float_4_0_1_float_uint8_t_uint8_t_float_uint32_t_int32_tc_uint32_t_uint32_t_float"},{"type":"string","value":"@cps2 \"MTLComputePipelineState 3\""},{"type":"percentage","value":99.409417250489412},{"type":"string","value":"1"}]},{"actions":"go, info","name":"comp1","values":[{"type":"string","value":"vs_Addfloat32"},{"type":"string","value":"@cps0 \"MTLComputePipelineState 1\""},{"type":"percentage","value":0.56888579441371934},{"type":"string","value":"1"}]},{"actions":"go, info","name":"comp2","values":[{"type":"string","value":"Cf4IBroadcastBDf4OMultiplyAC_VC_f4_1585159917456686769_contiguous"},{"type":"string","value":"@cps1 \"MTLComputePipelineState 2\""},{"type":"percentage","value":0.021696955096855278},{"type":"string","value":"1"}]}],"totalCount":3}
+gpudebug performance/shaders> {
+  "ALU" : "1271",
+  "Branch" : "23",
+  "Cost" : "99.41%",
+  "Device atomics" : "0",
+  "Device loads" : "33",
+  "Device stores" : "12",
+  "FP16" : "136",
+  "FP32" : "310",
+  "Instructions" : "1363",
+  "INT16" : "280",
+  "INT32" : "145",
+  "Invocations" : "1",
+  "SIMD groups" : "16464",
+  "Spilled bytes" : "0",
+  "Stage" : "compute",
+  "Temp registers" : "64",
+  "Texture reads" : "0",
+  "Texture writes" : "0",
+  "Threadgroup atomics" : "0",
+  "Threadgroup loads" : "0",
+  "Threadgroup memory (bytes)" : "0",
+  "Threadgroup stores" : "0",
+  "Uniform registers" : "40",
+  "Wait" : "0"
+}
+gpudebug performance/shaders> Session 38 terminated.

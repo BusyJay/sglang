@@ -1,0 +1,159 @@
+{
+  "source_sha256": {
+    "python/sglang/kernels/ops/gemm/mlx_nvfp4_swiglu.py": "de2c49449db137464c7e7ee19ba3dab94a9ed265ad2ec0a3bb6b680f6e167c3d",
+    "python/sglang/kernels/ops/gemm/mlx_nvfp4_gather.py": "263f908c49e3be18c61d67fe8f46938d89f35d25b32b14657aa95897fa7825e7",
+    "python/sglang/kernels/ops/moe/mlx_expert_pairs.py": "56d9dd147c36c0765a53a6d087fc8790f5edf88ba9819a67a79626fe8c5a719a",
+    "test/registered/kernels/ops/gemm/test_mlx_nvfp4_gather.py": "1377246084fb5139bf568d672286df9482bd195606301e994dedf27bd0ade17b"
+  },
+  "macros": [
+    {
+      "file": "macro_c1_fp32_r1.json",
+      "args": {
+        "count": 1,
+        "layers": 8,
+        "dtype": "fp32",
+        "rps": 1,
+        "modes": "production"
+      },
+      "median_ms": {
+        "native": 4.156679873800991,
+        "production": 4.006215119637394
+      },
+      "peak_bytes": 1056965536,
+      "final_production": true,
+      "swap_after": "vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)\n"
+    },
+    {
+      "file": "macro_c1_bf16_r1.json",
+      "args": {
+        "count": 1,
+        "layers": 4,
+        "dtype": "bf16",
+        "rps": 1,
+        "modes": "production"
+      },
+      "median_ms": {
+        "native": 2.2167811728043794,
+        "production": 2.1316782875025337
+      },
+      "peak_bytes": 603980320,
+      "final_production": true,
+      "swap_after": "vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)\n"
+    },
+    {
+      "file": "macro_c1_fp32_r2.json",
+      "args": {
+        "count": 1,
+        "layers": 4,
+        "dtype": "fp32",
+        "rps": 2,
+        "modes": "pair,fused"
+      },
+      "median_ms": {
+        "native": 2.1595911092784568,
+        "pair": 2.185612086226077,
+        "fused": 2.087341957279326
+      },
+      "peak_bytes": 603980320,
+      "final_production": false,
+      "swap_after": "vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)\n"
+    },
+    {
+      "file": "iterations/macro_c1_fp32_r1.json",
+      "args": {
+        "count": 1,
+        "layers": 4,
+        "dtype": "fp32",
+        "rps": 1,
+        "modes": "production"
+      },
+      "median_ms": {
+        "native": 2.185346088469184,
+        "production": 2.118722635301917
+      },
+      "peak_bytes": 603980320,
+      "final_production": true,
+      "swap_after": "vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)\n"
+    },
+    {
+      "file": "iterations/macro_c1_bf16_r1.json",
+      "args": {
+        "count": 1,
+        "layers": 4,
+        "dtype": "bf16",
+        "rps": 1,
+        "modes": "production"
+      },
+      "median_ms": {
+        "native": 2.2167811728043794,
+        "production": 2.1316782875025337
+      },
+      "peak_bytes": 603980320,
+      "final_production": true,
+      "swap_after": "vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)\n"
+    },
+    {
+      "file": "iterations/macro_c1_fp32_r2.json",
+      "args": {
+        "count": 1,
+        "layers": 4,
+        "dtype": "fp32",
+        "rps": 2,
+        "modes": "pair,fused"
+      },
+      "median_ms": {
+        "native": 2.1595911092784568,
+        "pair": 2.185612086226077,
+        "fused": 2.087341957279326
+      },
+      "peak_bytes": 603980320,
+      "final_production": false,
+      "swap_after": "vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)\n"
+    }
+  ],
+  "class_integration": {
+    "1": {
+      "baseline": {
+        "median_ms": 0.6261273744166829,
+        "raw_sample_ms": [
+          0.6248211144702509,
+          0.6274336343631148,
+          0.6203745920599127,
+          0.6803576764650643
+        ]
+      },
+      "patched": {
+        "median_ms": 0.6161713397402007,
+        "raw_sample_ms": [
+          0.7076815379938731,
+          0.6060023922085142,
+          0.615753615857102,
+          0.6165890636232992
+        ]
+      }
+    },
+    "4": {
+      "baseline": {
+        "median_ms": 2.0036585171086094,
+        "raw_sample_ms": [
+          1.9863163547900815,
+          1.946771814643095,
+          2.022594013639415,
+          2.021000679427137
+        ]
+      },
+      "patched": {
+        "median_ms": 1.4395820880114722,
+        "raw_sample_ms": [
+          1.5521630497338872,
+          1.4456209864389773,
+          1.4335431895839672,
+          1.4217080893771101
+        ]
+      }
+    }
+  },
+  "scope": "M4 compact synthetic MoE operator chains and actual remote class AST integration; not M5 whole model",
+  "decision": "Adopt rounded NVFP4 gate/up+SwiGLU AR path; keep previous paired expert verification; direct/branchless/half/vector decode alternatives not adopted after GPU instruction diagnosis. Small AR benefit with observed timing noise; remote ABBA needed.",
+  "swap": "vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)\n"
+}

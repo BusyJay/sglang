@@ -1,0 +1,53 @@
+{
+  "source_hashes": {
+    "python/sglang/kernels/ops/gemm/mlx_block_fp8.py": "02bbf2184708364906ef533020dcdda5303615d8ae7c1d5f22a9d45cf5516bc5",
+    "python/sglang/kernels/ops/quantization/mlx_fp8_dynamic.py": "31d8693374daff00dcc47e686a130bcd2dc3f4f0b8a3e4d069a1f6d2fb7ee7f9",
+    "test/registered/kernels/ops/gemm/test_mlx_block_fp8.py": "2e05cc741bb73085775337545fa98fd82797ddb9f73ea0b5c2e0f0de2dd97110"
+  },
+  "results": [
+    {
+      "file": "ffn_macro_g2_c1_fp32.json",
+      "dtype": "mlx.core.float32",
+      "count": 1,
+      "baseline_ms": 2.179426295527567,
+      "candidate_ms": 1.8074239429552108,
+      "latency_reduction_pct": 17.06882005304552,
+      "final_300_exact": true
+    },
+    {
+      "file": "ffn_macro_g2_c4_fp32.json",
+      "dtype": "mlx.core.float32",
+      "count": 4,
+      "baseline_ms": 6.012662499463962,
+      "candidate_ms": 3.497215462460493,
+      "latency_reduction_pct": 41.8358262621214,
+      "final_300_exact": true
+    },
+    {
+      "file": "ffn_macro_g2_c4_bf16.json",
+      "dtype": "mlx.core.bfloat16",
+      "count": 4,
+      "baseline_ms": 5.970619709696621,
+      "candidate_ms": 3.4173238605338456,
+      "latency_reduction_pct": 42.76433558506631,
+      "final_300_exact": true
+    }
+  ],
+  "swap_after": "vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)\n",
+  "actual_mlp_integration": [
+    {
+      "count": 1,
+      "baseline_ms": 0.3902930028076904,
+      "patched_ms": 0.3301387576114697,
+      "latency_reduction_pct": 15.412586124650707,
+      "final_300_exact": true
+    },
+    {
+      "count": 4,
+      "baseline_ms": 0.9181117797076392,
+      "patched_ms": 0.5574125139780032,
+      "latency_reduction_pct": 39.28707524529269,
+      "final_300_exact": true
+    }
+  ]
+}

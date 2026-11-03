@@ -1,0 +1,19 @@
+/Users/jay/workspace/sglang/python/sglang/srt/layers/quantization/awq/awq.py:53: UserWarning: Only CUDA, HIP and XPU support AWQ currently.
+  warnings.warn(f"Only CUDA, HIP and XPU support AWQ currently.")
+/Users/jay/workspace/sglang/python/sglang/kernels/ops/attention/fla/utils.py:224: UserWarning: Triton is not supported on current platform, roll back to CPU.
+  warnings.warn(
+[CI Test Method] TestMlxRunnerPoolContract.test_dflash_warmup_uses_activation_dtype_with_packed_head
+.[CI Test Method] TestMlxRunnerPoolContract.test_stub_alloc_memory_pool_binds_with_no_args
+.[CI Test Method] TestMlxRunnerPoolContract.test_stub_alloc_memory_pool_binds_with_optional_config
+.[CI Test Method] TestMlxRunnerPoolContract.test_stub_init_attention_backends_keeps_attn_backend_none
+.[CI Test Method] TestMlxRunnerPoolContract.test_stub_model_supports_runner_model_context
+.[CI Test Method] TestMlxRunnerPoolContract.test_stub_overrides_base_alloc_memory_pool
+.[CI Test Method] TestMlxRunnerPoolContract.test_stub_overrides_base_init_attention_backends
+.[CI Test Method] TestMlxRunnerPoolContract.test_stub_reports_no_preloaded_torch_weights
+.[CI Test Method] TestMlxRunnerPoolContract.test_worker_startup_uses_mlx_token_capacity
+[2026-11-04 00:18:47] KV pool holds 64 tokens, fewer than --context-length 128. One full-length request cannot fit, so long requests will be refused or truncated at serving time. Lower --context-length, raise --mem-fraction-static, or free memory taken before the pool is sized.
+.
+----------------------------------------------------------------------
+Ran 9 tests in 0.019s
+
+OK

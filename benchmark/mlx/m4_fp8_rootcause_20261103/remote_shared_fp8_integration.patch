@@ -1,0 +1,33 @@
+--- a/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py
++++ b/python/sglang/srt/hardware_backend/mlx/models/glm5_next.py
+@@ -300,7 +300,29 @@
+         from sglang.srt.hardware_backend.mlx.models.glm5_fp4 import FP8Linear
+ 
+         if isinstance(self.gate_proj, FP8Linear):
+-            gate, up = self.gate_proj(x), self.up_proj(x)
++            if (
++                self.gate_proj.block_size == self.up_proj.block_size == 128
++                and self.gate_proj.activation_mode == self.up_proj.activation_mode == "dynamic32"
++                and self.gate_proj.weight.shape == self.up_proj.weight.shape
++            ):
++                from sglang.kernels.ops.gemm.mlx_block_fp8 import mlx_block_fp8_pair
++                from sglang.kernels.ops.gemm.mlx_fp8_rows import mlx_fp8_dynamic_32
++
++                quantized = mlx_fp8_dynamic_32(x)
++                gate, up = mlx_block_fp8_pair(
++                    x,
++                    self.gate_proj.weight,
++                    self.gate_proj.scales,
++                    self.up_proj.weight,
++                    self.up_proj.scales,
++                    quantized,
++                )
++                if "bias" in self.gate_proj:
++                    gate = gate + self.gate_proj.bias
++                if "bias" in self.up_proj:
++                    up = up + self.up_proj.bias
++            else:
++                gate, up = self.gate_proj(x), self.up_proj(x)
+             return self.down_proj(clamped_swiglu(gate, up, self.limit))
+         restore_dtype = self.match_affine_dtype and _uses_fp16_affine_ffn(
+             x, (self.gate_proj, self.up_proj, self.down_proj)
