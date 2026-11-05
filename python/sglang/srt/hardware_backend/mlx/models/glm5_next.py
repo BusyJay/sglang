@@ -24,7 +24,6 @@ from mlx_lm.models.switch_layers import (
     _gather_sort,
     _scatter_unsort,
 )
-
 from sglang.kernels.ops.attention.linear.mlx_kda import mlx_kda_decode
 from sglang.kernels.ops.attention.mlx_ragged import mlx_ragged_latent_attention
 from sglang.kernels.ops.gemm.mlx_affine_rows import (
@@ -63,6 +62,10 @@ from sglang.kernels.ops.moe.mlx_glm import (
     mlx_glm_router_select,
 )
 from sglang.kernels.ops.moe.mlx_router_pairs import mlx_glm_router_select_pairs
+from sglang.kernels.ops.quantization.mlx_fp8_cache import (
+    mlx_fp8_cache_pack,
+    mlx_fp8_cache_unpack,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +156,27 @@ class MLACache(NativeCache):
         tail[:, used:length] = value
         self.cache[0], self.cache[4] = prefix, tail
         return mx.concatenate([prefix, tail[:, :length]], 1) if materialize else None
+
+
+class FP8MLACache(MLACache):
+    """Packed E4M3 latent cache with /32 scales and existing prefix leases.
+
+    Indexer pools stay BF16. Packed rows and scale bytes are snapshotted together;
+    no quantization state lives outside the ordinary cache array protocol.
+    """
+
+    def __getitem__(self, index):
+        value = super().__getitem__(index)
+        return (
+            mlx_fp8_cache_unpack(value) if index == 0 and value is not None else value
+        )
+
+    def append_latent(self, value, *, materialize=True):
+        if value.shape[-1] != 512:
+            raise ValueError("FP8 MLA cache requires 512 latent channels")
+        packed = mlx_fp8_cache_pack(value)
+        out = super().append_latent(packed, materialize=materialize)
+        return mlx_fp8_cache_unpack(out) if out is not None else None
 
 
 def clamped_swiglu(gate, up, limit):
@@ -313,7 +337,9 @@ class MLP(nn.Module):
         if isinstance(self.gate_proj, FP8Linear):
             if (
                 self.gate_proj.block_size == self.up_proj.block_size == 128
-                and self.gate_proj.activation_mode == self.up_proj.activation_mode == "dynamic32"
+                and self.gate_proj.activation_mode
+                == self.up_proj.activation_mode
+                == "dynamic32"
                 and self.gate_proj.weight.shape == self.up_proj.weight.shape
             ):
                 from sglang.kernels.ops.gemm.mlx_block_fp8 import mlx_block_fp8_pair
@@ -490,7 +516,9 @@ class ClampedSwitchGLU(SwitchGLU):
             getattr(self, "_gate_up_metadata", None) != self._current_gate_up_metadata()
             or not all(
                 old is new
-                for old, new in zip(self._gate_up_sources, self._current_gate_up_sources())
+                for old, new in zip(
+                    self._gate_up_sources, self._current_gate_up_sources()
+                )
             )
         ):
             self._fused_gate_up = None
@@ -524,14 +552,15 @@ class ClampedSwitchGLU(SwitchGLU):
                 limit=self.activation.limit,
             )
             if act is not None:
-                out = self.down_proj(act[..., None, :], mx.stop_gradient(indices)).squeeze(
-                    -2
-                )
+                out = self.down_proj(
+                    act[..., None, :], mx.stop_gradient(indices)
+                ).squeeze(-2)
                 return out.astype(dtype) if restore_dtype else out
         if (
             indices.size >= 64
             and self._fused_gate_up is not None
-            and getattr(self, "_gate_up_metadata", None) == self._current_gate_up_metadata()
+            and getattr(self, "_gate_up_metadata", None)
+            == self._current_gate_up_metadata()
             and x.dtype != mx.float32
         ):
             # Sorted QMM shares input tiles and fuses both MMA projections and
@@ -561,7 +590,9 @@ class ClampedSwitchGLU(SwitchGLU):
             if activated is None:
                 joined = self._fused_gate_up(sorted_x, sorted_idx, sorted_indices=True)
                 gate_values, up_values = mx.split(joined, 2, axis=-1)
-                activated = _compiled_swiglu(gate_values, up_values, self.activation.limit)
+                activated = _compiled_swiglu(
+                    gate_values, up_values, self.activation.limit
+                )
             output = None
             down = self.down_proj
             if (
@@ -613,10 +644,13 @@ class ClampedSwitchGLU(SwitchGLU):
             self.fuse_gate_up
             and x.dtype != mx.float32
             and self._fused_gate_up is not None
-            and getattr(self, "_gate_up_metadata", None) == self._current_gate_up_metadata()
+            and getattr(self, "_gate_up_metadata", None)
+            == self._current_gate_up_metadata()
             and all(
                 old is new
-                for old, new in zip(self._gate_up_sources, self._current_gate_up_sources())
+                for old, new in zip(
+                    self._gate_up_sources, self._current_gate_up_sources()
+                )
             )
         ):
             gate_up = self._fused_gate_up(x, indices)
@@ -752,7 +786,6 @@ def _compiled_routed_gate_up(block, x, indices):
 
 
 class MoE(nn.Module):
-
     fuse_decode = False
 
     def __init__(self, args):
@@ -795,8 +828,7 @@ class MoE(nn.Module):
         mx.eval(self._router_weight)
         self._router_sources = sources
 
-
-    def __call__(self, x, *, batch_fusion=False, shared_stream=None):
+    def __call__(self, x, *, batch_fusion=False, shared_stream=None, prefill_a8=False):
         # The router uses FP32, including the matrix multiplication.
         weight = self.gate.weight
         if self._router_weight is not None and all(
@@ -822,7 +854,12 @@ class MoE(nn.Module):
         bounded = x.shape[0] == 1 and (
             x.shape[1] == 1 or batch_fusion and 1 < x.shape[1] <= 17
         )
-        if self.fuse_decode and bounded and a.n_group == 1 and a.scoring_func == "sigmoid":
+        if (
+            self.fuse_decode
+            and bounded
+            and a.n_group == 1
+            and a.scoring_func == "sigmoid"
+        ):
             selected = mlx_glm_router(
                 x,
                 weight,
@@ -849,7 +886,9 @@ class MoE(nn.Module):
                             [tile, mx.zeros((8 - count, tile.shape[1]), mx.float32)], 0
                         )
                     blocks.append((tile @ weight.astype(mx.float32).T)[:count])
-                scores = mx.concatenate(blocks, 0).reshape(*x.shape[:-1], weight.shape[0])
+                scores = mx.concatenate(blocks, 0).reshape(
+                    *x.shape[:-1], weight.shape[0]
+                )
             else:
                 scores = x.astype(mx.float32) @ weight.astype(mx.float32).T
             if (
@@ -859,11 +898,13 @@ class MoE(nn.Module):
                 and a.scoring_func == "sigmoid"
             ):
                 if (
-                    batch_fusion and x.shape[1] > 1
+                    batch_fusion
+                    and x.shape[1] > 1
                     and isinstance(self.switch_mlp.gate_proj, NVFP4SwitchLinear)
                 ):
                     routed = mlx_glm_router_select_pairs(
-                        scores, self.e_score_correction_bias,
+                        scores,
+                        self.e_score_correction_bias,
                         top_k=a.num_experts_per_tok,
                         scaling=a.routed_scaling_factor,
                         renormalize=a.norm_topk_prob,
@@ -890,23 +931,72 @@ class MoE(nn.Module):
                     a.scoring_func,
                 )
         indices, weights = selected
+        if prefill_a8:
+            from sglang.srt.hardware_backend.mlx.models.glm5_fp4 import (
+                NVFP4SwitchLinear,
+            )
+
+            if isinstance(self.switch_mlp.gate_proj, NVFP4SwitchLinear):
+                from sglang.kernels.ops.gemm.mlx_nvfp4_prefill import (
+                    mlx_nvfp4_prefill_a8,
+                    mlx_nvfp4_prefill_gate_up_a8,
+                    mlx_nvfp4_prefill_groups,
+                )
+
+                switch = self.switch_mlp
+                indices = indices.astype(mx.uint32)
+                groups = mlx_nvfp4_prefill_groups(
+                    indices, switch.gate_proj.weight.shape[0]
+                )
+
+                def project(value, projection):
+                    return mlx_nvfp4_prefill_a8(
+                        value,
+                        projection.weight,
+                        projection.scales,
+                        projection.weight_scale_2 * 2688,
+                        indices,
+                        groups,
+                    )
+
+                operands = lambda p: (p.weight, p.scales, p.weight_scale_2 * 2688)
+                gate, up = mlx_nvfp4_prefill_gate_up_a8(
+                    x,
+                    operands(switch.gate_proj),
+                    operands(switch.up_proj),
+                    indices,
+                    groups,
+                )
+                act = switch.activation(up, gate)
+                routed = project(act, switch.down_proj).squeeze(-2)
+                shared = self.shared_experts(x)
+                return (routed * weights[..., None]).sum(-2).astype(x.dtype) + shared
         if pair_worklist is not None and shared_stream is None:
             from sglang.srt.hardware_backend.mlx.models.glm5_fp4 import FP8Linear
+
             sw, shared_block = self.switch_mlp, self.shared_experts
             projections = (shared_block.gate_proj, shared_block.up_proj)
             if all(
-                isinstance(p, FP8Linear) and p.block_size == 128
-                and p.activation_mode == "dynamic32" and "bias" not in p
+                isinstance(p, FP8Linear)
+                and p.block_size == 128
+                and p.activation_mode == "dynamic32"
+                and "bias" not in p
                 for p in projections
             ):
+
                 def operands(p):
                     return p.weight, p.scales, p.weight_scale_2.reshape(-1) * 2688
+
                 activation, shared_activation = mlx_mixed_fp8_nvfp4_swiglu(
-                    x, operands(sw.gate_proj), operands(sw.up_proj),
-                    indices, pair_worklist,
+                    x,
+                    operands(sw.gate_proj),
+                    operands(sw.up_proj),
+                    indices,
+                    pair_worklist,
                     (projections[0].weight, projections[0].scales),
                     (projections[1].weight, projections[1].scales),
-                    mlx_fp8_dynamic_32(x), limit=sw.activation.limit,
+                    mlx_fp8_dynamic_32(x),
+                    limit=sw.activation.limit,
                 )
                 shared_down = shared_block.down_proj
                 if (
@@ -915,16 +1005,22 @@ class MoE(nn.Module):
                     and "bias" not in shared_down
                 ):
                     routed, shared = mlx_mixed_fp8_nvfp4_down(
-                        activation, shared_activation, operands(sw.down_proj),
-                        indices, pair_worklist,
+                        activation,
+                        shared_activation,
+                        operands(sw.down_proj),
+                        indices,
+                        pair_worklist,
                         (shared_down.weight, shared_down.scales),
                         mlx_fp8_dynamic_32(shared_activation),
                     )
                     routed = routed.squeeze(-2)
                 else:
                     routed = mlx_nvfp4_gather_rows(
-                        activation, *operands(sw.down_proj), indices,
-                        worklist=pair_worklist, output_rows=1,
+                        activation,
+                        *operands(sw.down_proj),
+                        indices,
+                        worklist=pair_worklist,
+                        output_rows=1,
                     ).squeeze(-2)
                     shared = shared_down(shared_activation)
                 routed = (routed * weights[..., None]).sum(-2).astype(x.dtype)
@@ -975,7 +1071,9 @@ class MoE(nn.Module):
                     ):
                         act = _compiled_routed_gate_up(sw, local, indices)
                     if act is None:
-                        act = _compiled_quantized_ffn(sw, local, indices, gate_up_only=True)
+                        act = _compiled_quantized_ffn(
+                            sw, local, indices, gate_up_only=True
+                        )
                     result = mlx_glm_down_combine(
                         act,
                         indices,
@@ -991,18 +1089,29 @@ class MoE(nn.Module):
                         return result
         if pair_worklist is not None:
             sw = self.switch_mlp
+
             def project(value, projection):
                 return mlx_nvfp4_gather_rows(
-                    value, projection.weight, projection.scales,
-                    projection.weight_scale_2 * 2688, indices,
-                    worklist=pair_worklist, output_rows=1,
+                    value,
+                    projection.weight,
+                    projection.scales,
+                    projection.weight_scale_2 * 2688,
+                    indices,
+                    worklist=pair_worklist,
+                    output_rows=1,
                 )
+
             activation = mlx_nvfp4_swiglu(
-                x, sw.gate_proj.weight, sw.gate_proj.scales,
+                x,
+                sw.gate_proj.weight,
+                sw.gate_proj.scales,
                 sw.gate_proj.weight_scale_2 * 2688,
-                sw.up_proj.weight, sw.up_proj.scales,
-                sw.up_proj.weight_scale_2 * 2688, indices,
-                limit=sw.activation.limit, worklist=pair_worklist,
+                sw.up_proj.weight,
+                sw.up_proj.scales,
+                sw.up_proj.weight_scale_2 * 2688,
+                indices,
+                limit=sw.activation.limit,
+                worklist=pair_worklist,
             )
             routed = project(activation, sw.down_proj).squeeze(-2)
         else:
@@ -1088,7 +1197,8 @@ class KDA(nn.Module):
         )
 
         if all(
-            isinstance(getattr(self, name + "_proj"), FP8Linear) for name in ("q", "k", "v")
+            isinstance(getattr(self, name + "_proj"), FP8Linear)
+            for name in ("q", "k", "v")
         ):
             names = ("q_proj", "k_proj", "v_proj", "f_a_proj", "g_a_proj", "b_proj")
             self._fused_qkv = FP8KDAInputs(
@@ -1308,7 +1418,8 @@ class KDA(nn.Module):
             result = mlx_kda_decode(
                 proj,
                 tuple(
-                    getattr(self, name + "_conv").conv.weight for name in ("q", "k", "v")
+                    getattr(self, name + "_conv").conv.weight
+                    for name in ("q", "k", "v")
                 ),
                 tuple(cache[i] for i in range(3)),
                 cache[3],
@@ -1330,7 +1441,9 @@ class KDA(nn.Module):
                 return self.o_proj(out)
         if self._fused_qkv_is_current():
             if x.dtype == mx.float32 and self._fused_qkv3 is not None:
-                inputs = mx.split(self._fused_qkv3(x), (self.dim, 2 * self.dim), axis=-1)
+                inputs = mx.split(
+                    self._fused_qkv3(x), (self.dim, 2 * self.dim), axis=-1
+                )
             else:
                 inputs = mx.split(self._fused_qkv(x), self._fused_input_splits, axis=-1)
             projected = inputs[:3]
@@ -1535,7 +1648,6 @@ class Indexer(nn.Module):
             indices = mx.concatenate([indices, tail], axis=-1)
         return indices
 
-
     def verify_rows(self, cache, offset, *, projected):
         """Score a block once, retaining each prefix's pool state and causal set."""
         a = self.args
@@ -1562,7 +1674,8 @@ class Indexer(nn.Module):
             else:
                 selected.append(
                     self._select_scores(
-                        scores[:, j : j + 1, : length // a.index_kpool], offset=offset + j
+                        scores[:, j : j + 1, : length // a.index_kpool],
+                        offset=offset + j,
                     )
                 )
         return selected, states
@@ -1583,6 +1696,7 @@ def _f_visible_indices(indices, selected_lengths, visible_ends):
     order = mx.argsort(mx.where(valid, position, position + width), axis=-1)
     table = mx.take_along_axis(mx.where(valid, indices, -1), order, axis=-1)
     return table, mx.sum(valid, axis=-1).reshape(rows).astype(mx.uint32)
+
 
 class MLA(nn.Module):
     cache_latent_projection = False
@@ -1682,7 +1796,6 @@ class MLA(nn.Module):
             bias=args.attention_bias,
         )
         self.indexer = Indexer(args)
-
 
     def prepare_e_projections(self):
         groups = (
@@ -1803,7 +1916,11 @@ class MLA(nn.Module):
             cache.append_latent(new_kv, materialize=False)
             kv = cache.cache[0]
         else:
-            kv = mx.concatenate([cache[0], new_kv], 1) if cache[0] is not None else new_kv
+            kv = (
+                mx.concatenate([cache[0], new_kv], 1)
+                if cache[0] is not None
+                else new_kv
+            )
         snapshots, selected = [], []
         index_rows, index_states = self.indexer.verify_rows(
             cache, offset, projected=index_projection
@@ -1840,7 +1957,9 @@ class MLA(nn.Module):
             width = max(32, 1 << (width - 1).bit_length())
         indices = mx.concatenate(
             [
-                mx.pad(v, [(0, 0), (0, 0), (0, width - v.shape[-1])], constant_values=-1)
+                mx.pad(
+                    v, [(0, 0), (0, 0), (0, width - v.shape[-1])], constant_values=-1
+                )
                 for v in selected
             ],
             axis=1,
@@ -1919,7 +2038,10 @@ class MLA(nn.Module):
                 selected_kv = mlx_latent_gather_cast(
                     prefix,
                     indices.astype(mx.int32),
-                    mx.result_type(prefix.dtype, latent_q.dtype),
+                    mx.result_type(
+                        mx.bfloat16 if prefix.dtype == mx.uint8 else prefix.dtype,
+                        latent_q.dtype,
+                    ),
                     tail=tail,
                 )
                 if selected_kv is None:
@@ -1968,7 +2090,6 @@ class MLA(nn.Module):
             out = latent_out @ wv
         out = out.transpose(0, 2, 1, 3).reshape(b, count, -1)
         return out
-
 
     def decode_requests(self, rows, caches):
         if self.args.kv_lora_rank < 256:
@@ -2074,7 +2195,10 @@ class MLA(nn.Module):
                 mlx_latent_gather_cast(
                     prefix,
                     indices,
-                    mx.result_type(prefix.dtype, latent_q.dtype),
+                    mx.result_type(
+                        mx.bfloat16 if prefix.dtype == mx.uint8 else prefix.dtype,
+                        latent_q.dtype,
+                    ),
                     tail=tail,
                 )
                 if a.kv_lora_rank >= 256
@@ -2148,7 +2272,6 @@ class DecoderLayer(nn.Module):
     compile_residual = False
     preserve_residual_dtype = False
     fuse_hc = False
-
 
     def __init__(self, args, index):
         super().__init__()
@@ -2294,9 +2417,11 @@ class DecoderLayer(nn.Module):
             value, "attn", next_layer.input_layernorm, mix=mix
         )
 
-    def __call__(self, x, cache, *, shared_stream=None):
+    def __call__(self, x, cache, *, shared_stream=None, prefill_a8=False):
         if (
-            self.args.mhc and self.fuse_hc and x.shape[:3] == (1, 1, 4)
+            self.args.mhc
+            and self.fuse_hc
+            and x.shape[:3] == (1, 1, 4)
             and x.dtype in (mx.float16, mx.bfloat16)
         ):
             normed, post, residual = self._branch_inputs(
@@ -2307,8 +2432,9 @@ class DecoderLayer(nn.Module):
                 branch, post, residual, "ffn", self.post_attention_layernorm
             )
             branch = (
-                self.mlp(value, shared_stream=shared_stream)
-                if isinstance(self.mlp, MoE) else self.mlp(value)
+                self.mlp(value, shared_stream=shared_stream, prefill_a8=prefill_a8)
+                if isinstance(self.mlp, MoE)
+                else self.mlp(value)
             )
             return self._branch_output(branch, post, residual)
         for name, norm, block in (
@@ -2317,7 +2443,7 @@ class DecoderLayer(nn.Module):
                 "ffn",
                 self.post_attention_layernorm,
                 lambda y: (
-                    self.mlp(y, shared_stream=shared_stream)
+                    self.mlp(y, shared_stream=shared_stream, prefill_a8=prefill_a8)
                     if isinstance(self.mlp, MoE)
                     else self.mlp(y)
                 ),
@@ -2516,9 +2642,7 @@ class DecoderLayer(nn.Module):
         else:
             for j in range(x.shape[1]):
                 normed = normed_rows[:, j : j + 1]
-                post = (
-                    None if attention_post is None else attention_post[:, j : j + 1]
-                )
+                post = None if attention_post is None else attention_post[:, j : j + 1]
                 residual = attention_residual[:, j : j + 1]
                 branch = self.self_attn(normed, cache)
                 attended.append(self._branch_output(branch, post, residual))
@@ -2530,8 +2654,11 @@ class DecoderLayer(nn.Module):
                 snapshots.append(snapshot)
         if batched is not None:
             normed, post, residual = self._branch_transition(
-                branches, attention_post, attention_residual,
-                "ffn", self.post_attention_layernorm
+                branches,
+                attention_post,
+                attention_residual,
+                "ffn",
+                self.post_attention_layernorm,
             )
         else:
             normed, post, residual = self._branch_inputs(
@@ -2738,7 +2865,19 @@ class _GraphObservation:
     neither this plan nor graph clones copy their device storage.
     """
 
-    _excluded = frozenset({'_fixed_mla_layer', '_fixed_mla_attention', '_latent_projection', '_no_grad', '_training', '_gate_up_sources', '_router_sources', '_fused_qkv_sources', '_e_projection_sources'})
+    _excluded = frozenset(
+        {
+            "_fixed_mla_layer",
+            "_fixed_mla_attention",
+            "_latent_projection",
+            "_no_grad",
+            "_training",
+            "_gate_up_sources",
+            "_router_sources",
+            "_fused_qkv_sources",
+            "_e_projection_sources",
+        }
+    )
 
     def __init__(self, modules):
         self.modules = modules
@@ -2763,11 +2902,14 @@ class _GraphObservation:
                     # Discover current defaults on rebuild, including added flags.
                     defaults = {}
                     for cls in reversed(type(value).__mro__):
-                        defaults.update({
-                            k: v for k, v in vars(cls).items()
-                            if not k.startswith("__")
-                            and isinstance(v, (bool, int, float, str))
-                        })
+                        defaults.update(
+                            {
+                                k: v
+                                for k, v in vars(cls).items()
+                                if not k.startswith("__")
+                                and isinstance(v, (bool, int, float, str))
+                            }
+                        )
                     for key in defaults:
                         fields.setdefault(key, getattr(value, key))
                 fields = tuple(fields.items())
@@ -2809,8 +2951,10 @@ class _GraphObservation:
             if keys is None:
                 if len(value) != length:
                     return False
-            elif keys != (tuple(value) if isinstance(value, dict) else (),
-                          tuple(vars(value)) if hasattr(value, "__dict__") else ()):
+            elif keys != (
+                tuple(value) if isinstance(value, dict) else (),
+                tuple(vars(value)) if hasattr(value, "__dict__") else (),
+            ):
                 return False
             for key, scalar, previous in observed:
                 child = (
@@ -2884,8 +3028,10 @@ class _FixedGraphOwner:
                 result,
                 name,
                 (
-                    {} if name == "graphs"
-                    else None if name == "_observation"
+                    {}
+                    if name == "graphs"
+                    else None
+                    if name == "_observation"
                     else copy.deepcopy(value, memo)
                 ),
             )
@@ -3075,7 +3221,7 @@ class _FixedLayerGroup(_FixedGraphOwner):
         self.layers = layers
         self.graphs = {}
 
-    def __call__(self, x, states, *, verification=False, layers=None):
+    def __call__(self, x, states, *, verification=False, layers=None, prefill_a8=False):
         if layers is not None and (
             len(layers) != len(self.layers)
             or any(a is not b for a, b in zip(layers, self.layers))
@@ -3099,6 +3245,7 @@ class _FixedLayerGroup(_FixedGraphOwner):
             sources,
             flags,
             verification,
+            prefill_a8,
             tuple(
                 (
                     type(state),
@@ -3128,9 +3275,15 @@ class _FixedLayerGroup(_FixedGraphOwner):
                 # Next-layer mHC weights are explicit graph operands too.
                 for layer, parameter in zip(layers, weights):
                     layer.update(parameter)
-                for layer_index, (layer, parameter, array, cache_type, prepared) in enumerate(zip(
-                    layers, weights, arrays, cache_types, fused_weights
-                )):
+                for layer_index, (
+                    layer,
+                    parameter,
+                    array,
+                    cache_type,
+                    prepared,
+                ) in enumerate(
+                    zip(layers, weights, arrays, cache_types, fused_weights)
+                ):
                     fused, expert_weights, router_weight = prepared
                     layer.update(parameter)
                     attention = layer.self_attn
@@ -3158,20 +3311,28 @@ class _FixedLayerGroup(_FixedGraphOwner):
                         value, snapshots = layer.verify_ffn_rows(value, local)
                         boundaries.append([snapshot.cache for snapshot in snapshots])
                     elif (
-                        type(layer) is DecoderLayer and layer.args.mhc
-                        and layer.fuse_hc and value.shape[:3] == (1, 1, 4)
+                        type(layer) is DecoderLayer
+                        and layer.args.mhc
+                        and layer.fuse_hc
+                        and value.shape[:3] == (1, 1, 4)
                         and value.dtype in (mx.float16, mx.bfloat16)
                     ):
-                        following = layers[layer_index + 1] if layer_index + 1 < len(layers) else None
+                        following = (
+                            layers[layer_index + 1]
+                            if layer_index + 1 < len(layers)
+                            else None
+                        )
                         if following is not None and not (
-                            type(following) is DecoderLayer and following.fuse_hc and following.args.mhc
+                            type(following) is DecoderLayer
+                            and following.fuse_hc
+                            and following.args.mhc
                         ):
                             following = None
                         value, next_inputs = layer._decode_with_next_inputs(
                             value, local, next_inputs, following
                         )
                     else:
-                        value = layer(value, local)
+                        value = layer(value, local, prefill_a8=prefill_a8)
                         next_inputs = None
                     outputs.append(local.cache)
                 return value, outputs, boundaries
@@ -3248,7 +3409,12 @@ class TextModel(nn.Module):
                 layer._fixed_mla_attention = _FixedMLAAttention(layer.self_attn)
                 layer._fixed_mla_layer = _FixedMLALayer(layer)
 
-    def __call__(self, inputs, cache, *, capture_layer_ids=(), inputs_embeds=None):
+    def __call__(
+        self, inputs, cache, *, capture_layer_ids=(), inputs_embeds=None, prefill=False
+    ):
+        prefill_a8 = (
+            prefill and getattr(self, "_prefill_activation_dtype", "bf16") == "fp8"
+        )
         capture_layer_ids = tuple(capture_layer_ids)
         captures = {}
         x = self.embed_tokens(inputs) if inputs_embeds is None else inputs_embeds
@@ -3266,20 +3432,29 @@ class TextModel(nn.Module):
                 while cursor < end:
                     if not self.layers[cursor].is_linear:
                         layer = self.layers[cursor]
-                        x = layer(x, cache[cursor])
+                        x = layer(x, cache[cursor], prefill_a8=prefill_a8)
                         if cursor in capture_layer_ids:
                             captures[cursor] = x.mean(-2) if self.args.mhc else x
                         cursor += 1
                         continue
                     stop = cursor + 1
-                    while stop < end and self.layers[stop].is_linear and stop - 1 not in capture_layer_ids:
+                    while (
+                        stop < end
+                        and self.layers[stop].is_linear
+                        and stop - 1 not in capture_layer_ids
+                    ):
                         stop += 1
                     key = (cursor, stop)
                     group = self._fixed_groups.get(key)
                     if group is None:
                         group = _FixedLayerGroup(self.layers[cursor:stop])
                         self._fixed_groups[key] = group
-                    x = group(x, cache[cursor:stop], layers=self.layers[cursor:stop])
+                    x = group(
+                        x,
+                        cache[cursor:stop],
+                        layers=self.layers[cursor:stop],
+                        prefill_a8=prefill_a8,
+                    )
                     if stop - 1 in capture_layer_ids:
                         captures[stop - 1] = x.mean(-2) if self.args.mhc else x
                     cursor = stop
@@ -3289,7 +3464,12 @@ class TextModel(nn.Module):
             for i, (layer, state) in enumerate(
                 zip(self.layers[: self.args.num_hidden_layers], cache)
             ):
-                x = layer(x, cache=state, shared_stream=self._shared_stream)
+                x = layer(
+                    x,
+                    cache=state,
+                    shared_stream=self._shared_stream,
+                    prefill_a8=prefill_a8,
+                )
                 if i in capture_layer_ids:
                     captures[i] = x.mean(-2) if self.args.mhc else x
                 final_layer = i + 1 == self.args.num_hidden_layers
@@ -3336,7 +3516,9 @@ class Model(nn.Module):
         if len(inputs) > 17:
             return mx.concatenate(
                 [
-                    self.decode_requests(inputs[i : i + 17], caches[i : i + 17], token_only=token_only)
+                    self.decode_requests(
+                        inputs[i : i + 17], caches[i : i + 17], token_only=token_only
+                    )
                     for i in range(0, len(inputs), 17)
                 ],
                 axis=0,
@@ -3399,9 +3581,13 @@ class Model(nn.Module):
         output = self.target_tokens(hidden) if token_only else self.lm_head(hidden)
         return output, hidden
 
-    def forward_with_capture(self, inputs, cache, capture_layer_ids, *, token_only=False):
+    def forward_with_capture(
+        self, inputs, cache, capture_layer_ids, *, token_only=False
+    ):
         """Capture completed layer outputs before final norm, with mHC contracted."""
-        hidden, features = self.model(inputs, cache, capture_layer_ids=capture_layer_ids)
+        hidden, features = self.model(
+            inputs, cache, capture_layer_ids=capture_layer_ids
+        )
         logits = self.target_tokens(hidden) if token_only else self.lm_head(hidden)
         return logits, hidden, features
 
@@ -3437,6 +3623,37 @@ class Model(nn.Module):
             mx.concatenate([root, draft], axis=1), cache
         )
         return logits, hidden, snapshots[0]
+
+    def prefill_hidden(
+        self, inputs, cache, *, inputs_embeds=None, capture_layer_ids=()
+    ):
+        return self.model(
+            inputs,
+            cache,
+            prefill=True,
+            inputs_embeds=inputs_embeds,
+            capture_layer_ids=capture_layer_ids,
+        )
+
+    def configure_precision(
+        self, *, kv_cache_dtype="bf16", prefill_activation_dtype="bf16"
+    ):
+        """Choose model-owned precision before caches or forward graphs exist."""
+        if kv_cache_dtype not in (
+            "auto",
+            "bf16",
+            "bfloat16",
+            "fp8",
+            "mxfp8",
+            "fp8_e4m3",
+        ):
+            raise ValueError("GLM MLA cache dtype must be BF16 or FP8")
+        if prefill_activation_dtype not in ("bf16", "fp8"):
+            raise ValueError("GLM prefill activation dtype must be BF16 or FP8")
+        self._kv_cache_dtype = (
+            "fp8" if kv_cache_dtype in ("fp8", "mxfp8", "fp8_e4m3") else "bf16"
+        )
+        self.model._prefill_activation_dtype = prefill_activation_dtype
 
     def configure_mtp_verification(self, mode):
         if mode not in ("serial", "head", "ffn"):
@@ -3483,7 +3700,9 @@ class Model(nn.Module):
                 layer.self_attn.cache_latent_projection = enabled
                 layer.self_attn._latent_projection = None
 
-    def verify_mtp_requests(self, inputs, caches, *, token_only=False, capture_layer_ids=()):
+    def verify_mtp_requests(
+        self, inputs, caches, *, token_only=False, capture_layer_ids=()
+    ):
         """Layerwise ragged MTP trunks with private per-depth cache owners."""
         if not inputs or len(inputs) != len(caches):
             raise ValueError("Each verification chain requires its own cache")
@@ -3494,7 +3713,14 @@ class Model(nn.Module):
         if any(len(c) != len(self.layers) for c in caches):
             raise ValueError("Each chain must own all target layer caches")
         if len(inputs) == 1:
-            return [self.verify_mtp_rows(inputs[0], caches[0], token_only=token_only, capture_layer_ids=capture_layer_ids)]
+            return [
+                self.verify_mtp_rows(
+                    inputs[0],
+                    caches[0],
+                    token_only=token_only,
+                    capture_layer_ids=capture_layer_ids,
+                )
+            ]
         rows = [self.model.embed_tokens(v) for v in inputs]
         if self.args.mhc:
             rows = [mx.repeat(v[..., None, :], self.args.hc_mult, -2) for v in rows]
@@ -3519,8 +3745,11 @@ class Model(nn.Module):
                 )
                 start = i + 1
         hidden = [self.model.norm(v.mean(-2) if self.args.mhc else v) for v in rows]
-        logits = (self.target_tokens(mx.concatenate(hidden, 1)) if token_only
-                  else _project_rows(self.lm_head, mx.concatenate(hidden, 1)))
+        logits = (
+            self.target_tokens(mx.concatenate(hidden, 1))
+            if token_only
+            else _project_rows(self.lm_head, mx.concatenate(hidden, 1))
+        )
         result, cursor = [], 0
         for value, states, capture in zip(hidden, snapshots, captures):
             count = value.shape[1]
@@ -3628,7 +3857,11 @@ class Model(nn.Module):
                 entry += (mx.concatenate([captures[i] for i in capture_layer_ids], -1),)
             return entry
         logits = None
-        if mode != "serial" and count > 1 and isinstance(self.lm_head, nn.QuantizedLinear):
+        if (
+            mode != "serial"
+            and count > 1
+            and isinstance(self.lm_head, nn.QuantizedLinear)
+        ):
             p = self.lm_head
             if (
                 p.mode == "affine"
@@ -3668,7 +3901,11 @@ class Model(nn.Module):
         # KDA stores conv/recurrent state; MLA stores latent KV, raw indexer
         # tail keys/gates and the completed pooled-key buffer.
         return [
-            MLACache(4)
+            (
+                FP8MLACache(4)
+                if getattr(self, "_kv_cache_dtype", "bf16") == "fp8"
+                else MLACache(4)
+            )
             if not layer.is_linear and self.args.kv_lora_rank >= 256
             else NativeCache(4)
             for layer in self.layers
@@ -3829,6 +4066,7 @@ class Model(nn.Module):
                 len(self.model.layers),
             )
         return result
+
 
 def _e_layout_key(modules):
     pending = list(modules) if isinstance(modules, (list, tuple)) else [modules]

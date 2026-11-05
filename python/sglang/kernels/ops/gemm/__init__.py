@@ -772,3 +772,30 @@ register_kernel(
         capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
     )
 )
+
+register_kernel(
+    KernelSpec(
+        op="gemm.mlx_nvfp4_prefill_groups",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.gemm.mlx_nvfp4_prefill:mlx_nvfp4_prefill_groups",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)
+
+register_kernel(
+    KernelSpec(
+        op="gemm.mlx_nvfp4_prefill_a8",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.gemm.mlx_nvfp4_prefill:mlx_nvfp4_prefill_a8",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)
+
+register_kernel(
+    KernelSpec(
+        op="gemm.mlx_nvfp4_prefill_gate_up_a8",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.gemm.mlx_nvfp4_prefill:mlx_nvfp4_prefill_gate_up_a8",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)

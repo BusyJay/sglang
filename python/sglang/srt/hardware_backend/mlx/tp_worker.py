@@ -18,7 +18,6 @@ from typing import Optional
 
 import mlx.core as mx
 import torch
-
 from sglang.srt.hardware_backend.mlx.model_runner import (
     MlxPendingDecode,
     MlxPendingExtend,
@@ -96,6 +95,8 @@ class MlxTpModelWorker(TpModelWorker):
             disable_radix_cache=get_memory().disable_radix_cache,
             mem_fraction_static=get_schedule().mem_fraction_static,
             quantization=get_model().quantization,
+            kv_cache_dtype=get_model().kv_cache_dtype,
+            prefill_activation_dtype=get_device().mlx_prefill_activation_dtype,
             revision=get_model().revision,
             enable_sampling=get_device().mlx_enable_sampling,
             mtp_num_steps=get_device().mlx_mtp_num_steps,

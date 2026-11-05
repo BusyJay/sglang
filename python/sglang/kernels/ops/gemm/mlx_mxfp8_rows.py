@@ -23,7 +23,7 @@
 
 Each 32-value dot receives its original UE8M0 scale before accumulation.
 The KL16 lane assignment and shuffle tree match native tile2/tile4 QMV.
-Real vectors use 1..4 rows per dispatch without padded allocations; larger
+Real vectors use 1..8 rows per dispatch without padded allocations; larger
 batches share weights in four-row tiles. K, N and row count are runtime
 parameters, so growing prefill/verification lengths do not specialize source.
 """
@@ -120,7 +120,7 @@ def _kernel():
 def mlx_mxfp8_rows(x, weight, scales, *, tilegroups=None):
     """Project BF16/F32 vectors with unchanged MXFP8 operands.
 
-    ``tilegroups`` is vectors per threadgroup (1..4), not SIMD-group count;
+    ``tilegroups`` is vectors per threadgroup (1..8), not SIMD-group count;
     every threadgroup has two SIMD groups / 64 threads. Arbitrary positive
     vector counts use ceil(count/tilegroups) tiles without allocating padding.
     Weights can be uint8 [N,K] or native packed uint32 [N,K/4]. Output shape
@@ -141,9 +141,9 @@ def mlx_mxfp8_rows(x, weight, scales, *, tilegroups=None):
     if count <= 0 or max(k, n, count) >= 2**31:
         raise ValueError("Expected positive dimensions fitting native int parameters")
     if tilegroups is None:
-        tilegroups = min(count, 4)
-    if tilegroups not in (1, 2, 3, 4):
-        raise ValueError("tilegroups must be 1..4")
+        tilegroups = min(count, 8)
+    if tilegroups not in (1, 2, 3, 4, 5, 6, 7, 8):
+        raise ValueError("tilegroups must be 1..8")
     rows_per_tg = 64 // kl
     return _kernel()(
         inputs=[x.reshape(count, k), weight, scales, mx.array([k, n, count], mx.int32)],

@@ -17,6 +17,7 @@ from sglang.srt.arg_groups.overrides import (
 )
 from sglang.srt.configs.hybrid_arch import mambaish_config
 from sglang.srt.environ import envs
+from sglang.srt.hardware_backend.mlx.runtime import use_mlx
 from sglang.srt.model_executor.cuda_graph_config import Backend
 from sglang.srt.runtime_context import attn_dp_enabled_of, get_platform
 
@@ -98,9 +99,11 @@ def handle_nvfp4_prefill_kv_dequant_dtype(server_args: Any) -> None:
 
 
 def handle_mxfp8_kv_cache_compatibility(server_args: Any) -> None:
-    """MXFP8 KV cache uses operands available only on SM100+ (Blackwell)."""
+    """Validate the native CUDA or MLX MXFP8 cache implementation."""
     cfg = resolving_view(server_args)
     if cfg.kv_cache_dtype != "mxfp8":
+        return
+    if cfg.device == "mps" and use_mlx():
         return
     if not get_platform().is_blackwell:
         raise ValueError(

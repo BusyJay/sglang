@@ -47,6 +47,8 @@ class DFlashRequest:
     remaining: int | None = None
     chain_tokens: mx.array | None = None
     input_tokens: tuple[int, ...] | None = None
+    output_tokens: tuple[int, ...] | None = None
+    round_outputs: mx.array | None = None
     copy_proposer: ContextCopyProposer = field(default_factory=ContextCopyProposer)
     prefetch: PendingDFlashRound | None = None
 
@@ -133,6 +135,7 @@ class MlxDFlashServing:
             cache,
             capture_layer_ids=self.capture_layer_ids,
             inputs_embeds=inputs_embeds,
+            prefill=True,
         )
         state.pending_features.append(features)
         state.pending_positions.append(
@@ -156,6 +159,8 @@ class MlxDFlashServing:
         logits, _hidden, snapshots, features = result
         state.chain_tokens = chain
         state.input_tokens = None
+        state.output_tokens = None
+        state.round_outputs = logits if token_only else None
         state.rows.extend(
             DFlashRow(
                 chain[0, j],
@@ -352,9 +357,27 @@ class MlxDFlashServing:
             self._publish(state, cache)
             outputs.append(row.logits)
             self.counters["num_accept_tokens"] += 1
-            if prefetch_allowed and not state.rows:
+            next_reject = False
+            if prefetch_allowed and token_only and state.rows:
+                if state.output_tokens is None:
+                    count = state.chain_tokens.shape[1]
+                    values = mx.concatenate(
+                        [
+                            state.chain_tokens.reshape(-1),
+                            state.round_outputs.reshape(-1),
+                        ]
+                    ).tolist()
+                    state.input_tokens = tuple(values[:count])
+                    state.output_tokens = tuple(values[count:])
+                next_reject = (
+                    state.output_tokens[row.depth]
+                    != state.input_tokens[state.rows[0].depth]
+                )
+            if prefetch_allowed and (not state.rows or next_reject):
                 started = perf_counter()
                 self._prefetch_round(state, cache, row, token_only)
+                if next_reject:
+                    self.counters["prefetch_reject_boundary_ct"] += 1
                 self.timings["host_prefetch_build_seconds"] += perf_counter() - started
         return mx.concatenate(outputs, 0)
 

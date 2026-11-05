@@ -35,7 +35,6 @@ import psutil
 from mlx.utils import tree_flatten
 from mlx_lm import load as mlx_lm_load
 from mlx_lm.utils import quantize_model as mlx_lm_quantize_model
-
 from sglang.srt.environ import envs
 from sglang.srt.hardware_backend.mlx.aot import (
     MLX_AOT_KERNEL_REGISTRY,
@@ -185,6 +184,8 @@ class MlxModelRunner:
         dflash_num_drafts: int | None = None,
         dflash_draft_revision: str | None = None,
         language_only: bool = False,
+        kv_cache_dtype: str = "auto",
+        prefill_activation_dtype: str = "bf16",
     ):
         if not -1 <= mtp_num_steps <= 16:
             raise ValueError("mtp_num_steps must be -1 (auto), or 0-16")
@@ -195,6 +196,8 @@ class MlxModelRunner:
             raise ValueError("dflash_num_drafts must be positive")
         self._mtp = None
         self._language_only = language_only
+        self._kv_cache_dtype = kv_cache_dtype
+        self._prefill_activation_dtype = prefill_activation_dtype
         self._vision_encoder = None
         self._req_vision = {}
         self._dflash_draft_path = dflash_draft_path
@@ -247,7 +250,8 @@ class MlxModelRunner:
             mx.set_memory_limit(self._mlx_memory_budget)
             mx.set_wired_limit(self._mlx_memory_budget)
             logger.info(
-                "MLX process memory/wired budget %.2f GiB", self._mlx_memory_budget / 2**30
+                "MLX process memory/wired budget %.2f GiB",
+                self._mlx_memory_budget / 2**30,
             )
         self._load_model()
 
@@ -278,7 +282,9 @@ class MlxModelRunner:
         )
         if self._cache_layout.num_attention_layers == 0 and not self._native_cache:
             raise RuntimeError("MLX model has no supported attention layers")
-        if self._cache_layout.has_auxiliary_state and not hasattr(self.model, "make_cache"):
+        if self._cache_layout.has_auxiliary_state and not hasattr(
+            self.model, "make_cache"
+        ):
             raise RuntimeError(
                 "MLX models with auxiliary cache state require model.make_cache()."
             )
@@ -631,7 +637,8 @@ class MlxModelRunner:
                 # forces them to be peak-resident in memory at once (which on a 64 GB
                 # Mac running a 32 B model would put us within a few GB of OOM).
                 bytes_before = sum(
-                    p.size * p.itemsize for _, p in tree_flatten(self.model.parameters())
+                    p.size * p.itemsize
+                    for _, p in tree_flatten(self.model.parameters())
                 )
                 q_start = time.time()
                 logger.info(
@@ -645,7 +652,8 @@ class MlxModelRunner:
                     bits=bits,
                 )
                 bytes_after = sum(
-                    p.size * p.itemsize for _, p in tree_flatten(self.model.parameters())
+                    p.size * p.itemsize
+                    for _, p in tree_flatten(self.model.parameters())
                 )
                 q_time = time.time() - q_start
                 pct_reduction = (1 - bytes_after / max(bytes_before, 1)) * 100
@@ -656,10 +664,22 @@ class MlxModelRunner:
                 )
 
         if checkpoint_config.get("model_type") == "glm5_next":
+            self.model.configure_precision(
+                kv_cache_dtype=self._kv_cache_dtype,
+                prefill_activation_dtype=self._prefill_activation_dtype,
+            )
+            logger.info(
+                "GLM MLX precision: MLA cache=%s, routed prefill=%s, routed decode/verify=W4A16; "
+                "shared experts retain checkpoint dynamic A8; KDA recurrence FP32 and indexer/draft caches unchanged",
+                self.model._kv_cache_dtype,
+                self._prefill_activation_dtype,
+            )
             self.model.configure_optimizations(
                 envs.SGLANG_MLX_GLM_OPTIMIZATION_PROFILE.get()
             )
-            self.model.configure_mtp_verification(envs.SGLANG_MLX_GLM_MTP_VERIFY_MODE.get())
+            self.model.configure_mtp_verification(
+                envs.SGLANG_MLX_GLM_MTP_VERIFY_MODE.get()
+            )
             self.model.configure_latent_projection_cache(
                 envs.SGLANG_MLX_GLM_CACHE_LATENT_PROJECTION.get()
             )
@@ -668,7 +688,9 @@ class MlxModelRunner:
                 prefill=envs.SGLANG_MLX_GLM_PREFILL_EVAL_GROUP.get(),
                 verification=envs.SGLANG_MLX_GLM_VERIFY_EVAL_GROUP.get(),
             )
-            self.model.configure_fixed_groups(envs.SGLANG_MLX_GLM_ENABLE_FIXED_GROUPS.get())
+            self.model.configure_fixed_groups(
+                envs.SGLANG_MLX_GLM_ENABLE_FIXED_GROUPS.get()
+            )
             self.model.configure_shared_stream(
                 mx.new_stream(mx.gpu)
                 if envs.SGLANG_MLX_GLM_ENABLE_SHARED_STREAM.get()
@@ -712,7 +734,9 @@ class MlxModelRunner:
             )
 
             n_patched = patch_switch_glu_with_fused_swiglu(self.model)
-            logger.info(f"MLX SwiGLU activation fusion enabled: patched {n_patched} blocks")
+            logger.info(
+                f"MLX SwiGLU activation fusion enabled: patched {n_patched} blocks"
+            )
 
     def _warmup_dflash_target_head(self):
         # Packed quantized weights carry integer codes, not the activation dtype.
@@ -1428,7 +1452,13 @@ class MlxModelRunner:
         """
         if self._trunk is None:
             return None
-        return self._trunk(input_ids, cache=cache)
+        prefill = getattr(self.model, "prefill_hidden", None)
+        return (
+            prefill(input_ids, cache)
+            if callable(prefill)
+            and getattr(self, "_prefill_activation_dtype", "bf16") == "fp8"
+            else self._trunk(input_ids, cache=cache)
+        )
 
     def _token_only_allowed(
         self, req_ids, edit_rows=None, logprob_spec=None, logits_hook=None
@@ -1512,6 +1542,25 @@ class MlxModelRunner:
             return self._select_tokens_with_logprobs(
                 logits[:, -1], [req_id], [cache], edits, logprob_spec
             )
+        prefill = getattr(self.model, "prefill_hidden", None)
+        if (
+            callable(prefill)
+            and getattr(self, "_prefill_activation_dtype", "bf16") == "fp8"
+        ):
+            hidden = prefill(input_ids, cache)
+            if not needs_logits:
+                return self._dummy_next_token(hidden), None
+            if self._token_only_allowed([req_id], logit_edit_row, logprob_spec):
+                return self.model.target_tokens(hidden[:, -1:]).reshape(-1), None
+            logits = self.model.lm_head(hidden[:, -1:])
+            edits = logit_edit_row[None, :] if logit_edit_row is not None else None
+            return self._select_tokens_with_logprobs(
+                logits[:, -1],
+                [req_id],
+                [cache],
+                edits,
+                logprob_spec,
+            )
         if not needs_logits:
             hidden = self._trunk_forward(input_ids, cache)
             if hidden is not None:
@@ -1523,7 +1572,9 @@ class MlxModelRunner:
             logits = self._extract_logits(model_output)
             return mx.argmax(logits[:, -1, :], axis=-1), None
         if self._token_only_allowed([req_id], logit_edit_row, logprob_spec):
-            return self.model.forward_last_tokens(input_ids, cache=cache).reshape(-1), None
+            return self.model.forward_last_tokens(input_ids, cache=cache).reshape(
+                -1
+            ), None
         forward = getattr(self.model, "forward_last_logits", self.model)
         model_output = forward(input_ids, cache=cache)
         logits = self._extract_logits(model_output)
@@ -1866,12 +1917,17 @@ class MlxModelRunner:
         self,
         caches: list[list[Any]],
         input_ids_by_request: list[mx.array],
-        *, token_only: bool = False,
+        *,
+        token_only: bool = False,
     ) -> mx.array:
         if token_only:
             if len(caches) > 1:
-                return self.model.decode_requests(input_ids_by_request, caches, token_only=True).reshape(-1)
-            return self.model.forward_last_tokens(input_ids_by_request[0], cache=caches[0]).reshape(-1)
+                return self.model.decode_requests(
+                    input_ids_by_request, caches, token_only=True
+                ).reshape(-1)
+            return self.model.forward_last_tokens(
+                input_ids_by_request[0], cache=caches[0]
+            ).reshape(-1)
         batched_decode = getattr(self.model, "decode_requests", None)
         if len(caches) > 1 and callable(batched_decode):
             return self._extract_logits(batched_decode(input_ids_by_request, caches))[
@@ -1983,18 +2039,22 @@ class MlxModelRunner:
                 # The transaction authorizes a deterministic unedited sampler,
                 # including full-logit requests that only ask for logprobs.
                 decode_options["prefetch_allowed"] = (
-                    edit_rows is None and logits_hook is None
+                    edit_rows is None
+                    and logits_hook is None
                     and not self._sanitize_nan
-                    and (not self._enable_sampling or all_greedy(
-                        [self._req_sampling[rid] for rid in req_ids]
-                    ))
+                    and (
+                        not self._enable_sampling
+                        or all_greedy([self._req_sampling[rid] for rid in req_ids])
+                    )
                 )
             last_logits = self._mtp.decode_batch(
                 req_ids, batched_input, caches, last_tokens, **decode_options
             )
         elif self._native_cache:
             last_logits = self._decode_with_native_cache(
-                caches, [batched_input[i : i + 1] for i in range(len(caches))], token_only=token_only
+                caches,
+                [batched_input[i : i + 1] for i in range(len(caches))],
+                token_only=token_only,
             )
         elif self._cache_layout.has_auxiliary_state:
             last_logits = self._decode_with_hybrid_batching(
@@ -2064,7 +2124,9 @@ class MlxModelRunner:
         )
         if self._native_cache:
             last_logits = self._decode_with_native_cache(
-                caches, [batched_input[i : i + 1] for i in range(len(caches))], token_only=token_only
+                caches,
+                [batched_input[i : i + 1] for i in range(len(caches))],
+                token_only=token_only,
             )
         elif self._cache_layout.has_auxiliary_state:
             last_logits = self._decode_with_hybrid_batching(

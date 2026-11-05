@@ -171,3 +171,21 @@ register_kernel(
         capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
     )
 )
+
+register_kernel(
+    KernelSpec(
+        op="quantization.mlx_fp8_cache_pack",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.quantization.mlx_fp8_cache:mlx_fp8_cache_pack",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)
+
+register_kernel(
+    KernelSpec(
+        op="quantization.mlx_fp8_cache_unpack",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.quantization.mlx_fp8_cache:mlx_fp8_cache_unpack",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)

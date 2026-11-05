@@ -74,11 +74,10 @@ class TestMlxDFlashServing(CustomTestCase):
         precision.start()
         cls.addClassCleanup(precision.stop)
         import mlx.core as mx
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import Model, ModelArgs
         from transformers.models.glm5_next.configuration_glm5_next import (
             Glm5NextTextConfig,
         )
-
-        from sglang.srt.hardware_backend.mlx.models.glm5_next import Model, ModelArgs
 
         # Same dimensions and equations as TestGlm5NextMlx.setUpClass, without
         # importing its entire test suite or loading a reference checkpoint.
@@ -131,7 +130,6 @@ class TestMlxDFlashServing(CustomTestCase):
     def test_image_embeddings_preserve_dflash_features_across_prefill_chunks(self):
         """Image spans must feed target captures, not hashed placeholder embeddings."""
         import mlx.core as mx
-
         from sglang.srt.hardware_backend.mlx.dflash_serving import MlxDFlashServing
         from sglang.srt.hardware_backend.mlx.vision import VisionPrompt
 
@@ -257,7 +255,6 @@ class TestMlxDFlashServing(CustomTestCase):
     def test_target_checkpoint_discards_unrequested_native_mtp(self):
         """A DFlash target must not retain the checkpoint's unused prediction head."""
         import mlx.core as mx
-
         from sglang.srt.hardware_backend.mlx.models.glm5_next import Model
 
         target = Model(copy.copy(self.template.args))
@@ -355,7 +352,6 @@ class TestMlxDFlashServing(CustomTestCase):
     def test_remaining_clips_new_chains_and_terminal_release(self):
         """Budget clips proposals; a terminal sample never publishes extra rows."""
         import mlx.core as mx
-
         from sglang.srt.hardware_backend.mlx.dflash_serving import MlxDFlashServing
 
         drafter = _TapeDrafter([0])
@@ -558,9 +554,37 @@ class TestMlxDFlashServing(CustomTestCase):
         self._assert_cache(restored, reference)
         self.assertIsNone(serving._state("new", restored).prefetch)
 
-    def test_copy_proposals_verify_edits_and_prefix_restore(self):
+    def test_rejection_boundary_prefetch_preserves_consumed_prefix(self):
         import mlx.core as mx
 
+        serving = self._serving(miss=True)
+        cache, reference = self.target.make_cache(), self.ar.make_cache()
+        serving.prefill("r", self._inputs(self.prompt), cache)
+        logits, _, _ = self._ar_forward(self.prompt, reference)
+        token = int(mx.argmax(logits, -1).item())
+        for step in range(8):
+            serving.set_remaining("r", 20 - step)
+            got = serving.decode_batch(
+                ["r"],
+                self._inputs([token]),
+                [cache],
+                [token],
+                token_only=True,
+                prefetch_allowed=True,
+            )
+            expected, _, _ = self._ar_forward([token], reference)
+            mx.eval(got, expected)
+            self.assertEqual(int(got.item()), int(mx.argmax(expected, -1).item()))
+            self._assert_cache(cache, reference)
+            token = int(got.item())
+        self.assertGreater(serving.stats().get("reject_ct", 0), 0)
+        self.assertGreater(serving.stats().get("prefetch_reject_boundary_ct", 0), 0)
+        frozen = self._snapshots(cache)
+        serving.remove("r")
+        self._assert_cache(self._restore(frozen), reference)
+
+    def test_copy_proposals_verify_edits_and_prefix_restore(self):
+        import mlx.core as mx
         from sglang.srt.hardware_backend.mlx.context_copy import ContextCopyProposer
         from sglang.srt.hardware_backend.mlx.dflash_serving import MlxDFlashServing
 

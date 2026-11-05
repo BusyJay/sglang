@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """Indexed latent attention, with the MLX singleton matrix reduction order.
 
-Only compact score/probability arrays are allocated. Historical KV remains in
-shared prefix/append buffers; invalid index-table tails are never read. The reduction policy
+Compact score/probability arrays and, for FP8, selected BF16 rows are allocated.
+Historical KV remains in shared prefix/append buffers; invalid index-table tails
+are never read. The reduction policy
 matches MLX 0.32.4 SIMD or M5 MPP matmul, including its TF32 policy.
 """
 
@@ -409,7 +410,7 @@ _VALUES = r"""
 
 
 @cache
-def _kernels(nax=False, fp32=False):
+def _kernels(nax=False, fp32=False, fp8=False):
     header = (
         "#include <metal_simdgroup_matrix>\n"
         + r"""
@@ -422,6 +423,60 @@ def _kernels(nax=False, fp32=False):
         }
     """
     )
+    if fp8:
+        header += r"""
+        inline bfloat glm_fp8_decode(uchar code, uchar exponent) {
+            ushort value_bits = code & 127;
+            ushort bits = (value_bits << 7) | (((value_bits + 1) >> 7) << 14)
+                        | (ushort(code & 128) << 8);
+            half value = as_type<half>(bits);
+            float scale = as_type<float>(
+                exponent == 0 ? 0x400000u : uint(exponent) << 23);
+            return bfloat((float(value) * 256.0f) * scale);
+        }
+        inline bfloat glm_fp8_value(
+            const device uchar* prefix, const device uchar* tail,
+            uint slot, uint split, uint dim, uint col) {
+            const device uchar* row = glm_latent_row(
+                prefix, tail, slot, split, dim + dim / 32);
+            return glm_fp8_decode(row[col], row[dim + col / 32]);
+        }
+        inline vec<bfloat,4> glm_fp8_vector(
+            const device uchar* prefix, const device uchar* tail,
+            uint slot, uint split, uint dim, uint col) {
+            const device uchar* row = glm_latent_row(
+                prefix, tail, slot, split, dim + dim / 32);
+            const uchar4 codes = *((const device uchar4*)(row + col));
+            const uchar exponent = row[dim + col / 32];
+            return vec<bfloat,4>(
+                glm_fp8_decode(codes[0],exponent),
+                glm_fp8_decode(codes[1],exponent),
+                glm_fp8_decode(codes[2],exponent),
+                glm_fp8_decode(codes[3],exponent));
+        }
+        """
+
+    def cache_source(source):
+        if not fp8:
+            return source
+        source = source.replace(
+            "glm_latent_row(kv, kv_tail, slot, KV_SPLIT, D)[k + coord[0]]",
+            "glm_fp8_value(kv,kv_tail,slot,KV_SPLIT,D,k+coord[0])",
+        )
+        source = source.replace(
+            "glm_latent_row(kv, kv_tail, slot, KV_SPLIT, D)[col + coord[0]]",
+            "glm_fp8_value(kv,kv_tail,slot,KV_SPLIT,D,col+coord[0])",
+        )
+        source = source.replace(
+            "*((const device vec<V, 4>*)(glm_latent_row(kv, kv_tail, slot, KV_SPLIT, D) + k + col_k))",
+            "glm_fp8_vector(kv,kv_tail,slot,KV_SPLIT,D,k+col_k)",
+        )
+        source = source.replace(
+            "*((const device vec<V, 4>*)(glm_latent_row(kv, kv_tail, slot, KV_SPLIT, D) + col + cv))",
+            "glm_fp8_vector(kv,kv_tail,slot,KV_SPLIT,D,col+cv)",
+        )
+        return source
+
     if nax:
         header += "#include <MetalPerformancePrimitives/MetalPerformancePrimitives.h>\n"
     # Context length changes every decode. Keep strides in a tiny device
@@ -431,11 +486,18 @@ def _kernels(nax=False, fp32=False):
     )
     return (
         mx.fast.metal_kernel(
-            name="sglang_ragged_scores_nax" if nax else "sglang_ragged_scores",
+            name=("sglang_ragged_scores_nax" if nax else "sglang_ragged_scores")
+            + ("_fp8" if fp8 else ""),
             input_names=["queries", "kv", "kv_tail", "indices", "lengths"],
-            output_names=["scores"],
+            output_names=["scores", "decoded_kv"] if fp8 and nax else ["scores"],
             source=layout
-            + ((_NAX_SCORES_REGULAR if fp32 else _NAX_SCORES) if nax else _SCORES),
+            + cache_source(
+                (_NAX_SCORES_REGULAR if fp32 else _NAX_SCORES) if nax else _SCORES
+            ).replace(
+                "b[i] = p < length ? T(glm_fp8_value(kv,kv_tail,slot,KV_SPLIT,D,k+coord[0])) : T(0);",
+                "b[i] = p < length ? T(glm_fp8_value(kv,kv_tail,slot,KV_SPLIT,D,k+coord[0])) : T(0);\n"
+                "if (h0 == 0 && p >= threadgroup_position_in_grid.x*32 && p < length) decoded_kv[(size_t(r)*WIDTH+p)*D+k+coord[0]] = b[i];",
+            ),
             header=header,
         ),
         mx.fast.metal_kernel(
@@ -445,10 +507,19 @@ def _kernels(nax=False, fp32=False):
             source=layout + _SOFTMAX,
         ),
         mx.fast.metal_kernel(
-            name="sglang_ragged_values_nax" if nax else "sglang_ragged_values",
+            name=("sglang_ragged_values_nax" if nax else "sglang_ragged_values")
+            + ("_fp8" if fp8 else ""),
             input_names=["probs", "kv", "kv_tail", "indices", "lengths"],
             output_names=["out"],
-            source=layout + (_NAX_VALUES if nax else _VALUES),
+            source=layout
+            + (
+                _NAX_VALUES.replace(
+                    "glm_latent_row(kv, kv_tail, slot, KV_SPLIT, D)[col + coord[0]]",
+                    "kv[(size_t(r)*WIDTH+p)*D+col+coord[0]]",
+                )
+                if fp8 and nax
+                else cache_source(_NAX_VALUES if nax else _VALUES)
+            ),
             header=header,
         ),
     )
@@ -473,18 +544,21 @@ def mlx_ragged_latent_attention(
     batch, heads, rows, dim = queries.shape
     width = indices.shape[-1]
     dtypes = (mx.float16, mx.bfloat16, mx.float32)
+    fp8 = kv.dtype == mx.uint8
+    stored_dim = dim + dim // 32 if fp8 else dim
     if (
         batch != 1
         or dim != 512
         or heads != 64
         or not rows
         or kv.shape[0] != batch
-        or kv.shape[2] != dim
+        or kv.shape[2] != stored_dim
         or indices.shape[:2] != (batch, rows)
         or len(lengths) != rows
-        or mx.result_type(queries.dtype, kv.dtype) != queries.dtype
+        or (not fp8 and mx.result_type(queries.dtype, kv.dtype) != queries.dtype)
         or queries.dtype not in dtypes
-        or kv.dtype not in dtypes
+        or (not fp8 and kv.dtype not in dtypes)
+        or (fp8 and queries.dtype != mx.bfloat16)
         or indices.dtype not in (mx.int32, mx.uint32)
     ):
         return None
@@ -493,7 +567,7 @@ def mlx_ragged_latent_attention(
     elif (
         tail.ndim != 3
         or tail.shape[0] != batch
-        or tail.shape[2] != dim
+        or tail.shape[2] != stored_dim
         or tail.dtype != kv.dtype
     ):
         return None
@@ -516,7 +590,7 @@ def mlx_ragged_latent_attention(
         tail = kv
     template = [
         ("T", queries.dtype),
-        ("V", kv.dtype),
+        ("V", queries.dtype if fp8 else kv.dtype),
         ("H", heads),
         ("D", dim),
         ("ROWS", rows),
@@ -537,10 +611,10 @@ def mlx_ragged_latent_attention(
     has_nax, tf32, _ = _matmul_policy()
     nax = has_nax and (queries.dtype != mx.float32 or tf32)
     scores_kernel, softmax_kernel, values_kernel = _kernels(
-        nax, nax and queries.dtype == mx.float32
+        nax, nax and queries.dtype == mx.float32, fp8
     )
     scaled_q = (queries * mx.array(scale, queries.dtype)).transpose(0, 2, 1, 3)
-    scores = scores_kernel(
+    score_outputs = scores_kernel(
         inputs=[scaled_q, kv, tail, indices, lens],
         template=template,
         grid=(
@@ -553,9 +627,15 @@ def mlx_ragged_latent_attention(
             1,
         ),
         threadgroup=(128, 1, 1),
-        output_shapes=[(rows, heads, width)],
-        output_dtypes=[queries.dtype],
-    )[0]
+        output_shapes=[(rows, heads, width), (rows, width, dim)]
+        if fp8 and nax
+        else [(rows, heads, width)],
+        output_dtypes=[queries.dtype, queries.dtype]
+        if fp8 and nax
+        else [queries.dtype],
+    )
+    scores = score_outputs[0]
+    value_kv = score_outputs[1] if fp8 and nax else kv
     threads = min(1024, 32 * ((width + 127) // 128))
     probs = softmax_kernel(
         inputs=[scores, lens],
@@ -566,7 +646,7 @@ def mlx_ragged_latent_attention(
         output_dtypes=[queries.dtype],
     )[0]
     out = values_kernel(
-        inputs=[probs, kv, tail, indices, lens],
+        inputs=[probs, value_kv, value_kv if fp8 and nax else tail, indices, lens],
         template=template,
         grid=(128 * (dim // (64 if nax else 32)), rows * (heads // 32), 1),
         threadgroup=(128, 1, 1),

@@ -9,8 +9,7 @@ from typing import (
 )
 
 import msgspec
-
-from sglang.srt.arg_groups.arg_utils import A, Derived
+from sglang.srt.arg_groups.arg_utils import A, Arg, Derived
 
 
 class Device(msgspec.Struct):
@@ -63,6 +62,15 @@ class Device(msgspec.Struct):
             "only). Penalties are not applied."
         ),
     ] = False
+    mlx_prefill_activation_dtype: A[
+        str,
+        Arg(
+            help="GLM ModelOpt MLX routed prefill expert activation precision. fp8 selects "
+            "E4M3 /32 blocks with original NVFP4 weights; routed decode and verification "
+            "keep the checkpoint's A16 path.",
+            choices=["bf16", "fp8"],
+        ),
+    ] = "bf16"
     mlx_mtp_num_steps: A[
         int,
         (
