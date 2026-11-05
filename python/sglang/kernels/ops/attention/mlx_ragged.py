@@ -410,7 +410,7 @@ _VALUES = r"""
 
 
 @cache
-def _kernels(nax=False, fp32=False, fp8=False):
+def _kernels(nax=False, fp32=False, fp8=False, implicit=False):
     header = (
         "#include <metal_simdgroup_matrix>\n"
         + r"""
@@ -457,6 +457,11 @@ def _kernels(nax=False, fp32=False, fp8=False):
         """
 
     def cache_source(source):
+        if implicit:
+            for position in ("p", "key0", "key1", "key"):
+                source = source.replace(
+                    f"indices[size_t(r) * WIDTH + {position}]", position
+                )
         if not fp8:
             return source
         source = source.replace(
@@ -487,7 +492,8 @@ def _kernels(nax=False, fp32=False, fp8=False):
     return (
         mx.fast.metal_kernel(
             name=("sglang_ragged_scores_nax" if nax else "sglang_ragged_scores")
-            + ("_fp8" if fp8 else ""),
+            + ("_fp8" if fp8 else "")
+            + ("_implicit" if implicit else ""),
             input_names=["queries", "kv", "kv_tail", "indices", "lengths"],
             output_names=["scores", "decoded_kv"] if fp8 and nax else ["scores"],
             source=layout
@@ -508,14 +514,17 @@ def _kernels(nax=False, fp32=False, fp8=False):
         ),
         mx.fast.metal_kernel(
             name=("sglang_ragged_values_nax" if nax else "sglang_ragged_values")
-            + ("_fp8" if fp8 else ""),
+            + ("_fp8" if fp8 else "")
+            + ("_implicit" if implicit else ""),
             input_names=["probs", "kv", "kv_tail", "indices", "lengths"],
             output_names=["out"],
             source=layout
             + (
-                _NAX_VALUES.replace(
-                    "glm_latent_row(kv, kv_tail, slot, KV_SPLIT, D)[col + coord[0]]",
-                    "kv[(size_t(r)*WIDTH+p)*D+col+coord[0]]",
+                cache_source(
+                    _NAX_VALUES.replace(
+                        "glm_latent_row(kv, kv_tail, slot, KV_SPLIT, D)[col + coord[0]]",
+                        "kv[(size_t(r)*WIDTH+p)*D+col+coord[0]]",
+                    )
                 )
                 if fp8 and nax
                 else cache_source(_NAX_VALUES if nax else _VALUES)
@@ -526,7 +535,7 @@ def _kernels(nax=False, fp32=False, fp8=False):
 
 
 def mlx_ragged_latent_attention(
-    queries, kv, indices, lengths, *, scale, tail=None, split=None
+    queries, kv, indices, lengths, *, scale, tail=None, split=None, implicit_width=None
 ):
     """Q [1,64,R,512], shared KV [1,L,512], index table [1,R,W].
 
@@ -534,15 +543,20 @@ def mlx_ragged_latent_attention(
     Lengths may be a uint32 device array; split may be a scalar device array.
     Valid indices address both KV segments. Padded table widths keep compiled
     graph layouts stable while the visible lengths and segment split advance.
+    With indices=None, implicit_width sets the capacity and positions [0,length)
+    are addressed directly, without constructing a redundant index table.
     Invalid index padding is never read. Retains singleton promotion and reduction
     for all table widths, including empty rows. Logical lengths above 4096
     use the native looped softmax reduction with bounded threadgroup size. Other geometries use the
     caller's general batch attention. No per-token SDPA or KV copies occur.
     """
-    if queries.ndim != 4 or kv.ndim != 3 or indices.ndim != 3:
+    implicit = indices is None
+    if queries.ndim != 4 or kv.ndim != 3 or (not implicit and indices.ndim != 3):
         return None
     batch, heads, rows, dim = queries.shape
-    width = indices.shape[-1]
+    width = implicit_width if implicit else indices.shape[-1]
+    if implicit and (not isinstance(width, int) or width < 0):
+        raise ValueError("implicit attention requires a nonnegative capacity width")
     dtypes = (mx.float16, mx.bfloat16, mx.float32)
     fp8 = kv.dtype == mx.uint8
     stored_dim = dim + dim // 32 if fp8 else dim
@@ -553,13 +567,13 @@ def mlx_ragged_latent_attention(
         or not rows
         or kv.shape[0] != batch
         or kv.shape[2] != stored_dim
-        or indices.shape[:2] != (batch, rows)
+        or (not implicit and indices.shape[:2] != (batch, rows))
         or len(lengths) != rows
         or (not fp8 and mx.result_type(queries.dtype, kv.dtype) != queries.dtype)
         or queries.dtype not in dtypes
         or (not fp8 and kv.dtype not in dtypes)
         or (fp8 and queries.dtype != mx.bfloat16)
-        or indices.dtype not in (mx.int32, mx.uint32)
+        or (not implicit and indices.dtype not in (mx.int32, mx.uint32))
     ):
         return None
     if tail is None:
@@ -611,8 +625,10 @@ def mlx_ragged_latent_attention(
     has_nax, tf32, _ = _matmul_policy()
     nax = has_nax and (queries.dtype != mx.float32 or tf32)
     scores_kernel, softmax_kernel, values_kernel = _kernels(
-        nax, nax and queries.dtype == mx.float32, fp8
+        nax, nax and queries.dtype == mx.float32, fp8, implicit
     )
+    if implicit:
+        indices = mx.array([0], mx.int32)
     scaled_q = (queries * mx.array(scale, queries.dtype)).transpose(0, 2, 1, 3)
     score_outputs = scores_kernel(
         inputs=[scaled_q, kv, tail, indices, lens],

@@ -1925,11 +1925,20 @@ class MLA(nn.Module):
         index_rows, index_states = self.indexer.verify_rows(
             cache, offset, projected=index_projection
         )
+        implicit = (
+            b == 1
+            and a.num_attention_heads == 64
+            and a.kv_lora_rank == 512
+            and all(v is None for v in index_rows)
+        )
+        selected_widths = []
         for j in range(count):
             length = offset + j + 1
             indices = index_rows[j]
             if indices is None:
-                indices = mx.arange(length)[None, None, :]
+                if not implicit:
+                    indices = mx.arange(length)[None, None, :]
+                width = length
             else:
                 width = (
                     min(a.index_topk // a.index_kpool, length // a.index_kpool)
@@ -1939,6 +1948,7 @@ class MLA(nn.Module):
                     width += length % a.index_kpool
                 indices = indices[..., :width]
             selected.append(indices)
+            selected_widths.append(width if implicit else indices.shape[-1])
             snapshot = type(cache)(4)
             prefix = cache.cache[0] if isinstance(cache, MLACache) else kv[:, :length]
             snapshot.cache = [prefix] + index_states[j]
@@ -1948,26 +1958,32 @@ class MLA(nn.Module):
             v.view(v.dtype) if v is not None else None for v in snapshots[-1].cache
         ]
         cache.offset = offset + count
-        width = max(v.shape[-1] for v in selected)
+        width = max(selected_widths)
         if attention_graph is not None and not (
             a.num_attention_heads == 64 and a.kv_lora_rank == 512
         ):
             attention_graph = None
         if attention_graph is not None and width:
             width = max(32, 1 << (width - 1).bit_length())
-        indices = mx.concatenate(
-            [
-                mx.pad(
-                    v, [(0, 0), (0, 0), (0, width - v.shape[-1])], constant_values=-1
-                )
-                for v in selected
-            ],
-            axis=1,
-        ).astype(mx.int32)
+        indices = (
+            None
+            if implicit
+            else mx.concatenate(
+                [
+                    mx.pad(
+                        v,
+                        [(0, 0), (0, 0), (0, width - v.shape[-1])],
+                        constant_values=-1,
+                    )
+                    for v in selected
+                ],
+                axis=1,
+            ).astype(mx.int32)
+        )
         prefix, tail = (
             cache.latent_segments() if isinstance(cache, MLACache) else (kv, None)
         )
-        lengths = [v.shape[-1] for v in selected]
+        lengths = selected_widths
         visible_ends = mx.array(offset, mx.uint32) + mx.arange(
             1, count + 1, dtype=mx.uint32
         )
@@ -1980,6 +1996,7 @@ class MLA(nn.Module):
                 mx.array(lengths, mx.uint32),
                 visible_ends=visible_ends,
                 indices_valid=True,
+                implicit_width=width if implicit else None,
                 observation=graph_observation,
             )
         else:
@@ -1991,6 +2008,7 @@ class MLA(nn.Module):
                 lengths,
                 visible_ends=visible_ends,
                 indices_valid=True,
+                implicit_width=width if implicit else None,
             )
         return (_project_rows(self.o_proj, out) if project_output else out), snapshots
 
@@ -2005,16 +2023,22 @@ class MLA(nn.Module):
         split=None,
         visible_ends=None,
         indices_valid=False,
+        implicit_width=None,
     ):
         """Stateless latent attention with runtime visible-length metadata."""
         a = self.args
         b, count, _ = q.shape
         covered = b == 1 and a.num_attention_heads == 64 and a.kv_lora_rank == 512
-        if covered and visible_ends is not None and not indices_valid:
+        if (
+            indices is not None
+            and covered
+            and visible_ends is not None
+            and not indices_valid
+        ):
             indices, lengths = _f_visible_indices(
                 indices.astype(mx.int32), lengths, visible_ends
             )
-        width = indices.shape[-1]
+        width = implicit_width if indices is None else indices.shape[-1]
         q = q.reshape(b, count, a.num_attention_heads, a.qk_nope_head_dim).transpose(
             0, 2, 1, 3
         )
@@ -2028,13 +2052,28 @@ class MLA(nn.Module):
             latent_out = mlx_ragged_latent_attention(
                 latent_q,
                 prefix,
-                indices.astype(mx.int32),
+                None if indices is None else indices.astype(mx.int32),
                 lengths,
+                implicit_width=implicit_width,
                 scale=a.qk_nope_head_dim**-0.5,
                 tail=tail,
                 split=split,
             )
             if latent_out is None:
+                if indices is None:
+                    # The general SDPA path needs a materialized mask (e.g.
+                    # FP32 queries with packed FP8 KV). Keep its existing math.
+                    positions = mx.arange(width, dtype=mx.int32)
+                    visible = (
+                        lengths
+                        if isinstance(lengths, mx.array)
+                        else mx.array(lengths, mx.uint32)
+                    )
+                    indices = mx.where(
+                        positions[None, None, :] < visible.reshape(1, count, 1),
+                        positions,
+                        -1,
+                    )
                 selected_kv = mlx_latent_gather_cast(
                     prefix,
                     indices.astype(mx.int32),
@@ -3061,6 +3100,7 @@ class _FixedMLAAttention(_FixedGraphOwner):
         observation=None,
         visible_ends=None,
         indices_valid=False,
+        implicit_width=None,
     ):
         if tail is None:
             tail = prefix[:, :0]
@@ -3077,10 +3117,10 @@ class _FixedMLAAttention(_FixedGraphOwner):
             _observe_graph(self, self.attention) if observation is None else observation
         )
         spec = (
-            (configuration, indices_valid),
+            (configuration, indices_valid, indices is None),
             q.shape,
             q.dtype,
-            indices.shape,
+            indices.shape if indices is not None else (1, q.shape[1], implicit_width),
             prefix.shape,
             tail.shape,
             prefix.dtype,
@@ -3104,6 +3144,7 @@ class _FixedMLAAttention(_FixedGraphOwner):
                     split=split,
                     visible_ends=causal_ends,
                     indices_valid=indices_valid,
+                    implicit_width=implicit_width,
                 )
 
             graph = mx.compile(forward)

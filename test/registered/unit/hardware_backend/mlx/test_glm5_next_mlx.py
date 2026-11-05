@@ -18,6 +18,41 @@ register_mlx_ci(est_time=10, suite="stage-a-unit-test-mlx")
 
 @unittest.skipUnless(importlib.util.find_spec("mlx"), "requires MLX")
 class TestGlm5NextMlx(CustomTestCase):
+    def test_implicit_mla_preserves_fp32_query_with_packed_kv(self):
+        """Implicit addressing must retain the general SDPA mask for packed FP8 KV."""
+        import copy
+
+        import mlx.core as mx
+        from sglang.kernels.ops.quantization.mlx_fp8_cache import mlx_fp8_cache_pack
+        from sglang.srt.hardware_backend.mlx.models.glm5_next import (
+            MLA,
+            _FixedMLAAttention,
+        )
+
+        args = copy.copy(self._optimized_mtp_model().args)
+        args.num_attention_heads, args.kv_lora_rank = 64, 512
+        attention = MLA(args)
+        attention.set_dtype(mx.bfloat16)
+        query = mx.random.normal((1, 3, 64 * args.qk_nope_head_dim))
+        kv = mlx_fp8_cache_pack(mx.random.normal((1, 513, 512)).astype(mx.bfloat16))
+        lengths = mx.array([0, 17, 513], mx.uint32)
+        positions = mx.arange(1024, dtype=mx.int32)
+        table = mx.where(positions[None, None] < lengths[None, :, None], positions, -1)
+        expected = attention.attend_rows(
+            query, kv[:, :256], kv[:, 256:], table, lengths, indices_valid=True
+        )
+        owner = _FixedMLAAttention(attention)
+        actual = owner(
+            query,
+            kv[:, :256],
+            kv[:, 256:],
+            None,
+            lengths,
+            indices_valid=True,
+            implicit_width=1024,
+        )
+        self.assertTrue(mx.array_equal(actual, expected).item())
+
     def test_missing_native_prefix_snapshot_keeps_prefill_bound(self):
         """A cache miss must not expand a small scheduler suffix into one giant forward."""
         import copy
