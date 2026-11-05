@@ -356,6 +356,48 @@ class TestDFlash2Mlx(CustomTestCase):
                 rtol=0,
             )
 
+    def test_short_proposals_keep_full_keys_and_exact_prefix_outputs(self):
+        """Final FFN cropping must retain complete attention KV and exact outputs."""
+        mx = self.mx
+        states = [
+            self.model.consume(
+                self.array((1, n, 32)),
+                mx.arange(offset, offset + n, dtype=mx.int32),
+                self.model.make_state(),
+            )
+            for n, offset in ((3, 9), (11, 104))
+        ]
+        anchors = mx.array([[5], [7]], mx.int32)
+        tokens, hidden = self.hidden(anchors, states)
+        native = mx.fast.scaled_dot_product_attention
+        shapes = []
+        ffn_rows = []
+        mlp_type = type(self.model.layers[-1].mlp)
+        native_mlp = mlp_type.__call__
+
+        def record_mlp(module, x):
+            ffn_rows.append(x.shape[1])
+            return native_mlp(module, x)
+
+        def record(q, k, v, **kwargs):
+            shapes.append((q.shape[-2], k.shape[-2]))
+            return native(q, k, v, **kwargs)
+
+        for count in (1, 3, 5, 7):
+            shapes.clear()
+            ffn_rows.clear()
+            with (
+                patch.object(mx.fast, "scaled_dot_product_attention", record),
+                patch.object(mlp_type, "__call__", record_mlp),
+            ):
+                short, actual = self.hidden(anchors, states, count)
+            self.assertEqual(short.tolist(), tokens[:, :count].tolist())
+            self.close(actual, cpu(hidden[:, :count]), atol=0, rtol=0)
+            self.assertEqual(shapes[-1], (8, 19))
+            self.assertTrue(all(q == 8 for q, _ in shapes[:-1]))
+            self.assertEqual(ffn_rows[-1], min(8, max(6, count + 1)))
+            self.assertTrue(all(n == 8 for n in ffn_rows[:-1]))
+
     def test_batch_variable_context_lengths_offsets_and_state_immutability(self):
         """Padding is masked; request offsets and proposal KV cannot leak."""
         mx = self.mx

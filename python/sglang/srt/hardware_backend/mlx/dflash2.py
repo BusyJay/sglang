@@ -304,9 +304,9 @@ class DFlash2Model(nn.Module):
     def draft(self, anchors, states, embedding, lm_head, num_drafts):
         """Return greedy proposals [B,num_drafts], without modifying any state.
 
-        Always forward the complete trained block, even for a shorter requested
-        output: all root/mask KV are visible to every query. Context KV receive
-        neither draft layer input normalization nor dynamic convolution.
+        Every layer retains all trained root/mask KV and query outputs. The last
+        FFN computes the requested prefix, with a six-row native matrix floor.
+        Context KV receive neither layer normalization nor dynamic convolution.
         """
         if (
             anchors.ndim != 2
@@ -350,6 +350,14 @@ class DFlash2Model(nn.Module):
         for i, layer in enumerate(self.layers):
             attn = layer.self_attn
             x, kernel = layer.attention_conv.prepare(layer.input_layernorm(h))
+            # Keep the native eight-row attention. Only the final FFN can
+            # discard suffix rows, since its convolution is causal. A six-row
+            # floor retains the native matrix reduction used by the block.
+            ffn_count = (
+                min(self.block_size, max(6, num_drafts + 1))
+                if i == len(self.layers) - 1
+                else self.block_size
+            )
             q = attn.q_norm(
                 attn.q_proj(x).reshape(
                     batch, self.block_size, attn.heads, self.head_dim
@@ -388,7 +396,7 @@ class DFlash2Model(nn.Module):
             out = attn.o_proj(
                 out.transpose(0, 2, 1, 3).reshape(batch, self.block_size, -1)
             )
-            h = h + layer.attention_conv.finish(out, kernel)
+            h = (h + layer.attention_conv.finish(out, kernel))[:, :ffn_count]
             x, kernel = layer.mlp_conv.prepare(layer.post_attention_layernorm(h))
             h = h + layer.mlp_conv.finish(layer.mlp(x), kernel)
         hidden = self.norm(h)[:, 1 : num_drafts + 1]
