@@ -64,9 +64,11 @@ fixed-address scratch/ring、更多graph/MLA边界融合尚未完成。
 
 ## 验证与源码边界
 
-独立Git index/review_checkout与b6cb133d20最终tree一致；
-排除继承startup warmup、draft末层FFN裁剪及packaging改动。
+此前独立Git index/review_checkout与b6cb133d20 tree一致；
+当时排除继承startup warmup、draft末层FFN裁剪及packaging改动。
 首次隔离遗漏encoder依赖及warmup移除语法问题已修复后重跑。
+现已另行提交warmup（3b9c6993d3）和draft末层FFN裁剪（40d5b1ed3a），
+运行中的生产源码全部进入metal提交；packaging按用户要求保持未提交。
 
 - 13 registered文件，116设备/运行时测试通过。
 - 第一条pipeline提交单独通过mHC/mixed/router/context-copy/GLM/DFlash；
@@ -81,9 +83,10 @@ fixed-address scratch/ring、更多graph/MLA边界融合尚未完成。
 - 主工作区30007 BF16默认HTTP17cases+concurrency+abort全部完成；
   长2563prefix、复用、seed、logprob、stop、abort后复用通过。
   最后3条96token SSE decode61.175/67.276/68.970 tok/s。
-- HTTP包含继承warmup/draft末层FFN裁剪，和提交tree性能分开。
-  final_sources.json分别记录committed/worktree SHA256；
-  model_runner/glm5_next差异为未提交warmup。
+- HTTP包含warmup/draft末层FFN裁剪，其性能与此前隔离tree数据分开。
+  这两项源码保持HTTP验证时的实现，本次提交没有重新做吞吐实验。
+  原final_sources.json保留历史committed/worktree SHA256；
+  remaining_runtime_commit/final_state.json记录当前提交与源码哈希。
 - 首个遗漏process wired budget的worker为无效实验，排除其耗时。
   正式实验采用serving process预算，没有改系统wired memory；
   swap已存在，HTTP原始before/after记录于http_default.json。
@@ -102,3 +105,21 @@ pipeline_dependency_final.log、http_default.py/json/log、
 final_summary.json、final_sources.json。
 commit_oracle.py复现保留review_checkout提交tree；HTTP使用主工作区，
 不可混称源码一致。原始实验产物未纳入Git提交。
+
+## 剩余运行时代码提交（2026-11-05）
+
+- 3b9c6993d3：启动时实际求值小批量NVFP4 FFN及decode/verification图，
+  使用私有缓存，不注册请求、不发布prefix、不更改RNG。
+  仅预热配置形状，后续未见形状仍可能编译，不宣称新增稳态吞吐。
+- 40d5b1ed3a：DFlash保留完整8行attention KV/queries，仅裁剪末层FFN
+  不被短草稿使用的尾部，最低6行维持原生矩阵归约。
+  1/3/5/7草稿的hidden与tokens前缀逐位一致，不修改checkpoint精度。
+- 本次最终源码通过4个registered文件、84项测试：
+  startup warmup 1、DFlash2 6、GLM 65、DFlash serving 12。
+  包含实际Metal执行、独立BF16方程/缓存oracle与请求生命周期检查。
+  Ruff fatal/import/format、registered validator、git diff检查均通过。
+  完整日志和提交前后源码哈希位于remaining_runtime_commit/。
+- 已有完整模型/HTTP结果沿用上述原始记录；本次未追加性能实验，
+  不将两项提交合并后的独立吞吐增益作为已测结论。
+- pyproject.toml及pyproject_other.toml的已有工作区状态与哈希保持不变；
+  benchmark原始日志、快照和诊断脚本保持远端实验记录，未推送。
