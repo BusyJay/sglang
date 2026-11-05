@@ -34,6 +34,10 @@ _MUSA = PlatformInfo(device_type="musa")
         "attention.mlx_kda_decode",
         "attention.mlx_ragged_latent_attention",
         "layernorm.mlx_hc_collapse_norm",
+        "layernorm.mlx_hc_residual_rms_mix",
+        "moe.mlx_glm_router_select_pairs",
+        "gemm.mlx_mixed_fp8_nvfp4_swiglu",
+        "gemm.mlx_mixed_fp8_nvfp4_down",
         "gemm.mlx_sorted_qmm_scatter",
         "gemm.mlx_affine_rows",
         "gemm.mlx_dense_rows",
@@ -43,6 +47,7 @@ _MUSA = PlatformInfo(device_type="musa")
         "gemm.mlx_affine_swiglu_rows",
         "gemm.mlx_affine_routed_swiglu",
         "moe.mlx_glm_router",
+        "moe.mlx_glm_router_select",
         "moe.mlx_glm_down_combine",
     ],
 )

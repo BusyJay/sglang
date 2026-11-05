@@ -520,6 +520,94 @@ class TestMlxDFlashServing(CustomTestCase):
         self._assert_array(hidden, expected)
         self._assert_context(fresh, captured)
 
+    def test_gpu_round_prefetch_is_private_until_anchor_confirmation(self):
+        import mlx.core as mx
+
+        serving = self._serving()
+        cache, reference = self.target.make_cache(), self.ar.make_cache()
+        serving.prefill("r", self._inputs(self.prompt), cache)
+        logits, _, _ = self._ar_forward(self.prompt, reference)
+        token = int(mx.argmax(logits, -1).item())
+        for _ in range(6):
+            serving.set_remaining("r", 20)
+            got = serving.decode_batch(
+                ["r"],
+                self._inputs([token]),
+                [cache],
+                [token],
+                token_only=True,
+                prefetch_allowed=True,
+            )
+            expected, _, _ = self._ar_forward([token], reference)
+            mx.eval(got, expected)
+            self.assertEqual(int(got.item()), int(mx.argmax(expected, -1).item()))
+            self._assert_cache(cache, reference)
+            state = serving.states["r"]
+            self.assertEqual(
+                state.offset, len(self.prompt) + serving.counters["num_accept_tokens"]
+            )
+            token = int(got.item())
+        self.assertGreater(serving.stats().get("prefetch_ct", 0), 0)
+        self.assertGreater(serving.stats().get("prefetch_use_ct", 0), 0)
+        # A stop/mode transition must not publish the prefetched future.
+        frozen = self._snapshots(cache)
+        offset = cache[0].offset
+        serving.remove("r")
+        self.assertEqual(cache[0].offset, offset)
+        restored = self._restore(frozen)
+        self._assert_cache(restored, reference)
+        self.assertIsNone(serving._state("new", restored).prefetch)
+
+    def test_copy_proposals_verify_edits_and_prefix_restore(self):
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.context_copy import ContextCopyProposer
+        from sglang.srt.hardware_backend.mlx.dflash_serving import MlxDFlashServing
+
+        class UnexpectedDraft(_TapeDrafter):
+            def draft(self, *args, **kwargs):
+                raise AssertionError(
+                    "A complete copy proposal must avoid the draft model"
+                )
+
+        # A caller may edit any sampled token. The copied suffix is only a proposal.
+        prompt = list(range(1, 9)) + [21, 22, 23] + list(range(1, 8))
+        serving = MlxDFlashServing(self.target, None, 2, drafter=UnexpectedDraft([]))
+        cache, reference = self.target.make_cache(), self.ar.make_cache()
+        for chunk in (prompt[:11], prompt[11:]):
+            serving.prefill("source", self._inputs(chunk), cache)
+            self._ar_forward(chunk, reference)
+        frozen = self._snapshots(cache)
+        restored = self._restore(frozen)
+        for rid, branch in (("source", cache), ("restored", restored)):
+            state = serving._state(rid, branch)
+            self.assertEqual(state.copy_proposer.tokens, prompt)
+            self.assertEqual(state.copy_proposer.propose(8, 2), (21, 22))
+        # Verification consumes only the anchor even when the copy is wrong.
+        actual = serving.decode_batch(["source"], self._inputs([8]), [cache], [8])
+        expected, _, _ = self._ar_forward([8], reference)
+        mx.eval(actual, expected)
+        self._assert_array(actual, expected)
+        self._assert_cache(cache, reference)
+        self.assertEqual(serving.stats()["num_copy_drafts"], 2)
+        self.assertEqual(serving.states["source"].copy_proposer.tokens, prompt + [8])
+        self.assertEqual(
+            ContextCopyProposer(restored[0].mlx_context_copy).tokens, prompt
+        )
+        # Replace the sampler's next token. New context must exclude rejected 21/22.
+        serving.num_drafts = 0
+        actual = serving.decode_batch(["source"], self._inputs([42]), [cache], [42])
+        expected, _, _ = self._ar_forward([42], reference)
+        mx.eval(actual, expected)
+        self._assert_array(actual, expected)
+        self._assert_cache(cache, reference)
+        self.assertEqual(
+            serving.states["source"].copy_proposer.tokens, prompt + [8, 42]
+        )
+        self.assertTrue(serving.remove("source"))
+        rebuilt = self._restore(frozen)
+        self.assertEqual(serving._state("new", rebuilt).copy_proposer.tokens, prompt)
+
     def test_ragged_batch_is_independent_with_remaining_and_mode_changes(self):
         """Cohorts and cached token-only rows must not cross request boundaries."""
         import mlx.core as mx

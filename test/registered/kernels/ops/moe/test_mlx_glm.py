@@ -135,6 +135,49 @@ class TestMlxGlmMoe(CustomTestCase):
                         )
                         self.assertTrue(mx.array_equal(out, expected).item())
 
+    def test_routing_tail_preserves_probabilities_and_special_values(self):
+        """Selection bias must not enter weights or their ordered reduction."""
+        import mlx.core as mx
+        from mlx_lm.models.kimi_linear import _group_expert_select
+
+        from sglang.kernels.ops.moe.mlx_glm import mlx_glm_router_select
+
+        mx.random.seed(194)
+        for experts in (17, 288, 1024):
+            for topk in (1, 8, 32):
+                if topk > experts:
+                    continue
+                for renormalize in (False, True):
+                    logits = mx.random.normal((2, 4, experts))
+                    bias = mx.random.normal((experts,)) * 0.2
+                    expected = _group_expert_select(
+                        logits, bias, topk, 1, 1, 2.5, renormalize, "sigmoid"
+                    )
+                    actual = mlx_glm_router_select(
+                        logits,
+                        bias,
+                        top_k=topk,
+                        scaling=2.5,
+                        renormalize=renormalize,
+                    )
+                    self.assertTrue(mx.array_equal(actual[0], expected[0]).item())
+                    self.assertTrue(mx.array_equal(actual[1], expected[1]).item())
+        # Ties, saturation and NaNs retain the native selection ordering.
+        for values in (
+            [0.0] * 17,
+            [float("-inf"), float("inf"), float("nan"), -100.0, 100.0] * 4,
+        ):
+            logits = mx.array([values], mx.float32)
+            bias = mx.zeros((len(values),), mx.float32)
+            expected = _group_expert_select(logits, bias, 8, 1, 1, 2.5, True, "sigmoid")
+            actual = mlx_glm_router_select(
+                logits, bias, top_k=8, scaling=2.5, renormalize=True
+            )
+            self.assertTrue(mx.array_equal(actual[0], expected[0]).item())
+            self.assertTrue(
+                mx.array_equal(actual[1], expected[1], equal_nan=True).item()
+            )
+
     def test_corrected_sigmoid_routing_and_ties(self):
         import mlx.core as mx
         from mlx_lm.models.kimi_linear import _group_expert_select

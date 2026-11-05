@@ -327,6 +327,83 @@ _SELECT = r"""
 
 """
 
+# Keep the native FP32 logits reduction; fuse its routing consumers only.
+_SELECT_LOGITS = r"""
+  const uint lane = thread_index_in_simdgroup;
+  const int tok = int(threadgroup_position_in_grid.x);
+  constexpr int PER = (E + 31) / 32;
+  const device float* gz = logits + size_t(tok) * E;
+  float vals[PER], probabilities[PER];
+  bool taken[PER];
+  float local_best = -INFINITY;
+  int local_e = 0x7fffffff;
+  for (int j = 0; j < PER; j++) {
+    const int e = j * 32 + int(lane);
+    probabilities[j] = e < E ? glm_sigmoid<float>(gz[e]) : 0.0f;
+    vals[j] = e < E ? probabilities[j] + bias[e] : -INFINITY;
+    taken[j] = e >= E;
+    if (!taken[j] && !isnan(vals[j]) &&
+        (local_e == 0x7fffffff || vals[j] > local_best ||
+         (vals[j] == local_best && e < local_e))) {
+      local_best = vals[j];
+      local_e = e;
+    }
+  }
+  int picked[TOPK];
+  float gathered[TOPK];
+  for (int r = 0; r < TOPK; r++) {
+    float best = local_best;
+    int best_e = local_e;
+    for (ushort off = 16; off >= 1; off >>= 1) {
+      float ob = simd_shuffle_xor(best, off);
+      int oe = simd_shuffle_xor(best_e, off);
+      if (oe != 0x7fffffff &&
+          (best_e == 0x7fffffff || ob > best || (ob == best && oe < best_e))) {
+        best = ob;
+        best_e = oe;
+      }
+    }
+    if (best_e == 0x7fffffff) {
+      for (int j = 0; j < PER; j++) {
+        const int e = j * 32 + int(lane);
+        if (!taken[j] && e < best_e) best_e = e;
+      }
+      for (ushort off = 16; off >= 1; off >>= 1)
+        best_e = min(best_e, simd_shuffle_xor(best_e, off));
+    }
+    picked[r] = best_e;
+    // The selected owner already has the exact, unbiased probability.
+    // Broadcast it without a second sigmoid or read from the logits buffer.
+    float probability = probabilities[best_e / 32];
+    gathered[r] = simd_shuffle(probability, ushort(best_e % 32));
+    if ((best_e % 32) == int(lane)) {
+      taken[best_e / 32] = true;
+      local_best = -INFINITY;
+      local_e = 0x7fffffff;
+      for (int j = 0; j < PER; j++) {
+        const int e = j * 32 + int(lane);
+        if (!taken[j] && !isnan(vals[j]) &&
+            (local_e == 0x7fffffff || vals[j] > local_best ||
+             (vals[j] == local_best && e < local_e))) {
+          local_best = vals[j];
+          local_e = e;
+        }
+      }
+    }
+  }
+  if (lane == 0) {
+    float total = 0.0f;
+    for (int r = 0; r < TOPK; r++) total = gathered[r] + total;
+    for (int r = 0; r < TOPK; r++) {
+      float q = NORM ? gathered[r] / (total + 1e-20f) : gathered[r];
+      indices[tok * TOPK + r] = uint(picked[r]);
+      scores[tok * TOPK + r] = q * scaling[0];
+    }
+  }
+
+"""
+
+
 _DOWN = r"""
     const uint lane = thread_index_in_simdgroup;
     const uint sg = simdgroup_index_in_threadgroup;
@@ -477,6 +554,9 @@ def _group_picks(indices, tile):
 def _kernel(kind):
     if kind == "logits":
         inputs, outputs, source = ["x", "w", "bias"], ["sig", "biased_out"], _LOGITS
+    elif kind == "select_logits":
+        inputs = ["logits", "bias", "scaling"]
+        outputs, source = ["indices", "scores"], _SELECT_LOGITS
     elif kind == "select":
         inputs = ["sig", "biased", "scaling"]
         outputs, source = ["indices", "scores"], _SELECT
@@ -489,6 +569,42 @@ def _kernel(kind):
         output_names=outputs,
         source=source,
         header=_HEADER,
+    )
+
+
+def mlx_glm_router_select(logits, bias, *, top_k, scaling, renormalize):
+    """Corrected sigmoid selection and FP32 routing weights in one dispatch.
+
+    Leading dimensions are independent rows. Keep logits and bias in FP32,
+    bias only the selection scores, and normalize the original probabilities.
+    """
+    if (
+        logits.ndim < 1
+        or logits.dtype != mx.float32
+        or bias.dtype != mx.float32
+        or bias.shape != (logits.shape[-1],)
+        or not 1 <= top_k <= min(32, logits.shape[-1])
+        or not 1 <= logits.shape[-1] <= 1024
+    ):
+        return None
+    experts = logits.shape[-1]
+    count = logits.size // experts
+    if count == 0:
+        return None
+    shape = (*logits.shape[:-1], top_k)
+    return tuple(
+        _kernel("select_logits")(
+            inputs=[logits, bias, mx.array([scaling], mx.float32)],
+            template=[
+                ("E", experts),
+                ("TOPK", top_k),
+                ("NORM", renormalize and top_k > 1),
+            ],
+            grid=(count * 32, 1, 1),
+            threadgroup=(32, 1, 1),
+            output_shapes=[shape, shape],
+            output_dtypes=[mx.uint32, mx.float32],
+        )
     )
 
 

@@ -93,7 +93,7 @@ _SOURCE = r"""
     threadgroup_barrier(mem_flags::mem_threadgroup);
     for (int d = int(tid) * 4; d < int(tid) * 4 + 4; d++) {
         // MLX rounds normalization before applying its learned 16-bit weight.
-        T normalized = T(float(normed[tok * D + d]) * partial[0]);
+        O normalized = O(float(normed[tok * D + d]) * partial[0]);
         normed[tok * D + d] = normalized * norm_weight[d];
     }
 """
@@ -131,7 +131,7 @@ def mlx_hc_collapse_norm(x, mix, base, scale, norm_weight, *, eps, norm_eps, ite
         or base.dtype != mx.float32
         or scale.dtype != mx.float32
         or norm_weight.shape != (x.shape[-1],)
-        or norm_weight.dtype != x.dtype
+        or norm_weight.dtype not in (x.dtype, mx.float32)
     ):
         return None
     count, dim = x.shape[1], x.shape[-1]
@@ -144,17 +144,14 @@ def mlx_hc_collapse_norm(x, mix, base, scale, norm_weight, *, eps, norm_eps, ite
             norm_weight,
             mx.array([eps, norm_eps], mx.float32),
         ],
-        template=[("T", x.dtype), ("D", dim), ("ITERS", iters), ("THREADS", dim // 4)],
+        template=[("T", x.dtype), ("O", mx.result_type(x.dtype, norm_weight.dtype)), ("D", dim), ("ITERS", iters), ("THREADS", dim // 4)],
         grid=(dim // 4, count, 1),
         threadgroup=(dim // 4, 1, 1),
         output_shapes=[(1, count, dim), (1, count, 4), (1, count, 4, 4)],
-        output_dtypes=[x.dtype] * 3,
+        output_dtypes=[mx.result_type(x.dtype, norm_weight.dtype), x.dtype, x.dtype],
     )
 
     # Preserve MLX's hardware matmul reduction and rounding. An equivalent
     # scalar four-term dot can change BF16 residuals near cancellation.
-    residual = mx.concatenate(
-        [comb[:, j : j + 1].swapaxes(-1, -2) @ x[:, j : j + 1] for j in range(count)],
-        axis=1,
-    )
+    residual = comb.swapaxes(-1, -2) @ x
     return normed, post, residual

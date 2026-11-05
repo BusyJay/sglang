@@ -536,6 +536,7 @@ class MlxModelRunner:
             for s in MlxModelRunner._cache_arrays(cache)
         ]
 
+
     def _load_model(self):
         """Load model using mlx_lm. If ``self._quantization`` requests a preset
         (e.g. ``mlx_q4``), quantize fp16 weights in-place via
@@ -1977,8 +1978,19 @@ class MlxModelRunner:
             req_ids, edit_rows, logprob_spec, logits_hook
         )
         if self._mtp is not None:
+            decode_options = {"token_only": token_only}
+            if self._dflash_draft_path is not None:
+                # The transaction authorizes a deterministic unedited sampler,
+                # including full-logit requests that only ask for logprobs.
+                decode_options["prefetch_allowed"] = (
+                    edit_rows is None and logits_hook is None
+                    and not self._sanitize_nan
+                    and (not self._enable_sampling or all_greedy(
+                        [self._req_sampling[rid] for rid in req_ids]
+                    ))
+                )
             last_logits = self._mtp.decode_batch(
-                req_ids, batched_input, caches, last_tokens, token_only=token_only
+                req_ids, batched_input, caches, last_tokens, **decode_options
             )
         elif self._native_cache:
             last_logits = self._decode_with_native_cache(

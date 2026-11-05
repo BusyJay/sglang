@@ -24,6 +24,7 @@ from mlx_lm.models.switch_layers import (
     _gather_sort,
     _scatter_unsort,
 )
+
 from sglang.kernels.ops.attention.linear.mlx_kda import mlx_kda_decode
 from sglang.kernels.ops.attention.mlx_ragged import mlx_ragged_latent_attention
 from sglang.kernels.ops.gemm.mlx_affine_rows import (
@@ -40,6 +41,13 @@ from sglang.kernels.ops.gemm.mlx_dense_rows import (
     mlx_dense_rows,
     mlx_headed_dense_rows,
 )
+from sglang.kernels.ops.gemm.mlx_fp8_rows import mlx_fp8_dynamic_32
+from sglang.kernels.ops.gemm.mlx_mixed_moe import (
+    mlx_mixed_fp8_nvfp4_down,
+    mlx_mixed_fp8_nvfp4_swiglu,
+)
+from sglang.kernels.ops.gemm.mlx_nvfp4_gather import mlx_nvfp4_gather_rows
+from sglang.kernels.ops.gemm.mlx_nvfp4_swiglu import mlx_nvfp4_swiglu
 from sglang.kernels.ops.gemm.mlx_qmm_scatter import mlx_sorted_qmm_scatter
 from sglang.kernels.ops.gemm.mlx_qmm_swiglu import (
     _expert_worklist,
@@ -47,11 +55,14 @@ from sglang.kernels.ops.gemm.mlx_qmm_swiglu import (
 )
 from sglang.kernels.ops.kvcache.mlx_latent import mlx_latent_gather_cast
 from sglang.kernels.ops.layernorm.mlx_hc import mlx_hc_collapse_norm
+from sglang.kernels.ops.layernorm.mlx_hc_boundary import mlx_hc_residual_rms_mix
 from sglang.kernels.ops.layernorm.mlx_hc_mix import mlx_hc_rms_mix
 from sglang.kernels.ops.moe.mlx_glm import (
     mlx_glm_down_combine,
     mlx_glm_router,
+    mlx_glm_router_select,
 )
+from sglang.kernels.ops.moe.mlx_router_pairs import mlx_glm_router_select_pairs
 
 logger = logging.getLogger(__name__)
 
@@ -300,7 +311,29 @@ class MLP(nn.Module):
         from sglang.srt.hardware_backend.mlx.models.glm5_fp4 import FP8Linear
 
         if isinstance(self.gate_proj, FP8Linear):
-            gate, up = self.gate_proj(x), self.up_proj(x)
+            if (
+                self.gate_proj.block_size == self.up_proj.block_size == 128
+                and self.gate_proj.activation_mode == self.up_proj.activation_mode == "dynamic32"
+                and self.gate_proj.weight.shape == self.up_proj.weight.shape
+            ):
+                from sglang.kernels.ops.gemm.mlx_block_fp8 import mlx_block_fp8_pair
+                from sglang.kernels.ops.gemm.mlx_fp8_rows import mlx_fp8_dynamic_32
+
+                quantized = mlx_fp8_dynamic_32(x)
+                gate, up = mlx_block_fp8_pair(
+                    x,
+                    self.gate_proj.weight,
+                    self.gate_proj.scales,
+                    self.up_proj.weight,
+                    self.up_proj.scales,
+                    quantized,
+                )
+                if "bias" in self.gate_proj:
+                    gate = gate + self.gate_proj.bias
+                if "bias" in self.up_proj:
+                    up = up + self.up_proj.bias
+            else:
+                gate, up = self.gate_proj(x), self.up_proj(x)
             return self.down_proj(clamped_swiglu(gate, up, self.limit))
         restore_dtype = self.match_affine_dtype and _uses_fp16_affine_ffn(
             x, (self.gate_proj, self.up_proj, self.down_proj)
@@ -785,6 +818,7 @@ class MoE(nn.Module):
                 )
         a = self.args
         selected = None
+        pair_worklist = None
         bounded = x.shape[0] == 1 and (
             x.shape[1] == 1 or batch_fusion and 1 < x.shape[1] <= 17
         )
@@ -798,7 +832,9 @@ class MoE(nn.Module):
                 renormalize=a.norm_topk_prob,
             )
         if selected is None:
-            from sglang.srt.hardware_backend.mlx.models.glm5_fp4 import NVFP4SwitchLinear
+            from sglang.srt.hardware_backend.mlx.models.glm5_fp4 import (
+                NVFP4SwitchLinear,
+            )
 
             if isinstance(self.switch_mlp.gate_proj, NVFP4SwitchLinear):
                 # A fixed row tile keeps FP32 router logits identical for AR
@@ -816,17 +852,83 @@ class MoE(nn.Module):
                 scores = mx.concatenate(blocks, 0).reshape(*x.shape[:-1], weight.shape[0])
             else:
                 scores = x.astype(mx.float32) @ weight.astype(mx.float32).T
-            selected = _group_expert_select(
-                scores,
-                self.e_score_correction_bias,
-                a.num_experts_per_tok,
-                a.n_group,
-                a.topk_group,
-                a.routed_scaling_factor,
-                a.norm_topk_prob,
-                a.scoring_func,
-            )
+            if (
+                self.fuse_decode
+                and bounded
+                and a.n_group == 1
+                and a.scoring_func == "sigmoid"
+            ):
+                if (
+                    batch_fusion and x.shape[1] > 1
+                    and isinstance(self.switch_mlp.gate_proj, NVFP4SwitchLinear)
+                ):
+                    routed = mlx_glm_router_select_pairs(
+                        scores, self.e_score_correction_bias,
+                        top_k=a.num_experts_per_tok,
+                        scaling=a.routed_scaling_factor,
+                        renormalize=a.norm_topk_prob,
+                    )
+                    if routed is not None:
+                        selected, pair_worklist = routed[:2], routed[2:]
+                if selected is None:
+                    selected = mlx_glm_router_select(
+                        scores,
+                        self.e_score_correction_bias,
+                        top_k=a.num_experts_per_tok,
+                        scaling=a.routed_scaling_factor,
+                        renormalize=a.norm_topk_prob,
+                    )
+            if selected is None:
+                selected = _group_expert_select(
+                    scores,
+                    self.e_score_correction_bias,
+                    a.num_experts_per_tok,
+                    a.n_group,
+                    a.topk_group,
+                    a.routed_scaling_factor,
+                    a.norm_topk_prob,
+                    a.scoring_func,
+                )
         indices, weights = selected
+        if pair_worklist is not None and shared_stream is None:
+            from sglang.srt.hardware_backend.mlx.models.glm5_fp4 import FP8Linear
+            sw, shared_block = self.switch_mlp, self.shared_experts
+            projections = (shared_block.gate_proj, shared_block.up_proj)
+            if all(
+                isinstance(p, FP8Linear) and p.block_size == 128
+                and p.activation_mode == "dynamic32" and "bias" not in p
+                for p in projections
+            ):
+                def operands(p):
+                    return p.weight, p.scales, p.weight_scale_2.reshape(-1) * 2688
+                activation, shared_activation = mlx_mixed_fp8_nvfp4_swiglu(
+                    x, operands(sw.gate_proj), operands(sw.up_proj),
+                    indices, pair_worklist,
+                    (projections[0].weight, projections[0].scales),
+                    (projections[1].weight, projections[1].scales),
+                    mlx_fp8_dynamic_32(x), limit=sw.activation.limit,
+                )
+                shared_down = shared_block.down_proj
+                if (
+                    getattr(shared_down, "block_size", None) == 128
+                    and getattr(shared_down, "activation_mode", None) == "dynamic32"
+                    and "bias" not in shared_down
+                ):
+                    routed, shared = mlx_mixed_fp8_nvfp4_down(
+                        activation, shared_activation, operands(sw.down_proj),
+                        indices, pair_worklist,
+                        (shared_down.weight, shared_down.scales),
+                        mlx_fp8_dynamic_32(shared_activation),
+                    )
+                    routed = routed.squeeze(-2)
+                else:
+                    routed = mlx_nvfp4_gather_rows(
+                        activation, *operands(sw.down_proj), indices,
+                        worklist=pair_worklist, output_rows=1,
+                    ).squeeze(-2)
+                    shared = shared_down(shared_activation)
+                routed = (routed * weights[..., None]).sum(-2).astype(x.dtype)
+                return routed + shared
         if shared_stream is None:
             shared = self.shared_experts(x, batch_fusion=batch_fusion)
         else:
@@ -887,7 +989,24 @@ class MoE(nn.Module):
                     )
                     if result is not None:
                         return result
-        routed = self.switch_mlp(x, indices)
+        if pair_worklist is not None:
+            sw = self.switch_mlp
+            def project(value, projection):
+                return mlx_nvfp4_gather_rows(
+                    value, projection.weight, projection.scales,
+                    projection.weight_scale_2 * 2688, indices,
+                    worklist=pair_worklist, output_rows=1,
+                )
+            activation = mlx_nvfp4_swiglu(
+                x, sw.gate_proj.weight, sw.gate_proj.scales,
+                sw.gate_proj.weight_scale_2 * 2688,
+                sw.up_proj.weight, sw.up_proj.scales,
+                sw.up_proj.weight_scale_2 * 2688, indices,
+                limit=sw.activation.limit, worklist=pair_worklist,
+            )
+            routed = project(activation, sw.down_proj).squeeze(-2)
+        else:
+            routed = self.switch_mlp(x, indices)
         routed = (routed * weights[..., None]).sum(-2).astype(x.dtype)
         return routed + shared
 
@@ -2052,7 +2171,7 @@ class DecoderLayer(nn.Module):
                 setattr(self, f"hc_{name}_base", mx.zeros(((2 + h) * h,), mx.float32))
                 setattr(self, f"hc_{name}_scale", mx.ones((3,), mx.float32))
 
-    def _branch_inputs(self, x, name, norm):
+    def _branch_inputs(self, x, name, norm, *, mix=None):
         if not self.args.mhc:
             return norm(x), None, x
         if (
@@ -2061,11 +2180,12 @@ class DecoderLayer(nn.Module):
             and 1 <= x.shape[1] <= 17
             and x.shape[2] == 4
         ):
-            mix = mlx_hc_rms_mix(
-                x,
-                getattr(self, f"hc_{name}_fn"),
-                eps=self.args.rms_norm_eps,
-            )
+            if mix is None:
+                mix = mlx_hc_rms_mix(
+                    x,
+                    getattr(self, f"hc_{name}_fn"),
+                    eps=self.args.rms_norm_eps,
+                )
             if mix is None:
                 flat = x.reshape(1, x.shape[1], -1).astype(mx.float32)
                 weight = getattr(self, f"hc_{name}_fn").astype(mx.float32).T
@@ -2107,6 +2227,27 @@ class DecoderLayer(nn.Module):
             mx.concatenate([v[2] for v in parts], 1),
         )
 
+    def _branch_transition(self, branch, post, residual, name, norm):
+        """Complete one branch and feed the next mHC through explicit arrays."""
+        if self.preserve_residual_dtype:
+            branch = branch.astype(residual.dtype)
+        fused = (
+            mlx_hc_residual_rms_mix(
+                residual,
+                post,
+                branch,
+                getattr(self, f"hc_{name}_fn"),
+                eps=self.args.rms_norm_eps,
+            )
+            if self.args.mhc and self.fuse_hc and post is not None
+            else None
+        )
+        if fused is not None:
+            value, mix = fused
+            return self._branch_inputs(value, name, norm, mix=mix)
+        value = self._branch_output(branch, post, residual)
+        return self._branch_inputs(value, name, norm)
+
     def _branch_output(self, branch, post, residual):
         if self.preserve_residual_dtype:
             branch = branch.astype(residual.dtype)
@@ -2116,7 +2257,60 @@ class DecoderLayer(nn.Module):
             return _compiled_residual(residual, post, branch)
         return residual + post[..., None] * branch[..., None, :]
 
+    def _decode_with_next_inputs(self, x, cache, prepared, next_layer):
+        """Carry an explicit mHC transition between layers inside one graph.
+
+        The value remains available for capture and the final output. Prepared
+        next-layer inputs are local graph values, never fields on a live module.
+        """
+        normed, post, residual = (
+            self._branch_inputs(x, "attn", self.input_layernorm)
+            if prepared is None
+            else prepared
+        )
+        branch = self.self_attn(normed, cache)
+        normed, post, residual = self._branch_transition(
+            branch, post, residual, "ffn", self.post_attention_layernorm
+        )
+        branch = self.mlp(normed)
+        if self.preserve_residual_dtype:
+            branch = branch.astype(residual.dtype)
+        if next_layer is None:
+            return self._branch_output(branch, post, residual), None
+        fused = mlx_hc_residual_rms_mix(
+            residual,
+            post,
+            branch,
+            next_layer.hc_attn_fn,
+            eps=next_layer.args.rms_norm_eps,
+        )
+        if fused is None:
+            value = self._branch_output(branch, post, residual)
+            return value, next_layer._branch_inputs(
+                value, "attn", next_layer.input_layernorm
+            )
+        value, mix = fused
+        return value, next_layer._branch_inputs(
+            value, "attn", next_layer.input_layernorm, mix=mix
+        )
+
     def __call__(self, x, cache, *, shared_stream=None):
+        if (
+            self.args.mhc and self.fuse_hc and x.shape[:3] == (1, 1, 4)
+            and x.dtype in (mx.float16, mx.bfloat16)
+        ):
+            normed, post, residual = self._branch_inputs(
+                x, "attn", self.input_layernorm
+            )
+            branch = self.self_attn(normed, cache)
+            value, post, residual = self._branch_transition(
+                branch, post, residual, "ffn", self.post_attention_layernorm
+            )
+            branch = (
+                self.mlp(value, shared_stream=shared_stream)
+                if isinstance(self.mlp, MoE) else self.mlp(value)
+            )
+            return self._branch_output(branch, post, residual)
         for name, norm, block in (
             ("attn", self.input_layernorm, lambda y: self.self_attn(y, cache)),
             (
@@ -2334,9 +2528,15 @@ class DecoderLayer(nn.Module):
                 ]
                 snapshot.offset = cache.offset
                 snapshots.append(snapshot)
-        normed, post, residual = self._branch_inputs(
-            mx.concatenate(attended, 1), "ffn", self.post_attention_layernorm
-        )
+        if batched is not None:
+            normed, post, residual = self._branch_transition(
+                branches, attention_post, attention_residual,
+                "ffn", self.post_attention_layernorm
+            )
+        else:
+            normed, post, residual = self._branch_inputs(
+                mx.concatenate(attended, 1), "ffn", self.post_attention_layernorm
+            )
         branch = (
             self.mlp(normed, batch_fusion=True, shared_stream=shared_stream)
             if isinstance(self.mlp, MoE)
@@ -2828,9 +3028,8 @@ class _FixedMLALayer(_FixedGraphOwner):
                         if router_weight is not None
                         else ()
                     )
-                attended = layer._branch_output(branch, *parts)
-                value, post, residual = layer._branch_inputs(
-                    attended, "ffn", layer.post_attention_layernorm
+                value, post, residual = layer._branch_transition(
+                    branch, *parts, "ffn", layer.post_attention_layernorm
                 )
                 branch = (
                     layer.mlp(value, batch_fusion=True)
@@ -2925,9 +3124,13 @@ class _FixedLayerGroup(_FixedGraphOwner):
 
             def forward(value, weights, arrays, fused_weights):
                 outputs, boundaries = [], []
-                for layer, parameter, array, cache_type, prepared in zip(
+                next_inputs = None
+                # Next-layer mHC weights are explicit graph operands too.
+                for layer, parameter in zip(layers, weights):
+                    layer.update(parameter)
+                for layer_index, (layer, parameter, array, cache_type, prepared) in enumerate(zip(
                     layers, weights, arrays, cache_types, fused_weights
-                ):
+                )):
                     fused, expert_weights, router_weight = prepared
                     layer.update(parameter)
                     attention = layer.self_attn
@@ -2954,8 +3157,22 @@ class _FixedLayerGroup(_FixedGraphOwner):
                     if verification:
                         value, snapshots = layer.verify_ffn_rows(value, local)
                         boundaries.append([snapshot.cache for snapshot in snapshots])
+                    elif (
+                        type(layer) is DecoderLayer and layer.args.mhc
+                        and layer.fuse_hc and value.shape[:3] == (1, 1, 4)
+                        and value.dtype in (mx.float16, mx.bfloat16)
+                    ):
+                        following = layers[layer_index + 1] if layer_index + 1 < len(layers) else None
+                        if following is not None and not (
+                            type(following) is DecoderLayer and following.fuse_hc and following.args.mhc
+                        ):
+                            following = None
+                        value, next_inputs = layer._decode_with_next_inputs(
+                            value, local, next_inputs, following
+                        )
                     else:
                         value = layer(value, local)
+                        next_inputs = None
                     outputs.append(local.cache)
                 return value, outputs, boundaries
 
@@ -3481,6 +3698,8 @@ class Model(nn.Module):
             # the full checkpoint in one command buffer at runner startup.
             mx.eval(layer.parameters())
             _prepare_e_modules(layer)
+            if isinstance(layer.mlp, MoE):
+                switch = layer.mlp.switch_mlp
         mx.eval(self.model.embed_tokens.parameters(), self.model.norm.parameters())
         mx.eval(self.lm_head.parameters())
         if self.mtp is not None:
@@ -3494,6 +3713,8 @@ class Model(nn.Module):
             )
             if token is not None:
                 mx.eval(token)
+
+
 
     def configure_optimizations(self, profile):
         """Select independent decode candidates before load-time preparation."""

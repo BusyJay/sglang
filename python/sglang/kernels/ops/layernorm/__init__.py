@@ -139,3 +139,12 @@ register_kernel(
         capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
     )
 )
+
+register_kernel(
+    KernelSpec(
+        op="layernorm.mlx_hc_residual_rms_mix",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.layernorm.mlx_hc_boundary:mlx_hc_residual_rms_mix",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)

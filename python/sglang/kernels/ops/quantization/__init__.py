@@ -162,3 +162,12 @@ register_kernel(
         capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
     )
 )
+
+register_kernel(
+    KernelSpec(
+        op="quantization.mlx_fp8_dynamic_32",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.quantization.mlx_fp8_dynamic:mlx_fp8_dynamic_32",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)

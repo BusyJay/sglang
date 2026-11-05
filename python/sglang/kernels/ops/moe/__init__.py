@@ -381,6 +381,15 @@ register_kernel(
 
 register_kernel(
     KernelSpec(
+        op="moe.mlx_glm_router_select",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.moe.mlx_glm:mlx_glm_router_select",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)
+
+register_kernel(
+    KernelSpec(
         op="moe.mlx_glm_down_combine",
         backend=KernelBackend.MLX,
         target="sglang.kernels.ops.moe.mlx_glm:mlx_glm_down_combine",
@@ -393,6 +402,24 @@ register_kernel(
         op="moe.mlx_nvfp4_routed",
         backend=KernelBackend.MLX,
         target="sglang.kernels.ops.moe.mlx_nvfp4:mlx_nvfp4_routed",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)
+
+register_kernel(
+    KernelSpec(
+        op="moe.mlx_expert_pair_worklist",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.moe.mlx_expert_pairs:mlx_expert_pair_worklist",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)
+
+register_kernel(
+    KernelSpec(
+        op="moe.mlx_glm_router_select_pairs",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.moe.mlx_router_pairs:mlx_glm_router_select_pairs",
         capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
     )
 )

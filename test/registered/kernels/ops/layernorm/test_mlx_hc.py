@@ -135,6 +135,7 @@ class TestMlxHc(CustomTestCase):
                                 inputs=inputs,
                                 template=[
                                     ("T", dtype),
+                                    ("O", dtype),
                                     ("D", dim),
                                     ("ITERS", iters),
                                     ("THREADS", dim // 4),

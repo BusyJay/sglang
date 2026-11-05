@@ -727,3 +727,48 @@ register_kernel(
         capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
     )
 )
+
+register_kernel(
+    KernelSpec(
+        op="gemm.mlx_block_fp8_pair",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.gemm.mlx_block_fp8:mlx_block_fp8_pair",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)
+
+register_kernel(
+    KernelSpec(
+        op="gemm.mlx_nvfp4_gather_rows",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.gemm.mlx_nvfp4_gather:mlx_nvfp4_gather_rows",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)
+
+register_kernel(
+    KernelSpec(
+        op="gemm.mlx_nvfp4_swiglu",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.gemm.mlx_nvfp4_swiglu:mlx_nvfp4_swiglu",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)
+
+register_kernel(
+    KernelSpec(
+        op="gemm.mlx_mixed_fp8_nvfp4_swiglu",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.gemm.mlx_mixed_moe:mlx_mixed_fp8_nvfp4_swiglu",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)
+
+register_kernel(
+    KernelSpec(
+        op="gemm.mlx_mixed_fp8_nvfp4_down",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.gemm.mlx_mixed_moe:mlx_mixed_fp8_nvfp4_down",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)

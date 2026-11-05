@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from time import perf_counter
 
 import mlx.core as mx
-
+from sglang.srt.hardware_backend.mlx.context_copy import ContextCopyProposer
 from sglang.srt.hardware_backend.mlx.dflash2 import load_dflash2
 from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
 
@@ -27,6 +27,16 @@ class DFlashRow:
 
 
 @dataclass
+class PendingDFlashRound:
+    offset: int
+    token_only: bool
+    chain: mx.array
+    result: tuple
+    draft_state: object
+    num_copy_drafts: int = 0
+
+
+@dataclass
 class DFlashRequest:
     draft_state: object
     anchor: object
@@ -37,6 +47,8 @@ class DFlashRequest:
     remaining: int | None = None
     chain_tokens: mx.array | None = None
     input_tokens: tuple[int, ...] | None = None
+    copy_proposer: ContextCopyProposer = field(default_factory=ContextCopyProposer)
+    prefetch: PendingDFlashRound | None = None
 
 
 class MlxDFlashServing:
@@ -73,7 +85,14 @@ class MlxDFlashServing:
             and saved[1] == self.capture_layer_ids
         ):
             state = DFlashRequest(
-                saved[2], cache[0], offset, list(saved[3]), list(saved[4])
+                saved[2],
+                cache[0],
+                offset,
+                list(saved[3]),
+                list(saved[4]),
+                copy_proposer=ContextCopyProposer(
+                    getattr(cache[0], "mlx_context_copy", None)
+                ),
             )
         else:
             if offset:
@@ -92,6 +111,7 @@ class MlxDFlashServing:
             tuple(state.pending_features),
             tuple(state.pending_positions),
         )
+        cache[0].mlx_context_copy = state.copy_proposer.snapshot
 
     def _consume_features(self, state):
         if state.pending_features:
@@ -106,6 +126,7 @@ class MlxDFlashServing:
     def prefill(self, rid, inputs, cache, *, inputs_embeds=None):
         state = self._state(rid, cache)
         state.rows.clear()
+        state.prefetch = None
         offset = state.offset
         hidden, features = self.model.model(
             inputs,
@@ -122,6 +143,7 @@ class MlxDFlashServing:
         self._consume_features(state)
         mx.async_eval(state.draft_state)
         state.offset = cache[0].offset
+        state.copy_proposer.extend(inputs.reshape(-1).tolist())
         self._publish(state, cache)
         return hidden
 
@@ -130,7 +152,84 @@ class MlxDFlashServing:
         if state is not None:
             state.remaining = max(0, remaining)
 
-    def decode_batch(self, req_ids, inputs, caches, tokens, *, token_only=False):
+    def _install_rows(self, state, chain, result, token_only):
+        logits, _hidden, snapshots, features = result
+        state.chain_tokens = chain
+        state.input_tokens = None
+        state.rows.extend(
+            DFlashRow(
+                chain[0, j],
+                logits[:, j : j + 1] if token_only else logits[:, j],
+                features[:, j : j + 1],
+                snapshots[j],
+                j,
+                token_only,
+            )
+            for j in range(chain.shape[1])
+        )
+
+    def _prefetch_round(self, state, cache, row, token_only):
+        """Submit one private round while the CPU reads the committed output."""
+        count = self.num_drafts
+        if state.remaining is not None:
+            count = min(count, max(0, state.remaining - 2))
+        if count <= 0:
+            return
+        anchor = (
+            row.logits.reshape(1, 1).astype(mx.int32)
+            if token_only
+            else mx.argmax(row.logits, -1).reshape(1, 1).astype(mx.int32)
+        )
+        # The last committed row is now official, but consuming its features
+        # remains private until the actual sampler confirms the next anchor.
+        prepared = self.drafter.consume(
+            mx.concatenate(state.pending_features, 1),
+            mx.concatenate(state.pending_positions),
+            state.draft_state,
+        )
+        copied = ()
+        if state.copy_proposer.can_match_next():
+            copied = state.copy_proposer.propose(int(anchor.item()), count)
+        drafts = (
+            mx.array([copied], anchor.dtype)
+            if copied
+            else self.drafter.draft(
+                anchor,
+                [prepared],
+                self.model.model.embed_tokens,
+                self.model.lm_head,
+                count,
+            )
+        )
+        chain = mx.concatenate([anchor, drafts], 1)
+        private = [clone_cache(c) for c in cache]
+        result = self.model.verify_mtp_requests(
+            [chain],
+            [private],
+            token_only=token_only,
+            capture_layer_ids=self.capture_layer_ids,
+        )[0]
+        state.prefetch = PendingDFlashRound(
+            state.offset, token_only, chain, result, prepared, len(copied)
+        )
+        mx.async_eval(
+            chain,
+            result[0],
+            result[3],
+            [c.cache for boundary in result[2] for c in boundary],
+        )
+        self.counters["prefetch_ct"] += 1
+
+    def decode_batch(
+        self,
+        req_ids,
+        inputs,
+        caches,
+        tokens,
+        *,
+        token_only=False,
+        prefetch_allowed=False,
+    ):
         started = perf_counter()
         requests, work = [], []
         for i, (rid, cache, token) in enumerate(zip(req_ids, caches, tokens)):
@@ -156,15 +255,52 @@ class MlxDFlashServing:
                 count = self.num_drafts
                 if state.remaining is not None:
                     count = min(count, max(0, state.remaining - 1))
-                self._consume_features(state)
-                work.append((i, count))
+                prefetched = state.prefetch
+                state.prefetch = None
+                if (
+                    prefetched is not None
+                    and prefetched.offset == state.offset
+                    and prefetched.token_only == token_only
+                    and prefetched.chain.shape[1] == count + 1
+                    and int(prefetched.chain[0, 0].item()) == token
+                ):
+                    state.draft_state = prefetched.draft_state
+                    state.pending_features.clear()
+                    state.pending_positions.clear()
+                    self._install_rows(
+                        state, prefetched.chain, prefetched.result, token_only
+                    )
+                    self.counters["prefetch_use_ct"] += 1
+                    if prefetched.num_copy_drafts:
+                        self.counters["copy_verify_ct"] += 1
+                        self.counters["num_copy_drafts"] += prefetched.num_copy_drafts
+                    self.counters["verify_ct"] += 1
+                    self.counters["num_proposed_drafts"] += count
+                else:
+                    if prefetched is not None:
+                        self.counters["prefetch_discard_ct"] += 1
+                    self._consume_features(state)
+                    work.append((i, count))
         self.timings["host_prepare_seconds"] += perf_counter() - started
         # Share all draft projections within cohorts; different target context
         # lengths are represented by each request's explicit context mask.
         chains = {}
         started = perf_counter()
-        for count in sorted({count for _, count in work}):
-            indices = [i for i, n in work if n == count]
+        draft_work = []
+        for i, count in work:
+            copied = requests[i][0].copy_proposer.propose(tokens[i], count)
+            if copied:
+                chains[i] = mx.concatenate(
+                    [inputs[i : i + 1], mx.array([copied], inputs.dtype)], 1
+                )
+                self.counters["copy_verify_ct"] += 1
+                self.counters["num_copy_drafts"] += len(copied)
+                self.counters["verify_ct"] += 1
+                self.counters["num_proposed_drafts"] += count
+            else:
+                draft_work.append((i, count))
+        for count in sorted({count for _, count in draft_work}):
+            indices = [i for i, n in draft_work if n == count]
             anchors = mx.concatenate([inputs[i : i + 1] for i in indices], 0)
             if count:
                 drafts = self.drafter.draft(
@@ -192,22 +328,8 @@ class MlxDFlashServing:
                 token_only=token_only,
                 capture_layer_ids=self.capture_layer_ids,
             )
-            for i, (logits, hidden, snapshots, features) in zip(indices, results):
-                state = requests[i][0]
-                chain = chains[i]
-                state.chain_tokens = chain
-                state.input_tokens = None
-                state.rows.extend(
-                    DFlashRow(
-                        chain[0, j],
-                        logits[:, j : j + 1] if token_only else logits[:, j],
-                        features[:, j : j + 1],
-                        snapshots[j],
-                        j,
-                        token_only,
-                    )
-                    for j in range(chain.shape[1])
-                )
+            for i, result in zip(indices, results):
+                self._install_rows(requests[i][0], chains[i], result, token_only)
             mx.async_eval(
                 [r[0] for r in results],
                 [r[3] for r in results],
@@ -215,7 +337,7 @@ class MlxDFlashServing:
             )
             self.timings["host_verify_build_seconds"] += perf_counter() - started
         outputs = []
-        for state, cache in requests:
+        for i, (state, cache) in enumerate(requests):
             row = state.rows.popleft()
             offset = state.offset
             for dst, src in zip(cache, row.cache):
@@ -226,9 +348,14 @@ class MlxDFlashServing:
             state.pending_features.append(row.features)
             state.pending_positions.append(mx.array([offset], mx.int32))
             state.offset = cache[0].offset
+            state.copy_proposer.extend((tokens[i],))
             self._publish(state, cache)
             outputs.append(row.logits)
             self.counters["num_accept_tokens"] += 1
+            if prefetch_allowed and not state.rows:
+                started = perf_counter()
+                self._prefetch_round(state, cache, row, token_only)
+                self.timings["host_prefetch_build_seconds"] += perf_counter() - started
         return mx.concatenate(outputs, 0)
 
     def decode(self, rid, inputs, cache):
