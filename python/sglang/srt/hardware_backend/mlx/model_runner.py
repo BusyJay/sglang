@@ -267,6 +267,7 @@ class MlxModelRunner:
             from sglang.srt.hardware_backend.mlx.mtp_serving import MlxMTPServing
 
             self._mtp = MlxMTPServing(self.model, mtp_num_steps)
+        self._warmup_model_for_inference()
         self._native_cache = getattr(self.model, "native_cache", False)
         if self._native_cache:
             layer_list = self.model.layers
@@ -542,6 +543,27 @@ class MlxModelRunner:
             for s in MlxModelRunner._cache_arrays(cache)
         ]
 
+    def _warmup_model_for_inference(self):
+        warmup = getattr(self.model, "warmup_for_inference", None)
+        if callable(warmup):
+            steps = (
+                getattr(self._mtp, "num_drafts", 0)
+                if self._dflash_draft_path is not None
+                else max(self._mtp_num_steps, 8 if self._mtp_num_steps == -1 else 0)
+            )
+            start = time.perf_counter()
+            warmed = warmup(
+                verification_counts=tuple(sorted({2, min(steps + 1, 8)}))
+                if steps > 0
+                else (),
+                capture_layer_ids=getattr(self._mtp, "capture_layer_ids", ()),
+                token_only=not self._enable_sampling,
+            )
+            if warmed:
+                logger.info(
+                    "MLX startup graph warmup completed in %.2fs",
+                    time.perf_counter() - start,
+                )
 
     def _load_model(self):
         """Load model using mlx_lm. If ``self._quantization`` requests a preset

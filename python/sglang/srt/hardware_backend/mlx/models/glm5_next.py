@@ -3937,6 +3937,15 @@ class Model(nn.Module):
             _prepare_e_modules(layer)
             if isinstance(layer.mlp, MoE):
                 switch = layer.mlp.switch_mlp
+                if (
+                    switch.gate_proj.weight.ndim == 3
+                    and switch.gate_proj.weight.dtype == mx.uint8
+                ):
+                    from sglang.srt.hardware_backend.mlx.warmup import (
+                        warmup_mlx_switch_glu,
+                    )
+
+                    warmup_mlx_switch_glu(switch, picks=self.args.num_experts_per_tok)
         mx.eval(self.model.embed_tokens.parameters(), self.model.norm.parameters())
         mx.eval(self.lm_head.parameters())
         if self.mtp is not None:
@@ -3951,7 +3960,27 @@ class Model(nn.Module):
             if token is not None:
                 mx.eval(token)
 
+        self.warmup_for_inference()
 
+    def warmup_for_inference(
+        self, *, verification_counts=(), capture_layer_ids=(), token_only=False
+    ):
+        """Warm the loaded NVFP4 model's real graph owners before serving."""
+        if not any(
+            isinstance(layer.mlp, MoE)
+            and layer.mlp.switch_mlp.gate_proj.weight.dtype == mx.uint8
+            for layer in self.layers
+        ):
+            return False
+        from sglang.srt.hardware_backend.mlx.warmup import warmup_mlx_model
+
+        warmup_mlx_model(
+            self,
+            verification_counts=verification_counts,
+            capture_layer_ids=capture_layer_ids,
+            token_only=token_only,
+        )
+        return True
 
     def configure_optimizations(self, profile):
         """Select independent decode candidates before load-time preparation."""
