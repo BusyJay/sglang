@@ -7,7 +7,7 @@ exec /Users/jay/workspace/prod/common/sglang-metal/bin/python -m sglang.launch_s
  --model-path /Users/jay/workspace/prod/huggingface/hub/models--nvidia--GLM-5.3-Flash-FP4-Local/snapshots/76348ddb2be2e35e39ecfc00e75dc07703f4f3d5 \
  --speculative-algorithm DFLASH \
  --speculative-draft-model-path /Users/jay/workspace/prod/huggingface/hub/models--incoai--GLM-5.3-Flash-DFlash2/snapshots/bf582e4eacc1810f76656d1811693ff6c6737d2a \
- --speculative-dflash-block-size 4 --reasoning-parser glm45 --mem-fraction-static 0.78 --host 127.0.0.1 --port 30007 \
+ --speculative-dflash-block-size 4 --reasoning-parser glm45 --mem-fraction-static 0.78 --host 0.0.0.0 --port 39007 \
  --kv-cache-dtype bf16 --mlx-prefill-activation-dtype bf16 \
  --context-length 8192 --max-total-tokens 17024 --chunked-prefill-size 256 \
  --max-running-requests 2 --mlx-enable-sampling --random-seed 1234 \
