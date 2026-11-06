@@ -13,6 +13,64 @@ register_mlx_ci(est_time=3, suite="stage-a-unit-test-mlx")
 
 @unittest.skipUnless(importlib.util.find_spec("mlx"), "requires MLX")
 class TestMlxKda(CustomTestCase):
+    def test_separate_beta_preserves_outputs_and_every_state_boundary(self):
+        """Removing the joined projection must preserve beta row addressing."""
+        import mlx.core as mx
+        from sglang.kernels.ops.attention.linear.mlx_kda import mlx_kda_decode
+
+        mx.random.seed(712)
+        heads, dim = 2, 256
+        for dtype in (mx.bfloat16, mx.float16):
+            weights = tuple(
+                mx.random.normal((dim, 4, 1)).astype(dtype) for _ in range(3)
+            )
+            for count in (1, 4, 8):
+                qkv = mx.random.normal((1, count, 3 * dim)).astype(dtype)
+                beta = mx.random.normal((1, count, heads)).astype(dtype)
+                joined = mx.concatenate(
+                    (qkv, mx.zeros((1, count, 256), dtype), beta), -1
+                )
+                a, gate = [
+                    mx.random.normal((1, count, dim)).astype(dtype) for _ in range(2)
+                ]
+                for initialized in (False, True):
+                    conv = (
+                        tuple(
+                            mx.random.normal((1, 3, dim)).astype(dtype)
+                            for _ in range(3)
+                        )
+                        if initialized
+                        else (None,) * 3
+                    )
+                    state = (
+                        mx.random.normal((1, heads, 128, 128)) if initialized else None
+                    )
+                    for snapshots in (False, True):
+                        kw = {
+                            "heads": heads,
+                            "norm_eps": 1e-6,
+                            "lower_bound": -5.0,
+                            "snapshots": snapshots,
+                        }
+                        operands = (
+                            weights,
+                            conv,
+                            state,
+                            a,
+                            gate,
+                            mx.zeros((heads,), mx.float32),
+                            mx.zeros((dim,), mx.float32),
+                            mx.ones((128,), dtype),
+                        )
+                        expected = mlx_kda_decode(joined, *operands, **kw)
+                        actual = mlx_kda_decode(qkv, *operands, beta=beta, **kw)
+                        for got, want in zip(
+                            (actual[0], *actual[1], actual[2]),
+                            (expected[0], *expected[1], expected[2]),
+                        ):
+                            self.assertTrue(mx.array_equal(got, want).item())
+                self.assertIsNone(mlx_kda_decode(qkv, *operands, **kw))
+
     def test_prefill_then_fused_decode_keeps_cache_layout_and_offsets(self):
         import mlx.core as mx
 
@@ -106,12 +164,37 @@ class TestMlxKda(CustomTestCase):
                 ),
             ),
         )
-        for dtype in (mx.bfloat16, mx.float16):
+        for dtype, packed in (
+            (mx.bfloat16, False),
+            (mx.float16, False),
+            (mx.bfloat16, True),
+        ):
             mx.random.seed(19)
+            args.linear_attn_config["num_heads"] = 4 if packed else 2
             attn = KDA(args)
             attn.set_dtype(dtype)
             attn.A_log = attn.A_log.astype(mx.float32)
             attn.dt_bias = attn.dt_bias.astype(mx.float32)
+            if packed:
+                from sglang.srt.hardware_backend.mlx.models.glm5_fp4 import FP8Linear
+
+                for name in ("q_proj", "k_proj", "v_proj"):
+                    weight, scales = mx.quantize(
+                        getattr(attn, name).weight,
+                        group_size=32,
+                        bits=8,
+                        mode="mxfp8",
+                    )
+                    setattr(
+                        attn,
+                        name,
+                        FP8Linear(
+                            weight.view(mx.uint8),
+                            scales,
+                            block_size=32,
+                            activation_mode="a16",
+                        ),
+                    )
             attn.fuse_decode = True
             attn.prepare_for_inference()
             base = NativeCache(4)

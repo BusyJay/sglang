@@ -392,6 +392,16 @@ __all__ = [
 
 
 # Public entry points inventoried by logical operator group (RFC #29630).
+for _name in ("mlx_dense_gate_rows", "mlx_dense_gate_pair"):
+    register_kernel(
+        KernelSpec(
+            op=f"gemm.{_name}",
+            backend=KernelBackend.MLX,
+            target=f"sglang.kernels.ops.gemm.mlx_dense_gates:{_name}",
+            capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+        )
+    )
+
 register_kernel(
     KernelSpec(
         op="gemm.linear_bf16_fp32",

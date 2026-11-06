@@ -363,6 +363,21 @@ class FP8KDAInputs(nn.Module):
         gates = tuple(_project_rows(p, x) for p in (self.fa, self.ga, self.beta))
         return mx.concatenate((qkv, *gates), -1)
 
+    def project_parts(self, x):
+        """Keep QKV and the three narrow gates contiguous through recurrence."""
+        from sglang.kernels.ops.gemm.mlx_dense_gates import mlx_dense_gate_rows
+
+        from .glm5_next import _project_rows
+
+        qkv = mxfp8_project_rows(x, self.weight, self.scales)
+        projections = self.fa, self.ga, self.beta
+        gates = None
+        if all(type(p) is nn.Linear and "bias" not in p for p in projections):
+            gates = mlx_dense_gate_rows(x, tuple(p.weight for p in projections))
+        if gates is None:
+            gates = tuple(_project_rows(p, x) for p in projections)
+        return qkv, *gates
+
 
 def load_fp4_vision(path):
     """Read mixed vision projections by exact indexed ranges, preserving biases."""

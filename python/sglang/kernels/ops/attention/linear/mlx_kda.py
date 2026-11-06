@@ -134,7 +134,7 @@ _SOURCE = r"""
     gs[t][i] = metal::precise::exp(s4);
   }
   if (tid < uint(TOK)) {
-    betas[tid] = glm_sigmoid<T>(proj[tid * PROJ_W + OFF_B + h]);
+    betas[tid] = glm_sigmoid<T>(beta[tid * BETA_W + OFF_B + h]);
   }
   threadgroup_barrier(mem_flags::mem_threadgroup);
 
@@ -224,6 +224,7 @@ def _kernel(has_conv, has_state, snapshots=False):
         name=f"sglang_kda_c{int(has_conv)}_s{int(has_state)}_p{int(snapshots)}",
         input_names=[
             "proj",
+            "beta",
             "conv_q",
             "conv_k",
             "conv_v",
@@ -259,11 +260,14 @@ def mlx_kda_decode(
     norm_eps,
     lower_bound,
     snapshots=False,
+    beta=None,
 ):
     """Return (gated output, three conv states, FP32 recurrence), or None.
 
     With snapshots=True, states have a leading token axis and contain the
     exact boundary after each row; recurrence stays in registers across rows.
+    With beta supplied separately, proj contains only contiguous QKV rows.
+    The joined layout remains accepted for existing dense projection banks.
     Inputs are immutable. Unsupported shape/dtype combinations leave all
     caller-owned cache state untouched for the ordinary MLX path.
     """
@@ -278,6 +282,14 @@ def mlx_kda_decode(
     tokens, dim = proj.shape[1], heads * 128
     if proj.shape[-1] < 3 * dim or len(conv_weights) != 3 or len(conv_states) != 3:
         return None
+    if beta is None:
+        if proj.shape[-1] < 3 * dim + heads:
+            return None
+        beta, beta_offset = proj, proj.shape[-1] - heads
+    else:
+        if beta.shape != (1, tokens, heads) or beta.dtype != proj.dtype:
+            return None
+        beta_offset = 0
     if any(w.shape != (dim, 4, 1) or w.dtype != proj.dtype for w in conv_weights):
         return None
     if any(v.shape != (1, tokens, dim) or v.dtype != proj.dtype for v in (a, gate)):
@@ -308,6 +320,7 @@ def mlx_kda_decode(
     out = _kernel(has_conv, state is not None, snapshots)(
         inputs=[
             proj,
+            beta,
             *conv_weights,
             a_log.reshape(-1),
             dt_bias.reshape(-1),
@@ -325,7 +338,8 @@ def mlx_kda_decode(
             ("HEADS", heads),
             ("QKV", dim),
             ("PROJ_W", proj.shape[-1]),
-            ("OFF_B", proj.shape[-1] - heads),
+            ("BETA_W", beta.shape[-1]),
+            ("OFF_B", beta_offset),
         ],
         grid=(1024 * heads, 1, 1),
         threadgroup=(1024, 1, 1),

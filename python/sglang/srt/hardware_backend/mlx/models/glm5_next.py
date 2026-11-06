@@ -1297,19 +1297,39 @@ class KDA(nn.Module):
             )
         ):
             return None
-        proj = (
-            self._fused_qkv(x)
-            if isinstance(self._fused_qkv, FP8KDAInputs)
-            else mlx_dense_rows(x, self._fused_qkv.weight)
+        if isinstance(self._fused_qkv, FP8KDAInputs):
+            proj, a_input, gate_input, beta = self._fused_qkv.project_parts(x)
+        else:
+            proj = mlx_dense_rows(x, self._fused_qkv.weight)
+            if proj is None:
+                return None
+            _, _, _, fa_end, ga_end = self._fused_input_splits
+            a_input = proj[..., 3 * self.dim : fa_end]
+            gate_input = proj[..., fa_end:ga_end]
+            beta = proj[..., ga_end:]
+        from sglang.kernels.ops.gemm.mlx_dense_gates import mlx_dense_gate_pair
+
+        pair = None
+        if all(
+            type(p) is nn.Linear and "bias" not in p
+            for p in (self.f_b_proj, self.g_b_proj)
+        ):
+            pair = mlx_dense_gate_pair(
+                (a_input, gate_input), (self.f_b_proj.weight, self.g_b_proj.weight)
+            )
+        a, gate = (
+            pair
+            if pair is not None
+            else (
+                _project_rows(self.f_b_proj, a_input),
+                _project_rows(self.g_b_proj, gate_input),
+            )
         )
-        if proj is None:
-            return None
-        _, _, _, fa_end, ga_end = self._fused_input_splits
-        a_input = proj[..., 3 * self.dim : fa_end]
-        gate_input = proj[..., fa_end:ga_end]
-        a = _project_rows(self.f_b_proj, a_input)
-        gate = _project_rows(self.g_b_proj, gate_input)
-        return proj, a, gate
+        return (
+            (proj, a, gate, beta)
+            if isinstance(self._fused_qkv, FP8KDAInputs)
+            else (proj, a, gate)
+        )
 
     def verify_rows(self, x, cache, *, projected=None, project_output=True):
         projected = self.project_verify_rows(x) if projected is None else projected
@@ -1318,7 +1338,7 @@ class KDA(nn.Module):
         outputs, snapshots = [], []
         for start in range(0, x.shape[1], 8):
             count = min(8, x.shape[1] - start)
-            proj, a, gate = (v[:, start : start + count] for v in projected)
+            proj, a, gate, *beta = (v[:, start : start + count] for v in projected)
             result = mlx_kda_decode(
                 proj,
                 tuple(
@@ -1336,6 +1356,7 @@ class KDA(nn.Module):
                 norm_eps=self.o_norm.eps,
                 lower_bound=self.lower_bound,
                 snapshots=True,
+                beta=beta[0] if beta else None,
             )
             if result is None:
                 if start == 0:
@@ -1365,7 +1386,7 @@ class KDA(nn.Module):
             return [self(row, cache) for row, cache in zip(rows, caches)]
         outputs, updates = [], []
         for j, cache in enumerate(caches):
-            proj, a, gate = (v[:, j : j + 1] for v in projected)
+            proj, a, gate, *beta = (v[:, j : j + 1] for v in projected)
             result = mlx_kda_decode(
                 proj,
                 tuple(
@@ -1382,6 +1403,7 @@ class KDA(nn.Module):
                 heads=self.num_heads,
                 norm_eps=self.o_norm.eps,
                 lower_bound=self.lower_bound,
+                beta=beta[0] if beta else None,
             )
             if result is None:
                 # General dtype/geometry retains the same per-request equation.
@@ -1409,12 +1431,18 @@ class KDA(nn.Module):
             and self._fused_qkv_is_current()
         ):
             if projected is None:
-                proj = self._fused_qkv(x)
-                _, _, _, fa_end, ga_end = self._fused_input_splits
-                a = _project_rows(self.f_b_proj, proj[..., 3 * self.dim : fa_end])
-                gate = _project_rows(self.g_b_proj, proj[..., fa_end:ga_end])
+                from sglang.srt.hardware_backend.mlx.models.glm5_fp4 import FP8KDAInputs
+
+                if isinstance(self._fused_qkv, FP8KDAInputs):
+                    proj, a, gate, *beta = self.project_verify_rows(x)
+                else:
+                    proj = self._fused_qkv(x)
+                    _, _, _, fa_end, ga_end = self._fused_input_splits
+                    a = _project_rows(self.f_b_proj, proj[..., 3 * self.dim : fa_end])
+                    gate = _project_rows(self.g_b_proj, proj[..., fa_end:ga_end])
+                    beta = []
             else:
-                proj, a, gate = projected
+                proj, a, gate, *beta = projected
             result = mlx_kda_decode(
                 proj,
                 tuple(
@@ -1431,6 +1459,7 @@ class KDA(nn.Module):
                 heads=self.num_heads,
                 norm_eps=self.o_norm.eps,
                 lower_bound=self.lower_bound,
+                beta=beta[0] if beta else None,
             )
             if result is not None:
                 out, conv, state = result
@@ -1440,7 +1469,12 @@ class KDA(nn.Module):
                 cache.offset += t
                 return self.o_proj(out)
         if self._fused_qkv_is_current():
-            if x.dtype == mx.float32 and self._fused_qkv3 is not None:
+            from sglang.srt.hardware_backend.mlx.models.glm5_fp4 import FP8KDAInputs
+
+            if isinstance(self._fused_qkv, FP8KDAInputs):
+                qkv, *gates = self._fused_qkv.project_parts(x)
+                inputs = (*mx.split(qkv, (self.dim, 2 * self.dim), axis=-1), *gates)
+            elif x.dtype == mx.float32 and self._fused_qkv3 is not None:
                 inputs = mx.split(
                     self._fused_qkv3(x), (self.dim, 2 * self.dim), axis=-1
                 )

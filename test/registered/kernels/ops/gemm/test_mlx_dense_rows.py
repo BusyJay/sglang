@@ -12,6 +12,42 @@ register_mlx_ci(est_time=3, suite="stage-a-unit-test-mlx")
 
 @unittest.skipUnless(importlib.util.find_spec("mlx"), "requires MLX")
 class TestMlxDenseRows(CustomTestCase):
+    def test_independent_gate_banks_keep_native_split_k_and_rounding(self):
+        """Narrow gates need BN=8 sums; wide paired outputs need BN=1 sums."""
+        import mlx.core as mx
+        from sglang.kernels.ops.gemm.mlx_dense_gates import (
+            mlx_dense_gate_pair,
+            mlx_dense_gate_rows,
+        )
+
+        mx.random.seed(711)
+        for dtype in (mx.bfloat16, mx.float16, mx.float32):
+            for k, sizes in ((4096, (128, 128, 64)), (256, (128, 128, 4))):
+                weights = tuple(mx.random.normal((n, k)).astype(dtype) for n in sizes)
+                for count in (1, 4, 5, 17):
+                    # Strided inputs must be made contiguous once, with no
+                    # cross-token addressing or output-tail contamination.
+                    x = mx.random.normal((1, count, 2 * k)).astype(dtype)[..., ::2]
+                    actual = mlx_dense_gate_rows(x, weights)
+                    for got, w in zip(actual, weights):
+                        expected = mx.concatenate(
+                            [x[:, j : j + 1] @ w.T for j in range(count)], 1
+                        )
+                        self.assertTrue(mx.array_equal(got, expected).item())
+            weights = tuple(
+                mx.random.normal((8192, 128)).astype(dtype) for _ in range(2)
+            )
+            for count in (1, 4, 5, 17):
+                inputs = tuple(
+                    mx.random.normal((1, count, 128)).astype(dtype) for _ in range(2)
+                )
+                actual = mlx_dense_gate_pair(inputs, weights)
+                for got, x, w in zip(actual, inputs, weights):
+                    expected = mx.concatenate(
+                        [x[:, j : j + 1] @ w.T for j in range(count)], 1
+                    )
+                    self.assertTrue(mx.array_equal(got, expected).item())
+
     def test_headed_scale_preserves_projection_rounding_and_row_layout(self):
         import mlx.core as mx
         from sglang.kernels.ops.gemm.mlx_dense_rows import mlx_headed_dense_rows
