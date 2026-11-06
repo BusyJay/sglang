@@ -2043,9 +2043,24 @@ class MLA(nn.Module):
             0, 2, 1, 3
         )
         wk, wv = self._latent_matrices(q.dtype)
-        latent_q = mlx_headed_dense_rows(q, wk, transposed=True)
+        attention_scale = a.qk_nope_head_dim**-0.5
+        scale_projection = (
+            a.num_attention_heads == 64
+            and a.kv_lora_rank == 512
+            and (
+                prefix.dtype != mx.uint8
+                or mx.result_type(q.dtype, wk.dtype) == mx.bfloat16
+            )
+        )
+        latent_q = mlx_headed_dense_rows(
+            q,
+            wk,
+            transposed=True,
+            output_scale=attention_scale if scale_projection else None,
+        )
         if latent_q is None:
             latent_q = q @ wk
+            scale_projection = False
         if width == 0:
             latent_out = mx.zeros(latent_q.shape, latent_q.dtype)
         else:
@@ -2055,11 +2070,16 @@ class MLA(nn.Module):
                 None if indices is None else indices.astype(mx.int32),
                 lengths,
                 implicit_width=implicit_width,
-                scale=a.qk_nope_head_dim**-0.5,
+                scale=1.0 if scale_projection else attention_scale,
                 tail=tail,
                 split=split,
             )
             if latent_out is None:
+                if scale_projection:
+                    # The general SDPA path owns its query scaling boundary.
+                    latent_q = mlx_headed_dense_rows(q, wk, transposed=True)
+                    if latent_q is None:
+                        latent_q = q @ wk
                 if indices is None:
                     # The general SDPA path needs a materialized mask (e.g.
                     # FP32 queries with packed FP8 KV). Keep its existing math.

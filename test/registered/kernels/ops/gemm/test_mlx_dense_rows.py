@@ -12,6 +12,31 @@ register_mlx_ci(est_time=3, suite="stage-a-unit-test-mlx")
 
 @unittest.skipUnless(importlib.util.find_spec("mlx"), "requires MLX")
 class TestMlxDenseRows(CustomTestCase):
+    def test_headed_scale_preserves_projection_rounding_and_row_layout(self):
+        import mlx.core as mx
+        from sglang.kernels.ops.gemm.mlx_dense_rows import mlx_headed_dense_rows
+
+        mx.random.seed(934)
+        for dtype in (mx.float16, mx.bfloat16, mx.float32):
+            for transposed in (False, True):
+                k, n = (256, 512) if transposed else (512, 128)
+                shape = (3, k, n) if transposed else (3, n, k)
+                weight = mx.random.normal(shape).astype(dtype)
+                for count in (1, 4, 5, 17):
+                    x = mx.random.normal((1, 3, count, k)).astype(dtype)
+                    for scale in (0.0625, 128**-0.5):
+                        expected = mlx_headed_dense_rows(
+                            x, weight, transposed=transposed
+                        ) * mx.array(scale, dtype)
+                        actual = mlx_headed_dense_rows(
+                            x, weight, transposed=transposed, output_scale=scale
+                        )
+                        self.assertEqual(actual.shape, expected.shape)
+                        self.assertTrue(
+                            mx.array_equal(actual, expected).item(),
+                            (dtype, transposed, count, scale),
+                        )
+
     def test_batched_greedy_preserves_rounding_tail_and_ties(self):
         import mlx.core as mx
 

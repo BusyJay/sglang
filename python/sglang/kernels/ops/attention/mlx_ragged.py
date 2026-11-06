@@ -629,7 +629,9 @@ def mlx_ragged_latent_attention(
     )
     if implicit:
         indices = mx.array([0], mx.int32)
-    scaled_q = (queries * mx.array(scale, queries.dtype)).transpose(0, 2, 1, 3)
+    scaled_q = (
+        queries if scale == 1.0 else queries * mx.array(scale, queries.dtype)
+    ).transpose(0, 2, 1, 3)
     score_outputs = scores_kernel(
         inputs=[scaled_q, kv, tail, indices, lens],
         template=template,

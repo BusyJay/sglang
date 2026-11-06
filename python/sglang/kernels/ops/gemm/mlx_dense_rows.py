@@ -361,7 +361,7 @@ _HEAD_TRANSPOSE = r"""
 
 
 @cache
-def _head_kernel(transposed):
+def _head_kernel(transposed, scaled=False):
     source = (
         _HEAD_TRANSPOSE
         if transposed
@@ -387,20 +387,34 @@ def _head_kernel(transposed):
         source = source.replace(
             "lane == 0 && row + r < N", "lane == 0 && row + r < N && start + t < COUNT"
         )
+    if scaled:
+        source = source.replace(
+            "(size_t(h) * COUNT + start + t) * N",
+            "(size_t(start + t) * HEADS + h) * N",
+        )
+        for component in ("i", "r"):
+            source = source.replace(
+                f"= O(acc[t][{component}]);",
+                f"= O(float(O(acc[t][{component}])) * float(output_scale[0]));",
+            )
     return mx.fast.metal_kernel(
-        name="sglang_headed_gemvt_rows" if transposed else "sglang_headed_gemv_rows",
-        input_names=["x", "w"],
+        name=("sglang_headed_gemvt_rows" if transposed else "sglang_headed_gemv_rows")
+        + ("_scaled" if scaled else ""),
+        input_names=["x", "w", "output_scale"] if scaled else ["x", "w"],
         output_names=["out"],
         source=source,
     )
 
 
-def mlx_headed_dense_rows(x, weight, *, transposed):
+def mlx_headed_dense_rows(x, weight, *, transposed, output_scale=None):
     """Batch singleton latent GEMV across heads and tokens, reusing weights.
 
     X [1,H,R,K]; weights [H,K,N] for GEMVT, [H,N,K] for GEMV.
     The covered native GEMVT geometry uses SM=8/SN=4/TM=TN=4.
     No per-token Python matmul or change to the native reduction boundary.
+    With output_scale, round the projection first, multiply by a scale converted
+    to its output dtype, and round again. Store tokens before heads physically
+    while retaining the logical [1,H,R,N] view for the attention consumer.
     """
     if x.ndim != 4 or x.shape[0] != 1 or weight.ndim != 3:
         return None
@@ -426,8 +440,10 @@ def mlx_headed_dense_rows(x, weight, *, transposed):
         bm, bn = (8 if n >= 4096 else 4), 1
         groups, threads = (n + 4 * bm - 1) // (4 * bm), bm * 32
     rows = 3 if count % 3 == 0 else min(count, 4)
-    return _head_kernel(transposed)(
-        inputs=[x, weight],
+    dtype = mx.result_type(x.dtype, weight.dtype)
+    scaled = output_scale is not None
+    out = _head_kernel(transposed, scaled)(
+        inputs=[x, weight, mx.array([output_scale], dtype)] if scaled else [x, weight],
         template=[
             ("O", mx.result_type(x.dtype, weight.dtype)),
             ("K", k),
@@ -436,9 +452,11 @@ def mlx_headed_dense_rows(x, weight, *, transposed):
             ("ROWS", rows),
             ("BM", bm),
             ("BN", bn),
-        ],
+        ]
+        + ([("HEADS", heads)] if scaled else []),
         grid=(threads * groups, heads, (count + rows - 1) // rows),
         threadgroup=(threads, 1, 1),
-        output_shapes=[(1, heads, count, n)],
-        output_dtypes=[mx.result_type(x.dtype, weight.dtype)],
+        output_shapes=[(1, count, heads, n) if scaled else (1, heads, count, n)],
+        output_dtypes=[dtype],
     )[0]
+    return out.transpose(0, 2, 1, 3) if scaled else out
