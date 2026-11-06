@@ -486,15 +486,21 @@ def _kernels(nax=False, fp32=False, fp8=False, implicit=False):
         header += "#include <MetalPerformancePrimitives/MetalPerformancePrimitives.h>\n"
     # Context length changes every decode. Keep strides in a tiny device
     # argument instead of compiling a new program for each cache boundary.
-    layout = (
-        "const uint WIDTH = lengths[ROWS];\nconst uint KV_SPLIT = lengths[ROWS + 1];\n"
-    )
+    layout = "const uint WIDTH = capacity[0];\nconst uint KV_SPLIT = split[0];\n"
     return (
         mx.fast.metal_kernel(
             name=("sglang_ragged_scores_nax" if nax else "sglang_ragged_scores")
             + ("_fp8" if fp8 else "")
             + ("_implicit" if implicit else ""),
-            input_names=["queries", "kv", "kv_tail", "indices", "lengths"],
+            input_names=[
+                "queries",
+                "kv",
+                "kv_tail",
+                "indices",
+                "lengths",
+                "capacity",
+                "split",
+            ],
             output_names=["scores", "decoded_kv"] if fp8 and nax else ["scores"],
             source=layout
             + cache_source(
@@ -508,7 +514,7 @@ def _kernels(nax=False, fp32=False, fp8=False, implicit=False):
         ),
         mx.fast.metal_kernel(
             name="sglang_ragged_softmax",
-            input_names=["scores", "lengths"],
+            input_names=["scores", "lengths", "capacity", "split"],
             output_names=["probs"],
             source=layout + _SOFTMAX,
         ),
@@ -516,7 +522,15 @@ def _kernels(nax=False, fp32=False, fp8=False, implicit=False):
             name=("sglang_ragged_values_nax" if nax else "sglang_ragged_values")
             + ("_fp8" if fp8 else "")
             + ("_implicit" if implicit else ""),
-            input_names=["probs", "kv", "kv_tail", "indices", "lengths"],
+            input_names=[
+                "probs",
+                "kv",
+                "kv_tail",
+                "indices",
+                "lengths",
+                "capacity",
+                "split",
+            ],
             output_names=["out"],
             source=layout
             + (
@@ -613,14 +627,12 @@ def mlx_ragged_latent_attention(
             32 if queries.dtype == mx.float32 and _matmul_policy()[2] else 16,
         ),
     ]
-    lens = mx.concatenate(
-        [
-            lengths if device_lengths else mx.array(lengths, mx.uint32),
-            mx.array([width], mx.uint32),
-            split.reshape(1)
-            if isinstance(split, mx.array)
-            else mx.array([split], mx.uint32),
-        ]
+    lens = lengths if device_lengths else mx.array(lengths, mx.uint32)
+    capacity = mx.array([width], mx.uint32)
+    split_arg = (
+        split.reshape(1)
+        if isinstance(split, mx.array)
+        else mx.array([split], mx.uint32)
     )
     has_nax, tf32, _ = _matmul_policy()
     nax = has_nax and (queries.dtype != mx.float32 or tf32)
@@ -633,7 +645,7 @@ def mlx_ragged_latent_attention(
         queries if scale == 1.0 else queries * mx.array(scale, queries.dtype)
     ).transpose(0, 2, 1, 3)
     score_outputs = scores_kernel(
-        inputs=[scaled_q, kv, tail, indices, lens],
+        inputs=[scaled_q, kv, tail, indices, lens, capacity, split_arg],
         template=template,
         grid=(
             128
@@ -656,7 +668,7 @@ def mlx_ragged_latent_attention(
     value_kv = score_outputs[1] if fp8 and nax else kv
     threads = min(1024, 32 * ((width + 127) // 128))
     probs = softmax_kernel(
-        inputs=[scores, lens],
+        inputs=[scores, lens, capacity, split_arg],
         template=template,
         grid=(threads * rows * heads, 1, 1),
         threadgroup=(threads, 1, 1),
@@ -664,7 +676,15 @@ def mlx_ragged_latent_attention(
         output_dtypes=[queries.dtype],
     )[0]
     out = values_kernel(
-        inputs=[probs, value_kv, value_kv if fp8 and nax else tail, indices, lens],
+        inputs=[
+            probs,
+            value_kv,
+            value_kv if fp8 and nax else tail,
+            indices,
+            lens,
+            capacity,
+            split_arg,
+        ],
         template=template,
         grid=(128 * (dim // (64 if nax else 32)), rows * (heads // 32), 1),
         threadgroup=(128, 1, 1),
