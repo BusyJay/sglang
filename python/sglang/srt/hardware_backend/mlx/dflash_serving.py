@@ -225,6 +225,85 @@ class MlxDFlashServing:
         )
         self.counters["prefetch_ct"] += 1
 
+    def _prefetch_rounds(self, requests, token_only):
+        """Share projections across ready private rounds, retaining each owner."""
+        ready = []
+        for state, cache, row in requests:
+            count = self.num_drafts
+            if state.remaining is not None:
+                count = min(count, max(0, state.remaining - 2))
+            if count:
+                ready.append((state, cache, row, count))
+        if len(ready) == 1:
+            self._prefetch_round(*ready[0][:3], token_only)
+            return
+        if not ready:
+            return
+        prepared, anchors, chains, copied_counts = [], [], {}, []
+        cohorts = {}
+        for i, (state, cache, row, count) in enumerate(ready):
+            anchor = (
+                row.logits.reshape(1, 1).astype(mx.int32)
+                if token_only
+                else mx.argmax(row.logits, -1).reshape(1, 1).astype(mx.int32)
+            )
+            anchors.append(anchor)
+            prepared.append(
+                self.drafter.consume(
+                    mx.concatenate(state.pending_features, 1),
+                    mx.concatenate(state.pending_positions),
+                    state.draft_state,
+                )
+            )
+            copied = (
+                state.copy_proposer.propose(int(anchor.item()), count)
+                if state.copy_proposer.can_match_next()
+                else ()
+            )
+            copied_counts.append(len(copied))
+            if copied:
+                chains[i] = mx.concatenate(
+                    [anchor, mx.array([copied], anchor.dtype)], 1
+                )
+            else:
+                cohorts.setdefault(count, []).append(i)
+        for count, indices in cohorts.items():
+            batch = mx.concatenate([anchors[i] for i in indices], 0)
+            drafts = self.drafter.draft(
+                batch,
+                [prepared[i] for i in indices],
+                self.model.model.embed_tokens,
+                self.model.lm_head,
+                count,
+            )
+            values = mx.concatenate([batch, drafts], 1)
+            for row, i in enumerate(indices):
+                chains[i] = values[row : row + 1]
+        ordered = [chains[i] for i in range(len(ready))]
+        private = [[clone_cache(c) for c in cache] for _, cache, _, _ in ready]
+        results = self.model.verify_mtp_requests(
+            ordered,
+            private,
+            token_only=token_only,
+            capture_layer_ids=self.capture_layer_ids,
+        )
+        for i, ((state, _, _, _), result) in enumerate(zip(ready, results)):
+            state.prefetch = PendingDFlashRound(
+                state.offset,
+                token_only,
+                ordered[i],
+                result,
+                prepared[i],
+                copied_counts[i],
+            )
+        mx.async_eval(
+            ordered,
+            [r[0] for r in results],
+            [r[3] for r in results],
+            [[c.cache for boundary in r[2] for c in boundary] for r in results],
+        )
+        self.counters["prefetch_ct"] += len(ready)
+
     def decode_batch(
         self,
         req_ids,
@@ -341,7 +420,7 @@ class MlxDFlashServing:
                 [[c.cache for row in r[2] for c in row] for r in results],
             )
             self.timings["host_verify_build_seconds"] += perf_counter() - started
-        outputs = []
+        outputs, prefetch = [], []
         for i, (state, cache) in enumerate(requests):
             row = state.rows.popleft()
             offset = state.offset
@@ -374,11 +453,13 @@ class MlxDFlashServing:
                     != state.input_tokens[state.rows[0].depth]
                 )
             if prefetch_allowed and (not state.rows or next_reject):
-                started = perf_counter()
-                self._prefetch_round(state, cache, row, token_only)
+                prefetch.append((state, cache, row))
                 if next_reject:
                     self.counters["prefetch_reject_boundary_ct"] += 1
-                self.timings["host_prefetch_build_seconds"] += perf_counter() - started
+        if prefetch:
+            started = perf_counter()
+            self._prefetch_rounds(prefetch, token_only)
+            self.timings["host_prefetch_build_seconds"] += perf_counter() - started
         return mx.concatenate(outputs, 0)
 
     def decode(self, rid, inputs, cache):

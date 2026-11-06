@@ -2,6 +2,10 @@
 
 2026-11-06。基准 `46b98b4030`，生产候选 `00f5b6c890`。本机实测，不外推其他设备。
 
+随后继续完成了跨请求 prefetch 合批：不同 prompt 的双请求 engine 总吞吐
+72.03 → 76.04 tok/s；单请求基本持平。独立机制、最终 97 项测试和 HTTP 对照见
+[PREFETCH_RESULTS.md](PREFETCH_RESULTS.md)，不与下表的单请求小幅收益混算。
+
 ## 已采用的机制
 
 MLA 的 latent-query 投影在写回时完成原有的缩放，并按 `[token,head,channel]`

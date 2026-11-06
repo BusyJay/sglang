@@ -583,6 +583,152 @@ class TestMlxDFlashServing(CustomTestCase):
         serving.remove("r")
         self._assert_cache(self._restore(frozen), reference)
 
+    def test_private_prefetch_batches_requests_and_keeps_rejection_owners(self):
+        import mlx.core as mx
+
+        serving = self._serving(miss=True)
+        caches = [self.target.make_cache() for _ in range(2)]
+        references = [self.ar.make_cache() for _ in range(2)]
+        prompts = [self.prompt, self.prompt[:9]]
+        tokens, features = [], []
+        for rid, prompt, cache, reference in zip(
+            ("a", "b"), prompts, caches, references
+        ):
+            serving.prefill(rid, self._inputs(prompt), cache)
+            logits, _, captured = self._ar_forward(prompt, reference)
+            tokens.append(int(mx.argmax(logits, -1).item()))
+            features.append(captured)
+        verify = self.target.verify_mtp_requests
+        calls = []
+
+        def observe(inputs, private, **kwargs):
+            calls.append(tuple(value.shape[1] for value in inputs))
+            for cache, official in zip(private, caches):
+                self.assertIsNot(cache[0], official[0])
+            return verify(inputs, private, **kwargs)
+
+        with patch.object(self.target, "verify_mtp_requests", side_effect=observe):
+            for step in range(6):
+                for rid in ("a", "b"):
+                    serving.set_remaining(rid, 20)
+                if step == 3:
+                    tokens[1] = (tokens[1] + 1) % 64
+                got = (
+                    serving.decode_batch(
+                        ["a", "b"],
+                        mx.array(tokens, mx.int32)[:, None],
+                        caches,
+                        tokens,
+                        token_only=True,
+                        prefetch_allowed=True,
+                    )
+                    .reshape(-1)
+                    .tolist()
+                )
+                for i in range(2):
+                    logits, _, captured = self._ar_forward([tokens[i]], references[i])
+                    self.assertEqual(got[i], int(mx.argmax(logits, -1).item()))
+                    self._assert_cache(caches[i], references[i])
+                    features[i] = mx.concatenate([features[i], captured], 1)
+                    self._assert_context(caches[i], features[i])
+                tokens = got
+        self.assertGreaterEqual(calls.count((3, 3)), 2)
+        self.assertGreater(serving.stats().get("prefetch_discard_ct", 0), 0)
+        self.assertGreater(serving.stats().get("prefetch_use_ct", 0), 0)
+        frozen = self._snapshots(caches[1])
+        serving.remove("b")
+        self._assert_cache(self._restore(frozen), references[1])
+        self.assertIsNone(serving._state("replacement", self._restore(frozen)).prefetch)
+        serving.set_remaining("a", 2)
+        got = serving.decode_batch(
+            ["a"],
+            self._inputs([tokens[0]]),
+            [caches[0]],
+            [tokens[0]],
+            token_only=True,
+            prefetch_allowed=True,
+        )
+        logits, _, _ = self._ar_forward([tokens[0]], references[0])
+        self.assertEqual(int(got.item()), int(mx.argmax(logits, -1).item()))
+        self._assert_cache(caches[0], references[0])
+
+    def test_private_prefetch_keeps_copy_proposals_and_ragged_budgets(self):
+        import mlx.core as mx
+
+        serving = self._serving(miss=True)
+        caches = [self.target.make_cache() for _ in range(2)]
+        tokens = []
+        for rid, cache in zip(("a", "b"), caches):
+            hidden = serving.prefill(rid, self._inputs(self.prompt), cache)
+            tokens.append(int(self.target.target_tokens(hidden[:, -1:]).item()))
+        serving.set_remaining("a", 20)
+        serving.set_remaining("b", 3)
+        proposer = serving.states["b"].copy_proposer
+        verify = self.target.verify_mtp_requests
+        calls = []
+
+        def observe(inputs, private, **kwargs):
+            calls.append(tuple(value.shape[1] for value in inputs))
+            return verify(inputs, private, **kwargs)
+
+        with (
+            patch.object(proposer, "can_match_next", return_value=True),
+            patch.object(
+                proposer, "propose", side_effect=lambda anchor, count: (5,) * count
+            ),
+            patch.object(self.target, "verify_mtp_requests", side_effect=observe),
+        ):
+            serving.decode_batch(
+                ["a", "b"],
+                mx.array(tokens, mx.int32)[:, None],
+                caches,
+                tokens,
+                token_only=True,
+                prefetch_allowed=True,
+            )
+        self.assertIn((3, 2), calls)
+        a, b = (serving.states[rid].prefetch for rid in ("a", "b"))
+        self.assertEqual(a.num_copy_drafts, 0)
+        self.assertEqual(b.num_copy_drafts, 1)
+        self.assertEqual(a.chain.shape, (1, 3))
+        self.assertEqual(b.chain.shape, (1, 2))
+        self.assertEqual(
+            [cache[0].offset for cache in caches], [len(self.prompt) + 1] * 2
+        )
+
+    def test_private_batch_prefetch_full_logits_and_mode_transition(self):
+        import mlx.core as mx
+
+        serving = self._serving()
+        caches = [self.target.make_cache() for _ in range(2)]
+        references = [self.ar.make_cache() for _ in range(2)]
+        tokens = []
+        for rid, cache, reference in zip(("a", "b"), caches, references):
+            serving.prefill(rid, self._inputs(self.prompt), cache)
+            logits, _, _ = self._ar_forward(self.prompt, reference)
+            tokens.append(int(mx.argmax(logits, -1).item()))
+        for step in range(8):
+            for rid in ("a", "b"):
+                serving.set_remaining(rid, 20)
+            token_only = step >= 6
+            values = serving.decode_batch(
+                ["a", "b"],
+                mx.array(tokens, mx.int32)[:, None],
+                caches,
+                tokens,
+                token_only=token_only,
+                prefetch_allowed=True,
+            )
+            next_tokens = (
+                values.reshape(-1) if token_only else mx.argmax(values, -1)
+            ).tolist()
+            for i in range(2):
+                logits, _, _ = self._ar_forward([tokens[i]], references[i])
+                self.assertEqual(next_tokens[i], int(mx.argmax(logits, -1).item()))
+                self._assert_cache(caches[i], references[i])
+            tokens = next_tokens
+        self.assertGreaterEqual(serving.stats().get("prefetch_use_ct", 0), 2)
+
     def test_copy_proposals_verify_edits_and_prefix_restore(self):
         import mlx.core as mx
         from sglang.srt.hardware_backend.mlx.context_copy import ContextCopyProposer

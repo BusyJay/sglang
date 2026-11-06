@@ -67,6 +67,8 @@ r["production_sources"] = {
     f: hashlib.sha256((root / f).read_bytes()).hexdigest()
     for f in [
         "python/sglang/kernels/ops/attention/mlx_ragged.py",
+        "python/sglang/kernels/ops/gemm/mlx_dense_rows.py",
+        "python/sglang/srt/hardware_backend/mlx/dflash_serving.py",
         "python/sglang/srt/hardware_backend/mlx/models/glm5_next.py",
     ]
 }
