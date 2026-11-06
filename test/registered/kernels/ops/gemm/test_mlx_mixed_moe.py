@@ -36,6 +36,15 @@ class TestMlxMixedMoE(CustomTestCase):
                     k, n, experts, topk = 512, 512, 16, 4
                     x = mx.random.normal((1, rows, k)).astype(dtype)
                     logits = mx.random.normal((1, rows, experts))
+                    if rows == 4:
+                        # Expert 0 occurs three times: a pair plus a singleton
+                        # must coexist with independent experts in one launch.
+                        logits = mx.full((1, rows, experts), -5.0, mx.float32)
+                        for token, picks in enumerate(
+                            ((0, 1, 2, 3), (0, 4, 5, 6), (0, 7, 8, 9), (10, 11, 12, 13))
+                        ):
+                            for expert in picks:
+                                logits[0, token, expert] = 5.0
                     bias = mx.zeros((experts,), mx.float32)
                     selected = mlx_glm_router_select_pairs(
                         logits, bias, top_k=topk, scaling=2.5, renormalize=True
@@ -48,6 +57,9 @@ class TestMlxMixedMoE(CustomTestCase):
                         self.assertTrue(mx.array_equal(got, want).item())
                     ids, work = selected[0], selected[2:]
                     owners, partners, counts, total = work
+                    if rows == 4:
+                        self.assertIn(1, counts.tolist())
+                        self.assertIn(2, counts.tolist())
                     visited = []
                     for a, b, count in zip(
                         owners.tolist()[: int(total.item())],
