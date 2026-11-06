@@ -13,6 +13,7 @@ from time import perf_counter
 import mlx.core as mx
 from sglang.srt.hardware_backend.mlx.context_copy import ContextCopyProposer
 from sglang.srt.hardware_backend.mlx.dflash2 import load_dflash2
+from sglang.srt.hardware_backend.mlx.models.glm5_next import NativeCache
 from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
 
 
@@ -221,7 +222,7 @@ class MlxDFlashServing:
             chain,
             result[0],
             result[3],
-            [c.cache for boundary in result[2] for c in boundary],
+            [c.cache for c in result[2][-1]],
         )
         self.counters["prefetch_ct"] += 1
 
@@ -300,7 +301,7 @@ class MlxDFlashServing:
             ordered,
             [r[0] for r in results],
             [r[3] for r in results],
-            [[c.cache for boundary in r[2] for c in boundary] for r in results],
+            [[c.cache for c in r[2][-1]] for r in results],
         )
         self.counters["prefetch_ct"] += len(ready)
 
@@ -417,7 +418,7 @@ class MlxDFlashServing:
             mx.async_eval(
                 [r[0] for r in results],
                 [r[3] for r in results],
-                [[c.cache for row in r[2] for c in row] for r in results],
+                [[c.cache for c in r[2][-1]] for r in results],
             )
             self.timings["host_verify_build_seconds"] += perf_counter() - started
         outputs, prefetch = [], []
@@ -428,6 +429,8 @@ class MlxDFlashServing:
                 dst.cache = [
                     v.view(v.dtype) if v is not None else None for v in src.cache
                 ]
+                if isinstance(dst, NativeCache) and isinstance(src, NativeCache):
+                    dst.defer_recurrent_eval = src.defer_recurrent_eval
                 dst.offset = src.offset
             state.pending_features.append(row.features)
             state.pending_positions.append(mx.array([offset], mx.int32))

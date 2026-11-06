@@ -24,6 +24,8 @@ def clone_cache(cache):
     # mx.array(value) instead copies every multi-MiB recurrent state.
     result.cache = [v.view(v.dtype) if v is not None else None for v in cache.cache]
     result.offset = cache.offset
+    if isinstance(cache, NativeCache):
+        result.defer_recurrent_eval = cache.defer_recurrent_eval
     return result
 
 
@@ -365,6 +367,8 @@ class MlxMTPServing:
         row = state.rows.popleft()
         for dst, src in zip(cache, row.cache):
             dst.cache = [v.view(v.dtype) if v is not None else None for v in src.cache]
+            if isinstance(dst, NativeCache) and isinstance(src, NativeCache):
+                dst.defer_recurrent_eval = src.defer_recurrent_eval
             dst.offset = src.offset
         state.hidden = row.hidden
         state.offset = cache[0].offset
@@ -459,7 +463,8 @@ class MlxMTPServing:
                 [p.chain for p in verifying],
                 [p.logits for p in verifying if p.logits is not None],
                 [p.hidden for p in verifying if p.hidden is not None],
-                [[c.cache for row in p.snapshots for c in row] for p in verifying],
+                # Keep intermediate KDA states lazy until a boundary is used.
+                [[c.cache for c in p.snapshots[-1]] for p in verifying],
             )
         return [self.publish_decode(p) for p in pending]
 

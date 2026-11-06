@@ -510,7 +510,7 @@ class MlxModelRunner:
         return contiguous_cache
 
     @staticmethod
-    def _cache_arrays(cache: Any) -> list[mx.array]:
+    def _cache_arrays(cache: Any, *, pending_only: bool = False) -> list[mx.array]:
         """Return every MLX array nested under ``cache.state``."""
         arrays: list[mx.array] = []
 
@@ -526,11 +526,16 @@ class MlxModelRunner:
                 for item in value.values():
                     collect(item)
 
-        collect(getattr(cache, "state", ()))
+        state = getattr(cache, "state", ())
+        if pending_only:
+            state = getattr(cache, "evaluation_state", state)
+        collect(state)
         return arrays
 
     @staticmethod
-    def cache_state_arrays(caches: list[list[Any]]) -> list[mx.array]:
+    def cache_state_arrays(
+        caches: list[list[Any]], *, pending_only: bool = False
+    ) -> list[mx.array]:
         """Flatten per-request cache lists (``caches[req][layer]``) to arrays.
 
         Pass ``[cache]`` for a single request.  Safe to hand to
@@ -540,7 +545,7 @@ class MlxModelRunner:
             s
             for cache_list in caches
             for cache in cache_list
-            for s in MlxModelRunner._cache_arrays(cache)
+            for s in MlxModelRunner._cache_arrays(cache, pending_only=pending_only)
         ]
 
     def _warmup_model_for_inference(self):
@@ -1731,7 +1736,7 @@ class MlxModelRunner:
             tokens, caches = pending.lazy_token, [pending.cache]
         mx.eval(
             tokens,
-            *self.cache_state_arrays(caches),
+            *self.cache_state_arrays(caches, pending_only=True),
             *lazy_logprob_arrays(pending.lazy_logprobs),
         )
 

@@ -24,7 +24,10 @@ from mlx_lm.models.switch_layers import (
     _gather_sort,
     _scatter_unsort,
 )
-from sglang.kernels.ops.attention.linear.mlx_kda import mlx_kda_decode
+from sglang.kernels.ops.attention.linear.mlx_kda import (
+    mlx_kda_decode,
+    mlx_kda_replay_state,
+)
 from sglang.kernels.ops.attention.mlx_ragged import mlx_ragged_latent_attention
 from sglang.kernels.ops.gemm.mlx_affine_rows import (
     mlx_affine_mixed_rows,
@@ -89,6 +92,12 @@ class NativeCache(ArraysCache):
         super().__init__(size=size)
         self.offset = 0
         self.mlx_mtp = None
+        self.defer_recurrent_eval = False
+
+    @property
+    def evaluation_state(self):
+        """Immutable replay nodes need evaluation only when their state is read."""
+        return self.cache[:3] if self.defer_recurrent_eval else self.state
 
 
 class MLACache(NativeCache):
@@ -1339,6 +1348,7 @@ class KDA(nn.Module):
         for start in range(0, x.shape[1], 8):
             count = min(8, x.shape[1] - start)
             proj, a, gate, *beta = (v[:, start : start + count] for v in projected)
+            initial_state = cache[3]
             result = mlx_kda_decode(
                 proj,
                 tuple(
@@ -1357,6 +1367,7 @@ class KDA(nn.Module):
                 lower_bound=self.lower_bound,
                 snapshots=True,
                 beta=beta[0] if beta else None,
+                defer_states=count > 1,
             )
             if result is None:
                 if start == 0:
@@ -1366,14 +1377,21 @@ class KDA(nn.Module):
                 raise ValueError(
                     "Prepared KDA verification operands do not match the fused recurrence"
                 )
-            out, conv, states = result
+            out, conv, states, *replay = result
             outputs.append(out)
             for j in range(count):
                 snapshot = type(cache)(4)
-                snapshot.cache = [v[j : j + 1] for v in conv] + [states[j : j + 1]]
+                recurrent = (
+                    states[-1:]
+                    if j == count - 1
+                    else mlx_kda_replay_state(initial_state, replay[0], j + 1)
+                )
+                snapshot.cache = [v[j : j + 1] for v in conv] + [recurrent]
+                snapshot.defer_recurrent_eval = j != count - 1
                 snapshot.offset = cache.offset + j + 1
                 snapshots.append(snapshot)
             cache.cache = [v.view(v.dtype) for v in snapshots[-1].cache]
+            cache.defer_recurrent_eval = False
             cache.offset += count
         out = mx.concatenate(outputs, 1)
         return (_project_rows(self.o_proj, out) if project_output else out), snapshots
@@ -1412,6 +1430,7 @@ class KDA(nn.Module):
             updates.append((cache, conv, state))
             outputs.append(out)
         for cache, conv, state in updates:
+            cache.defer_recurrent_eval = False
             for i in range(3):
                 cache[i] = conv[i]
             cache[3] = state
@@ -1466,6 +1485,7 @@ class KDA(nn.Module):
                 for i in range(3):
                     cache[i] = conv[i]
                 cache[3] = state
+                cache.defer_recurrent_eval = False
                 cache.offset += t
                 return self.o_proj(out)
         if self._fused_qkv_is_current():
@@ -1511,6 +1531,7 @@ class KDA(nn.Module):
             state=cache[3],
             lower_bound=self.lower_bound,
         )
+        cache.defer_recurrent_eval = False
         cache.offset += t
         gate = self.g_b_proj(g_a).reshape(out.shape)
         # GLM's gated norm multiplies the FP32 normalized result and gate
@@ -3473,10 +3494,12 @@ class _FixedLayerGroup(_FixedGraphOwner):
                 for j, values in enumerate(layer_boundaries):
                     snapshot = type(state)(4)
                     snapshot.cache = list(values)
+                    snapshot.defer_recurrent_eval = j != x.shape[1] - 1
                     snapshot.offset = state.offset + j + 1
                     snapshots[j].append(snapshot)
         for state, values in zip(states, arrays):
             state.cache = list(values)
+            state.defer_recurrent_eval = False
             state.offset += x.shape[1]
         return (result, snapshots) if verification else result
 

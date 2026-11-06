@@ -138,6 +138,19 @@ _SOURCE = r"""
   }
   threadgroup_barrier(mem_flags::mem_threadgroup);
 
+#if DEFER_STATES
+  // Compact, already-rounded recurrence operands replace full FP32 boundary
+  // writes. A rejected/retained prefix can reconstruct its state on demand.
+  if (tid < uint(TOK * DK)) {
+    const int t = int(tid) / DK, i = int(tid) % DK;
+    const size_t index = (size_t(t) * HEADS + h) * DK + i;
+    replay_k[index] = ks[t][i];
+    replay_v[index] = vs[t][i];
+    replay_g[index] = gs[t][i];
+  }
+  if (tid < uint(TOK)) replay_beta[size_t(tid) * HEADS + h] = betas[tid];
+#endif
+
   // ---- 4. vector-gated delta rule --------------------------------------------
   for (int j = 0; j < DK / 32; j++) {
     const int dv_idx = int(sg) + 32 * j;
@@ -167,7 +180,7 @@ _SOURCE = r"""
       for (int i = 0; i < n_per_t; ++i) {
         auto s_idx = n_per_t * dk_idx + i;
         state[i] = state[i] + ks[t][s_idx] * delta;
-#if SNAPSHOTS
+#if SNAPSHOTS && !DEFER_STATES
         state_out[((size_t(t) * HEADS + h) * DK + dv_idx) * DK + s_idx] = state[i];
 #endif
         out += state[i] * qs[t][s_idx];
@@ -177,7 +190,7 @@ _SOURCE = r"""
         ys[t][dv_idx] = static_cast<T>(out);
       }
     }
-    if (!SNAPSHOTS) for (int i = 0; i < n_per_t; ++i) {
+    if (!SNAPSHOTS || DEFER_STATES) for (int i = 0; i < n_per_t; ++i) {
       auto s_idx = n_per_t * dk_idx + i;
       state_out[(size_t(h) * DK + dv_idx) * DK + s_idx] = static_cast<float>(state[i]);
     }
@@ -214,14 +227,15 @@ _SOURCE = r"""
 
 
 @cache
-def _kernel(has_conv, has_state, snapshots=False):
+def _kernel(has_conv, has_state, snapshots=False, defer_states=False):
     source = (
         f"#define HAS_CONV_STATE {int(has_conv)}\n"
         f"#define HAS_STATE {int(has_state)}\n"
-        f"#define SNAPSHOTS {int(snapshots)}\n" + _SOURCE
+        f"#define SNAPSHOTS {int(snapshots)}\n"
+        f"#define DEFER_STATES {int(defer_states)}\n" + _SOURCE
     )
     return mx.fast.metal_kernel(
-        name=f"sglang_kda_c{int(has_conv)}_s{int(has_state)}_p{int(snapshots)}",
+        name=f"sglang_kda_c{int(has_conv)}_s{int(has_state)}_p{int(snapshots)}_d{int(defer_states)}",
         input_names=[
             "proj",
             "beta",
@@ -239,7 +253,8 @@ def _kernel(has_conv, has_state, snapshots=False):
             "a_pre",
             "gate_pre",
         ],
-        output_names=["y", "next_q", "next_k", "next_v", "state_out"],
+        output_names=["y", "next_q", "next_k", "next_v", "state_out"]
+        + (["replay_k", "replay_v", "replay_g", "replay_beta"] if defer_states else []),
         header=_HEADER,
         source=source,
     )
@@ -261,6 +276,7 @@ def mlx_kda_decode(
     lower_bound,
     snapshots=False,
     beta=None,
+    defer_states=False,
 ):
     """Return (gated output, three conv states, FP32 recurrence), or None.
 
@@ -268,6 +284,8 @@ def mlx_kda_decode(
     exact boundary after each row; recurrence stays in registers across rows.
     With beta supplied separately, proj contains only contiguous QKV rows.
     The joined layout remains accepted for existing dense projection banks.
+    defer_states=True retains convolution boundaries but writes only the last
+    FP32 state; a fourth return value holds compact operands for lazy replay.
     Inputs are immutable. Unsupported shape/dtype combinations leave all
     caller-owned cache state untouched for the ordinary MLX path.
     """
@@ -277,6 +295,8 @@ def mlx_kda_decode(
         or not 1 <= proj.shape[1] <= 8
         or proj.dtype not in (mx.bfloat16, mx.float16)
         or lower_bound is None
+        or defer_states
+        and not snapshots
     ):
         return None
     tokens, dim = proj.shape[1], heads * 128
@@ -317,7 +337,7 @@ def mlx_kda_decode(
     # A weight is a harmless dummy pointer for a compile-time absent state.
     conv = conv_states if has_conv else conv_weights
     params = mx.array([128**-0.5, 1e-6, norm_eps, lower_bound, 1 / 128], mx.float32)
-    out = _kernel(has_conv, state is not None, snapshots)(
+    out = _kernel(has_conv, state is not None, snapshots, defer_states)(
         inputs=[
             proj,
             beta,
@@ -346,8 +366,100 @@ def mlx_kda_decode(
         output_shapes=[
             (1, tokens, dim),
             *[(tokens if snapshots else 1, 3, dim)] * 3,
-            (tokens if snapshots else 1, heads, 128, 128),
-        ],
-        output_dtypes=[proj.dtype] * 4 + [mx.float32],
+            (tokens if snapshots and not defer_states else 1, heads, 128, 128),
+        ]
+        + ([(tokens, heads, 128)] * 3 + [(tokens, heads)] if defer_states else []),
+        output_dtypes=[proj.dtype] * 4
+        + [mx.float32]
+        + ([proj.dtype, proj.dtype, mx.float32, proj.dtype] if defer_states else []),
     )
-    return out[0], out[1:4], out[4]
+    result = out[0], out[1:4], out[4]
+    return (*result, tuple(out[5:])) if defer_states else result
+
+
+_REPLAY = r"""
+    const int HEADS = dims[0], COUNT = dims[1];
+    const int h = int(threadgroup_position_in_grid.x);
+    const int lane = int(thread_index_in_simdgroup);
+    const int sg = int(simdgroup_index_in_threadgroup);
+    const int tid = int(thread_position_in_threadgroup.x);
+    threadgroup T ks[8][128], vs[8][128], betas[8];
+    threadgroup float gs[8][128];
+    if (tid < COUNT*128) {
+        const int t=tid/128, i=tid%128;
+        const size_t index=(size_t(t)*HEADS+h)*128+i;
+        ks[t][i]=k[index]; vs[t][i]=v[index]; gs[t][i]=g[index];
+    }
+    if (tid < COUNT) betas[tid]=beta[size_t(tid)*HEADS+h];
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    for (int j = 0; j < 4; ++j) {
+        const int dv = sg + 32 * j;
+        float state[4];
+        for (int i = 0; i < 4; ++i) {
+            const int dk = 4 * lane + i;
+            state[i] = HAS_STATE ? state_in[(size_t(h)*128+dv)*128+dk] : 0.0f;
+        }
+        for (int t = 0; t < COUNT; ++t) {
+            float kv_mem = 0.0f;
+            for (int i = 0; i < 4; ++i) {
+                const int dk = 4 * lane + i;
+                state[i] = state[i] * gs[t][dk];
+                kv_mem += state[i] * ks[t][dk];
+            }
+            kv_mem = simd_sum(kv_mem);
+            auto delta = (vs[t][dv] - kv_mem) * betas[t];
+            for (int i = 0; i < 4; ++i) {
+                const int dk = 4 * lane + i;
+                state[i] = state[i] + ks[t][dk] * delta;
+            }
+        }
+        for (int i = 0; i < 4; ++i)
+            out[(size_t(h)*128+dv)*128+4*lane+i] = state[i];
+    }
+"""
+
+
+@cache
+def _replay_kernel():
+    return mx.fast.metal_kernel(
+        name="sglang_kda_replay_state",
+        input_names=["state_in", "k", "v", "g", "beta", "dims"],
+        output_names=["out"],
+        source=_REPLAY,
+    )
+
+
+def mlx_kda_replay_state(state, replay, count):
+    """Lazily reconstruct one exact prefix from rounded recurrence operands."""
+    k, v, g, beta = replay
+    tokens, heads, dim = k.shape
+    if (
+        dim != 128
+        or tokens > 8
+        or not 1 <= count <= tokens
+        or v.shape != k.shape
+        or g.shape != k.shape
+        or beta.shape != (tokens, heads)
+        or k.dtype not in (mx.bfloat16, mx.float16)
+        or v.dtype != k.dtype
+        or beta.dtype != k.dtype
+        or g.dtype != mx.float32
+        or state is not None
+        and (state.shape != (1, heads, 128, 128) or state.dtype != mx.float32)
+    ):
+        raise ValueError("Expected matching compact KDA recurrence operands")
+    return _replay_kernel()(
+        inputs=[
+            state if state is not None else g,
+            k,
+            v,
+            g,
+            beta,
+            mx.array([heads, count], mx.int32),
+        ],
+        template=[("HAS_STATE", state is not None), ("T", k.dtype)],
+        grid=(1024 * heads, 1, 1),
+        threadgroup=(1024, 1, 1),
+        output_shapes=[(1, heads, 128, 128)],
+        output_dtypes=[mx.float32],
+    )[0]

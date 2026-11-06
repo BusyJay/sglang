@@ -22,7 +22,10 @@ from sglang.srt.mem_cache.unified_cache.components.mamba import (
     MambaComponent,
 )
 
-_CACHE_ATTRS = ("offset", "lengths", "left_padding", "mlx_mtp", "mlx_dflash", "mlx_context_copy")
+_CACHE_ATTRS = (
+    "offset", "lengths", "left_padding", "mlx_mtp", "mlx_dflash",
+    "mlx_context_copy", "defer_recurrent_eval",
+)
 _MISSING = object()
 
 

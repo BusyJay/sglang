@@ -16,7 +16,10 @@ class TestMlxKda(CustomTestCase):
     def test_separate_beta_preserves_outputs_and_every_state_boundary(self):
         """Removing the joined projection must preserve beta row addressing."""
         import mlx.core as mx
-        from sglang.kernels.ops.attention.linear.mlx_kda import mlx_kda_decode
+        from sglang.kernels.ops.attention.linear.mlx_kda import (
+            mlx_kda_decode,
+            mlx_kda_replay_state,
+        )
 
         mx.random.seed(712)
         heads, dim = 2, 256
@@ -69,6 +72,25 @@ class TestMlxKda(CustomTestCase):
                             (expected[0], *expected[1], expected[2]),
                         ):
                             self.assertTrue(mx.array_equal(got, want).item())
+                        if snapshots:
+                            deferred = mlx_kda_decode(
+                                qkv, *operands, beta=beta, defer_states=True, **kw
+                            )
+                            self.assertTrue(
+                                mx.array_equal(deferred[0], actual[0]).item()
+                            )
+                            self.assertTrue(
+                                mx.array_equal(deferred[2], actual[2][-1:]).item()
+                            )
+                            for prefix in range(1, count + 1):
+                                reconstructed = mlx_kda_replay_state(
+                                    state, deferred[3], prefix
+                                )
+                                self.assertTrue(
+                                    mx.array_equal(
+                                        reconstructed, actual[2][prefix - 1 : prefix]
+                                    ).item()
+                                )
                 self.assertIsNone(mlx_kda_decode(qkv, *operands, **kw))
 
     def test_prefill_then_fused_decode_keeps_cache_layout_and_offsets(self):
@@ -210,6 +232,26 @@ class TestMlxKda(CustomTestCase):
                         rows.append(attn(x[:, j : j + 1], serial))
                         states.append(clone_cache(serial))
                     actual, snapshots = attn.verify_rows(x, shared)
+                    from sglang.srt.hardware_backend.mlx.kv_cache.auxiliary_state import (
+                        _restore_cache,
+                        _snapshot_cache,
+                    )
+                    from sglang.srt.hardware_backend.mlx.model_runner import (
+                        MlxModelRunner,
+                    )
+
+                    restored = NativeCache(4)
+                    _restore_cache(
+                        restored,
+                        _snapshot_cache(clone_cache(snapshots[0]), evaluate=False),
+                    )
+                    self.assertTrue(restored.defer_recurrent_eval)
+                    pending = MlxModelRunner.cache_state_arrays(
+                        [[restored]], pending_only=True
+                    )
+                    complete = MlxModelRunner.cache_state_arrays([[restored]])
+                    self.assertFalse(any(v is restored[3] for v in pending))
+                    self.assertTrue(any(v is restored[3] for v in complete))
                     mx.eval(actual, rows, [c.cache for c in snapshots])
                     self.assertTrue(
                         mx.array_equal(actual, mx.concatenate(rows, 1)).item()
@@ -219,12 +261,14 @@ class TestMlxKda(CustomTestCase):
                         for a, b in zip(got.cache, want.cache):
                             self.assertTrue(mx.array_equal(a, b).item())
                         continuation = mx.random.normal((1, 1, 256)).astype(dtype)
+                        resumed = clone_cache(got)
                         self.assertTrue(
                             mx.array_equal(
-                                attn(continuation, clone_cache(got)),
+                                attn(continuation, resumed),
                                 attn(continuation, clone_cache(want)),
                             ).item()
                         )
+                        self.assertFalse(resumed.defer_recurrent_eval)
 
 
 if __name__ == "__main__":
