@@ -14,6 +14,35 @@ register_mlx_ci(est_time=5, suite="stage-a-unit-test-mlx")
 
 @unittest.skipUnless(importlib.util.find_spec("mlx"), "requires MLX")
 class TestMlxTopk(CustomTestCase):
+    def test_compact_request_pools_preserve_global_candidate_order(self):
+        import mlx.core as mx
+
+        from sglang.kernels.ops.sampling.mlx_topk import mlx_topk_candidates
+        from sglang.kernels.ops.sampling.mlx_vocabulary_set import (
+            mlx_vocabulary_candidates,
+            mlx_vocabulary_set,
+        )
+
+        vocab = 154880
+        values = list(range(1, vocab, 389))
+        raw = values + values[1::2] + [vocab, 0xFFFFFFFF, 0, vocab - 1]
+        pool = mlx_vocabulary_set(mx.array(raw, mx.uint32), vocab, 4096)
+        other = mlx_vocabulary_set(mx.array([1, 2, 3, 4, 4], mx.uint32), vocab, 16)
+        recent = mx.array([1, 5, vocab - 1, 0xFFFFFFFF], mx.uint32)
+        for pools in ([pool], [pool, other]):
+            ids, limit = mlx_vocabulary_candidates(pools, recent, vocab)
+            expected = set(values) | {0, 5, vocab - 1}
+            if len(pools) == 2:
+                expected.update((2, 3, 4))
+            actual = [v for v in ids.tolist() if v < vocab]
+            self.assertEqual(sorted(actual), sorted(expected))
+            # Poison every slot beyond the runtime limit. It cannot win a
+            # tie even when all real logits are negative infinity.
+            ids = mx.where(mx.arange(ids.size) < limit, ids, mx.array(0, mx.uint32))
+            scores = mx.where(mx.arange(ids.size) < limit, -mx.inf, mx.inf)
+            _, got = mlx_topk_candidates(scores, ids, valid_count=limit)
+            self.assertEqual(got.tolist(), sorted(expected)[:16])
+
     def test_candidate_ids_deduplicate_across_tiles_and_ignore_padding(self):
         import mlx.core as mx
 

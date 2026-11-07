@@ -19,13 +19,25 @@ _SOURCE = r"""
     const uint block = threadgroup_position_in_grid.x;
     const uint width = params[0];
     const uint blocks = params[1];
+    uint limit = width;
+#if LIMIT_CANDIDATES
+    limit = min(width, valid_count[0]);
+    if (block * TILE >= limit) {
+        if (tid < 16) {
+            size_t out = (size_t(row)*blocks+block)*16+tid;
+            values[out] = T(-INFINITY);
+            indices[out] = 0xffffffffu;
+        }
+        return;
+    }
+#endif
     float local_values[ITEMS];
     uint local_ids[ITEMS];
     for (uint i = 0; i < ITEMS; ++i) {
         uint col = block * TILE + tid + i * 256;
-        bool valid = col < width;
+        bool valid = col < limit;
         local_values[i] = valid ? float(logits[size_t(row) * width + col]) : -INFINITY;
-        local_ids[i] = valid ? (MERGE ? input_ids[size_t(row) * width + col] : col) : 0xffffffffu;
+        local_ids[i] = valid ? (MERGE ? input_ids[(SHARED_IDS ? 0 : size_t(row)*width) + col] : col) : 0xffffffffu;
     }
     threadgroup float scores[8];
     threadgroup uint tokens[8];
@@ -83,23 +95,26 @@ _SOURCE = r"""
 
 
 @cache
-def _kernel():
+def _kernel(limited=False):
     return mx.fast.metal_kernel(
         name="sglang_exact_top16",
-        input_names=["logits", "input_ids", "params"],
+        input_names=["logits", "input_ids", "params"]
+        + (["valid_count"] if limited else []),
         output_names=["values", "indices"],
-        source=_SOURCE,
+        source=f"#define LIMIT_CANDIDATES {int(limited)}\n" + _SOURCE,
     )
 
 
-def _select(logits, input_ids, *, merge, tile):
+def _select(logits, input_ids, *, merge, tile, shared_ids=False, valid_count=None):
     rows, width = logits.shape
     blocks = (width + tile - 1) // tile
-    return _kernel()(
-        inputs=[logits, input_ids, mx.array([width, blocks], mx.uint32)],
+    return _kernel(valid_count is not None)(
+        inputs=[logits, input_ids, mx.array([width, blocks], mx.uint32)]
+        + ([valid_count] if valid_count is not None else []),
         template=[
             ("T", logits.dtype),
             ("MERGE", merge),
+            ("SHARED_IDS", shared_ids),
             ("TILE", tile),
             ("ITEMS", (tile + _THREADS - 1) // _THREADS),
         ],
@@ -144,12 +159,13 @@ def mlx_topk(logits, k=16):
     return values.reshape(shape), ids.reshape(shape)
 
 
-def mlx_topk_candidates(logits, token_ids, k=16):
+def mlx_topk_candidates(logits, token_ids, k=16, *, valid_count=None):
     """Exact top-k over explicit global IDs, excluding uint32 sentinel padding.
 
     Numbers precede NaNs and equal scores prefer the smaller global ID, as in
     mlx_topk. Duplicate IDs are selected once, at their maximum score. The
-    caller supplies at least k distinct non-sentinel IDs.
+    caller supplies at least k distinct non-sentinel IDs. valid_count, if
+    provided, is a uint32 device limit shared by every score row.
     """
     if (
         logits.ndim < 1
@@ -168,8 +184,15 @@ def mlx_topk_candidates(logits, token_ids, k=16):
         raise ValueError("Expected shared or per-row uint32 token IDs")
     shape = logits.shape[:-1] + (k,)
     scores = logits.reshape(-1, logits.shape[-1])
-    ids = mx.broadcast_to(token_ids, logits.shape).reshape(scores.shape)
-    values, ids = _select(scores, ids, merge=True, tile=_TILE)
+    if valid_count is not None and (
+        valid_count.shape != (1,) or valid_count.dtype != mx.uint32
+    ):
+        raise ValueError("Expected a uint32 device candidate count")
+    shared = token_ids.ndim == 1
+    ids = token_ids if shared else token_ids.reshape(scores.shape)
+    values, ids = _select(
+        scores, ids, merge=True, tile=_TILE, shared_ids=shared, valid_count=valid_count
+    )
     while values.shape[-1] > _TILE:
         values, ids = _select(values, ids, merge=True, tile=_TILE)
     values, ids = _select(values, ids, merge=True, tile=_TILE)

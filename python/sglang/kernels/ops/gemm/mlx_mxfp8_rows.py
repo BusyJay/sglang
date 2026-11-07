@@ -161,13 +161,17 @@ def mlx_mxfp8_rows(x, weight, scales, *, tilegroups=None):
 
 
 @cache
-def _indexed_kernel():
+def _indexed_kernel(counted=False):
     source = (
         _SOURCE.replace(
             "const int row = min(out_row, N - 1);",
             "const int row = min(out_row, N - 1);\n"
-            "const uint weight_row = ids[row];\n"
-            "if (weight_row >= uint(dims[3])) {\n"
+            + (
+                "const uint weight_row = uint(row) < valid_count[0] ? ids[row] : 0xffffffffu;\n"
+                if counted
+                else "const uint weight_row = ids[row];\n"
+            )
+            + "if (weight_row >= uint(dims[3])) {\n"
             "    if (k_lane == 0 && out_row < N)\n"
             "        for (int v=0;v<TILE;++v) if(vec0+v<M)\n"
             "            out[size_t(vec0+v)*N+out_row] = T(-INFINITY);\n"
@@ -178,14 +182,15 @@ def _indexed_kernel():
     )
     return mx.fast.metal_kernel(
         name="sglang_mxfp8_indexed_rows",
-        input_names=["x", "weight", "scales", "dims", "ids"],
+        input_names=["x", "weight", "scales", "dims", "ids"]
+        + (["valid_count"] if counted else []),
         output_names=["out"],
         source=source,
         header=_HEADER,
     )
 
 
-def mlx_mxfp8_indexed_rows(x, weight, scales, ids):
+def mlx_mxfp8_indexed_rows(x, weight, scales, ids, *, valid_count=None):
     """Score shared vocabulary IDs directly from unchanged packed weight rows.
 
     Retains wide-QMV arithmetic and output rounding. Out-of-range IDs denote
@@ -208,14 +213,19 @@ def mlx_mxfp8_indexed_rows(x, weight, scales, ids):
     if not count or max(k, n, count, ids.size) >= 2**31:
         raise ValueError("Expected positive native int dimensions")
     tile = min(count, 8)
-    return _indexed_kernel()(
+    if valid_count is not None and (
+        valid_count.shape != (1,) or valid_count.dtype != mx.uint32
+    ):
+        raise ValueError("Expected a uint32 device candidate count")
+    return _indexed_kernel(valid_count is not None)(
         inputs=[
             x.reshape(count, k),
             weight,
             scales,
             mx.array([k, ids.size, count, n], mx.int32),
             ids,
-        ],
+        ]
+        + ([valid_count] if valid_count is not None else []),
         template=[("T", x.dtype), ("TILE", tile), ("KL", 16)],
         grid=(32 * ((count + tile - 1) // tile), 2 * ((ids.size + 3) // 4), 1),
         threadgroup=(32, 2, 1),

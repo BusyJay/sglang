@@ -7,6 +7,10 @@ import mlx.core as mx
 
 from sglang.kernels.ops.gemm.mlx_mxfp8_rows import mlx_mxfp8_indexed_rows
 from sglang.kernels.ops.sampling.mlx_topk import mlx_topk, mlx_topk_candidates
+from sglang.kernels.ops.sampling.mlx_vocabulary_set import (
+    mlx_vocabulary_candidates,
+    mlx_vocabulary_set,
+)
 from sglang.srt.hardware_backend.mlx.models.glm5_fp4 import FP8Linear
 
 _SENTINEL = 0xFFFFFFFF
@@ -18,6 +22,7 @@ class DraftReadoutState:
     def __init__(self):
         self.recent = deque(maxlen=512)
         self.ids = None
+        self.pool = None
         self.calls = 0
         self.full_ct = 0
         self.indexed_ct = 0
@@ -36,7 +41,14 @@ class DraftReadout:
     """
 
     def __init__(
-        self, head, states, vocab_size, *, refresh_size=16384, refresh_period=4
+        self,
+        head,
+        states,
+        vocab_size,
+        *,
+        refresh_size=16384,
+        refresh_period=4,
+        deduplicate=True,
     ):
         if refresh_size < 16 or refresh_period < 1:
             raise ValueError(
@@ -44,7 +56,9 @@ class DraftReadout:
             )
         self.head, self.states, self.vocab_size = head, states, vocab_size
         self.refresh_size, self.refresh_period = refresh_size, refresh_period
+        self.deduplicate = deduplicate
         self.refresh = False
+        self.limit = None
 
     @staticmethod
     def supports(head):
@@ -56,6 +70,7 @@ class DraftReadout:
         )
 
     def __call__(self, hidden):
+        self.limit = None
         self.refresh = any(
             s.ids is None or s.calls % self.refresh_period == 0 for s in self.states
         )
@@ -75,6 +90,14 @@ class DraftReadout:
         required = mx.array(
             recent + [_SENTINEL] * (512 * len(self.states) - len(recent)), mx.uint32
         )
+        if self.deduplicate:
+            ids, limit = mlx_vocabulary_candidates(
+                [s.pool for s in self.states], required, self.vocab_size
+            )
+            self.limit = limit
+            return mlx_mxfp8_indexed_rows(
+                hidden, self.head.weight, self.head.scales, ids, valid_count=limit
+            ), ids
         ids = mx.concatenate([*(s.ids for s in self.states), required])
         return mlx_mxfp8_indexed_rows(
             hidden, self.head.weight, self.head.scales, ids
@@ -83,7 +106,7 @@ class DraftReadout:
     def topk(self, logits, token_ids, k):
         """Select after the caller's multiplier/softcap, retaining stable IDs."""
         if not self.refresh:
-            return mlx_topk_candidates(logits, token_ids, k)
+            return mlx_topk_candidates(logits, token_ids, k, valid_count=self.limit)
         rank = min(self.refresh_size, self.vocab_size)
         top = mx.argpartition(-logits, kth=rank - 1, axis=-1)[..., :rank].astype(
             mx.uint32
@@ -93,6 +116,14 @@ class DraftReadout:
             required = mx.array(recent + [_SENTINEL] * (512 - len(recent)), mx.uint32)
             size = top[row].size + 512
             capacity = 1 << (max(16, size) - 1).bit_length()
+            if self.deduplicate:
+                state.pool = mlx_vocabulary_set(
+                    mx.concatenate([top[row].reshape(-1), required]),
+                    self.vocab_size,
+                    size,
+                )
+                state.ids = state.pool[1]
+                continue
             # Global-ID selection removes duplicates. Keeping these rows
             # unsorted avoids two extra refresh sorts and a host ID read.
             state.ids = mx.concatenate(
