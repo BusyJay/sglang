@@ -12,6 +12,13 @@ from functools import cache
 
 import mlx.core as mx
 
+from sglang.kernels.ops.attention.mlx_ragged_shared import (
+    NAX_SCORES as _SHARED_NAX_SCORES,
+)
+from sglang.kernels.ops.attention.mlx_ragged_shared import (
+    NAX_VALUES as _SHARED_NAX_VALUES,
+)
+
 
 @cache
 def _matmul_policy():
@@ -484,6 +491,49 @@ def _kernels(nax=False, fp32=False, fp8=False, implicit=False):
 
     if nax:
         header += "#include <MetalPerformancePrimitives/MetalPerformancePrimitives.h>\n"
+    shared_history = nax and not fp32
+    if shared_history:
+        load = (
+            "glm_fp8_vector(kv,kv_tail,slot,KV_SPLIT,D,k)"
+            if fp8
+            else "*((const device vec<V,4>*)(glm_latent_row(kv,kv_tail,slot,KV_SPLIT,D)+k))"
+        )
+        stash = (
+            "if(p>=threadgroup_position_in_grid.x*32 && p<length)"
+            "for(uint j=0;j<4;++j)decoded_kv[(size_t(r)*WIDTH+p)*D+k+j]=values[j];"
+            if fp8
+            else ""
+        )
+        scores_source = cache_source(
+            _SHARED_NAX_SCORES.replace("LOAD_HISTORY", load).replace(
+                "STASH_DECODED", stash
+            )
+        )
+        row = (
+            "kv+(size_t(r)*WIDTH+p)*D"
+            if fp8
+            else "glm_latent_row(kv,kv_tail,slot,KV_SPLIT,D)"
+        )
+        values_source = cache_source(_SHARED_NAX_VALUES.replace("VALUE_ROW", row))
+    else:
+        scores_source = cache_source(
+            (_NAX_SCORES_REGULAR if fp32 else _NAX_SCORES) if nax else _SCORES
+        )
+        scores_source = scores_source.replace(
+            "b[i] = p < length ? T(glm_fp8_value(kv,kv_tail,slot,KV_SPLIT,D,k+coord[0])) : T(0);",
+            "b[i] = p < length ? T(glm_fp8_value(kv,kv_tail,slot,KV_SPLIT,D,k+coord[0])) : T(0);\n"
+            "if (h0 == 0 && p >= threadgroup_position_in_grid.x*32 && p < length) decoded_kv[(size_t(r)*WIDTH+p)*D+k+coord[0]] = b[i];",
+        )
+        values_source = (
+            cache_source(
+                _NAX_VALUES.replace(
+                    "glm_latent_row(kv, kv_tail, slot, KV_SPLIT, D)[col + coord[0]]",
+                    "kv[(size_t(r)*WIDTH+p)*D+col+coord[0]]",
+                )
+            )
+            if fp8 and nax
+            else cache_source(_NAX_VALUES if nax else _VALUES)
+        )
     # Context length changes every decode. Keep strides in a tiny device
     # argument instead of compiling a new program for each cache boundary.
     layout = "const uint WIDTH = capacity[0];\nconst uint KV_SPLIT = split[0];\n"
@@ -502,14 +552,7 @@ def _kernels(nax=False, fp32=False, fp8=False, implicit=False):
                 "split",
             ],
             output_names=["scores", "decoded_kv"] if fp8 and nax else ["scores"],
-            source=layout
-            + cache_source(
-                (_NAX_SCORES_REGULAR if fp32 else _NAX_SCORES) if nax else _SCORES
-            ).replace(
-                "b[i] = p < length ? T(glm_fp8_value(kv,kv_tail,slot,KV_SPLIT,D,k+coord[0])) : T(0);",
-                "b[i] = p < length ? T(glm_fp8_value(kv,kv_tail,slot,KV_SPLIT,D,k+coord[0])) : T(0);\n"
-                "if (h0 == 0 && p >= threadgroup_position_in_grid.x*32 && p < length) decoded_kv[(size_t(r)*WIDTH+p)*D+k+coord[0]] = b[i];",
-            ),
+            source=layout + scores_source,
             header=header,
         ),
         mx.fast.metal_kernel(
@@ -532,17 +575,7 @@ def _kernels(nax=False, fp32=False, fp8=False, implicit=False):
                 "split",
             ],
             output_names=["out"],
-            source=layout
-            + (
-                cache_source(
-                    _NAX_VALUES.replace(
-                        "glm_latent_row(kv, kv_tail, slot, KV_SPLIT, D)[col + coord[0]]",
-                        "kv[(size_t(r)*WIDTH+p)*D+col+coord[0]]",
-                    )
-                )
-                if fp8 and nax
-                else cache_source(_NAX_VALUES if nax else _VALUES)
-            ),
+            source=layout + values_source,
             header=header,
         ),
     )
@@ -644,19 +677,22 @@ def mlx_ragged_latent_attention(
     scaled_q = (
         queries if scale == 1.0 else queries * mx.array(scale, queries.dtype)
     ).transpose(0, 2, 1, 3)
+    shared_history = nax and queries.dtype != mx.float32
+    threads_per_tile = 256 if shared_history else 128
+    head_tiles = 1 if shared_history else heads // 32
     score_outputs = scores_kernel(
         inputs=[scaled_q, kv, tail, indices, lens, capacity, split_arg],
         template=template,
         grid=(
-            128
+            threads_per_tile
             * (
                 (width + (64 if nax and queries.dtype == mx.float32 else 32) - 1)
                 // (64 if nax and queries.dtype == mx.float32 else 32)
             ),
-            rows * (heads // 32),
+            rows * head_tiles,
             1,
         ),
-        threadgroup=(128, 1, 1),
+        threadgroup=(threads_per_tile, 1, 1),
         output_shapes=[(rows, heads, width), (rows, width, dim)]
         if fp8 and nax
         else [(rows, heads, width)],
@@ -686,8 +722,8 @@ def mlx_ragged_latent_attention(
             split_arg,
         ],
         template=template,
-        grid=(128 * (dim // (64 if nax else 32)), rows * (heads // 32), 1),
-        threadgroup=(128, 1, 1),
+        grid=(threads_per_tile * (dim // (64 if nax else 32)), rows * head_tiles, 1),
+        threadgroup=(threads_per_tile, 1, 1),
         output_shapes=[(1, rows, heads, dim)],
         output_dtypes=[queries.dtype],
     )[0]
