@@ -13,6 +13,9 @@ from functools import cache
 import mlx.core as mx
 
 from sglang.kernels.ops.attention.mlx_ragged_shared import (
+    NAX_PAIRED_VALUES,
+)
+from sglang.kernels.ops.attention.mlx_ragged_shared import (
     NAX_SCORES as _SHARED_NAX_SCORES,
 )
 from sglang.kernels.ops.attention.mlx_ragged_shared import (
@@ -417,7 +420,7 @@ _VALUES = r"""
 
 
 @cache
-def _kernels(nax=False, fp32=False, fp8=False, implicit=False):
+def _kernels(nax=False, fp32=False, fp8=False, implicit=False, pair_values=False):
     header = (
         "#include <metal_simdgroup_matrix>\n"
         + r"""
@@ -515,6 +518,13 @@ def _kernels(nax=False, fp32=False, fp8=False, implicit=False):
             else "glm_latent_row(kv,kv_tail,slot,KV_SPLIT,D)"
         )
         values_source = cache_source(_SHARED_NAX_VALUES.replace("VALUE_ROW", row))
+        if pair_values:
+            values_source = NAX_PAIRED_VALUES.replace(
+                "PAIRED_VALUE_ROW",
+                "kv+(size_t(source_r)*WIDTH+p)*D"
+                if fp8
+                else "glm_latent_row(kv,kv_tail,slot,KV_SPLIT,D)",
+            )
     else:
         scores_source = cache_source(
             (_NAX_SCORES_REGULAR if fp32 else _NAX_SCORES) if nax else _SCORES
@@ -564,7 +574,8 @@ def _kernels(nax=False, fp32=False, fp8=False, implicit=False):
         mx.fast.metal_kernel(
             name=("sglang_ragged_values_nax" if nax else "sglang_ragged_values")
             + ("_fp8" if fp8 else "")
-            + ("_implicit" if implicit else ""),
+            + ("_implicit" if implicit else "")
+            + ("_paired" if pair_values else ""),
             input_names=[
                 "probs",
                 "kv",
@@ -582,7 +593,16 @@ def _kernels(nax=False, fp32=False, fp8=False, implicit=False):
 
 
 def mlx_ragged_latent_attention(
-    queries, kv, indices, lengths, *, scale, tail=None, split=None, implicit_width=None
+    queries,
+    kv,
+    indices,
+    lengths,
+    *,
+    scale,
+    tail=None,
+    split=None,
+    implicit_width=None,
+    share_rows=None,
 ):
     """Q [1,64,R,512], shared KV [1,L,512], index table [1,R,W].
 
@@ -594,8 +614,11 @@ def mlx_ragged_latent_attention(
     are addressed directly, without constructing a redundant index table.
     Invalid index padding is never read. Retains singleton promotion and reduction
     for all table widths, including empty rows. Logical lengths above 4096
-    use the native looped softmax reduction with bounded threadgroup size. Other geometries use the
-    caller's general batch attention. No per-token SDPA or KV copies occur.
+    use the native looped softmax reduction with bounded threadgroup size.
+    Long implicit low-precision rows share PV history across two positions;
+    each row keeps its own K partitions and tail. share_rows overrides this
+    capacity-based choice for numerical and performance comparisons.
+    Other geometries use the caller's general batch attention.
     """
     implicit = indices is None
     if queries.ndim != 4 or kv.ndim != 3 or (not implicit and indices.ndim != 3):
@@ -669,8 +692,10 @@ def mlx_ragged_latent_attention(
     )
     has_nax, tf32, _ = _matmul_policy()
     nax = has_nax and (queries.dtype != mx.float32 or tf32)
+    can_pair = implicit and nax and queries.dtype != mx.float32 and rows > 1
+    pair_values = can_pair and (width >= 1536 if share_rows is None else share_rows)
     scores_kernel, softmax_kernel, values_kernel = _kernels(
-        nax, nax and queries.dtype == mx.float32, fp8, implicit
+        nax, nax and queries.dtype == mx.float32, fp8, implicit, pair_values
     )
     if implicit:
         indices = mx.array([0], mx.int32)
@@ -680,6 +705,7 @@ def mlx_ragged_latent_attention(
     shared_history = nax and queries.dtype != mx.float32
     threads_per_tile = 256 if shared_history else 128
     head_tiles = 1 if shared_history else heads // 32
+    value_groups = (rows + 1) // 2 if pair_values else rows * head_tiles
     score_outputs = scores_kernel(
         inputs=[scaled_q, kv, tail, indices, lens, capacity, split_arg],
         template=template,
@@ -722,7 +748,11 @@ def mlx_ragged_latent_attention(
             split_arg,
         ],
         template=template,
-        grid=(threads_per_tile * (dim // (64 if nax else 32)), rows * head_tiles, 1),
+        grid=(
+            threads_per_tile * (dim // (64 if nax and not pair_values else 32)),
+            value_groups,
+            1,
+        ),
         threadgroup=(threads_per_tile, 1, 1),
         output_shapes=[(1, rows, heads, dim)],
         output_dtypes=[queries.dtype],

@@ -12,6 +12,31 @@ register_mlx_ci(est_time=5, suite="stage-a-unit-test-mlx")
 
 @unittest.skipUnless(importlib.util.find_spec("mlx"), "requires MLX")
 class TestMlxRagged(CustomTestCase):
+    def test_paired_history_keeps_independent_tail_and_partition_boundaries(self):
+        import mlx.core as mx
+
+        from sglang.kernels.ops.attention.mlx_ragged import mlx_ragged_latent_attention
+        from sglang.kernels.ops.quantization.mlx_fp8_cache import mlx_fp8_cache_pack
+
+        mx.random.seed(936)
+        for lengths in ([0, 1, 33], [1536, 1537, 1543], [1023, 1025, 2048, 2049]):
+            q = mx.random.normal((1, 64, len(lengths), 512)).astype(mx.bfloat16)
+            kv = mx.random.normal((1, max(lengths), 512)).astype(mx.bfloat16)
+            for stored in (kv, mlx_fp8_cache_pack(kv)):
+                args = (q, stored[:, :512], None, mx.array(lengths, mx.uint32))
+                kwargs = dict(
+                    scale=128**-0.5,
+                    tail=stored[:, 512:],
+                    implicit_width=1 << (max(lengths) - 1).bit_length(),
+                )
+                expected = mlx_ragged_latent_attention(
+                    *args, **kwargs, share_rows=False
+                )
+                actual = mlx_ragged_latent_attention(*args, **kwargs, share_rows=True)
+                self.assertTrue(
+                    mx.array_equal(actual, expected).item(), (lengths, stored.dtype)
+                )
+
     def test_implicit_positions_match_tables_with_runtime_visibility(self):
         """Removing index tables must keep per-row causality and segmented addresses."""
         import mlx.core as mx
