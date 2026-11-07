@@ -87,17 +87,98 @@ class ModelArgs(BaseModelArgs):
             raise ValueError("GLM5-Next MLX does not support shared DSA indexers")
 
 
+@dataclass(frozen=True)
+class KDAReplay:
+    """A concrete base and at most eight rows of rounded recurrence inputs."""
+
+    base: mx.array | None
+    operands: tuple[mx.array, ...]
+    count: mx.array | None
+    length: int
+
+    def device_count(self):
+        return (
+            self.count if self.count is not None else mx.array([self.length], mx.uint32)
+        )
+
+
 class NativeCache(ArraysCache):
     def __init__(self, size):
         super().__init__(size=size)
         self.offset = 0
         self.mlx_mtp = None
         self.defer_recurrent_eval = False
+        self.replay_rebase = None
+
+    @property
+    def cache(self):
+        # Full state readers (including prefix export) retain the ArraysCache
+        # contract. The regular continuation does not take this path.
+        descriptor = self.recurrent_replay
+        if descriptor is not None:
+            self._arrays[3] = mlx_kda_replay_state(
+                descriptor.base, descriptor.operands, descriptor.device_count()
+            )
+            self.recurrent_replay = None
+        return self._arrays
+
+    @cache.setter
+    def cache(self, arrays):
+        self._arrays = arrays
+        self.recurrent_replay = None
+
+    def __getitem__(self, index):
+        # Keep convolution reads private; other reads retain list indexing
+        # semantics, including negative indices and slices of full state.
+        return self._arrays[index] if index in (0, 1, 2) else self.cache[index]
+
+    def __setitem__(self, index, value):
+        if isinstance(index, slice):
+            self.cache[index] = value
+            return
+        if index == 3 or index == 3 - len(self._arrays):
+            self.recurrent_replay = None
+        self._arrays[index] = value
+
+    def copy_arrays_from(self, other):
+        self._arrays = [
+            v.view(v.dtype) if v is not None else None for v in other._arrays
+        ]
+        self.recurrent_replay = other.recurrent_replay
+        self.defer_recurrent_eval = other.defer_recurrent_eval
+
+    def recurrent_inputs(self, enabled=True):
+        descriptor = self.recurrent_replay if enabled else None
+        return (
+            (descriptor.base, (descriptor.operands, descriptor.device_count()))
+            if descriptor is not None
+            else (self.cache[3], None)
+        )
+
+    def attach_replay(self, base, operands, count, length):
+        self.recurrent_replay = KDAReplay(base, operands, count, length)
+        self._arrays[3] = base
+        self.defer_recurrent_eval = True
+
+    def graph_payload(self, enabled=True, *, include_count=True):
+        descriptor = self.recurrent_replay if enabled else None
+        if descriptor is None:
+            return list(self.cache), None
+        return list(self._arrays), (
+            descriptor.operands,
+            descriptor.device_count() if include_count else None,
+        )
+
+    def load_graph_payload(self, payload, length=0):
+        arrays, replay = payload
+        self.cache = list(arrays)
+        if replay is not None:
+            self.attach_replay(self._arrays[3], replay[0], replay[1], length)
 
     @property
     def evaluation_state(self):
-        """Immutable replay nodes need evaluation only when their state is read."""
-        return self.cache[:3] if self.defer_recurrent_eval else self.state
+        """Submit only the convolution boundary when replay is still private."""
+        return self._arrays[:3] if self.defer_recurrent_eval else self.state
 
 
 class MLACache(NativeCache):
@@ -1132,6 +1213,7 @@ class MoE(nn.Module):
 class KDA(nn.Module):
     compile_gate = False
     fuse_decode = False
+    fuse_replay = True
 
     def __init__(self, args):
         super().__init__()
@@ -1348,7 +1430,13 @@ class KDA(nn.Module):
         for start in range(0, x.shape[1], 8):
             count = min(8, x.shape[1] - start)
             proj, a, gate, *beta = (v[:, start : start + count] for v in projected)
-            initial_state = cache[3]
+            descriptor = cache.recurrent_replay if self.fuse_replay else None
+            initial_state, past = cache.recurrent_inputs(self.fuse_replay)
+            rebase = descriptor is not None and (
+                cache.replay_rebase
+                if cache.replay_rebase is not None
+                else descriptor.length + count > 8
+            )
             result = mlx_kda_decode(
                 proj,
                 tuple(
@@ -1356,7 +1444,7 @@ class KDA(nn.Module):
                     for name in ("q", "k", "v")
                 ),
                 tuple(cache[i] for i in range(3)),
-                cache[3],
+                initial_state,
                 a,
                 gate,
                 self.A_log,
@@ -1368,6 +1456,9 @@ class KDA(nn.Module):
                 snapshots=True,
                 beta=beta[0] if beta else None,
                 defer_states=count > 1,
+                replay=past,
+                replay_capacity=8 if self.fuse_replay and count > 1 else 0,
+                rebase_replay=rebase if count > 1 else False,
             )
             if result is None:
                 if start == 0:
@@ -1378,20 +1469,27 @@ class KDA(nn.Module):
                     "Prepared KDA verification operands do not match the fused recurrence"
                 )
             out, conv, states, *replay = result
+            bounded = self.fuse_replay and count > 1
+            base = replay[1] if bounded and rebase else initial_state
+            shift = descriptor.length if descriptor is not None and not rebase else 0
             outputs.append(out)
             for j in range(count):
                 snapshot = type(cache)(4)
-                recurrent = (
-                    states[-1:]
-                    if j == count - 1
-                    else mlx_kda_replay_state(initial_state, replay[0], j + 1)
-                )
-                snapshot.cache = [v[j : j + 1] for v in conv] + [recurrent]
+                snapshot.cache = [v[j : j + 1] for v in conv] + [states[-1:]]
+                if j != count - 1:
+                    if bounded:
+                        snapshot.attach_replay(base, replay[0], None, shift + j + 1)
+                    else:
+                        snapshot.cache[3] = mlx_kda_replay_state(
+                            initial_state, replay[0], j + 1
+                        )
                 snapshot.defer_recurrent_eval = j != count - 1
                 snapshot.offset = cache.offset + j + 1
                 snapshots.append(snapshot)
             cache.cache = [v.view(v.dtype) for v in snapshots[-1].cache]
             cache.defer_recurrent_eval = False
+            cache.recurrent_replay = None
+            cache.replay_rebase = None
             cache.offset += count
         out = mx.concatenate(outputs, 1)
         return (_project_rows(self.o_proj, out) if project_output else out), snapshots
@@ -1405,6 +1503,7 @@ class KDA(nn.Module):
         outputs, updates = [], []
         for j, cache in enumerate(caches):
             proj, a, gate, *beta = (v[:, j : j + 1] for v in projected)
+            initial_state, past = cache.recurrent_inputs(self.fuse_replay)
             result = mlx_kda_decode(
                 proj,
                 tuple(
@@ -1412,7 +1511,7 @@ class KDA(nn.Module):
                     for name in ("q", "k", "v")
                 ),
                 tuple(cache[i] for i in range(3)),
-                cache[3],
+                initial_state,
                 a,
                 gate,
                 self.A_log,
@@ -1422,6 +1521,7 @@ class KDA(nn.Module):
                 norm_eps=self.o_norm.eps,
                 lower_bound=self.lower_bound,
                 beta=beta[0] if beta else None,
+                replay=past,
             )
             if result is None:
                 # General dtype/geometry retains the same per-request equation.
@@ -1462,6 +1562,7 @@ class KDA(nn.Module):
                     beta = []
             else:
                 proj, a, gate, *beta = projected
+            initial_state, past = cache.recurrent_inputs(self.fuse_replay)
             result = mlx_kda_decode(
                 proj,
                 tuple(
@@ -1469,7 +1570,7 @@ class KDA(nn.Module):
                     for name in ("q", "k", "v")
                 ),
                 tuple(cache[i] for i in range(3)),
-                cache[3],
+                initial_state,
                 a,
                 gate,
                 self.A_log,
@@ -1479,6 +1580,7 @@ class KDA(nn.Module):
                 norm_eps=self.o_norm.eps,
                 lower_bound=self.lower_bound,
                 beta=beta[0] if beta else None,
+                replay=past,
             )
             if result is not None:
                 out, conv, state = result
@@ -3354,6 +3456,21 @@ class _FixedLayerGroup(_FixedGraphOwner):
             )
             for layer in self.layers
         )
+        use_replay = tuple(
+            getattr(layer.self_attn, "fuse_replay", False) for layer in self.layers
+        )
+        payloads = [
+            state.graph_payload(enabled) for state, enabled in zip(states, use_replay)
+        ]
+        rebases = tuple(
+            bool(
+                verification
+                and enabled
+                and state.recurrent_replay is not None
+                and state.recurrent_replay.length + min(x.shape[1], 8) > 8
+            )
+            for state, enabled in zip(states, use_replay)
+        )
         spec = (
             configuration,
             x.shape,
@@ -3362,14 +3479,17 @@ class _FixedLayerGroup(_FixedGraphOwner):
             flags,
             verification,
             prefill_a8,
+            use_replay,
+            rebases,
             tuple(
                 (
                     type(state),
+                    payload[1] is not None,
                     tuple(
-                        None if v is None else (v.shape, v.dtype) for v in state.cache
+                        None if v is None else (v.shape, v.dtype) for v in payload[0]
                     ),
                 )
-                for state in states
+                for state, payload in zip(states, payloads)
             ),
         )
         graph = self.graphs.get(spec)
@@ -3421,11 +3541,17 @@ class _FixedLayerGroup(_FixedGraphOwner):
                             switch._fused_gate_up.update(expert_weights)
                             switch._gate_up_sources = switch._current_gate_up_sources()
                     local = cache_type(4)
-                    local.cache = list(array)
+                    local.load_graph_payload(array)
+                    local.replay_rebase = rebases[layer_index]
                     local.offset = 0
                     if verification:
                         value, snapshots = layer.verify_ffn_rows(value, local)
-                        boundaries.append([snapshot.cache for snapshot in snapshots])
+                        boundaries.append(
+                            [
+                                snapshot.graph_payload(include_count=False)
+                                for snapshot in snapshots
+                            ]
+                        )
                     elif (
                         type(layer) is DecoderLayer
                         and layer.args.mhc
@@ -3485,21 +3611,28 @@ class _FixedLayerGroup(_FixedGraphOwner):
                 ):
                     router = layer.mlp._router_weight
             prepared.append((attention, expert_weights, router))
-        result, arrays, boundaries = graph(
-            x, parameters, [state.cache for state in states], prepared
-        )
+        result, arrays, boundaries = graph(x, parameters, payloads, prepared)
         snapshots = [[] for _ in range(x.shape[1])]
         if verification:
-            for state, layer_boundaries in zip(states, boundaries):
+            for state_index, (state, layer_boundaries) in enumerate(
+                zip(states, boundaries)
+            ):
                 for j, values in enumerate(layer_boundaries):
                     snapshot = type(state)(4)
-                    snapshot.cache = list(values)
+                    previous = state.recurrent_replay
+                    shift = (
+                        previous.length
+                        if previous is not None and not rebases[state_index] and j < 8
+                        else 0
+                    )
+                    snapshot.load_graph_payload(values, shift + j % 8 + 1)
                     snapshot.defer_recurrent_eval = j != x.shape[1] - 1
                     snapshot.offset = state.offset + j + 1
                     snapshots[j].append(snapshot)
         for state, values in zip(states, arrays):
             state.cache = list(values)
             state.defer_recurrent_eval = False
+            state.recurrent_replay = None
             state.offset += x.shape[1]
         return (result, snapshots) if verification else result
 

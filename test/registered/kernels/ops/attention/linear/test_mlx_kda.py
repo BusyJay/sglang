@@ -270,6 +270,32 @@ class TestMlxKda(CustomTestCase):
                         )
                         self.assertFalse(resumed.defer_recurrent_eval)
 
+            # Keep discarding the last row until the compact history must
+            # acquire a new base. Reading a clone's state must not consume
+            # the original descriptor or accidentally replay rejected rows.
+            candidate, serial = clone_cache(base), clone_cache(base)
+            for keep in (3, 3, 3, 1, 3, 4, 2):
+                rows = mx.random.normal((1, 4, 256)).astype(dtype)
+                actual, boundaries = attn.verify_rows(rows, candidate)
+                next_serial, expected = None, []
+                for j in range(4):
+                    expected.append(attn(rows[:, j : j + 1], serial))
+                    if j + 1 == keep:
+                        next_serial = clone_cache(serial)
+                self.assertTrue(
+                    mx.array_equal(actual, mx.concatenate(expected, 1)).item()
+                )
+                candidate, serial = boundaries[keep - 1], next_serial
+                if keep < 4:
+                    self.assertIsNotNone(candidate.recurrent_replay)
+                    self.assertLessEqual(candidate.recurrent_replay.length, 8)
+                self.assertEqual(candidate.offset, serial.offset)
+                self.assertTrue(
+                    mx.array_equal(clone_cache(candidate)[-1], serial[3]).item()
+                )
+                for got, want in zip(clone_cache(candidate).cache, serial.cache):
+                    self.assertTrue(mx.array_equal(got, want).item())
+
 
 if __name__ == "__main__":
     unittest.main()

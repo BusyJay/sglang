@@ -446,11 +446,12 @@ class MlxDFlashServing:
             row = state.rows.popleft()
             offset = state.offset
             for dst, src in zip(cache, row.cache):
-                dst.cache = [
-                    v.view(v.dtype) if v is not None else None for v in src.cache
-                ]
                 if isinstance(dst, NativeCache) and isinstance(src, NativeCache):
-                    dst.defer_recurrent_eval = src.defer_recurrent_eval
+                    dst.copy_arrays_from(src)
+                else:
+                    dst.cache = [
+                        v.view(v.dtype) if v is not None else None for v in src.cache
+                    ]
                 dst.offset = src.offset
             state.pending_features.append(row.features)
             state.pending_positions.append(mx.array([offset], mx.int32))

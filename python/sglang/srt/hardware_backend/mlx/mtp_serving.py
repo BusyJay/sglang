@@ -22,10 +22,11 @@ def clone_cache(cache):
     result = type(cache)(4)
     # A distinct array object protects slice assignment; view shares storage.
     # mx.array(value) instead copies every multi-MiB recurrent state.
-    result.cache = [v.view(v.dtype) if v is not None else None for v in cache.cache]
-    result.offset = cache.offset
     if isinstance(cache, NativeCache):
-        result.defer_recurrent_eval = cache.defer_recurrent_eval
+        result.copy_arrays_from(cache)
+    else:
+        result.cache = [v.view(v.dtype) if v is not None else None for v in cache.cache]
+    result.offset = cache.offset
     return result
 
 
@@ -366,9 +367,12 @@ class MlxMTPServing:
             return pending.logits
         row = state.rows.popleft()
         for dst, src in zip(cache, row.cache):
-            dst.cache = [v.view(v.dtype) if v is not None else None for v in src.cache]
             if isinstance(dst, NativeCache) and isinstance(src, NativeCache):
-                dst.defer_recurrent_eval = src.defer_recurrent_eval
+                dst.copy_arrays_from(src)
+            else:
+                dst.cache = [
+                    v.view(v.dtype) if v is not None else None for v in src.cache
+                ]
             dst.offset = src.offset
         state.hidden = row.hidden
         state.offset = cache[0].offset

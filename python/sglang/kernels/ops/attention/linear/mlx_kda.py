@@ -44,6 +44,22 @@ _SOURCE = r"""
   threadgroup float gs[TOK][DK];
   threadgroup T betas[TOK];
 
+#if CONTINUE_REPLAY
+  const int past_count = int(past_length[0]);
+  threadgroup T past_ks[8][128], past_vs[8][128], past_betas[8];
+  threadgroup float past_gs[8][128];
+  if (tid < uint(past_count * DK)) {
+    int t = int(tid) / DK, i = int(tid) % DK;
+    size_t index = (size_t(t) * HEADS + h) * DK + i;
+    past_ks[t][i] = past_k[index];
+    past_vs[t][i] = past_v[index];
+    past_gs[t][i] = past_g[index];
+  }
+  if (tid < uint(past_count)) past_betas[tid] = past_beta[size_t(tid)*HEADS+h];
+#else
+  const int past_count = 0;
+#endif
+
   // ---- 1. short conv + SiLU -------------------------------------------------
   if (tid < uint(3 * DK)) {
     const int part = int(tid) / DK;
@@ -141,14 +157,24 @@ _SOURCE = r"""
 #if DEFER_STATES
   // Compact, already-rounded recurrence operands replace full FP32 boundary
   // writes. A rejected/retained prefix can reconstruct its state on demand.
+#if BOUNDED_REPLAY && CONTINUE_REPLAY && !REBASE_REPLAY
+  if (tid < uint(past_count * DK)) {
+    int t = int(tid) / DK, i = int(tid) % DK;
+    size_t index = (size_t(t)*HEADS+h)*DK+i;
+    replay_k[index]=past_ks[t][i]; replay_v[index]=past_vs[t][i];
+    replay_g[index]=past_gs[t][i];
+  }
+  if (tid < uint(past_count)) replay_beta[size_t(tid)*HEADS+h]=past_betas[tid];
+#endif
+  const int shift = BOUNDED_REPLAY && !REBASE_REPLAY ? past_count : 0;
   if (tid < uint(TOK * DK)) {
     const int t = int(tid) / DK, i = int(tid) % DK;
-    const size_t index = (size_t(t) * HEADS + h) * DK + i;
+    const size_t index = (size_t(t + shift) * HEADS + h) * DK + i;
     replay_k[index] = ks[t][i];
     replay_v[index] = vs[t][i];
     replay_g[index] = gs[t][i];
   }
-  if (tid < uint(TOK)) replay_beta[size_t(tid) * HEADS + h] = betas[tid];
+  if (tid < uint(TOK)) replay_beta[size_t(tid + shift) * HEADS + h] = betas[tid];
 #endif
 
   // ---- 4. vector-gated delta rule --------------------------------------------
@@ -165,6 +191,26 @@ _SOURCE = r"""
       state[i] = 0.0f;
 #endif
     }
+#if CONTINUE_REPLAY
+    for (int t = 0; t < past_count; ++t) {
+      float kv_mem = 0.0f;
+      for (int i = 0; i < n_per_t; ++i) {
+        int dk = n_per_t * dk_idx + i;
+        state[i] = state[i] * past_gs[t][dk];
+        kv_mem += state[i] * past_ks[t][dk];
+      }
+      kv_mem = simd_sum(kv_mem);
+      auto delta = (past_vs[t][dv_idx] - kv_mem) * past_betas[t];
+      for (int i = 0; i < n_per_t; ++i) {
+        int dk = n_per_t * dk_idx + i;
+        state[i] = state[i] + past_ks[t][dk] * delta;
+      }
+    }
+#if REBASE_REPLAY
+    for (int i = 0; i < n_per_t; ++i)
+      replay_anchor[(size_t(h)*DK+dv_idx)*DK+n_per_t*dk_idx+i] = state[i];
+#endif
+#endif
     for (int t = 0; t < TOK; ++t) {
       float kv_mem = 0.0f;
       for (int i = 0; i < n_per_t; ++i) {
@@ -227,15 +273,26 @@ _SOURCE = r"""
 
 
 @cache
-def _kernel(has_conv, has_state, snapshots=False, defer_states=False):
+def _kernel(
+    has_conv,
+    has_state,
+    snapshots=False,
+    defer_states=False,
+    continuation=False,
+    bounded=False,
+    rebase=False,
+):
     source = (
         f"#define HAS_CONV_STATE {int(has_conv)}\n"
         f"#define HAS_STATE {int(has_state)}\n"
         f"#define SNAPSHOTS {int(snapshots)}\n"
-        f"#define DEFER_STATES {int(defer_states)}\n" + _SOURCE
+        f"#define DEFER_STATES {int(defer_states)}\n"
+        f"#define CONTINUE_REPLAY {int(continuation)}\n"
+        f"#define BOUNDED_REPLAY {int(bounded)}\n"
+        f"#define REBASE_REPLAY {int(rebase)}\n" + _SOURCE
     )
     return mx.fast.metal_kernel(
-        name=f"sglang_kda_c{int(has_conv)}_s{int(has_state)}_p{int(snapshots)}_d{int(defer_states)}",
+        name=f"sglang_kda_c{int(has_conv)}_s{int(has_state)}_p{int(snapshots)}_d{int(defer_states)}_r{int(continuation)}_b{int(bounded)}_a{int(rebase)}",
         input_names=[
             "proj",
             "beta",
@@ -252,9 +309,15 @@ def _kernel(has_conv, has_state, snapshots=False, defer_states=False):
             "state_in",
             "a_pre",
             "gate_pre",
-        ],
+        ]
+        + (
+            ["past_k", "past_v", "past_g", "past_beta", "past_length"]
+            if continuation
+            else []
+        ),
         output_names=["y", "next_q", "next_k", "next_v", "state_out"]
-        + (["replay_k", "replay_v", "replay_g", "replay_beta"] if defer_states else []),
+        + (["replay_k", "replay_v", "replay_g", "replay_beta"] if defer_states else [])
+        + (["replay_anchor"] if rebase else []),
         header=_HEADER,
         source=source,
     )
@@ -277,6 +340,9 @@ def mlx_kda_decode(
     snapshots=False,
     beta=None,
     defer_states=False,
+    replay=None,
+    replay_capacity=0,
+    rebase_replay=False,
 ):
     """Return (gated output, three conv states, FP32 recurrence), or None.
 
@@ -286,6 +352,12 @@ def mlx_kda_decode(
     The joined layout remains accepted for existing dense projection banks.
     defer_states=True retains convolution boundaries but writes only the last
     FP32 state; a fourth return value holds compact operands for lazy replay.
+    With replay=(rounded_operands, device_count), state is the base before
+    those rows. Replay them in registers before consuming any new rows.
+    Capacity eight appends new rounded operands to the retained prefix and
+    returns an optional fifth output, the new base when rebase_replay is set.
+    The caller keeps device_count within capacity and requests a rebase before
+    the retained operands plus this chunk would overflow.
     Inputs are immutable. Unsupported shape/dtype combinations leave all
     caller-owned cache state untouched for the ordinary MLX path.
     """
@@ -334,10 +406,42 @@ def mlx_kda_decode(
         state.shape != (1, heads, 128, 128) or state.dtype != mx.float32
     ):
         return None
+    if replay_capacity not in (0, 8) or replay_capacity and not defer_states:
+        raise ValueError("Bounded replay requires deferred snapshots and capacity 8")
+    if rebase_replay and (replay is None or not replay_capacity):
+        raise ValueError("Rebasing requires a bounded replay input")
+    past = []
+    if replay is not None:
+        operands, count = replay
+        k, v, g, b = operands
+        if (
+            k.shape != (8, heads, 128)
+            or v.shape != k.shape
+            or g.shape != k.shape
+            or b.shape != (8, heads)
+            or k.dtype != proj.dtype
+            or v.dtype != proj.dtype
+            or b.dtype != proj.dtype
+            or g.dtype != mx.float32
+            or count.shape != (1,)
+            or count.dtype != mx.uint32
+        ):
+            raise ValueError(
+                "Expected fixed-capacity rounded replay operands and uint32 count"
+            )
+        past = [k, v, g, b, count]
     # A weight is a harmless dummy pointer for a compile-time absent state.
     conv = conv_states if has_conv else conv_weights
     params = mx.array([128**-0.5, 1e-6, norm_eps, lower_bound, 1 / 128], mx.float32)
-    out = _kernel(has_conv, state is not None, snapshots, defer_states)(
+    out = _kernel(
+        has_conv,
+        state is not None,
+        snapshots,
+        defer_states,
+        replay is not None,
+        bool(replay_capacity),
+        rebase_replay,
+    )(
         inputs=[
             proj,
             beta,
@@ -350,7 +454,8 @@ def mlx_kda_decode(
             state if state is not None else a_log,
             a,
             gate,
-        ],
+        ]
+        + past,
         template=[
             ("T", proj.dtype),
             ("TOK", tokens),
@@ -368,17 +473,28 @@ def mlx_kda_decode(
             *[(tokens if snapshots else 1, 3, dim)] * 3,
             (tokens if snapshots and not defer_states else 1, heads, 128, 128),
         ]
-        + ([(tokens, heads, 128)] * 3 + [(tokens, heads)] if defer_states else []),
+        + (
+            [(replay_capacity or tokens, heads, 128)] * 3
+            + [(replay_capacity or tokens, heads)]
+            if defer_states
+            else []
+        )
+        + ([(1, heads, 128, 128)] if rebase_replay else []),
         output_dtypes=[proj.dtype] * 4
         + [mx.float32]
-        + ([proj.dtype, proj.dtype, mx.float32, proj.dtype] if defer_states else []),
+        + ([proj.dtype, proj.dtype, mx.float32, proj.dtype] if defer_states else [])
+        + ([mx.float32] if rebase_replay else []),
     )
     result = out[0], out[1:4], out[4]
-    return (*result, tuple(out[5:])) if defer_states else result
+    if defer_states:
+        result = (*result, tuple(out[5:9]))
+        if replay_capacity:
+            return (*result, out[9] if rebase_replay else None)
+    return result
 
 
 _REPLAY = r"""
-    const int HEADS = dims[0], COUNT = dims[1];
+    const int HEADS = dims[0], COUNT = int(length[0]);
     const int h = int(threadgroup_position_in_grid.x);
     const int lane = int(thread_index_in_simdgroup);
     const int sg = int(simdgroup_index_in_threadgroup);
@@ -423,7 +539,7 @@ _REPLAY = r"""
 def _replay_kernel():
     return mx.fast.metal_kernel(
         name="sglang_kda_replay_state",
-        input_names=["state_in", "k", "v", "g", "beta", "dims"],
+        input_names=["state_in", "k", "v", "g", "beta", "dims", "length"],
         output_names=["out"],
         source=_REPLAY,
     )
@@ -436,7 +552,9 @@ def mlx_kda_replay_state(state, replay, count):
     if (
         dim != 128
         or tokens > 8
-        or not 1 <= count <= tokens
+        or (not isinstance(count, mx.array) and not 1 <= count <= tokens)
+        or isinstance(count, mx.array)
+        and (count.shape != (1,) or count.dtype != mx.uint32)
         or v.shape != k.shape
         or g.shape != k.shape
         or beta.shape != (tokens, heads)
@@ -455,7 +573,8 @@ def mlx_kda_replay_state(state, replay, count):
             v,
             g,
             beta,
-            mx.array([heads, count], mx.int32),
+            mx.array([heads], mx.int32),
+            count if isinstance(count, mx.array) else mx.array([count], mx.uint32),
         ],
         template=[("HAS_STATE", state is not None), ("T", k.dtype)],
         grid=(1024 * heads, 1, 1),

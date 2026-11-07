@@ -526,9 +526,9 @@ class MlxModelRunner:
                 for item in value.values():
                     collect(item)
 
-        state = getattr(cache, "state", ())
-        if pending_only:
-            state = getattr(cache, "evaluation_state", state)
+        state = getattr(cache, "evaluation_state", None) if pending_only else None
+        if state is None:
+            state = getattr(cache, "state", ())
         collect(state)
         return arrays
 
