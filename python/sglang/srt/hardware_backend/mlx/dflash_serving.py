@@ -11,8 +11,13 @@ from dataclasses import dataclass, field
 from time import perf_counter
 
 import mlx.core as mx
+
 from sglang.srt.hardware_backend.mlx.context_copy import ContextCopyProposer
 from sglang.srt.hardware_backend.mlx.dflash2 import load_dflash2
+from sglang.srt.hardware_backend.mlx.draft_readout import (
+    DraftReadout,
+    DraftReadoutState,
+)
 from sglang.srt.hardware_backend.mlx.models.glm5_next import NativeCache
 from sglang.srt.hardware_backend.mlx.mtp_serving import clone_cache
 
@@ -52,6 +57,7 @@ class DFlashRequest:
     round_outputs: mx.array | None = None
     copy_proposer: ContextCopyProposer = field(default_factory=ContextCopyProposer)
     prefetch: PendingDFlashRound | None = None
+    readout: DraftReadoutState = field(default_factory=DraftReadoutState)
 
 
 class MlxDFlashServing:
@@ -103,8 +109,20 @@ class MlxDFlashServing:
                     "A reused GLM prefix must retain its DFlash feature context"
                 )
             state = DFlashRequest(self.drafter.make_state(), cache[0], offset)
+        state.readout.observe(state.copy_proposer.tokens)
         self.states[rid] = state
         return state
+
+    def _draft_head(self, states):
+        head = self.model.lm_head
+        if (
+            not DraftReadout.supports(head)
+            or self.drafter.candidate_selector.top_k > 16
+        ):
+            return head
+        return DraftReadout(
+            head, [state.readout for state in states], self.drafter.vocab_size
+        )
 
     def _publish(self, state, cache):
         cache[0].mlx_dflash = (
@@ -147,7 +165,9 @@ class MlxDFlashServing:
         self._consume_features(state)
         mx.async_eval(state.draft_state)
         state.offset = cache[0].offset
-        state.copy_proposer.extend(inputs.reshape(-1).tolist())
+        tokens = inputs.reshape(-1).tolist()
+        state.copy_proposer.extend(tokens)
+        state.readout.observe(tokens)
         self._publish(state, cache)
         return hidden
 
@@ -203,7 +223,7 @@ class MlxDFlashServing:
                 anchor,
                 [prepared],
                 self.model.model.embed_tokens,
-                self.model.lm_head,
+                self._draft_head([state]),
                 count,
             )
         )
@@ -274,7 +294,7 @@ class MlxDFlashServing:
                 batch,
                 [prepared[i] for i in indices],
                 self.model.model.embed_tokens,
-                self.model.lm_head,
+                self._draft_head([ready[i][0] for i in indices]),
                 count,
             )
             values = mx.concatenate([batch, drafts], 1)
@@ -392,7 +412,7 @@ class MlxDFlashServing:
                     anchors,
                     [requests[i][0].draft_state for i in indices],
                     self.model.model.embed_tokens,
-                    self.model.lm_head,
+                    self._draft_head([requests[i][0] for i in indices]),
                     count,
                 )
                 values = mx.concatenate([anchors, drafts], 1)
@@ -436,6 +456,7 @@ class MlxDFlashServing:
             state.pending_positions.append(mx.array([offset], mx.int32))
             state.offset = cache[0].offset
             state.copy_proposer.extend((tokens[i],))
+            state.readout.observe((tokens[i],))
             self._publish(state, cache)
             outputs.append(row.logits)
             self.counters["num_accept_tokens"] += 1

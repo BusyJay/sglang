@@ -117,6 +117,52 @@ def config():
 
 @unittest.skipUnless(importlib.util.find_spec("mlx"), "requires MLX")
 class TestDFlash2Mlx(CustomTestCase):
+    def test_adaptive_readout_refreshes_and_keeps_exact_candidate_scores(self):
+        import mlx.core as mx
+
+        from sglang.srt.hardware_backend.mlx.draft_readout import (
+            DraftReadout,
+            DraftReadoutState,
+        )
+        from sglang.srt.hardware_backend.mlx.models.glm5_fp4 import FP8Linear
+
+        weight, scales = mx.quantize(
+            mx.random.normal((128, 64)).astype(mx.bfloat16),
+            group_size=32,
+            bits=8,
+            mode="mxfp8",
+        )
+        head = FP8Linear(
+            weight.view(mx.uint8), scales, block_size=32, activation_mode="a16"
+        )
+        states = [DraftReadoutState(), DraftReadoutState()]
+        states[0].observe([0, 65, 127])
+        states[1].observe([12, 125])
+        hidden = mx.random.normal((2, 3, 64)).astype(mx.bfloat16)
+        full = head(hidden).astype(mx.float32)
+        for iteration in range(9):
+            readout = DraftReadout(head, states, 128, refresh_period=8)
+            result = readout(hidden)
+            if iteration in (0, 8):
+                self.assertTrue(mx.array_equal(result.astype(mx.float32), full).item())
+                readout.topk(result.astype(mx.float32), None, 16)
+            else:
+                logits, ids = result
+                expected = mx.where(
+                    ids < 128, mx.take(full, mx.minimum(ids, 127), axis=-1), -mx.inf
+                )
+                self.assertTrue(
+                    mx.array_equal(logits.astype(mx.float32), expected).item()
+                )
+                values, got = readout.topk(logits.astype(mx.float32), ids, 16)
+                from sglang.kernels.ops.sampling.mlx_topk import mlx_topk
+
+                want_values, want = mlx_topk(full)
+                self.assertTrue(mx.array_equal(got, want).item())
+                self.assertTrue(mx.array_equal(values, want_values).item())
+        self.assertEqual([s.full_ct for s in states], [2, 2])
+        self.assertEqual([s.indexed_ct for s in states], [7, 7])
+
     def setUp(self):
         import mlx.core as mx
         import mlx.nn as nn

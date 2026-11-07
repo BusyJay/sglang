@@ -142,3 +142,35 @@ def mlx_topk(logits, k=16):
     # A fixed merge tile avoids recompilation as row counts / vocabulary grow.
     values, ids = _select(values, ids, merge=True, tile=_TILE)
     return values.reshape(shape), ids.reshape(shape)
+
+
+def mlx_topk_candidates(logits, token_ids, k=16):
+    """Exact top-k over explicit global IDs, excluding uint32 sentinel padding.
+
+    Numbers precede NaNs and equal scores prefer the smaller global ID, as in
+    mlx_topk. Duplicate IDs are selected once, at their maximum score. The
+    caller supplies at least k distinct non-sentinel IDs.
+    """
+    if (
+        logits.ndim < 1
+        or not isinstance(k, int)
+        or isinstance(k, bool)
+        or not 1 <= k <= 16
+        or logits.shape[-1] < k
+    ):
+        raise ValueError("Expected at least k candidates, with k in 1..16")
+    if logits.dtype not in (mx.bfloat16, mx.float16, mx.float32):
+        raise TypeError("Expected floating candidate scores")
+    if token_ids.dtype != mx.uint32 or token_ids.shape not in (
+        (logits.shape[-1],),
+        logits.shape,
+    ):
+        raise ValueError("Expected shared or per-row uint32 token IDs")
+    shape = logits.shape[:-1] + (k,)
+    scores = logits.reshape(-1, logits.shape[-1])
+    ids = mx.broadcast_to(token_ids, logits.shape).reshape(scores.shape)
+    values, ids = _select(scores, ids, merge=True, tile=_TILE)
+    while values.shape[-1] > _TILE:
+        values, ids = _select(values, ids, merge=True, tile=_TILE)
+    values, ids = _select(values, ids, merge=True, tile=_TILE)
+    return values[:, :k].reshape(shape), ids[:, :k].reshape(shape)

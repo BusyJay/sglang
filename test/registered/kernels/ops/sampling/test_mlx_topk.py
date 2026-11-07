@@ -14,6 +14,36 @@ register_mlx_ci(est_time=5, suite="stage-a-unit-test-mlx")
 
 @unittest.skipUnless(importlib.util.find_spec("mlx"), "requires MLX")
 class TestMlxTopk(CustomTestCase):
+    def test_candidate_ids_deduplicate_across_tiles_and_ignore_padding(self):
+        import mlx.core as mx
+
+        from sglang.kernels.ops.sampling.mlx_topk import mlx_topk, mlx_topk_candidates
+
+        mx.random.seed(804)
+        for all_nan in (False, True):
+            scores = mx.random.normal((2, 257))
+            if all_nan:
+                scores = mx.full(scores.shape, mx.nan)
+            else:
+                scores[:, 1] = mx.nan
+                scores[:, 2] = mx.inf
+                scores[:, 3] = -mx.inf
+                scores[:, 100:120] = 7
+            ids = mx.arange(4099, dtype=mx.uint32) % 257
+            values = mx.take(scores, ids, axis=-1)
+            ids = mx.where(
+                mx.arange(ids.size) % 17 == 0, mx.array(0xFFFFFFFF, mx.uint32), ids
+            )
+            values = mx.where(ids == 0xFFFFFFFF, -mx.inf, values)
+            actual, got = mlx_topk_candidates(values, ids)
+            expected, want = mlx_topk(scores)
+            self.assertTrue(mx.array_equal(got, want).item())
+            self.assertTrue(
+                mx.all(
+                    (actual == expected) | (mx.isnan(actual) & mx.isnan(expected))
+                ).item()
+            )
+
     def check_topk(self, data, dtype, k=16):
         import mlx.core as mx
 

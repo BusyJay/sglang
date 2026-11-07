@@ -740,6 +740,15 @@ register_kernel(
 
 register_kernel(
     KernelSpec(
+        op="gemm.mlx_mxfp8_indexed_rows",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.gemm.mlx_mxfp8_rows:mlx_mxfp8_indexed_rows",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)
+
+register_kernel(
+    KernelSpec(
         op="gemm.mlx_block_fp8_pair",
         backend=KernelBackend.MLX,
         target="sglang.kernels.ops.gemm.mlx_block_fp8:mlx_block_fp8_pair",

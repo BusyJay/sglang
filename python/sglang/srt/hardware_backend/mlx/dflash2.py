@@ -18,7 +18,8 @@ from typing import Any
 import mlx.core as mx
 import mlx.nn as nn
 
-from sglang.kernels.ops.sampling.mlx_topk import mlx_topk
+from sglang.kernels.ops.sampling.mlx_topk import mlx_topk, mlx_topk_candidates
+from sglang.srt.hardware_backend.mlx.draft_readout import DraftReadout
 
 
 def _config_dict(config) -> dict:
@@ -131,8 +132,15 @@ class CandidateSelector(nn.Module):
         self.successor_codebook = mx.zeros((vocab, rank))
         self.hidden_projection = nn.Linear(hidden, rank, bias=False)
 
-    def select(self, hidden, logits, anchors):
-        unary, ids = mlx_topk(logits, self.top_k)
+    def select(self, hidden, logits, anchors, *, token_ids=None, candidates=None):
+        if candidates is not None:
+            unary, ids = candidates
+        else:
+            unary, ids = (
+                mlx_topk(logits, self.top_k)
+                if token_ids is None
+                else mlx_topk_candidates(logits, token_ids, self.top_k)
+            )
         projected = self.hidden_projection(hidden)
         successors = self.successor_codebook[ids]
         predecessor = anchors.reshape(-1)
@@ -400,7 +408,13 @@ class DFlash2Model(nn.Module):
             x, kernel = layer.mlp_conv.prepare(layer.post_attention_layernorm(h))
             h = h + layer.mlp_conv.finish(layer.mlp(x), kernel)
         hidden = self.norm(h)[:, 1 : num_drafts + 1]
-        logits = lm_head(hidden)[..., : self.vocab_size].astype(mx.float32)
+        readout = lm_head(hidden)
+        if isinstance(readout, tuple):
+            logits, token_ids = readout
+            logits = logits.astype(mx.float32)
+        else:
+            logits = readout[..., : self.vocab_size].astype(mx.float32)
+            token_ids = None
         multiplier = float(
             self.config["dflash_config"].get(
                 "output_multiplier", self.config.get("output_multiplier", 1.0)
@@ -412,7 +426,14 @@ class DFlash2Model(nn.Module):
         )
         if softcap is not None and float(softcap) > 0:
             logits = mx.tanh(logits / float(softcap)) * float(softcap)
-        return self.candidate_selector.select(hidden, logits, anchors)
+        candidates = (
+            lm_head.topk(logits, token_ids, self.candidate_selector.top_k)
+            if isinstance(lm_head, DraftReadout)
+            else None
+        )
+        return self.candidate_selector.select(
+            hidden, logits, anchors, token_ids=token_ids, candidates=candidates
+        )
 
 
 def load_dflash2(model_dir: Path, target: Any) -> DFlash2Model:

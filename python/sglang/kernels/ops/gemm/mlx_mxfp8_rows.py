@@ -158,3 +158,67 @@ def mlx_mxfp8_rows(x, weight, scales, *, tilegroups=None):
         output_shapes=[(count, n)],
         output_dtypes=[x.dtype],
     )[0].reshape(*x.shape[:-1], n)
+
+
+@cache
+def _indexed_kernel():
+    source = (
+        _SOURCE.replace(
+            "const int row = min(out_row, N - 1);",
+            "const int row = min(out_row, N - 1);\n"
+            "const uint weight_row = ids[row];\n"
+            "if (weight_row >= uint(dims[3])) {\n"
+            "    if (k_lane == 0 && out_row < N)\n"
+            "        for (int v=0;v<TILE;++v) if(vec0+v<M)\n"
+            "            out[size_t(vec0+v)*N+out_row] = T(-INFINITY);\n"
+            "    return;\n}\n",
+        )
+        .replace("size_t(row) * K", "size_t(weight_row) * K")
+        .replace("size_t(row) * groups", "size_t(weight_row) * groups")
+    )
+    return mx.fast.metal_kernel(
+        name="sglang_mxfp8_indexed_rows",
+        input_names=["x", "weight", "scales", "dims", "ids"],
+        output_names=["out"],
+        source=source,
+        header=_HEADER,
+    )
+
+
+def mlx_mxfp8_indexed_rows(x, weight, scales, ids):
+    """Score shared vocabulary IDs directly from unchanged packed weight rows.
+
+    Retains wide-QMV arithmetic and output rounding. Out-of-range IDs denote
+    padding and yield negative infinity without reading matrix storage.
+    No selected-weight copy or host read of the ID buffer is required.
+    """
+    if x.ndim < 1 or x.dtype not in (mx.bfloat16, mx.float32):
+        raise ValueError("Expected BF16/F32 vectors")
+    if weight.ndim != 2 or weight.dtype not in (mx.uint8, mx.uint32):
+        raise ValueError("Expected packed MXFP8 matrix")
+    n = weight.shape[0]
+    k = weight.shape[1] * (4 if weight.dtype == mx.uint32 else 1)
+    if not n or not k or k % 32 or x.shape[-1] != k:
+        raise ValueError("Expected aligned MXFP8 rows")
+    if scales.dtype != mx.uint8 or scales.shape != (n, k // 32):
+        raise ValueError("Expected UE8M0 scales")
+    if ids.ndim != 1 or not ids.size or ids.dtype != mx.uint32:
+        raise ValueError("Expected nonempty uint32 vocabulary IDs")
+    count = x.size // k
+    if not count or max(k, n, count, ids.size) >= 2**31:
+        raise ValueError("Expected positive native int dimensions")
+    tile = min(count, 8)
+    return _indexed_kernel()(
+        inputs=[
+            x.reshape(count, k),
+            weight,
+            scales,
+            mx.array([k, ids.size, count, n], mx.int32),
+            ids,
+        ],
+        template=[("T", x.dtype), ("TILE", tile), ("KL", 16)],
+        grid=(32 * ((count + tile - 1) // tile), 2 * ((ids.size + 3) // 4), 1),
+        threadgroup=(32, 2, 1),
+        output_shapes=[(count, ids.size)],
+        output_dtypes=[x.dtype],
+    )[0].reshape(*x.shape[:-1], ids.size)

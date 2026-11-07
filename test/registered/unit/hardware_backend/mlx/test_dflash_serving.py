@@ -443,7 +443,15 @@ class TestMlxDFlashServing(CustomTestCase):
             self._assert_array(hidden, expected)
             features.append(captured)
         snapshots = self._snapshots(cache)
+        source_readout = serving.states["source"].readout
+        source_readout.ids = mx.array([1, 2, 3], mx.uint32)
+        source_readout.calls = 3
         restored = self._restore(snapshots)
+        fork_readout = serving._state("fork", restored).readout
+        self.assertIsNot(fork_readout, source_readout)
+        self.assertIsNone(fork_readout.ids)
+        self.assertEqual(fork_readout.calls, 0)
+        self.assertEqual(list(fork_readout.recent), self.prompt[:10])
         self._assert_cache(restored, reference)
         saved_state = cache[0].mlx_dflash[2]
         restored_state = restored[0].mlx_dflash[2]

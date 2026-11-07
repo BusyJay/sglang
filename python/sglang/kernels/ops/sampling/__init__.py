@@ -106,3 +106,22 @@ def mlx_topk(logits, k=16):
 
 
 __all__.append("mlx_topk")
+
+register_kernel(
+    KernelSpec(
+        op="sampling.mlx_topk_candidates",
+        backend=KernelBackend.MLX,
+        target="sglang.kernels.ops.sampling.mlx_topk:mlx_topk_candidates",
+        capabilities=frozenset({CapabilityRequirement(device=DeviceType.MPS)}),
+    )
+)
+
+
+def mlx_topk_candidates(logits, token_ids, k=16):
+    """Select distinct global token IDs from a padded candidate vocabulary."""
+    return get_kernel("sampling.mlx_topk_candidates", KernelBackend.MLX)(
+        logits, token_ids, k
+    )
+
+
+__all__.append("mlx_topk_candidates")
