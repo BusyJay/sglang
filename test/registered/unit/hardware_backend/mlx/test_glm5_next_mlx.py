@@ -91,7 +91,6 @@ class TestGlm5NextMlx(CustomTestCase):
                     64,
                     [1, 2, 3],
                     1,
-                    None,
                     True,
                     None,
                     None,
@@ -113,6 +112,79 @@ class TestGlm5NextMlx(CustomTestCase):
             ):
                 if a is None:
                     self.assertIsNone(b)
+                else:
+                    self.assertTrue(mx.array_equal(a, b).item())
+
+    def test_native_prefix_branch_hint_preserves_scheduled_suffix(self):
+        """An optional radix checkpoint cannot change native prefill numerics."""
+        import copy
+        from types import SimpleNamespace
+
+        import mlx.core as mx
+        from mlx.utils import tree_flatten
+
+        from sglang.srt.hardware_backend.mlx.kv_cache.auxiliary_state import (
+            _restore_cache,
+            _snapshot_cache,
+        )
+        from sglang.srt.hardware_backend.mlx.model_runner import MlxModelRunner
+
+        model = copy.deepcopy(self.model)
+        runner = object.__new__(MlxModelRunner)
+        runner.model = model
+        runner._mtp = None
+        runner._enable_sampling = False
+        runner._native_cache = True
+        runner.disable_radix_cache = False
+        runner._req_to_token_pool = None
+        runner._cache_layout = SimpleNamespace(has_auxiliary_state=True)
+
+        tokens = [10, 11, 12, 13] * 8
+        cold = model.make_cache()
+        model.model(mx.array([tokens[:16]], mx.int32), cache=cold)
+        snapshots = [_snapshot_cache(cache) for cache in cold]
+        reference, _ = runner._forward_lazy_token(
+            mx.array([tokens[16:]], mx.int32), cold, True, "cold"
+        )
+
+        def restore(_, cache):
+            for dst, src in zip(cache, snapshots, strict=True):
+                _restore_cache(dst, src)
+            return True
+
+        req = SimpleNamespace(
+            kv=SimpleNamespace(mamba_last_track_seqlen=None),
+            mamba_branching_seqlen=24,
+        )
+        with (
+            patch.object(runner, "_acquire_cache", side_effect=model.make_cache),
+            patch.object(runner, "_restore_auxiliary_state", side_effect=restore),
+            patch.object(
+                runner, "_forward_lazy_token", wraps=runner._forward_lazy_token
+            ) as forward,
+            patch(
+                "sglang.srt.hardware_backend.mlx.model_runner.mamba_cache_chunk_size",
+                return_value=8,
+            ),
+        ):
+            warm = runner.prefill_start(
+                req_id="warm",
+                new_token_ids=tokens[16:],
+                full_token_ids=tokens,
+                prefix_slot_ids=list(range(16)),
+                new_slot_ids=list(range(16, 32)),
+                req_pool_idx=1,
+                req=req,
+            )
+        self.assertEqual([c.args[0].size for c in forward.call_args_list], [16])
+        self.assertTrue(mx.array_equal(reference, warm.lazy_token).item())
+        for actual, expected in zip(warm.cache, cold, strict=True):
+            self.assertEqual(actual.offset, len(tokens))
+            for (_, a), (_, b) in zip(
+                tree_flatten(actual.state), tree_flatten(expected.state), strict=True
+            ):
+                if b is None:
+                    self.assertIsNone(a)
                 else:
                     self.assertTrue(mx.array_equal(a, b).item())
 

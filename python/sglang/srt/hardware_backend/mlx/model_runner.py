@@ -1137,7 +1137,6 @@ class MlxModelRunner:
                 prefix_len,
                 new_slot_ids,
                 req_pool_idx,
-                req,
                 needs_logits,
                 logit_edit_row,
                 logprob_spec,
@@ -1275,7 +1274,6 @@ class MlxModelRunner:
         prefix_len,
         new_slot_ids,
         req_pool_idx,
-        req,
         needs_logits,
         logit_edit_row,
         logprob_spec,
@@ -1295,13 +1293,10 @@ class MlxModelRunner:
         else:
             run_tokens = list(new_token_ids)
             run_prefix = prefix_len
-        track_len = self._select_auxiliary_state_track_len(
-            prefix_len=run_prefix,
-            new_token_count=len(run_tokens),
-            full_len=run_prefix + len(run_tokens),
-            req=req,
-        )
-        split = track_len - run_prefix if track_len is not None else None
+        # Native prefill and extend already publish the executed chunk boundary
+        # at finalize. An optional radix branching checkpoint must not split
+        # the scheduled forward: target rounding can depend on its shape,
+        # making a cache hit change logits for the same prompt.
         if run_prefix == 0 and prefix_len > 0:
             # A missing recurrent snapshot expands a scheduler-sized suffix
             # back to the complete prefix. Preserve the prefill submission
@@ -1311,9 +1306,7 @@ class MlxModelRunner:
             if chunk_size is not None and chunk_size > 0:
                 consumed = 0
                 while len(run_tokens) - consumed > chunk_size:
-                    end = min(consumed + chunk_size, len(run_tokens))
-                    if split is not None and consumed < split < end:
-                        end = split
+                    end = consumed + chunk_size
                     token, _ = self._forward_lazy_token(
                         mx.array(
                             [run_tokens[consumed:end]], self._prompt_token_dtype(req_id)
@@ -1324,16 +1317,7 @@ class MlxModelRunner:
                     )
                     mx.eval(token, [c.state for c in cache])
                     consumed = end
-                    if split is not None and consumed == split:
-                        self._store_tracked_auxiliary_state(req, cache, track_len)
                 run_tokens = run_tokens[consumed:]
-                if split is not None:
-                    split -= consumed
-        if split is not None and 0 < split < len(run_tokens):
-            inputs = mx.array([run_tokens[:split]], self._prompt_token_dtype(req_id))
-            self._forward_lazy_token(inputs, cache, False, req_id)
-            self._store_tracked_auxiliary_state(req, cache, track_len)
-            run_tokens = run_tokens[split:]
         lazy_token, lazy_logprobs = self._forward_lazy_token(
             mx.array([run_tokens], self._prompt_token_dtype(req_id)),
             cache,
@@ -1342,8 +1326,6 @@ class MlxModelRunner:
             logit_edit_row,
             logprob_spec,
         )
-        if track_len is not None and all(c.offset == track_len for c in cache):
-            self._store_tracked_auxiliary_state(req, cache, track_len)
         return MlxPendingPrefill(
             lazy_token=lazy_token,
             cache=cache,
