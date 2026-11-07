@@ -1,0 +1,98 @@
+/Users/jay/workspace/sglang/python/sglang/srt/layers/quantization/awq/awq.py:53: UserWarning: Only CUDA, HIP and XPU support AWQ currently.
+  warnings.warn(f"Only CUDA, HIP and XPU support AWQ currently.")
+[CI Test Method] TestMlxRagged.test_compiled_runtime_lengths_and_split_preserve_reductions
+.[CI Test Method] TestMlxRagged.test_empty_segments_and_zero_visibility_preserve_attention
+.[CI Test Method] TestMlxRagged.test_implicit_positions_match_tables_with_runtime_visibility
+.[CI Test Method] TestMlxRagged.test_segmented_kv_preserves_native_reduction_and_visibility
+.[CI Test Method] TestMlxRagged.test_sparse_rows_empty_sets_and_poisoned_tails
+.[CI Test Method] TestMlxRagged.test_width_buckets_above_4096_preserve_native_rows
+.[CI Test Method] TestMlxMxfp8Tiles.test_indexed_rows_preserve_full_projection_values_and_padding
+.[CI Test Method] TestMlxMxfp8Tiles.test_partial_tiles_match_four_vector_reference
+.[CI Test Method] TestMlxTopk.test_candidate_ids_deduplicate_across_tiles_and_ignore_padding
+.[CI Test Method] TestMlxTopk.test_other_k_and_invalid_arguments
+.[CI Test Method] TestMlxTopk.test_special_values_signed_zero_and_one_dimensional
+.[CI Test Method] TestMlxTopk.test_strided_inputs_and_recursive_candidate_merge
+.[CI Test Method] TestMlxTopk.test_target_random_and_rounded_ties
+.[CI Test Method] TestMlxTopk.test_tiles_tails_and_concentrated_winners
+.......................
+----------------------------------------------------------------------
+Ran 36 tests in 6.906s
+
+OK
+RMSNorm: maxabs=0.015625 rms=0.0015611763 BF16_ULP=0.015625
+Linear: maxabs=0 rms=0 BF16_ULP=0.0078125
+Linear: maxabs=0 rms=0 BF16_ULP=0.0078125
+RMSNorm: maxabs=0.015625 rms=0.0042952341 BF16_ULP=0.015625
+Linear: maxabs=0 rms=0 BF16_ULP=0.00390625
+RMSNorm: maxabs=0.015625 rms=0.0050684912 BF16_ULP=0.015625
+Linear: maxabs=0 rms=0 BF16_ULP=0.015625
+SDPA: maxabs=0.0078125 rms=0.0015107502 BF16_ULP=0.0078125
+SDPA: maxabs=0.00390625 rms=0.00092305231 BF16_ULP=0.0078125
+Linear: maxabs=0 rms=0 BF16_ULP=0.0078125
+RMSNorm: maxabs=0.015625 rms=0.0030532482 BF16_ULP=0.015625
+Linear: maxabs=0 rms=0 BF16_ULP=0.0078125
+Linear: maxabs=0 rms=0 BF16_ULP=0.0078125
+Linear: maxabs=0 rms=0 BF16_ULP=0.0078125
+SiLU: maxabs=0.00390625 rms=0.00058612111 BF16_ULP=0.0078125
+Linear: maxabs=0 rms=0 BF16_ULP=0.001953125
+RMSNorm: maxabs=0.015625 rms=0.0023187625 BF16_ULP=0.015625
+Linear: maxabs=0 rms=0 BF16_ULP=0.0078125
+Linear: maxabs=0 rms=0 BF16_ULP=0.0078125
+RMSNorm: maxabs=0.015625 rms=0.0028086535 BF16_ULP=0.015625
+Linear: maxabs=0 rms=0 BF16_ULP=0.0078125
+RMSNorm: maxabs=0.015625 rms=0.003037764 BF16_ULP=0.015625
+Linear: maxabs=0 rms=0 BF16_ULP=0.0078125
+SDPA: maxabs=0.00390625 rms=0.0013213067 BF16_ULP=0.00390625
+SDPA: maxabs=0.00390625 rms=0.00091516681 BF16_ULP=0.0078125
+Linear: maxabs=0 rms=0 BF16_ULP=0.00390625
+RMSNorm: maxabs=0.0078125 rms=0.0024381615 BF16_ULP=0.015625
+Linear: maxabs=0 rms=0 BF16_ULP=0.0078125
+Linear: maxabs=0 rms=0 BF16_ULP=0.015625
+Linear: maxabs=0 rms=0 BF16_ULP=0.015625
+SiLU: maxabs=0.0078125 rms=0.001279025 BF16_ULP=0.0078125
+Linear: maxabs=0 rms=0 BF16_ULP=0.00390625
+RMSNorm: maxabs=0.015625 rms=0.002624437 BF16_ULP=0.015625
+chunked K: maxabs=0 rms=0 BF16_ULP=0.015625
+chunked V: maxabs=0 rms=0 BF16_ULP=0.0078125
+chunked K: maxabs=0 rms=0 BF16_ULP=0.015625
+chunked V: maxabs=0 rms=0 BF16_ULP=0.00390625
+RMSNorm: maxabs=0.00390625 rms=0.00096118258 BF16_ULP=0.015625
+Linear: maxabs=0 rms=0 BF16_ULP=0.0078125
+Linear: maxabs=0 rms=0 BF16_ULP=0.0078125
+RMSNorm: maxabs=0.015625 rms=0.0041391556 BF16_ULP=0.015625
+Linear: maxabs=0 rms=0 BF16_ULP=0.00390625
+RMSNorm: maxabs=0.015625 rms=0.0051109428 BF16_ULP=0.015625
+Linear: maxabs=0 rms=0 BF16_ULP=0.015625
+SDPA: maxabs=0.00390625 rms=0.0008995611 BF16_ULP=0.00390625
+Linear: maxabs=0 rms=0 BF16_ULP=0.001953125
+RMSNorm: maxabs=0.015625 rms=0.0031583849 BF16_ULP=0.015625
+Linear: maxabs=0 rms=0 BF16_ULP=0.0078125
+Linear: maxabs=0 rms=0 BF16_ULP=0.0078125
+Linear: maxabs=0 rms=0 BF16_ULP=0.0078125
+SiLU: maxabs=0.00390625 rms=0.00060869305 BF16_ULP=0.00390625
+Linear: maxabs=0 rms=0 BF16_ULP=0.0009765625
+RMSNorm: maxabs=0.0078125 rms=0.0027231916 BF16_ULP=0.015625
+Linear: maxabs=0 rms=0 BF16_ULP=0.00390625
+Linear: maxabs=0 rms=0 BF16_ULP=0.00390625
+RMSNorm: maxabs=0.0078125 rms=0.0031223712 BF16_ULP=0.015625
+Linear: maxabs=0 rms=0 BF16_ULP=0.0078125
+RMSNorm: maxabs=0.015625 rms=0.0034353971 BF16_ULP=0.015625
+Linear: maxabs=0 rms=0 BF16_ULP=0.0078125
+SDPA: maxabs=0.00390625 rms=0.00072232378 BF16_ULP=0.00390625
+Linear: maxabs=0 rms=0 BF16_ULP=0.001953125
+RMSNorm: maxabs=0.0078125 rms=0.0029581594 BF16_ULP=0.015625
+Linear: maxabs=0 rms=0 BF16_ULP=0.0078125
+Linear: maxabs=0 rms=0 BF16_ULP=0.015625
+Linear: maxabs=0 rms=0 BF16_ULP=0.015625
+SiLU: maxabs=0.00390625 rms=0.0010852361 BF16_ULP=0.0078125
+Linear: maxabs=0 rms=0 BF16_ULP=0.001953125
+RMSNorm: maxabs=0.0078125 rms=0.0024642826 BF16_ULP=0.015625
+context fc: maxabs=0 rms=0 BF16_ULP=0.015625
+context hidden_norm: maxabs=0.015625 rms=0.0020836692 BF16_ULP=0.015625
+selector dot: maxabs=0 rms=0 BF16_ULP=0.015625
+selector dot: maxabs=0 rms=0 BF16_ULP=0.03125
+selector dot: maxabs=0 rms=0 BF16_ULP=0.0625
+selector dot: maxabs=0 rms=0 BF16_ULP=0.03125
+selector dot: maxabs=0 rms=0 BF16_ULP=0.03125
+selector dot: maxabs=0 rms=0 BF16_ULP=0.03125
+selector dot: maxabs=0 rms=0 BF16_ULP=0.015625
